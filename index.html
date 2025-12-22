@@ -3,29 +3,28 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-    <title>ARUME V45 · Gold Master</title>
+    <title>ARUME V46 · Platinum</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
     <style>
-        /* === ARUME DESIGN SYSTEM V45 === */
+        /* === ESTILOS PLATINUM V46 === */
         :root {
             --bg: #f8fafc; --paper: #ffffff; --text: #0f172a; --sub: #64748b;
             --primary: #0f172a; --accent: #2563eb; 
-            --success: #16a34a; --danger: #dc2626; --warn: #d97706;
+            --success: #16a34a; --danger: #dc2626; --warn: #f59e0b;
             --border: #e2e8f0; --radius: 10px;
         }
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         body { margin: 0; font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); padding-bottom: 90px; height: 100vh; overflow-y: scroll; }
 
-        /* HEADER */
+        /* UI GLOBAL */
         header { background: var(--paper); padding: 15px 20px; position: sticky; top: 0; z-index: 50; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
-        h1 { margin: 0; font-size: 1.3rem; font-weight: 900; letter-spacing: 1px; color: var(--primary); }
+        h1 { margin: 0; font-size: 1.2rem; font-weight: 900; letter-spacing: 1px; color: var(--primary); }
         .badge { padding: 5px 12px; border-radius: 99px; font-size: 0.75rem; background: #f1f5f9; color: var(--text); font-weight: 700; border: 1px solid var(--border); cursor: pointer; display: flex; align-items: center; gap: 5px; }
         .dot { width: 8px; height: 8px; border-radius: 50%; background: #ccc; } .dot.ok { background: var(--success); }
 
-        /* LAYOUT */
-        main { max-width: 900px; margin: 0 auto; padding: 20px; animation: fade 0.3s ease-out; }
+        main { max-width: 1000px; margin: 0 auto; padding: 20px; animation: fade 0.3s ease-out; }
         @keyframes fade { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
         
         .card { background: var(--paper); border-radius: var(--radius); padding: 20px; margin-bottom: 20px; border: 1px solid var(--border); box-shadow: 0 1px 3px rgba(0,0,0,0.03); }
@@ -33,38 +32,41 @@
         .title { font-size: 0.85rem; font-weight: 800; color: var(--sub); text-transform: uppercase; letter-spacing: 0.5px; }
         .row { display: flex; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; } .col { flex: 1; min-width: 140px; }
 
-        /* TOAST NOTIFICATIONS */
-        #toast-container { position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%); z-index: 200; display: flex; flex-direction: column; gap: 10px; pointer-events: none; width: 90%; max-width: 400px; }
-        .toast { background: #1e293b; color: white; padding: 12px 20px; border-radius: 8px; font-size: 0.9rem; box-shadow: 0 4px 12px rgba(0,0,0,0.2); animation: slideUp 0.3s; pointer-events: auto; display: flex; align-items: center; gap: 10px; justify-content: center; }
-        .toast.success { border-bottom: 4px solid var(--success); }
-        .toast.error { border-bottom: 4px solid var(--danger); }
-        @keyframes slideUp { from{opacity:0; transform:translateY(20px)} to{opacity:1; transform:translateY(0)} }
+        /* MATRIX BCG (Recuperado) */
+        .matrix-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px; }
+        .matrix-box { padding: 15px; border-radius: 12px; text-align: center; color: white; min-height: 100px; display: flex; flex-direction: column; justify-content: center; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .bg-star { background: linear-gradient(135deg, #10b981, #059669); }
+        .bg-plow { background: linear-gradient(135deg, #3b82f6, #2563eb); }
+        .bg-puzzle { background: linear-gradient(135deg, #f59e0b, #d97706); }
+        .bg-dog { background: linear-gradient(135deg, #ef4444, #dc2626); }
+        .matrix-val { font-size: 2rem; font-weight: 800; }
+        .matrix-lbl { font-size: 0.8rem; font-weight: 600; opacity: 0.9; text-transform: uppercase; }
 
-        /* TABLAS Y LISTAS */
+        /* TABLAS */
         .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; }
         table { width: 100%; border-collapse: collapse; font-size: 0.9rem; min-width: 600px; }
         th { text-align: left; background: #f8fafc; color: var(--sub); padding: 10px; font-size: 0.75rem; text-transform: uppercase; border-bottom: 1px solid var(--border); }
         td { padding: 12px 10px; border-bottom: 1px solid #f1f5f9; color: var(--text); }
-        tr:last-child td { border: none; }
         
         .list-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #f1f5f9; transition: 0.1s; }
         .list-item:hover { background: #f8fafc; padding-left: 5px; padding-right: 5px; border-radius: 6px; }
-        
-        /* ESTADOS INTERACTIVOS */
-        .status-btn { padding: 4px 10px; border-radius: 6px; font-size: 0.75rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; cursor: pointer; border: none; transition: 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-        .status-btn:active { transform: scale(0.95); }
+
+        /* ESTADOS */
+        .status-btn { padding: 4px 10px; border-radius: 6px; font-size: 0.75rem; font-weight: 800; text-transform: uppercase; cursor: pointer; border: none; transition: 0.2s; }
         .status-btn.paid { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
         .status-btn.pending { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+        .status { padding: 3px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; }
+        .status.ok { background: #dcfce7; color: #166534; }
+        .status.warn { background: #fef3c7; color: #92400e; }
+        .status.bad { background: #fee2e2; color: #991b1b; }
 
-        /* INPUTS */
+        /* INPUTS & BTN */
         label { display: block; font-size: 0.75rem; font-weight: 700; color: var(--sub); margin-bottom: 4px; }
         input, select, textarea { width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 15px; background: #fff; font-family: inherit; margin-bottom: 10px; outline: none; transition: 0.2s; }
         input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px #bfdbfe; }
         .search-bar { background: #f1f5f9; border: none; margin-bottom: 15px; padding: 12px; font-size: 1rem; }
 
-        /* BOTONES */
-        .btn { width: 100%; padding: 12px; border-radius: 8px; border: none; font-weight: 600; cursor: pointer; font-size: 0.9rem; text-align: center; margin-top: 5px; transition: 0.1s; display: inline-block; }
-        .btn:active { transform: scale(0.98); opacity: 0.9; }
+        .btn { width: 100%; padding: 12px; border-radius: 8px; border: none; font-weight: 600; cursor: pointer; font-size: 0.9rem; text-align: center; margin-top: 5px; display: inline-block; }
         .btn-primary { background: var(--primary); color: white; }
         .btn-accent { background: var(--accent); color: white; }
         .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--text); }
@@ -77,17 +79,21 @@
         nav button.active { opacity: 1; color: var(--accent); transform: translateY(-2px); }
         nav button svg { width: 22px; height: 22px; fill: currentColor; }
 
-        /* MODAL */
+        /* MODAL & PIN */
         .hidden { display: none !important; }
         .overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 100; backdrop-filter: blur(3px); display: flex; align-items: center; justify-content: center; opacity: 0; animation: fadeIn 0.2s forwards; }
         @keyframes fadeIn { to { opacity: 1; } }
         .modal { background: white; width: 95%; max-width: 600px; max-height: 90vh; overflow-y: auto; padding: 25px; border-radius: 12px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); }
-
-        /* PIN PAD */
         #pin-screen { background: #0f172a; color: white; }
         .pin-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-top: 20px; }
-        .pin-btn { height: 70px; border-radius: 50%; border: 1px solid #334155; background: rgba(255,255,255,0.05); font-size: 1.5rem; color: white; cursor: pointer; font-weight: 600; transition: 0.1s; }
-        .pin-btn:active { background: var(--accent); border-color: var(--accent); }
+        .pin-btn { height: 70px; border-radius: 50%; border: 1px solid #334155; background: rgba(255,255,255,0.05); font-size: 1.5rem; color: white; cursor: pointer; font-weight: 600; }
+        
+        /* TOAST */
+        #toast-container { position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%); z-index: 200; width: 90%; max-width: 400px; display: flex; flex-direction: column; gap: 10px; }
+        .toast { background: #1e293b; color: white; padding: 12px 20px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.2); animation: slideUp 0.3s; display: flex; align-items: center; gap: 10px; justify-content: center; }
+        .toast.success { border-bottom: 4px solid var(--success); }
+        .toast.error { border-bottom: 4px solid var(--danger); }
+        @keyframes slideUp { from{opacity:0; transform:translateY(20px)} to{opacity:1; transform:translateY(0)} }
     </style>
 </head>
 <body>
@@ -95,7 +101,7 @@
     <div id="toast-container"></div>
 
     <header>
-        <h1>ARUME <span style="font-size:0.6em; opacity:0.5; font-weight:400">GOLD</span></h1>
+        <h1>ARUME <span style="font-size:0.6em; opacity:0.5; font-weight:400">PLATINUM</span></h1>
         <button id="user-display" class="badge" onclick="logout()">
             <div id="sync-dot" class="dot"></div> <span id="user-name">...</span>
         </button>
@@ -118,7 +124,7 @@
     <div id="pin-screen" class="overlay" style="opacity:1">
         <div class="modal" style="text-align:center; background:transparent; box-shadow:none; color:white">
             <h2 style="font-size:2rem; margin:0; letter-spacing:2px">ARUME</h2>
-            <p style="opacity:0.6; margin-bottom:30px">Gestión V45</p>
+            <p style="opacity:0.6; margin-bottom:30px">Acceso V46</p>
             <div id="pin-display" style="font-size:3rem; font-weight:800; letter-spacing:10px">****</div>
             <div class="pin-grid">
                 <button class="pin-btn" onclick="pinInput('1')">1</button><button class="pin-btn" onclick="pinInput('2')">2</button><button class="pin-btn" onclick="pinInput('3')">3</button>
@@ -132,32 +138,26 @@
     </div>
 
 <script>
-/* ================= 1. CONFIGURACIÓN ================= */
+/* ================= 1. CONFIG ================= */
 const generateID = () => crypto.randomUUID ? crypto.randomUUID() : Date.now().toString() + Math.random().toString(36).substring(2);
 const CONFIG = { GOOGLE_URL: "", COST_HOUR: 15 };
 
 const DB_INIT = {
     users: [{id:'u1', n:'Dueño', pin:'0150', role:'admin'}, {id:'u2', n:'Cocina', pin:'1111', role:'staff'}],
-    ingredientes: [
-        {id:'i1', n:'Salmón Entero', cost:12.50, stock:5.0, unit:'kg', yield:0.60, aller:['Pescado']},
-        {id:'i2', n:'Arroz Sushi', cost:2.20, stock:25.0, unit:'kg', yield:1.00, aller:[]},
-        {id:'i3', n:'Vinagre', cost:3.50, stock:5, unit:'L', yield:1.00, aller:[]}
-    ],
-    recetas: [
-        {id:'r1', n:'Nigiri Salmón (x2)', cat:'Nigiris', pvp:5.50, time:5, items:[{id:'i1',q:0.035},{id:'i2',q:0.040}]}
-    ],
-    proveedores: [{n:'Makro'}, {n:'Tokyo-ya'}, {n:'Frutas Daniel'}, {n:'Hijos de Ramón Oliver'}],
+    ingredientes: [{id:'i1', n:'Salmón', cost:12.50, stock:5, unit:'kg', yield:0.60, aller:['Pescado']}, {id:'i2', n:'Arroz', cost:2.20, stock:25, unit:'kg', yield:1, aller:[]}],
+    recetas: [{id:'r1', n:'Nigiri Salmón', cat:'Nigiris', pvp:5.50, time:5, sales:0, items:[{id:'i1',q:0.035},{id:'i2',q:0.040}]}],
+    proveedores: [{n:'Makro'}, {n:'Tokyo-ya'}],
     albaranes: [], facturas: [], diario: [], mermas: [], lastSync: 0
 };
 
-let db = JSON.parse(localStorage.getItem('arume_v45')) || DB_INIT;
+let db = JSON.parse(localStorage.getItem('arume_v46')) || DB_INIT;
 let currentUser = null;
 let currentPin = "";
 let chartInstance = null;
 let tempItems = []; 
 let searchFilter = "";
 
-/* ================= 2. CORE UTILS ================= */
+/* ================= 2. UTILS ================= */
 function showToast(msg, type='success') {
     const box = document.getElementById('toast-container');
     const toast = document.createElement('div');
@@ -170,22 +170,12 @@ function showToast(msg, type='success') {
 function init() {
     const u = localStorage.getItem('arume_user');
     if(u) { currentUser=JSON.parse(u); document.getElementById('pin-screen').classList.add('hidden'); loadApp(); }
-    if(CONFIG.GOOGLE_URL) sync();
 }
 
 function save(msg){
     db.lastSync = Date.now();
-    localStorage.setItem('arume_v45', JSON.stringify(db));
-    if(CONFIG.GOOGLE_URL) fetch(CONFIG.GOOGLE_URL, {method:'POST', mode:'no-cors', body:JSON.stringify(db)});
+    localStorage.setItem('arume_v46', JSON.stringify(db));
     if(msg) showToast(msg, 'success');
-}
-
-async function sync(){
-    if(!CONFIG.GOOGLE_URL)return;
-    try { const r=await fetch(CONFIG.GOOGLE_URL); const c=await r.json(); 
-          if(c.lastSync>(db.lastSync||0)){ db=c; save(); showToast("Datos actualizados"); location.reload(); }
-          document.getElementById('sync-dot').classList.add('ok');
-    } catch(e){}
 }
 
 /* ================= 3. AUTH ================= */
@@ -198,9 +188,9 @@ function pinCheck(){
 }
 function logout(){ localStorage.removeItem('arume_user'); location.reload(); }
 
-/* ================= 4. UI & RENDER ================= */
+/* ================= 4. UI RENDER ================= */
 function loadApp() {
-    document.getElementById('user-display').innerText = currentUser.n;
+    document.getElementById('user-name').innerText = currentUser.n;
     renderNav();
     render(currentUser.role==='admin'?'Admin':'Diario');
 }
@@ -228,7 +218,7 @@ function render(view) {
     document.getElementById(`btn-${view}`)?.classList.add('active');
     const app = document.getElementById('app'); app.innerHTML='';
 
-    // --- 1. DIARIO (CAJA Z) ---
+    // --- DIARIO ---
     if(view === 'Diario') {
         const today = new Date().toISOString().split('T')[0];
         const report = db.diario.find(d => d.date === today);
@@ -246,24 +236,25 @@ function render(view) {
             <button class="btn btn-primary" onclick="saveZ()">💾 GUARDAR</button>
         </div>
         <div class="card">
-            <div class="section-header"><div class="title">EVOLUCIÓN SEMANAL</div></div>
+            <div class="section-header"><div class="title">EVOLUCIÓN</div></div>
             <canvas id="chartZ" style="max-height:200px"></canvas>
         </div>`;
         setTimeout(renderChart, 100);
     }
 
-    // --- 2. ADMIN (ALBARANES Y FACTURAS) ---
+    // --- ADMIN (MENU ENGINEERING ADDED) ---
     if(view === 'Admin') {
         app.innerHTML = `
         <div class="row">
-            <button class="btn btn-ghost col" onclick="renderAlbaran()">📥 Nuevo Albarán</button>
-            <button class="btn btn-ghost col" onclick="renderContabilidad()">📑 Contabilidad</button>
+            <button class="btn btn-ghost col" onclick="renderAlbaran()">📥 Albarán</button>
+            <button class="btn btn-ghost col" onclick="renderContabilidad()">📑 Facturas</button>
+            <button class="btn btn-ghost col" onclick="renderEngineering()">📊 Menú</button>
         </div>
         <div id="admin-panel"></div>`;
         renderContabilidad(); 
     }
 
-    // --- 3. COCINA ---
+    // --- COCINA ---
     if(view === 'Cocina') {
         const filtered = db.recetas.filter(r => r.n.toLowerCase().includes(searchFilter.toLowerCase()));
         app.innerHTML = `
@@ -274,38 +265,98 @@ function render(view) {
                 const c = calcRecipe(r);
                 return `<div class="list-item" onclick="viewRecipe('${r.id}')">
                     <div><b>${r.n}</b> <small>(${r.cat})</small></div>
-                    <div style="text-align:right"><span class="status ${r.pvp>c.total*3?'paid':'warn'}">${c.total.toFixed(2)}€</span></div>
+                    <div style="text-align:right"><span class="status ${r.pvp>c.total*3?'ok':'warn'}">${c.total.toFixed(2)}€</span></div>
                 </div>`;
             }).join('')}
         </div>`;
     }
 
-    // --- 4. STOCK ---
+    // --- STOCK ---
     if(view === 'Stock') {
         const filtered = db.ingredientes.filter(i => i.n.toLowerCase().includes(searchFilter.toLowerCase()));
         app.innerHTML = `
         <div class="card">
             <div class="section-header">
                 <div class="title">INVENTARIO</div>
-                <div style="display:flex; gap:5px">
-                    <button class="btn btn-sm btn-danger" onclick="modalMerma()">Merma</button>
-                    <button class="btn btn-sm btn-accent" onclick="newIng()">+ Nuevo</button>
-                </div>
+                <div style="display:flex; gap:5px"><button class="btn btn-sm btn-danger" onclick="modalMerma()">Merma</button><button class="btn btn-sm btn-accent" onclick="newIng()">+ Nuevo</button></div>
             </div>
-            <input class="search-bar" placeholder="🔍 Buscar ingrediente..." value="${searchFilter}" oninput="searchFilter=this.value; render('Stock')">
+            <input class="search-bar" placeholder="🔍 Buscar..." value="${searchFilter}" oninput="searchFilter=this.value; render('Stock')">
             ${filtered.map(i => `
                 <div class="list-item" onclick="editIng('${i.id}')">
                     <div><b>${i.n}</b> <small>${i.cost.toFixed(2)}€/${i.unit}</small></div>
-                    <div style="text-align:right">
-                        <b>${i.stock.toFixed(2)} ${i.unit}</b><br>
-                        <small>Rend: ${i.yield*100}%</small>
-                    </div>
+                    <div style="text-align:right"><b>${i.stock.toFixed(2)} ${i.unit}</b><br><small>Rend: ${i.yield*100}%</small></div>
                 </div>`).join('')}
         </div>`;
     }
 }
 
-/* ================= 5. GESTIÓN ALBARANES ================= */
+/* ================= 5. INGENIERÍA DE MENÚ (NUEVO V46) ================= */
+function renderEngineering() {
+    // 1. Omnes
+    const prices = db.recetas.map(r => r.pvp).filter(p => p > 0).sort((a,b)=>a-b);
+    const minP = prices[0] || 0;
+    const maxP = prices[prices.length-1] || 0;
+    const omnesRange = minP > 0 ? maxP / minP : 0;
+    const omnesAlert = omnesRange > 3 ? "⚠️ Rango Precios > 3 (Peligroso)" : "✅ Rango Precios OK (<2.5)";
+
+    // 2. BCG Matrix Logic
+    let totalSales = 0;
+    db.recetas.forEach(r => totalSales += (r.sales||0));
+    
+    let stars=0, plows=0, puzzles=0, dogs=0;
+    const avgPop = totalSales > 0 ? (100 / db.recetas.length) * 0.7 : 0; // Popularidad media
+
+    db.recetas.forEach(r => {
+        const c = calcRecipe(r);
+        const margin = r.pvp - c.total;
+        const pop = totalSales > 0 ? (r.sales / totalSales) * 100 : 0;
+        
+        // Simplicidad: Margen Alto > 6€
+        if(pop >= avgPop && margin >= 6) stars++;
+        else if(pop >= avgPop && margin < 6) plows++;
+        else if(pop < avgPop && margin >= 6) puzzles++;
+        else dogs++;
+    });
+
+    document.getElementById('admin-panel').innerHTML = `
+    <div class="card">
+        <div class="section-header"><div class="title">PRINCIPIOS DE OMNES</div></div>
+        <div class="list-item"><span>Plato más barato</span><b>${minP.toFixed(2)}€</b></div>
+        <div class="list-item"><span>Plato más caro</span><b>${maxP.toFixed(2)}€</b></div>
+        <div class="list-item" style="background:#f1f5f9;margin-top:5px"><span>${omnesAlert}</span></div>
+    </div>
+
+    <div class="card">
+        <div class="section-header"><div class="title">MATRIZ BCG (INGENIERÍA)</div></div>
+        <div class="matrix-grid">
+            <div class="matrix-box bg-star"><span class="matrix-val">${stars}</span><span class="matrix-lbl">Estrellas</span></div>
+            <div class="matrix-box bg-plow"><span class="matrix-val">${plows}</span><span class="matrix-lbl">Caballos</span></div>
+            <div class="matrix-box bg-puzzle"><span class="matrix-val">${puzzles}</span><span class="matrix-lbl">Puzzles</span></div>
+            <div class="matrix-box bg-dog"><span class="matrix-val">${dogs}</span><span class="matrix-lbl">Perros</span></div>
+        </div>
+        <button class="btn btn-accent" style="width:100%;margin-top:10px" onclick="editSales()">📝 Introducir Ventas (TPV)</button>
+    </div>`;
+}
+
+function editSales() {
+    const html = `<div style="max-height:60vh;overflow-y:auto">
+        <p style="color:var(--sub);font-size:0.8rem">Introduce unidades vendidas (del informe Madisa).</p>
+        ${db.recetas.map(r => `
+            <div class="list-item">
+                <span>${r.n}</span>
+                <input type="number" style="width:80px;margin:0" value="${r.sales||0}" onchange="updateSale('${r.id}', this.value)">
+            </div>
+        `).join('')}
+    </div>`;
+    showModal("Actualizar Ventas", html);
+}
+
+function updateSale(rid, val) {
+    const r = db.recetas.find(x => x.id === rid);
+    if(r) { r.sales = parseFloat(val)||0; save(); } // Auto-save on change
+}
+
+/* ================= 6. ALBARANES & FACTURAS ================= */
 function renderAlbaran() {
     document.getElementById('admin-panel').innerHTML = `
     <div class="card" style="border-top:4px solid var(--accent)">
@@ -314,12 +365,11 @@ function renderAlbaran() {
             <div class="col"><label>Proveedor</label><select id="alb-prov">${db.proveedores.map(p=>`<option>${p.n}</option>`).join('')}</select></div>
             <div class="col"><label>Fecha</label><input type="date" id="alb-date" value="${new Date().toISOString().split('T')[0]}"></div>
         </div>
-        <label>Pegar (Producto; Cantidad; Precio)</label>
-        <textarea id="alb-input" rows="3" placeholder="Ej: Salmón  5  65.50"></textarea>
+        <textarea id="alb-input" rows="3" placeholder="Pegar: Producto; Cantidad; Precio"></textarea>
         <button class="btn btn-sm btn-ghost" onclick="parseAlb()">🪄 Procesar</button>
         <div id="alb-body" style="margin-top:15px"></div>
         <div style="text-align:right; font-weight:800; margin:10px 0" id="alb-sum">Total: 0.00€</div>
-        <button class="btn btn-primary" onclick="commitAlb()">CONFIRMAR ENTRADA</button>
+        <button class="btn btn-primary" onclick="commitAlb()">CONFIRMAR</button>
     </div>`;
     tempItems = [];
 }
@@ -351,7 +401,7 @@ function renderAlbGrid() {
 }
 
 function commitAlb() {
-    if(!tempItems.length) return showToast("Albarán vacío", "error");
+    if(!tempItems.length) return showToast("Vacío", "error");
     const prov = document.getElementById('alb-prov').value;
     const date = document.getElementById('alb-date').value;
     const total = tempItems.reduce((acc, it) => acc + (it.p * (1 - it.d/100)), 0);
@@ -372,7 +422,6 @@ function commitAlb() {
     renderContabilidad();
 }
 
-// --- CONTABILIDAD ---
 function renderContabilidad() {
     const pendientes = db.albaranes.filter(a => !a.invoiced);
     const grupos = {};
@@ -386,7 +435,7 @@ function renderContabilidad() {
         <div class="section-header"><div class="title">PENDIENTE FACTURAR</div></div>
         ${Object.entries(grupos).map(([prov, d]) => `
             <div class="list-item">
-                <div><b>${prov}</b> <small>(${d.count} albaranes)</small></div>
+                <div><b>${prov}</b> <small>(${d.count} alb)</small></div>
                 <div style="text-align:right"><b>${d.total.toFixed(2)}€</b> <button class="btn btn-sm btn-accent" onclick="invoiceModal('${prov}','${d.ids}',${d.total})">Facturar</button></div>
             </div>`).join('')}
     </div>
@@ -396,7 +445,7 @@ function renderContabilidad() {
             <table><thead><tr><th>Fecha</th><th>Prov</th><th>Nº</th><th>Total</th><th>Estado</th></tr></thead>
             <tbody>${db.facturas.slice().reverse().map(f => `
                 <tr><td>${f.date.substring(5)}</td><td>${f.prov}</td><td>${f.code}</td><td><b>${f.total.toFixed(2)}€</b></td>
-                <td><button class="status-btn ${f.paid?'paid':'pending'}" onclick="togglePaid('${f.id}')">${f.paid?'PAGADO ✅':'PENDIENTE ❌'}</button></td></tr>
+                <td><button class="status-btn ${f.paid?'paid':'pending'}" onclick="togglePaid('${f.id}')">${f.paid?'PAGADO':'PENDIENTE'}</button></td></tr>
             `).join('')}</tbody></table>
         </div>
     </div>`;
@@ -421,14 +470,10 @@ function createInvoice(prov, idsStr, total) {
 
 function togglePaid(fid) {
     const f = db.facturas.find(x=>x.id==fid);
-    if(f) { 
-        f.paid = !f.paid; 
-        save(f.paid ? "Marcado como Pagado" : "Marcado como Pendiente"); 
-        renderContabilidad(); 
-    }
+    if(f) { f.paid = !f.paid; save(f.paid?"Pagado":"Pendiente"); renderContabilidad(); }
 }
 
-// --- UTILS & EDITORS ---
+/* ================= 6. UTILS GENERALES ================= */
 function saveZ() {
     const d = {
         date: new Date().toISOString().split('T')[0],
@@ -439,7 +484,7 @@ function saveZ() {
     };
     const idx = db.diario.findIndex(x=>x.date===d.date);
     if(idx>=0) db.diario[idx]=d; else db.diario.push(d);
-    save("Cierre Z guardado"); render('Diario');
+    save("Cierre guardado"); render('Diario');
 }
 
 function renderChart(){
@@ -493,7 +538,7 @@ function editRecipe(id) {
 function renderRecItems(){ document.getElementById('er-list').innerHTML = tempItems.map((it,i)=>`<div class="list-item"><span>${db.ingredientes.find(x=>x.id==it.id)?.n}</span><span>${it.q}</span><button onclick="tempItems.splice(${i},1);renderRecItems()" style="color:red;border:none;background:none">x</button></div>`).join(''); }
 function addRecItem(){ const id=document.getElementById('er-ing').value, q=parseFloat(document.getElementById('er-q').value); if(id&&q){tempItems.push({id,q}); renderRecItems();} }
 function saveRecipe(id){ 
-    const r = {id, n:document.getElementById('er-n').value, cat:document.getElementById('er-cat').value, pvp:parseFloat(document.getElementById('er-pvp').value), time:5, items:tempItems};
+    const r = {id, n:document.getElementById('er-n').value, cat:document.getElementById('er-cat').value, pvp:parseFloat(document.getElementById('er-pvp').value), time:5, items:tempItems, sales: (id ? db.recetas.find(x=>x.id===id).sales : 0)};
     const idx = db.recetas.findIndex(x=>x.id===id);
     if(idx>=0) db.recetas[idx]=r; else db.recetas.push(r);
     save("Receta guardada"); closeModal(); render('Cocina');
