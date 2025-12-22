@@ -145,7 +145,7 @@
 <script>
 /* ================= 1. CONFIGURACIÓN ================= */
 const generateID = () => crypto.randomUUID ? crypto.randomUUID() : Date.now().toString() + Math.random().toString(36).substring(2);
-const CONFIG = { GOOGLE_URL: "", COST_HOUR: 15 };
+const CONFIG = { GOOGLE_URL: "https://script.google.com/macros/s/AKfycbxL0hWPiYmQ_590bkFjd1B9xwsfrYQXQtEuUpP2Nraq973bDr2rpEgVnaJCpI3-DH8z/exec", COST_HOUR: 15 };
 
 const DB_INIT = {
     users: [{id:'u1', n:'Gerencia', pin:'0150', role:'admin'}, {id:'u2', n:'Cocina', pin:'1111', role:'staff'}],
