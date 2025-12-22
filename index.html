@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-    <title>ARUME V51.1 · Bulli Final</title>
+    <title>ARUME V52 · Financial Control</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;900&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
@@ -24,7 +24,7 @@
         .dot { width: 8px; height: 8px; border-radius: 50%; background: #ccc; } .dot.ok { background: var(--success); box-shadow: 0 0 6px var(--success); }
 
         /* LAYOUT */
-        main { max-width: 800px; margin: 0 auto; padding: 20px; animation: fade 0.3s ease-out; }
+        main { max-width: 900px; margin: 0 auto; padding: 20px; animation: fade 0.3s ease-out; }
         @keyframes fade { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
         
         .card { background: var(--paper); border-radius: var(--radius); padding: 20px; margin-bottom: 16px; border: 1px solid var(--border); box-shadow: 0 2px 5px rgba(0,0,0,0.02); }
@@ -38,21 +38,11 @@
         .kpi-val { font-size: 1.4rem; font-weight: 900; }
         .kpi-lbl { font-size: 0.7rem; opacity: 0.8; text-transform: uppercase; margin-top: 4px; }
 
-        /* MATRIZ BCG & OMNES */
-        .matrix-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
-        .matrix-box { padding: 15px; border-radius: 12px; text-align: center; color: white; min-height: 100px; display: flex; flex-direction: column; justify-content: center; box-shadow: 0 4px 6px rgba(0,0,0,0.1); position: relative; overflow: hidden; }
-        .bg-star { background: linear-gradient(135deg, #10b981, #059669); }
-        .bg-plow { background: linear-gradient(135deg, #3b82f6, #2563eb); }
-        .bg-puzzle { background: linear-gradient(135deg, #f59e0b, #d97706); }
-        .bg-dog { background: linear-gradient(135deg, #ef4444, #dc2626); }
-        .matrix-val { font-size: 2rem; font-weight: 800; line-height: 1; }
-        .matrix-lbl { font-size: 0.75rem; font-weight: 700; opacity: 0.9; text-transform: uppercase; margin-top: 5px; }
-
         /* LISTAS & TABLAS */
         .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; }
         table { width: 100%; border-collapse: collapse; font-size: 0.85rem; min-width: 100%; }
         th { text-align: left; background: #f8fafc; color: var(--sub); padding: 12px 10px; font-size: 0.7rem; text-transform: uppercase; border-bottom: 1px solid var(--border); }
-        td { padding: 14px 10px; border-bottom: 1px solid #f1f5f9; }
+        td { padding: 14px 10px; border-bottom: 1px solid #f1f5f9; white-space: nowrap; }
         tr:last-child td { border: none; }
         
         .list-item { display: flex; justify-content: space-between; align-items: center; padding: 16px 10px; border-bottom: 1px solid #f1f5f9; transition: 0.1s; cursor: pointer; }
@@ -61,12 +51,12 @@
 
         /* INPUTS */
         label { display: block; font-size: 0.7rem; font-weight: 700; color: var(--sub); margin-bottom: 5px; text-transform: uppercase; }
-        input, select, textarea { width: 100%; padding: 14px; border: 1px solid var(--border); border-radius: 10px; font-size: 16px; background: #fff; font-family: inherit; margin-bottom: 10px; outline: none; transition: 0.2s; -webkit-appearance: none; }
+        input, select, textarea { width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 10px; font-size: 15px; background: #fff; font-family: inherit; margin-bottom: 10px; outline: none; transition: 0.2s; -webkit-appearance: none; }
         input:focus, select:focus, textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px #bfdbfe; }
         .search-bar { background: #fff; border: 1px solid var(--border); margin-bottom: 15px; box-shadow: 0 4px 6px -2px rgba(0,0,0,0.03); }
 
         /* BOTONES */
-        .btn { width: 100%; padding: 16px; border-radius: 12px; border: none; font-weight: 600; cursor: pointer; font-size: 1rem; text-align: center; margin-top: 5px; transition: 0.1s; display: inline-block; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .btn { width: 100%; padding: 14px; border-radius: 12px; border: none; font-weight: 600; cursor: pointer; font-size: 1rem; text-align: center; margin-top: 5px; transition: 0.1s; display: inline-block; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
         .btn:active { transform: scale(0.97); opacity: 0.9; }
         .btn-primary { background: var(--primary); color: white; }
         .btn-accent { background: var(--accent); color: white; }
@@ -78,6 +68,12 @@
         .status-btn.paid { background: #dcfce7; color: #166534; border: 1px solid #86efac; }
         .status-btn.pending { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
 
+        /* ALBARAN GRID */
+        .alb-row { display: flex; gap: 5px; margin-bottom: 8px; align-items: center; background: #fff; border: 1px solid #f1f5f9; padding: 5px; border-radius: 8px; }
+        .alb-row input { margin: 0; padding: 8px; font-size: 0.9rem; }
+        .alb-name { flex: 3; min-width: 120px; }
+        .alb-num { flex: 1; min-width: 50px; text-align: right; }
+        
         /* NAV */
         nav { position: fixed; bottom: 0; width: 100%; background: rgba(255,255,255,0.96); backdrop-filter: blur(12px); border-top: 1px solid var(--border); display: flex; justify-content: space-around; padding: 12px 0; z-index: 40; padding-bottom: env(safe-area-inset-bottom); box-shadow: 0 -4px 20px rgba(0,0,0,0.03); }
         nav button { background: none; border: none; flex: 1; display: flex; flex-direction: column; align-items: center; gap: 5px; color: var(--sub); font-size: 0.65rem; font-weight: 700; padding: 5px; opacity: 0.5; cursor: pointer; transition: 0.2s; }
@@ -88,7 +84,7 @@
         .hidden { display: none !important; }
         .overlay { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.7); z-index: 100; backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; opacity: 0; animation: fadeIn 0.2s forwards; }
         @keyframes fadeIn { to { opacity: 1; } }
-        .modal { background: white; width: 95%; max-width: 600px; max-height: 90vh; overflow-y: auto; padding: 25px; border-radius: 20px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); }
+        .modal { background: white; width: 95%; max-width: 700px; max-height: 90vh; overflow-y: auto; padding: 25px; border-radius: 20px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); }
 
         /* PIN PAD */
         #pin-screen { background: #0f172a; color: white; }
@@ -110,7 +106,7 @@
     <input type="file" id="backup-input" style="display:none" accept=".json" onchange="restoreBackup(this)">
 
     <header>
-        <h1>ARUME <span style="font-size:0.6em; opacity:0.6; font-weight:400">V51.1 BULLI</span></h1>
+        <h1>ARUME <span style="font-size:0.6em; opacity:0.6; font-weight:400">V52</span></h1>
         <button id="user-display" class="badge" onclick="logout()">
             <div id="sync-dot" class="dot"></div> <span id="user-name">...</span>
         </button>
@@ -153,18 +149,13 @@ const CONFIG = { GOOGLE_URL: "", COST_HOUR: 15 };
 
 const DB_INIT = {
     users: [{id:'u1', n:'Gerencia', pin:'0150', role:'admin'}, {id:'u2', n:'Cocina', pin:'1111', role:'staff'}],
-    ingredientes: [
-        {id:'i1', n:'Salmón Fresco', cost:12.50, stock:4.5, min: 2, unit:'kg', yield:0.60, aller:['Pescado']},
-        {id:'i2', n:'Arroz Sushi', cost:2.20, stock:25, min: 10, unit:'kg', yield:1, aller:[]}
-    ],
-    recetas: [
-        {id:'r1', n:'Nigiri Salmón (2pz)', cat:'Nigiris', pvp:5.50, time:5, sales:0, items:[{id:'i1',q:0.035},{id:'i2',q:0.040}]}
-    ],
+    ingredientes: [],
+    recetas: [],
     proveedores: [{n:'Makro'}, {n:'Tokyo-ya'}, {n:'Frutas Daniel'}],
     albaranes: [], facturas: [], diario: [], mermas: [], lastSync: 0
 };
 
-let db = JSON.parse(localStorage.getItem('arume_v51')) || DB_INIT;
+let db = JSON.parse(localStorage.getItem('arume_v52')) || DB_INIT;
 let currentUser = null;
 let currentPin = "";
 let chartInstance = null;
@@ -189,7 +180,7 @@ function init() {
 
 function save(msg){
     db.lastSync = Date.now();
-    localStorage.setItem('arume_v51', JSON.stringify(db));
+    localStorage.setItem('arume_v52', JSON.stringify(db));
     if(CONFIG.GOOGLE_URL) fetch(CONFIG.GOOGLE_URL, {method:'POST', mode:'no-cors', body:JSON.stringify(db)});
     if(msg) showToast(msg, 'success');
 }
@@ -224,7 +215,7 @@ function renderNav() {
     const views = {
         'Diario': {icon:'<path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/>', label:'CAJA Z'},
         'Admin': {icon:'<path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.89 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>', label:'GESTIÓN'},
-        'Cocina': {icon:'<path d="M8.1 13.34l2.83-2.83L3.91 3.5c-1.56 1.56-1.56 4.09 0 5.66l4.19 4.18zm6.78-1.81c1.53.71 3.68.21 5.27-1.38 1.91-1.91 2.28-4.65.81-6.12-1.46-1.46-4.2-1.1-6.12.81-1.59 1.59-2.09 3.74-1.38 5.27L3.7 19.87l1.41 1.41L12 14.41l6.88 6.88 1.41-1.41L13.41 13l1.47-1.47z"/>', label:'Fichas'},
+        'Cocina': {icon:'<path d="M8.1 13.34l2.83-2.83L3.91 3.5c-1.56 1.56-1.56 4.09 0 5.66l4.19 4.18zm6.78-1.81c1.53.71 3.68.21 5.27-1.38 1.91-1.91 2.28-4.65.81-6.12-1.46-1.46-4.2-1.1-6.12.81-1.59 1.59-2.09 3.74-1.38 5.27L3.7 19.87l1.41 1.41L12 14.41l6.88 6.88 1.41-1.41L13.41 13l1.47-1.47z"/>', label:'FICHAS'},
         'Stock': {icon:'<path d="M20 6h-2.18c.11-.31.18-.65.18-1 0-1.66-1.34-3-3-3-1.05 0-1.96.54-2.5 1.35l-.5.67-.5-.68C10.96 2.54 10.05 2 9 2 7.34 2 6 3.34 6 5c0 .35.07.69.18 1H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-5-2c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 1-1-.45-1-1zM9 4c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 1-1-.45-1-1z"/>', label:'STOCK'}
     };
     
@@ -320,7 +311,7 @@ function render(view) {
     }
 }
 
-/* ================= 5. GESTIÓN ALBARANES (MAGIC PARSER V2 - INTELIGENTE) ================= */
+/* ================= 5. GESTIÓN ALBARANES (IVA, DTO, NOTAS) ================= */
 function renderAlbaran() {
     document.getElementById('admin-panel').innerHTML = `
     <div class="card" style="border-top:4px solid var(--accent)">
@@ -335,7 +326,11 @@ function renderAlbaran() {
         <textarea id="alb-input" rows="3" placeholder="Pegar: Producto | Cantidad | Precio"></textarea>
         <button class="btn btn-sm btn-ghost" onclick="parseAlb()">🪄 LECTURA MÁGICA</button>
         <div id="alb-body" style="margin-top:15px"></div>
-        <div style="text-align:right; font-weight:800; margin:10px 0" id="alb-sum">Total: 0.00€</div>
+        <div style="text-align:right; font-weight:800; margin:10px 0; font-size:1.1rem" id="alb-sum">Total: 0.00€</div>
+        
+        <label>Observaciones (Incidencias)</label>
+        <textarea id="alb-note" rows="2" placeholder="Ej: Faltan gambas, botella rota..."></textarea>
+
         <button class="btn btn-primary" onclick="commitAlb()">CONFIRMAR ENTRADA</button>
     </div>`;
     tempItems = [];
@@ -346,34 +341,22 @@ function parseAlb() {
     txt.split(/\r?\n/).forEach(line => {
         line = line.trim();
         if(!line) return;
-        
-        // 1. INTELIGENCIA: Romper por cualquier espacio
         let parts = line.split(/[\s\t;]+/); 
         const numParts = []; const textParts = [];
-        
         parts.forEach(part => {
             let cleanVal = part.replace('€','').replace('$','').replace(',','.').trim();
-            // Comprobamos si es número
             if(!isNaN(cleanVal) && cleanVal !== "" && /\d/.test(cleanVal)) {
                 numParts.push(parseFloat(cleanVal));
             } else {
                 textParts.push(part);
             }
         });
-        
-        // 2. ASIGNACIÓN
         let n = textParts.join(" ") || "Producto";
         let q = 1; let p = 0;
-        
-        if(numParts.length >= 2) { 
-            q = numParts[0]; p = numParts[1]; 
-        } else if (numParts.length === 1) { 
-            p = numParts[0]; 
-        }
-        
-        // 3. AÑADIR (Si hay precio o cantidad)
+        if(numParts.length >= 2) { q = numParts[0]; p = numParts[1]; } 
+        else if (numParts.length === 1) { p = numParts[0]; }
         if(p > 0 || q > 1) {
-            tempItems.push({ n, q, p, d:0 });
+            tempItems.push({ n, q, p, d:0, iva:10 }); // Default IVA 10%
         }
     });
     renderAlbGrid();
@@ -383,13 +366,19 @@ function renderAlbGrid() {
     const div = document.getElementById('alb-body');
     let total = 0;
     div.innerHTML = tempItems.map((item, i) => {
-        const neto = item.p * (1 - item.d/100);
-        total += neto;
-        return `<div style="display:flex; gap:5px; margin-bottom:5px; align-items:center;">
-            <input value="${item.n}" onchange="tempItems[${i}].n=this.value" style="flex:2;margin:0">
-            <input type="number" value="${item.q}" onchange="tempItems[${i}].q=parseFloat(this.value)" style="flex:0.5;margin:0">
-            <input type="number" value="${item.p}" onchange="tempItems[${i}].p=parseFloat(this.value);renderAlbGrid()" style="flex:0.7;margin:0">
-            <button onclick="tempItems.splice(${i},1);renderAlbGrid()" style="background:none;border:none;color:var(--danger);font-weight:bold;font-size:1.2rem">&times;</button>
+        // Calculo: (Precio * Cantidad) * (1 - Dto) * (1 + IVA)
+        const bruto = item.p * item.q;
+        const conDto = bruto * (1 - (item.d/100));
+        const final = conDto * (1 + (item.iva/100));
+        total += final;
+
+        return `<div class="alb-row">
+            <input value="${item.n}" onchange="tempItems[${i}].n=this.value" class="alb-name" placeholder="Producto">
+            <input type="number" value="${item.q}" onchange="tempItems[${i}].q=parseFloat(this.value);renderAlbGrid()" class="alb-num" placeholder="Cant">
+            <input type="number" value="${item.p}" onchange="tempItems[${i}].p=parseFloat(this.value);renderAlbGrid()" class="alb-num" placeholder="€/ud">
+            <input type="number" value="${item.d}" onchange="tempItems[${i}].d=parseFloat(this.value);renderAlbGrid()" class="alb-num" placeholder="%Dto" style="color:blue">
+            <input type="number" value="${item.iva}" onchange="tempItems[${i}].iva=parseFloat(this.value);renderAlbGrid()" class="alb-num" placeholder="%IVA" style="color:var(--sub)">
+            <button onclick="tempItems.splice(${i},1);renderAlbGrid()" style="background:none;border:none;color:var(--danger);font-weight:bold;padding:0 10px">✕</button>
         </div>`;
     }).join('');
     document.getElementById('alb-sum').innerText = `Total: ${total.toFixed(2)}€`;
@@ -398,80 +387,28 @@ function renderAlbGrid() {
 function commitAlb() {
     if(!tempItems.length) return showToast("Vacío", "error");
     const provName = document.getElementById('alb-prov').value;
+    const note = document.getElementById('alb-note').value;
     if(!provName) return showToast("Falta Proveedor", "error");
     if(!db.proveedores.find(p => p.n.toLowerCase() === provName.toLowerCase())) { db.proveedores.push({n: provName}); save("Nuevo proveedor"); }
     const date = document.getElementById('alb-date').value;
-    const total = tempItems.reduce((acc, it) => acc + (it.p * (1 - it.d/100)), 0);
+    
+    // Calcular total real sumando líneas
+    const total = tempItems.reduce((acc, it) => acc + (it.p * it.q * (1-it.d/100) * (1+it.iva/100)), 0);
+    
     tempItems.forEach(item => {
-        const netPrice = item.p * (1 - item.d/100);
+        // Coste unitario neto (sin IVA) para el escandallo
+        const netCost = item.p * (1 - item.d/100); 
         let i = db.ingredientes.find(ing => ing.n.toLowerCase().trim() === item.n.toLowerCase().trim());
         if(i) {
-            if(i.stock>0) i.cost = ((i.stock*i.cost)+netPrice) / (i.stock+item.q);
+            if(i.stock>0) i.cost = ((i.stock*i.cost)+netCost) / (i.stock+item.q);
             i.stock += item.q;
-        } else { db.ingredientes.push({ id: generateID(), n: item.n, stock: item.q, cost: (item.q>0?netPrice/item.q:0), min:0, unit: 'ud', yield: 1, aller: [] }); }
+        } else { db.ingredientes.push({ id: generateID(), n: item.n, stock: item.q, cost: netCost, min:0, unit: 'ud', yield: 1, aller: [] }); }
     });
-    db.albaranes.push({ id: generateID(), date, prov: provName, items: [...tempItems], total, invoiced: false });
+    db.albaranes.push({ id: generateID(), date, prov: provName, items: [...tempItems], total, note, invoiced: false });
     save("Entrada confirmada"); renderContabilidad();
 }
 
-/* ================= 6. INGENIERÍA DE MENÚ ================= */
-function renderEngineering() {
-    const prices = db.recetas.map(r => r.pvp).filter(p => p > 0).sort((a,b)=>a-b);
-    const minP = prices[0] || 0;
-    const maxP = prices[prices.length-1] || 0;
-    const omnesAlert = (minP > 0 && maxP/minP > 3) ? "⚠️ Rango > 3 (Revisar precios)" : "✅ Rango Precios OK";
-
-    let totalSales = 0;
-    db.recetas.forEach(r => totalSales += (r.sales||0));
-    let stars=0, plows=0, puzzles=0, dogs=0;
-    const avgPop = totalSales > 0 ? (100 / db.recetas.length) * 0.7 : 0; 
-
-    db.recetas.forEach(r => {
-        const c = calcRecipe(r);
-        const margin = r.pvp - c.total;
-        const pop = totalSales > 0 ? (r.sales / totalSales) * 100 : 0;
-        if(pop >= avgPop && margin >= 6) stars++;
-        else if(pop >= avgPop && margin < 6) plows++;
-        else if(pop < avgPop && margin >= 6) puzzles++;
-        else dogs++;
-    });
-
-    document.getElementById('admin-panel').innerHTML = `
-    <div class="card">
-        <div class="section-header"><div class="title">OMNES (AMPLITUD PRECIOS)</div></div>
-        <div class="row">
-            <div class="col" style="text-align:center; background:#f1f5f9; padding:10px; border-radius:8px">Min <b>${minP.toFixed(2)}€</b></div>
-            <div class="col" style="text-align:center; background:#f1f5f9; padding:10px; border-radius:8px">Max <b>${maxP.toFixed(2)}€</b></div>
-        </div>
-        <div style="text-align:center; margin-top:10px; font-weight:bold">${omnesAlert}</div>
-    </div>
-    <div class="card">
-        <div class="section-header"><div class="title">MATRIZ BCG</div></div>
-        <div class="matrix-grid">
-            <div class="matrix-box bg-star"><span class="matrix-val">${stars}</span><span class="matrix-lbl">Estrellas</span></div>
-            <div class="matrix-box bg-plow"><span class="matrix-val">${plows}</span><span class="matrix-lbl">Caballos</span></div>
-            <div class="matrix-box bg-puzzle"><span class="matrix-val">${puzzles}</span><span class="matrix-lbl">Puzzles</span></div>
-            <div class="matrix-box bg-dog"><span class="matrix-val">${dogs}</span><span class="matrix-lbl">Perros</span></div>
-        </div>
-        <button class="btn btn-accent" style="width:100%;margin-top:15px" onclick="editSales()">📝 Introducir Ventas (TPV)</button>
-    </div>`;
-}
-
-function editSales() {
-    const html = `<div style="max-height:60vh;overflow-y:auto">
-        <p style="color:var(--sub);font-size:0.8rem;margin-bottom:15px">Ventas periodo (unidades):</p>
-        ${db.recetas.map(r => `
-            <div class="list-item">
-                <span>${r.n}</span>
-                <input type="number" style="width:90px;margin:0;padding:10px;text-align:right" value="${r.sales||0}" onchange="updateSale('${r.id}', this.value)">
-            </div>
-        `).join('')}
-    </div>`;
-    showModal("Actualizar Ventas", html);
-}
-function updateSale(rid, val) { const r = db.recetas.find(x => x.id === rid); if(r) { r.sales = parseFloat(val)||0; save(); } }
-
-/* ================= 7. FACTURAS & UTILS & BACKUP ================= */
+/* ================= 6. CONTABILIDAD & VISOR ================= */
 function renderContabilidad() {
     const pendientes = db.albaranes.filter(a => !a.invoiced);
     const grupos = {};
@@ -479,6 +416,8 @@ function renderContabilidad() {
         if(!grupos[a.prov]) grupos[a.prov] = {count:0, total:0, ids:[]};
         grupos[a.prov].count++; grupos[a.prov].total += a.total; grupos[a.prov].ids.push(a.id);
     });
+
+    const lastAlbs = db.albaranes.slice().reverse().slice(0,5);
 
     document.getElementById('admin-panel').innerHTML = `
     <div class="card" style="border-left:4px solid var(--warn)">
@@ -489,13 +428,24 @@ function renderContabilidad() {
                 <div style="text-align:right"><b>${d.total.toFixed(2)}€</b> <button class="btn btn-sm btn-accent" onclick="invoiceModal('${prov}','${d.ids}',${d.total})">Facturar</button></div>
             </div>`).join('')}
     </div>
+
+    <div class="card">
+        <div class="section-header"><div class="title">ÚLTIMOS ALBARANES (VER)</div></div>
+        ${lastAlbs.map(a => `
+            <div class="list-item" onclick="viewAlbaran('${a.id}')">
+                <div><span>${a.date.substring(5)}</span> <b>${a.prov}</b></div>
+                <div style="text-align:right"><b>${a.total.toFixed(2)}€</b> <span style="font-size:1.2rem">👁️</span></div>
+            </div>
+        `).join('')}
+    </div>
+
     <div class="card">
         <div class="section-header">
             <div class="title">COPIAS DE SEGURIDAD</div>
         </div>
         <div class="row">
-            <button class="btn btn-ghost col" onclick="downloadBackup()">💾 Guardar Copia (Exportar)</button>
-            <button class="btn btn-ghost col" style="color:var(--accent); border-color:var(--accent)" onclick="document.getElementById('backup-input').click()">📂 Cargar Copia (Importar)</button>
+            <button class="btn btn-ghost col" onclick="downloadBackup()">💾 Exportar</button>
+            <button class="btn btn-ghost col" style="color:var(--accent); border-color:var(--accent)" onclick="document.getElementById('backup-input').click()">📂 Importar</button>
         </div>
     </div>
     <div class="card">
@@ -510,6 +460,38 @@ function renderContabilidad() {
     </div>`;
 }
 
+function viewAlbaran(id) {
+    const a = db.albaranes.find(x => x.id === id);
+    if(!a) return;
+    
+    // Reconstruir lista HTML
+    const itemsHtml = a.items.map(it => `
+        <tr>
+            <td>${it.n}</td>
+            <td>${it.q}</td>
+            <td>${it.p}€</td>
+            <td>${it.d||0}%</td>
+            <td>${it.iva||0}%</td>
+            <td><b>${(it.q * it.p * (1-(it.d||0)/100) * (1+(it.iva||0)/100)).toFixed(2)}€</b></td>
+        </tr>
+    `).join('');
+
+    showModal(`Albarán ${a.prov}`, `
+        <div style="margin-bottom:15px; font-size:0.9rem; color:var(--sub)">
+            Fecha: <b>${a.date}</b><br>
+            Estado: <b>${a.invoiced ? 'FACTURADO' : 'PENDIENTE'}</b>
+        </div>
+        <div class="table-wrap" style="margin-bottom:15px">
+            <table style="font-size:0.8rem">
+                <thead><tr><th>Prod</th><th>Cant</th><th>Pre</th><th>Dto</th><th>IVA</th><th>Tot</th></tr></thead>
+                <tbody>${itemsHtml}</tbody>
+            </table>
+        </div>
+        <div style="text-align:right; font-size:1.2rem; font-weight:800; margin-bottom:10px">Total: ${a.total.toFixed(2)}€</div>
+        ${a.note ? `<div style="background:#fffbeb; padding:10px; border-radius:8px; font-size:0.9rem">📝 <b>Nota:</b> ${a.note}</div>` : ''}
+    `);
+}
+
 function invoiceModal(prov, idsStr, total) {
     showModal("Nueva Factura", `<p>Prov: <b>${prov}</b> | Total: <b>${total.toFixed(2)}€</b></p><label>Nº Factura</label><input id="inv-code"><button class="btn btn-primary" onclick="createInvoice('${prov}','${idsStr}',${total})">Crear</button>`);
 }
@@ -522,6 +504,7 @@ function createInvoice(prov, idsStr, total) {
 }
 function togglePaid(fid) { const f = db.facturas.find(x=>x.id==fid); if(f) { f.paid = !f.paid; save(f.paid?"Pagado":"Pendiente"); renderContabilidad(); } }
 
+/* ================= 8. EXTRAS ================= */
 function saveZ() {
     const d = { date: new Date().toISOString().split('T')[0], total: parseFloat(document.getElementById('z-total').value)||0, cash: parseFloat(document.getElementById('z-cash').value)||0, card: parseFloat(document.getElementById('z-card').value)||0, inv: parseFloat(document.getElementById('z-inv').value)||0 };
     const idx = db.diario.findIndex(x=>x.date===d.date); if(idx>=0) db.diario[idx]=d; else db.diario.push(d);
@@ -615,6 +598,63 @@ function saveMerma(){
     const i=db.ingredientes.find(x=>x.id==id);
     if(i && q){ i.stock-=q; db.mermas.push({date:new Date(), n:i.n, q}); save("Merma registrada"); closeModal(); render('Stock'); }
 }
+
+/* ================= 6. INGENIERÍA DE MENÚ (Recuperado) ================= */
+function renderEngineering() {
+    const prices = db.recetas.map(r => r.pvp).filter(p => p > 0).sort((a,b)=>a-b);
+    const minP = prices[0] || 0;
+    const maxP = prices[prices.length-1] || 0;
+    const omnesAlert = (minP > 0 && maxP/minP > 3) ? "⚠️ Rango > 3 (Revisar precios)" : "✅ Rango Precios OK";
+
+    let totalSales = 0;
+    db.recetas.forEach(r => totalSales += (r.sales||0));
+    let stars=0, plows=0, puzzles=0, dogs=0;
+    const avgPop = totalSales > 0 ? (100 / db.recetas.length) * 0.7 : 0; 
+
+    db.recetas.forEach(r => {
+        const c = calcRecipe(r);
+        const margin = r.pvp - c.total;
+        const pop = totalSales > 0 ? (r.sales / totalSales) * 100 : 0;
+        if(pop >= avgPop && margin >= 6) stars++;
+        else if(pop >= avgPop && margin < 6) plows++;
+        else if(pop < avgPop && margin >= 6) puzzles++;
+        else dogs++;
+    });
+
+    document.getElementById('admin-panel').innerHTML = `
+    <div class="card">
+        <div class="section-header"><div class="title">OMNES (AMPLITUD PRECIOS)</div></div>
+        <div class="row">
+            <div class="col" style="text-align:center; background:#f1f5f9; padding:10px; border-radius:8px">Min <b>${minP.toFixed(2)}€</b></div>
+            <div class="col" style="text-align:center; background:#f1f5f9; padding:10px; border-radius:8px">Max <b>${maxP.toFixed(2)}€</b></div>
+        </div>
+        <div style="text-align:center; margin-top:10px; font-weight:bold">${omnesAlert}</div>
+    </div>
+    <div class="card">
+        <div class="section-header"><div class="title">MATRIZ BCG</div></div>
+        <div class="matrix-grid">
+            <div class="matrix-box bg-star"><span class="matrix-val">${stars}</span><span class="matrix-lbl">Estrellas</span></div>
+            <div class="matrix-box bg-plow"><span class="matrix-val">${plows}</span><span class="matrix-lbl">Caballos</span></div>
+            <div class="matrix-box bg-puzzle"><span class="matrix-val">${puzzles}</span><span class="matrix-lbl">Puzzles</span></div>
+            <div class="matrix-box bg-dog"><span class="matrix-val">${dogs}</span><span class="matrix-lbl">Perros</span></div>
+        </div>
+        <button class="btn btn-accent" style="width:100%;margin-top:15px" onclick="editSales()">📝 Introducir Ventas (TPV)</button>
+    </div>`;
+}
+
+function editSales() {
+    const html = `<div style="max-height:60vh;overflow-y:auto">
+        <p style="color:var(--sub);font-size:0.8rem;margin-bottom:15px">Ventas periodo (unidades):</p>
+        ${db.recetas.map(r => `
+            <div class="list-item">
+                <span>${r.n}</span>
+                <input type="number" style="width:90px;margin:0;padding:10px;text-align:right" value="${r.sales||0}" onchange="updateSale('${r.id}', this.value)">
+            </div>
+        `).join('')}
+    </div>`;
+    showModal("Actualizar Ventas", html);
+}
+function updateSale(rid, val) { const r = db.recetas.find(x => x.id === rid); if(r) { r.sales = parseFloat(val)||0; save(); } }
 
 init();
 </script>
