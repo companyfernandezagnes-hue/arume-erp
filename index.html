@@ -3,101 +3,96 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-    <title>ARUME ERP · Diamond Edition</title>
+    <title>ARUME DIAMOND V48</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
     <style>
-        /* === ARUME DIAMOND SYSTEM === */
         :root {
-            --bg: #f1f5f9; --paper: #ffffff; --text: #0f172a; --sub: #64748b;
-            --primary: #0f172a; --accent: #3b82f6; 
-            --success: #10b981; --danger: #ef4444; --warn: #f59e0b;
-            --border: #e2e8f0; --radius: 12px; --shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+            --bg: #f8fafc; --paper: #ffffff; --text: #0f172a; --sub: #64748b;
+            --primary: #0f172a; --accent: #2563eb; 
+            --success: #16a34a; --danger: #dc2626; --warn: #d97706;
+            --border: #e2e8f0; --radius: 12px;
         }
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-        body { margin: 0; font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); padding-bottom: 100px; height: 100vh; overflow-y: scroll; -webkit-font-smoothing: antialiased; }
+        body { margin: 0; font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); padding-bottom: 100px; height: 100vh; overflow-y: scroll; }
 
         /* HEADER */
-        header { background: var(--paper); padding: 15px 20px; position: sticky; top: 0; z-index: 50; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); box-shadow: 0 2px 10px rgba(0,0,0,0.03); }
-        h1 { margin: 0; font-size: 1.25rem; font-weight: 900; letter-spacing: -0.5px; color: var(--primary); }
-        .badge { padding: 6px 12px; border-radius: 99px; font-size: 0.75rem; background: #f8fafc; color: var(--text); font-weight: 700; border: 1px solid var(--border); cursor: pointer; display: flex; align-items: center; gap: 6px; transition: 0.2s; }
-        .badge:active { transform: scale(0.95); background: #e2e8f0; }
-        .dot { width: 8px; height: 8px; border-radius: 50%; background: #cbd5e1; } .dot.ok { background: var(--success); box-shadow: 0 0 8px var(--success); }
+        header { background: var(--paper); padding: 15px 20px; position: sticky; top: 0; z-index: 50; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
+        h1 { margin: 0; font-size: 1.2rem; font-weight: 900; letter-spacing: 0.5px; color: var(--primary); }
+        .badge { padding: 5px 12px; border-radius: 99px; font-size: 0.75rem; background: #f1f5f9; color: var(--text); font-weight: 700; border: 1px solid var(--border); cursor: pointer; display: flex; align-items: center; gap: 6px; }
+        .dot { width: 8px; height: 8px; border-radius: 50%; background: #ccc; } .dot.ok { background: var(--success); box-shadow: 0 0 5px var(--success); }
 
         /* LAYOUT */
-        main { max-width: 1000px; margin: 0 auto; padding: 20px; animation: fade 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
-        @keyframes fade { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+        main { max-width: 800px; margin: 0 auto; padding: 20px; animation: fade 0.3s ease-out; }
+        @keyframes fade { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
         
-        .card { background: var(--paper); border-radius: var(--radius); padding: 20px; margin-bottom: 20px; border: 1px solid var(--border); box-shadow: var(--shadow); }
-        .section-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #f8fafc; padding-bottom: 12px; margin-bottom: 15px; }
-        .title { font-size: 0.8rem; font-weight: 800; color: var(--sub); text-transform: uppercase; letter-spacing: 0.5px; }
-        .row { display: flex; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; } .col { flex: 1; min-width: 140px; }
+        .card { background: var(--paper); border-radius: var(--radius); padding: 20px; margin-bottom: 15px; border: 1px solid var(--border); box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
+        .section-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #f8fafc; padding-bottom: 10px; margin-bottom: 15px; }
+        .title { font-size: 0.8rem; font-weight: 800; color: var(--sub); text-transform: uppercase; letter-spacing: 1px; }
+        .row { display: flex; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; } .col { flex: 1; min-width: 140px; }
 
-        /* INGENIERÍA DE MENÚ */
-        .matrix-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 15px; }
-        .matrix-box { padding: 15px; border-radius: var(--radius); text-align: center; color: white; min-height: 110px; display: flex; flex-direction: column; justify-content: center; box-shadow: var(--shadow); position: relative; overflow: hidden; }
+        /* LISTAS & TABLAS */
+        .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.85rem; min-width: 100%; }
+        th { text-align: left; background: #f8fafc; color: var(--sub); padding: 12px 10px; font-size: 0.7rem; text-transform: uppercase; border-bottom: 1px solid var(--border); }
+        td { padding: 12px 10px; border-bottom: 1px solid #f1f5f9; }
+        tr:last-child td { border: none; }
+        
+        .list-item { display: flex; justify-content: space-between; align-items: center; padding: 14px 10px; border-bottom: 1px solid #f1f5f9; transition: 0.1s; }
+        .list-item:active { background: #f8fafc; }
+        .list-item:last-child { border: none; }
+
+        /* ENGINEERING MATRIX */
+        .matrix-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+        .matrix-box { padding: 15px; border-radius: 12px; text-align: center; color: white; min-height: 100px; display: flex; flex-direction: column; justify-content: center; box-shadow: 0 4px 6px rgba(0,0,0,0.1); position: relative; overflow: hidden; }
         .bg-star { background: linear-gradient(135deg, #10b981, #059669); }
         .bg-plow { background: linear-gradient(135deg, #3b82f6, #2563eb); }
         .bg-puzzle { background: linear-gradient(135deg, #f59e0b, #d97706); }
         .bg-dog { background: linear-gradient(135deg, #ef4444, #dc2626); }
-        .matrix-val { font-size: 2.2rem; font-weight: 800; line-height: 1; }
-        .matrix-lbl { font-size: 0.75rem; font-weight: 700; opacity: 0.9; text-transform: uppercase; margin-top: 5px; letter-spacing: 1px; }
+        .matrix-val { font-size: 2rem; font-weight: 800; line-height: 1; }
+        .matrix-lbl { font-size: 0.75rem; font-weight: 700; opacity: 0.9; text-transform: uppercase; margin-top: 5px; }
 
-        /* TABLAS Y LISTAS */
-        .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); }
-        table { width: 100%; border-collapse: collapse; font-size: 0.9rem; min-width: 600px; }
-        th { text-align: left; background: #f8fafc; color: var(--sub); padding: 12px; font-size: 0.75rem; text-transform: uppercase; border-bottom: 1px solid var(--border); font-weight: 700; }
-        td { padding: 12px; border-bottom: 1px solid #f1f5f9; color: var(--text); }
-        tr:last-child td { border: none; }
+        /* INPUTS */
+        label { display: block; font-size: 0.7rem; font-weight: 700; color: var(--sub); margin-bottom: 4px; text-transform: uppercase; }
+        input, select, textarea { width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 16px; background: #fff; font-family: inherit; margin-bottom: 8px; outline: none; transition: 0.2s; -webkit-appearance: none; }
+        input:focus, select:focus, textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px #bfdbfe; }
+        .search-bar { background: #fff; border: 1px solid var(--border); margin-bottom: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.02); }
+
+        /* BOTONES */
+        .btn { width: 100%; padding: 14px; border-radius: 10px; border: none; font-weight: 600; cursor: pointer; font-size: 0.95rem; text-align: center; margin-top: 5px; transition: 0.1s; display: inline-block; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        .btn:active { transform: scale(0.97); opacity: 0.9; }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-accent { background: var(--accent); color: white; }
+        .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--text); }
+        .btn-danger { background: #fee2e2; color: var(--danger); }
+        .btn-sm { width: auto; padding: 6px 12px; font-size: 0.8rem; margin: 0; }
         
-        .list-item { display: flex; justify-content: space-between; align-items: center; padding: 14px 10px; border-bottom: 1px solid #f1f5f9; transition: 0.1s; cursor: pointer; }
-        .list-item:hover { background: #f8fafc; border-radius: 6px; }
-        .list-item:last-child { border: none; }
-
-        /* ESTADOS & TAGS */
-        .status-btn { padding: 5px 12px; border-radius: 6px; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; cursor: pointer; border: none; transition: 0.2s; letter-spacing: 0.5px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
-        .status-btn:active { transform: scale(0.95); }
+        .status-btn { padding: 4px 10px; border-radius: 6px; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; cursor: pointer; border: none; transition: 0.2s; }
         .status-btn.paid { background: #dcfce7; color: #166534; border: 1px solid #86efac; }
         .status-btn.pending { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
-        .tag { padding: 3px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; }
-        .tag.ok { background: #dcfce7; color: #166534; }
-        .tag.warn { background: #fef3c7; color: #92400e; }
-
-        /* INPUTS & INTERFAZ */
-        label { display: block; font-size: 0.75rem; font-weight: 700; color: var(--sub); margin-bottom: 5px; }
-        input, select, textarea { width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 15px; background: #fff; font-family: inherit; margin-bottom: 10px; outline: none; transition: 0.2s; -webkit-appearance: none; }
-        input:focus, textarea:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15); }
-        .search-bar { background: #fff; border: 1px solid var(--border); margin-bottom: 15px; padding: 14px; font-size: 1rem; box-shadow: var(--shadow); }
-
-        .btn { width: 100%; padding: 14px; border-radius: 8px; border: none; font-weight: 600; cursor: pointer; font-size: 0.95rem; text-align: center; margin-top: 8px; transition: 0.1s; display: inline-block; }
-        .btn:active { transform: scale(0.98); opacity: 0.9; }
-        .btn-primary { background: var(--primary); color: white; box-shadow: 0 4px 6px -1px rgba(15, 23, 42, 0.2); }
-        .btn-accent { background: var(--accent); color: white; box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.2); }
-        .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--text); }
-        .btn-danger { background: #fee2e2; color: var(--danger); border: 1px solid #fca5a5; }
-        .btn-sm { width: auto; padding: 8px 16px; font-size: 0.8rem; margin: 0; }
 
         /* NAV */
-        nav { position: fixed; bottom: 0; width: 100%; background: rgba(255,255,255,0.95); backdrop-filter: blur(10px); border-top: 1px solid var(--border); display: flex; justify-content: space-around; padding: 10px 0; z-index: 40; padding-bottom: env(safe-area-inset-bottom); box-shadow: 0 -4px 20px rgba(0,0,0,0.03); }
-        nav button { background: none; border: none; flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; color: var(--sub); font-size: 0.65rem; font-weight: 600; padding: 5px; opacity: 0.7; cursor: pointer; transition: 0.2s; }
+        nav { position: fixed; bottom: 0; width: 100%; background: rgba(255,255,255,0.95); backdrop-filter: blur(10px); border-top: 1px solid var(--border); display: flex; justify-content: space-around; padding: 10px 0; z-index: 40; padding-bottom: env(safe-area-inset-bottom); }
+        nav button { background: none; border: none; flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; color: var(--sub); font-size: 0.65rem; font-weight: 600; padding: 5px; opacity: 0.6; cursor: pointer; transition: 0.2s; }
         nav button.active { opacity: 1; color: var(--accent); transform: translateY(-2px); }
         nav button svg { width: 24px; height: 24px; fill: currentColor; }
 
-        /* MODAL & PIN */
+        /* MODAL */
         .hidden { display: none !important; }
-        .overlay { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.6); z-index: 100; backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; opacity: 0; animation: fadeIn 0.2s forwards; }
+        .overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 100; backdrop-filter: blur(3px); display: flex; align-items: center; justify-content: center; opacity: 0; animation: fadeIn 0.2s forwards; }
         @keyframes fadeIn { to { opacity: 1; } }
-        .modal { background: white; width: 95%; max-width: 600px; max-height: 90vh; overflow-y: auto; padding: 25px; border-radius: 16px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); }
-        
+        .modal { background: white; width: 95%; max-width: 600px; max-height: 90vh; overflow-y: auto; padding: 25px; border-radius: 16px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); }
+
+        /* PIN PAD */
         #pin-screen { background: #0f172a; color: white; }
-        .pin-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-top: 30px; max-width: 300px; }
-        .pin-btn { height: 75px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.05); font-size: 1.8rem; color: white; cursor: pointer; font-weight: 500; transition: 0.1s; }
+        .pin-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-top: 20px; max-width: 300px; margin-left: auto; margin-right: auto; }
+        .pin-btn { height: 75px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.05); font-size: 1.8rem; color: white; cursor: pointer; font-weight: 600; }
         .pin-btn:active { background: rgba(255,255,255,0.2); }
 
         /* TOAST */
         #toast-container { position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%); z-index: 200; width: 90%; max-width: 400px; display: flex; flex-direction: column; gap: 10px; pointer-events: none; }
-        .toast { background: #1e293b; color: white; padding: 14px 20px; border-radius: 10px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); animation: slideUp 0.3s; display: flex; align-items: center; gap: 12px; justify-content: center; font-weight: 500; font-size: 0.9rem; pointer-events: auto; }
+        .toast { background: #1e293b; color: white; padding: 12px 20px; border-radius: 10px; font-size: 0.9rem; font-weight: 500; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); animation: slideUp 0.3s; display: flex; align-items: center; gap: 10px; justify-content: center; }
         .toast.success { border-bottom: 4px solid var(--success); }
         .toast.error { border-bottom: 4px solid var(--danger); }
         @keyframes slideUp { from{opacity:0; transform:translateY(20px) translateX(-50%)} to{opacity:1; transform:translateY(0) translateX(-50%)} }
@@ -108,7 +103,7 @@
     <div id="toast-container"></div>
 
     <header>
-        <h1>ARUME <span style="font-size:0.6em; opacity:0.5; font-weight:400">DIAMOND</span></h1>
+        <h1>ARUME <span style="font-size:0.6em; opacity:0.5; font-weight:400">DIAMOND V48</span></h1>
         <button id="user-display" class="badge" onclick="logout()">
             <div id="sync-dot" class="dot"></div> <span id="user-name">...</span>
         </button>
@@ -120,50 +115,49 @@
 
     <div id="modal-overlay" class="overlay hidden">
         <div class="modal">
-            <div style="display:flex; justify-content:space-between; margin-bottom:20px; align-items:center;">
+            <div style="display:flex; justify-content:space-between; margin-bottom:15px; align-items:center;">
                 <h3 id="m-title" style="margin:0; font-size:1.1rem; font-weight:800; color:var(--primary)"></h3>
-                <button onclick="closeModal()" style="background:none;border:none;font-size:1.8rem;cursor:pointer;color:var(--sub);line-height:1">&times;</button>
+                <button onclick="closeModal()" style="background:none;border:none;font-size:2rem;cursor:pointer;color:var(--sub);line-height:1">&times;</button>
             </div>
             <div id="m-body"></div>
         </div>
     </div>
 
     <div id="pin-screen" class="overlay" style="opacity:1">
-        <div class="modal" style="text-align:center; background:transparent; box-shadow:none; color:white; max-width:100%">
+        <div class="modal" style="text-align:center; background:transparent; box-shadow:none; color:white">
             <h2 style="font-size:2.5rem; margin:0; letter-spacing:2px; font-weight:900">ARUME</h2>
-            <p style="opacity:0.6; margin-bottom:30px; letter-spacing:1px">SISTEMA V47</p>
+            <p style="opacity:0.6; margin-bottom:40px; letter-spacing:1px">SISTEMA V48</p>
             <div id="pin-display" style="font-size:3rem; font-weight:800; letter-spacing:15px; min-height:60px">****</div>
-            <div class="pin-grid" style="margin: 30px auto;">
+            <div class="pin-grid">
                 <button class="pin-btn" onclick="pinInput('1')">1</button><button class="pin-btn" onclick="pinInput('2')">2</button><button class="pin-btn" onclick="pinInput('3')">3</button>
                 <button class="pin-btn" onclick="pinInput('4')">4</button><button class="pin-btn" onclick="pinInput('5')">5</button><button class="pin-btn" onclick="pinInput('6')">6</button>
                 <button class="pin-btn" onclick="pinInput('7')">7</button><button class="pin-btn" onclick="pinInput('8')">8</button><button class="pin-btn" onclick="pinInput('9')">9</button>
                 <button class="pin-btn" style="color:var(--danger); border-color:rgba(239,68,68,0.3)" onclick="pinClear()">C</button>
                 <button class="pin-btn" onclick="pinInput('0')">0</button>
-                <button class="pin-btn" style="background:var(--success); border:none; color:#064e3b" onclick="pinCheck()">OK</button>
+                <button class="pin-btn" style="background:var(--success); border:none; color:#022c22" onclick="pinCheck()">OK</button>
             </div>
         </div>
     </div>
 
 <script>
-/* ================= 1. CONFIGURACIÓN & DB ================= */
+/* ================= 1. CONFIGURACIÓN ================= */
 const generateID = () => crypto.randomUUID ? crypto.randomUUID() : Date.now().toString() + Math.random().toString(36).substring(2);
 const CONFIG = { GOOGLE_URL: "", COST_HOUR: 15 };
 
 const DB_INIT = {
     users: [{id:'u1', n:'Dueño', pin:'0150', role:'admin'}, {id:'u2', n:'Cocina', pin:'1111', role:'staff'}],
     ingredientes: [
-        {id:'i1', n:'Salmón Entero', cost:12.50, stock:5.0, unit:'kg', yield:0.60, aller:['Pescado']},
-        {id:'i2', n:'Arroz Sushi', cost:2.20, stock:25.0, unit:'kg', yield:1.00, aller:[]},
-        {id:'i3', n:'Vinagre', cost:3.50, stock:5, unit:'L', yield:1.00, aller:[]}
+        {id:'i1', n:'Salmón', cost:12.50, stock:5, unit:'kg', yield:0.60, aller:['Pescado']},
+        {id:'i2', n:'Arroz', cost:2.20, stock:25, unit:'kg', yield:1, aller:[]}
     ],
     recetas: [
-        {id:'r1', n:'Nigiri Salmón (x2)', cat:'Nigiris', pvp:5.50, time:5, sales:0, items:[{id:'i1',q:0.035},{id:'i2',q:0.040}]}
+        {id:'r1', n:'Nigiri Salmón', cat:'Nigiris', pvp:5.50, time:5, sales:0, items:[{id:'i1',q:0.035},{id:'i2',q:0.040}]}
     ],
     proveedores: [{n:'Makro'}, {n:'Tokyo-ya'}, {n:'Frutas Daniel'}],
     albaranes: [], facturas: [], diario: [], mermas: [], lastSync: 0
 };
 
-let db = JSON.parse(localStorage.getItem('arume_v47')) || DB_INIT;
+let db = JSON.parse(localStorage.getItem('arume_v48')) || DB_INIT;
 let currentUser = null;
 let currentPin = "";
 let chartInstance = null;
@@ -188,7 +182,7 @@ function init() {
 
 function save(msg){
     db.lastSync = Date.now();
-    localStorage.setItem('arume_v47', JSON.stringify(db));
+    localStorage.setItem('arume_v48', JSON.stringify(db));
     if(CONFIG.GOOGLE_URL) fetch(CONFIG.GOOGLE_URL, {method:'POST', mode:'no-cors', body:JSON.stringify(db)});
     if(msg) showToast(msg, 'success');
 }
@@ -196,7 +190,7 @@ function save(msg){
 async function sync(){
     if(!CONFIG.GOOGLE_URL)return;
     try { const r=await fetch(CONFIG.GOOGLE_URL); const c=await r.json(); 
-          if(c.lastSync>(db.lastSync||0)){ db=c; save(); showToast("Sincronizado"); location.reload(); }
+          if(c.lastSync>(db.lastSync||0)){ db=c; save(); showToast("Datos actualizados"); location.reload(); }
           document.getElementById('sync-dot').classList.add('ok');
     } catch(e){}
 }
@@ -241,6 +235,7 @@ function render(view) {
     document.getElementById(`btn-${view}`)?.classList.add('active');
     const app = document.getElementById('app'); app.innerHTML='';
 
+    // --- DIARIO ---
     if(view === 'Diario') {
         const today = new Date().toISOString().split('T')[0];
         const report = db.diario.find(d => d.date === today);
@@ -255,7 +250,7 @@ function render(view) {
                 <div class="col"><label>Tarjeta</label><input type="number" id="z-card" value="${report?report.card:''}" placeholder="0.00"></div>
                 <div class="col"><label>Invitaciones</label><input type="number" id="z-inv" value="${report?report.inv:''}" placeholder="0.00"></div>
             </div>
-            <button class="btn btn-primary" onclick="saveZ()">💾 GUARDAR CIERRE</button>
+            <button class="btn btn-primary" onclick="saveZ()">💾 GUARDAR</button>
         </div>
         <div class="card">
             <div class="section-header"><div class="title">EVOLUCIÓN SEMANAL</div></div>
@@ -264,6 +259,7 @@ function render(view) {
         setTimeout(renderChart, 100);
     }
 
+    // --- ADMIN ---
     if(view === 'Admin') {
         app.innerHTML = `
         <div class="row">
@@ -275,6 +271,7 @@ function render(view) {
         renderContabilidad(); 
     }
 
+    // --- COCINA ---
     if(view === 'Cocina') {
         const filtered = db.recetas.filter(r => r.n.toLowerCase().includes(searchFilter.toLowerCase()));
         app.innerHTML = `
@@ -285,12 +282,13 @@ function render(view) {
                 const c = calcRecipe(r);
                 return `<div class="list-item" onclick="viewRecipe('${r.id}')">
                     <div><b>${r.n}</b> <small>(${r.cat})</small></div>
-                    <div style="text-align:right"><span class="tag ${r.pvp>c.total*3?'ok':'warn'}">${c.total.toFixed(2)}€</span></div>
+                    <div style="text-align:right"><span class="status-btn ${r.pvp>c.total*3?'paid':'pending'}" style="font-size:0.75rem">${c.total.toFixed(2)}€</span></div>
                 </div>`;
             }).join('')}
         </div>`;
     }
 
+    // --- STOCK ---
     if(view === 'Stock') {
         const filtered = db.ingredientes.filter(i => i.n.toLowerCase().includes(searchFilter.toLowerCase()));
         app.innerHTML = `
@@ -309,20 +307,22 @@ function render(view) {
     }
 }
 
-/* ================= 5. GESTIÓN ALBARANES (PROVEEDORES LIBRES) ================= */
+/* ================= 5. GESTIÓN ALBARANES (CON PROVIDER FIX) ================= */
 function renderAlbaran() {
     document.getElementById('admin-panel').innerHTML = `
     <div class="card" style="border-top:4px solid var(--accent)">
         <div class="section-header"><div class="title">RECEPCIÓN MERCANCÍA</div></div>
         <div class="row">
-            <div class="col"><label>Proveedor (Escribe o elige)</label>
-                <input list="prov-list" id="alb-prov" placeholder="Escribe para añadir nuevo...">
-                <datalist id="prov-list">${db.proveedores.map(p=>`<option value="${p.n}">`).join('')}</datalist>
+            <div class="col"><label>Proveedor (Escribe o Selecciona)</label>
+                <input list="prov-list" id="alb-prov" placeholder="Ej: Pescadería Paco..." onfocus="this.value=''">
+                <datalist id="prov-list">
+                    ${db.proveedores.map(p=>`<option value="${p.n}">`).join('')}
+                </datalist>
             </div>
             <div class="col"><label>Fecha</label><input type="date" id="alb-date" value="${new Date().toISOString().split('T')[0]}"></div>
         </div>
         <textarea id="alb-input" rows="3" placeholder="Pegar: Producto; Cantidad; Precio"></textarea>
-        <button class="btn btn-sm btn-ghost" onclick="parseAlb()">🪄 Procesar</button>
+        <button class="btn btn-sm btn-ghost" onclick="parseAlb()">🪄 Procesar Texto</button>
         <div id="alb-body" style="margin-top:15px"></div>
         <div style="text-align:right; font-weight:800; margin:10px 0" id="alb-sum">Total: 0.00€</div>
         <button class="btn btn-primary" onclick="commitAlb()">CONFIRMAR ENTRADA</button>
@@ -350,7 +350,7 @@ function renderAlbGrid() {
             <input value="${item.n}" onchange="tempItems[${i}].n=this.value" style="flex:2;margin:0">
             <input type="number" value="${item.q}" onchange="tempItems[${i}].q=parseFloat(this.value)" style="flex:0.5;margin:0">
             <input type="number" value="${item.p}" onchange="tempItems[${i}].p=parseFloat(this.value);renderAlbGrid()" style="flex:0.7;margin:0">
-            <button onclick="tempItems.splice(${i},1);renderAlbGrid()" style="background:none;border:none;color:var(--danger);cursor:pointer;font-weight:bold">&times;</button>
+            <button onclick="tempItems.splice(${i},1);renderAlbGrid()" style="background:none;border:none;color:var(--danger);cursor:pointer;font-weight:bold;font-size:1.2rem">&times;</button>
         </div>`;
     }).join('');
     document.getElementById('alb-sum').innerText = `Total: ${total.toFixed(2)}€`;
@@ -359,9 +359,10 @@ function renderAlbGrid() {
 function commitAlb() {
     if(!tempItems.length) return showToast("Albarán vacío", "error");
     
-    // LOGICA PROVEEDORES LIBRES
+    // GUARDAR PROVEEDOR SI ES NUEVO
     const provName = document.getElementById('alb-prov').value;
     if(!provName) return showToast("Falta Proveedor", "error");
+    
     if(!db.proveedores.find(p => p.n.toLowerCase() === provName.toLowerCase())) {
         db.proveedores.push({n: provName});
         save("Nuevo proveedor añadido");
@@ -415,7 +416,7 @@ function renderEngineering() {
             <div class="col" style="text-align:center">Min <b>${minP.toFixed(2)}€</b></div>
             <div class="col" style="text-align:center">Max <b>${maxP.toFixed(2)}€</b></div>
         </div>
-        <div style="text-align:center; padding:5px; background:#f1f5f9; border-radius:6px"><b>${omnesAlert}</b></div>
+        <div style="text-align:center; padding:10px; background:#f1f5f9; border-radius:8px; margin-top:10px"><b>${omnesAlert}</b></div>
     </div>
     <div class="card">
         <div class="section-header"><div class="title">MATRIZ BCG</div></div>
@@ -431,11 +432,11 @@ function renderEngineering() {
 
 function editSales() {
     const html = `<div style="max-height:60vh;overflow-y:auto">
-        <p style="color:var(--sub);font-size:0.8rem;margin-bottom:10px">Unidades vendidas (del informe Madisa):</p>
+        <p style="color:var(--sub);font-size:0.8rem;margin-bottom:15px">Unidades vendidas (del informe Madisa):</p>
         ${db.recetas.map(r => `
             <div class="list-item">
                 <span>${r.n}</span>
-                <input type="number" style="width:80px;margin:0;padding:8px" value="${r.sales||0}" onchange="updateSale('${r.id}', this.value)">
+                <input type="number" style="width:90px;margin:0;padding:10px;text-align:right" value="${r.sales||0}" onchange="updateSale('${r.id}', this.value)">
             </div>
         `).join('')}
     </div>`;
@@ -553,7 +554,7 @@ function editRecipe(id) {
     showModal(id?"Editar":"Nueva", `
         <label>Nombre</label><input id="er-n" value="${r.n}">
         <div class="row"><div class="col"><label>PVP</label><input id="er-pvp" type="number" value="${r.pvp}"></div><div class="col"><label>Cat</label><input id="er-cat" value="${r.cat}"></div></div>
-        <div id="er-list" style="background:#f9fafb;padding:10px;margin-bottom:10px;border-radius:8px"></div>
+        <div id="er-list" style="background:#f8fafc;padding:10px;margin-bottom:10px;border-radius:8px;max-height:150px;overflow-y:auto"></div>
         <div class="row"><select id="er-ing" style="flex:2">${db.ingredientes.map(i=>`<option value="${i.id}">${i.n}</option>`).join('')}</select><input id="er-q" placeholder="Cant" style="flex:1"><button class="btn btn-sm btn-accent" onclick="addRecItem()">+</button></div>
         <button class="btn btn-primary" onclick="saveRecipe('${r.id}')">Guardar</button>
     `);
