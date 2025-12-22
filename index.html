@@ -15,12 +15,12 @@
             --border: #e2e8f0; --radius: 12px;
         }
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-        body { margin: 0; font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); padding-bottom: 110px; height: 100vh; overflow-y: scroll; }
+        body { margin: 0; font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); padding-bottom: 110px; min-height: 100vh; }
 
         /* HEADER */
-        header { background: var(--paper); padding: 15px 20px; position: sticky; top: 0; z-index: 50; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); box-shadow: 0 4px 10px -2px rgba(0,0,0,0.05); }
-        h1 { margin: 0; font-size: 1.3rem; font-weight: 900; letter-spacing: -0.5px; color: var(--primary); }
-        .badge { padding: 6px 12px; border-radius: 99px; font-size: 0.75rem; background: #f1f5f9; color: var(--text); font-weight: 700; border: 1px solid var(--border); cursor: pointer; display: flex; align-items: center; gap: 6px; }
+        header { background: var(--paper); padding: 15px 20px; position: sticky; top: 0; z-index: 50; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); }
+        h1 { margin: 0; font-size: 1.3rem; font-weight: 900; letter-spacing: -0.5px; color: var(--primary); display:flex; align-items:center; gap:8px; }
+        .badge { padding: 6px 12px; border-radius: 99px; font-size: 0.75rem; background: #f1f5f9; color: var(--text); font-weight: 700; border: 1px solid var(--border); cursor: pointer; display: flex; align-items:center; gap:8px; }
         .dot { width: 8px; height: 8px; border-radius: 50%; background: #ccc; } .dot.ok { background: var(--success); box-shadow: 0 0 6px var(--success); }
 
         /* LAYOUT */
@@ -51,12 +51,12 @@
 
         /* INPUTS */
         label { display: block; font-size: 0.7rem; font-weight: 700; color: var(--sub); margin-bottom: 5px; text-transform: uppercase; }
-        input, select, textarea { width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 10px; font-size: 15px; background: #fff; font-family: inherit; margin-bottom: 10px; outline: none; transition: 0.2s; -webkit-appearance: none; }
+        input, select, textarea { width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 10px; font-size: 15px; background: #fff; font-family: inherit; margin-bottom: 10px; outline: none; }
         input:focus, select:focus, textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px #bfdbfe; }
-        .search-bar { background: #fff; border: 1px solid var(--border); margin-bottom: 15px; box-shadow: 0 4px 6px -2px rgba(0,0,0,0.03); }
+        .search-bar { background: #fff; border: 1px solid var(--border); margin-bottom: 15px; box-shadow: 0 4px 6px -2px rgba(0,0,0,0.03); padding: 10px; border-radius:10px; }
 
         /* BOTONES */
-        .btn { width: 100%; padding: 14px; border-radius: 12px; border: none; font-weight: 600; cursor: pointer; font-size: 1rem; text-align: center; margin-top: 5px; transition: 0.1s; display: inline-block; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .btn { width: 100%; padding: 14px; border-radius: 12px; border: none; font-weight: 600; cursor: pointer; font-size: 1rem; text-align: center; margin-top: 5px; transition: 0.1s; display: inline-flex; justify-content:center; align-items:center; gap:8px; }
         .btn:active { transform: scale(0.97); opacity: 0.9; }
         .btn-primary { background: var(--primary); color: white; }
         .btn-accent { background: var(--accent); color: white; }
@@ -73,17 +73,16 @@
         .alb-row input { margin: 0; padding: 8px; font-size: 0.9rem; }
         .alb-name { flex: 3; min-width: 120px; }
         .alb-num { flex: 1; min-width: 50px; text-align: right; }
-        
+
         /* NAV */
-        nav { position: fixed; bottom: 0; width: 100%; background: rgba(255,255,255,0.96); backdrop-filter: blur(12px); border-top: 1px solid var(--border); display: flex; justify-content: space-around; padding: 12px 0; z-index: 40; padding-bottom: env(safe-area-inset-bottom); box-shadow: 0 -4px 20px rgba(0,0,0,0.03); }
-        nav button { background: none; border: none; flex: 1; display: flex; flex-direction: column; align-items: center; gap: 5px; color: var(--sub); font-size: 0.65rem; font-weight: 700; padding: 5px; opacity: 0.5; cursor: pointer; transition: 0.2s; }
+        nav { position: fixed; bottom: 0; width: 100%; background: rgba(255,255,255,0.96); backdrop-filter: blur(8px); border-top: 1px solid var(--border); display: flex; justify-content: space-around; gap:4px; padding:6px; z-index:60; }
+        nav button { background: none; border: none; flex: 1; display: flex; flex-direction: column; align-items: center; gap: 5px; color: var(--sub); font-size: 0.65rem; font-weight: 700; padding: 5px 8px; border-radius:8px; }
         nav button.active { opacity: 1; color: var(--accent); transform: translateY(-3px); }
         nav button svg { width: 26px; height: 26px; fill: currentColor; }
 
         /* MODAL */
         .hidden { display: none !important; }
-        .overlay { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.7); z-index: 100; backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; opacity: 0; animation: fadeIn 0.2s forwards; }
-        @keyframes fadeIn { to { opacity: 1; } }
+        .overlay { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.7); z-index: 100; backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; }
         .modal { background: white; width: 95%; max-width: 700px; max-height: 90vh; overflow-y: auto; padding: 25px; border-radius: 20px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); }
 
         /* PIN PAD */
@@ -94,10 +93,14 @@
 
         /* TOAST */
         #toast-container { position: fixed; bottom: 110px; left: 50%; transform: translateX(-50%); z-index: 200; width: 90%; max-width: 400px; display: flex; flex-direction: column; gap: 10px; pointer-events: none; }
-        .toast { background: #1e293b; color: white; padding: 14px 20px; border-radius: 12px; font-size: 0.95rem; font-weight: 600; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); animation: slideUp 0.3s; display: flex; align-items: center; gap: 12px; justify-content: center; }
+        .toast { background: #1e293b; color: white; padding: 14px 20px; border-radius: 12px; font-size: 0.95rem; font-weight: 600; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); animation: slideUp 0.3s ease forwards; pointer-events: auto; }
         .toast.success { border-bottom: 4px solid var(--success); }
         .toast.error { border-bottom: 4px solid var(--danger); }
         @keyframes slideUp { from{opacity:0; transform:translateY(20px) translateX(-50%)} to{opacity:1; transform:translateY(0) translateX(-50%)} }
+
+        /* small helpers */
+        .matrix-grid { display:grid; grid-template-columns: repeat(2, 1fr); gap:10px; }
+        .matrix-box { padding:12px; border-radius:8px; background:#f8fafc; text-align:center; }
     </style>
 </head>
 <body>
@@ -179,18 +182,38 @@ function init() {
 }
 
 function save(msg){
+    // Post-save: try to persist to remote (if CORS allows). Update lastSync only on success would be ideal,
+    // but we keep a local lastSync timestamp to indicate local change time.
     db.lastSync = Date.now();
     localStorage.setItem('arume_v52', JSON.stringify(db));
-    if(CONFIG.GOOGLE_URL) fetch(CONFIG.GOOGLE_URL, {method:'POST', mode:'no-cors', body:JSON.stringify(db)});
+    if(CONFIG.GOOGLE_URL) {
+        // send data, but endpoint should accept CORS for proper response
+        fetch(CONFIG.GOOGLE_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(db)
+        }).catch(()=>{ /* ignore network errors for now */ });
+    }
     if(msg) showToast(msg, 'success');
 }
 
 async function sync(){
-    if(!CONFIG.GOOGLE_URL)return;
-    try { const r=await fetch(CONFIG.GOOGLE_URL); const c=await r.json(); 
-          if(c.lastSync>(db.lastSync||0)){ db=c; save(); showToast("Datos actualizados"); location.reload(); }
-          document.getElementById('sync-dot').classList.add('ok');
-    } catch(e){}
+    if(!CONFIG.GOOGLE_URL) return;
+    try {
+        const r = await fetch(CONFIG.GOOGLE_URL);
+        if (!r.ok) return;
+        const c = await r.json();
+        if (c && c.lastSync && c.lastSync > (db.lastSync || 0)) {
+            db = c;
+            localStorage.setItem('arume_v52', JSON.stringify(db));
+            showToast("Datos actualizados");
+            setTimeout(()=>location.reload(), 500);
+        }
+        document.getElementById('sync-dot').classList.add('ok');
+    } catch(e){
+        // silently ignore; could log to console
+        console.warn("Sync error", e);
+    }
 }
 
 /* ================= 3. AUTH ================= */
@@ -214,15 +237,15 @@ function renderNav() {
     const nav = document.getElementById('navbar'); nav.innerHTML='';
     const views = {
         'Diario': {icon:'<path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/>', label:'CAJA Z'},
-        'Admin': {icon:'<path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.89 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>', label:'GESTIÓN'},
-        'Cocina': {icon:'<path d="M8.1 13.34l2.83-2.83L3.91 3.5c-1.56 1.56-1.56 4.09 0 5.66l4.19 4.18zm6.78-1.81c1.53.71 3.68.21 5.27-1.38 1.91-1.91 2.28-4.65.81-6.12-1.46-1.46-4.2-1.1-6.12.81-1.59 1.59-2.09 3.74-1.38 5.27L3.7 19.87l1.41 1.41L12 14.41l6.88 6.88 1.41-1.41L13.41 13l1.47-1.47z"/>', label:'FICHAS'},
-        'Stock': {icon:'<path d="M20 6h-2.18c.11-.31.18-.65.18-1 0-1.66-1.34-3-3-3-1.05 0-1.96.54-2.5 1.35l-.5.67-.5-.68C10.96 2.54 10.05 2 9 2 7.34 2 6 3.34 6 5c0 .35.07.69.18 1H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-5-2c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 1-1-.45-1-1zM9 4c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 1-1-.45-1-1z"/>', label:'STOCK'}
+        'Admin': {icon:'<path d="M12 2L3 5v6c0 5 3.8 9.7 9 11 5.2-1.3 9-6 9-11V5l-9-3z"/>', label:'GESTIÓN'},
+        'Cocina': {icon:'<path d="M12 2C8.1 6 7 8 7 11c0 3.9 3.1 7 7 7s7-3.1 7-7c0-3-1.1-5-5-9z"/>', label:'COCINA'},
+        'Stock': {icon:'<path d="M3 3h18v2H3V3zm2 4h14v12H5V7zm2 2v8h10V9H7z"/>', label:'STOCK'}
     };
     
     for(const [k,v] of Object.entries(views)){
         if((k==='Admin') && currentUser.role!=='admin') continue;
         const b = document.createElement('button');
-        b.innerHTML = `<svg viewBox="0 0 24 24">${v.icon}</svg>${v.label}`;
+        b.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${v.icon}</svg>${v.label}`;
         b.id = `btn-${k}`; b.onclick = () => { searchFilter=""; render(k); };
         nav.appendChild(b);
     }
@@ -271,7 +294,7 @@ function render(view) {
 
     // --- COCINA ---
     if(view === 'Cocina') {
-        const filtered = db.recetas.filter(r => r.n.toLowerCase().includes(searchFilter.toLowerCase()));
+        const filtered = db.recetas.filter(r => (r.n||'').toLowerCase().includes(searchFilter.toLowerCase()));
         app.innerHTML = `
         <div class="card">
             <div class="section-header"><div class="title">FICHAS TÉCNICAS</div><button class="btn btn-sm btn-ghost" onclick="editRecipe()">+ Nueva</button></div>
@@ -279,8 +302,8 @@ function render(view) {
             ${filtered.map(r => {
                 const c = calcRecipe(r);
                 return `<div class="list-item" onclick="viewRecipe('${r.id}')">
-                    <div><b>${r.n}</b> <small>(${r.cat})</small></div>
-                    <div style="text-align:right"><span class="status-btn ${r.pvp>c.total*3?'paid':'pending'}" style="font-size:0.75rem">${c.total.toFixed(2)}€</span></div>
+                    <div><b>${r.n}</b> <small>(${r.cat||''})</small></div>
+                    <div style="text-align:right"><span class="status-btn ${(r.pvp||0) > (c.total||0)*3 ? 'paid' : 'pending'}" style="font-size:0.75rem">${(c.total||0).toFixed(2)}€</span></div>
                 </div>`;
             }).join('')}
         </div>`;
@@ -288,8 +311,8 @@ function render(view) {
 
     // --- STOCK ---
     if(view === 'Stock') {
-        const filtered = db.ingredientes.filter(i => i.n.toLowerCase().includes(searchFilter.toLowerCase()));
-        const totalValue = db.ingredientes.reduce((acc, i) => acc + (i.stock * i.cost), 0);
+        const filtered = db.ingredientes.filter(i => (i.n||'').toLowerCase().includes(searchFilter.toLowerCase()));
+        const totalValue = db.ingredientes.reduce((acc, i) => acc + ((i.stock||0) * (i.cost||0)), 0);
         
         app.innerHTML = `
         <div class="kpi-row">
@@ -304,8 +327,8 @@ function render(view) {
             <input class="search-bar" placeholder="🔍 Buscar ingrediente..." value="${searchFilter}" oninput="searchFilter=this.value; render('Stock')">
             ${filtered.map(i => `
                 <div class="list-item" onclick="editIng('${i.id}')">
-                    <div><b>${i.n}</b> <small style="color:${i.stock<i.min?'red':'gray'}">${i.cost.toFixed(2)}€/${i.unit}</small></div>
-                    <div style="text-align:right"><b>${i.stock.toFixed(2)} ${i.unit}</b><br><small>Min: ${i.min||0}</small></div>
+                    <div><b>${i.n}</b> <small style="color:${(i.stock||0) < (i.min||0) ? 'red' : 'gray'}">${(i.cost||0).toFixed(2)}€/${i.unit||'ud'}</small></div>
+                    <div style="text-align:right"><b>${(i.stock||0).toFixed(2)} ${(i.unit||'ud')}</b><br><small>Min: ${i.min||0}</small></div>
                 </div>`).join('')}
         </div>`;
     }
@@ -318,7 +341,7 @@ function renderAlbaran() {
         <div class="section-header"><div class="title">RECEPCIÓN MERCANCÍA</div></div>
         <div class="row">
             <div class="col"><label>Proveedor</label>
-                <input list="prov-list" id="alb-prov" placeholder="Escribe o selecciona..." onfocus="this.value=''">
+                <input list="prov-list" id="alb-prov" placeholder="Escribe o selecciona..." onfocus="this.value=''>
                 <datalist id="prov-list">${db.proveedores.map(p=>`<option value="${p.n}">`).join('')}</datalist>
             </div>
             <div class="col"><label>Fecha</label><input type="date" id="alb-date" value="${new Date().toISOString().split('T')[0]}"></div>
@@ -337,26 +360,49 @@ function renderAlbaran() {
 }
 
 function parseAlb() {
-    const txt = document.getElementById('alb-input').value;
+    const txt = document.getElementById('alb-input').value || '';
+    tempItems = [];
     txt.split(/\r?\n/).forEach(line => {
         line = line.trim();
         if(!line) return;
-        let parts = line.split(/[\s\t;]+/); 
-        const numParts = []; const textParts = [];
-        parts.forEach(part => {
-            let cleanVal = part.replace('€','').replace('$','').replace(',','.').trim();
-            if(!isNaN(cleanVal) && cleanVal !== "" && /\d/.test(cleanVal)) {
-                numParts.push(parseFloat(cleanVal));
-            } else {
-                textParts.push(part);
-            }
-        });
-        let n = textParts.join(" ") || "Producto";
-        let q = 1; let p = 0;
-        if(numParts.length >= 2) { q = numParts[0]; p = numParts[1]; } 
-        else if (numParts.length === 1) { p = numParts[0]; }
+        // Try to extract numbers; assume pattern: "Nombre ... qty price" or "Nombre ... price"
+        // Tokenize but allow product names with spaces
+        const parts = line.split(/\s{2,}|\t|;/).filter(Boolean);
+        // If there are parts separated by double spaces or semicolons, try to parse last parts as numbers
+        let name = parts[0];
+        let q = 1, p = 0;
+        if(parts.length >= 2) {
+            // try parse last two tokens for numbers
+            const tail = parts.slice(1).join(' ').split(/\s+/);
+            const nums = [];
+            const texts = [];
+            tail.forEach(tok => {
+                const cleanVal = tok.replace('€','').replace('$','').replace(',','.').trim();
+                if(cleanVal !== "" && !isNaN(cleanVal) && /\d/.test(cleanVal)) nums.push(parseFloat(cleanVal));
+                else texts.push(tok);
+            });
+            if(nums.length >= 2) { q = nums[0]; p = nums[1]; }
+            else if (nums.length === 1) { p = nums[0]; }
+            // rebuild name if there were textParts
+            if(texts.length) name = [parts[0], ...texts].join(' ');
+        } else {
+            // fallback: split by spaces and extract numbers as before
+            const tokens = line.split(/\s+/);
+            const numParts = []; const textParts = [];
+            tokens.forEach(part => {
+                let cleanVal = part.replace('€','').replace('$','').replace(',','.').trim();
+                if(!isNaN(cleanVal) && cleanVal !== "" && /\d/.test(cleanVal)) {
+                    numParts.push(parseFloat(cleanVal));
+                } else {
+                    textParts.push(part);
+                }
+            });
+            name = textParts.join(" ") || name;
+            if(numParts.length >= 2) { q = numParts[0]; p = numParts[1]; } 
+            else if (numParts.length === 1) { p = numParts[0]; }
+        }
         if(p > 0 || q > 1) {
-            tempItems.push({ n, q, p, d:0, iva:10 }); // Default IVA 10%
+            tempItems.push({ n: name.trim(), q: Number(q) || 1, p: Number(p) || 0, d:0, iva:10 }); // Default IVA 10%
         }
     });
     renderAlbGrid();
@@ -367,17 +413,17 @@ function renderAlbGrid() {
     let total = 0;
     div.innerHTML = tempItems.map((item, i) => {
         // Calculo: (Precio * Cantidad) * (1 - Dto) * (1 + IVA)
-        const bruto = item.p * item.q;
-        const conDto = bruto * (1 - (item.d/100));
-        const final = conDto * (1 + (item.iva/100));
+        const bruto = (Number(item.p) || 0) * (Number(item.q) || 0);
+        const conDto = bruto * (1 - (Number(item.d || 0)/100));
+        const final = conDto * (1 + (Number(item.iva || 0)/100));
         total += final;
 
         return `<div class="alb-row">
             <input value="${item.n}" onchange="tempItems[${i}].n=this.value" class="alb-name" placeholder="Producto">
-            <input type="number" value="${item.q}" onchange="tempItems[${i}].q=parseFloat(this.value);renderAlbGrid()" class="alb-num" placeholder="Cant">
-            <input type="number" value="${item.p}" onchange="tempItems[${i}].p=parseFloat(this.value);renderAlbGrid()" class="alb-num" placeholder="€/ud">
-            <input type="number" value="${item.d}" onchange="tempItems[${i}].d=parseFloat(this.value);renderAlbGrid()" class="alb-num" placeholder="%Dto" style="color:blue">
-            <input type="number" value="${item.iva}" onchange="tempItems[${i}].iva=parseFloat(this.value);renderAlbGrid()" class="alb-num" placeholder="%IVA" style="color:var(--sub)">
+            <input type="number" value="${item.q}" onchange="tempItems[${i}].q=parseFloat(this.value)||0;renderAlbGrid()" class="alb-num" placeholder="Cant">
+            <input type="number" value="${item.p}" onchange="tempItems[${i}].p=parseFloat(this.value)||0;renderAlbGrid()" class="alb-num" placeholder="€/ud">
+            <input type="number" value="${item.d}" onchange="tempItems[${i}].d=parseFloat(this.value)||0;renderAlbGrid()" class="alb-num" placeholder="%Dto" style="color:blue">
+            <input type="number" value="${item.iva}" onchange="tempItems[${i}].iva=parseFloat(this.value)||0;renderAlbGrid()" class="alb-num" placeholder="%IVA" style="color:var(--sub)">
             <button onclick="tempItems.splice(${i},1);renderAlbGrid()" style="background:none;border:none;color:var(--danger);font-weight:bold;padding:0 10px">✕</button>
         </div>`;
     }).join('');
@@ -386,25 +432,34 @@ function renderAlbGrid() {
 
 function commitAlb() {
     if(!tempItems.length) return showToast("Vacío", "error");
-    const provName = document.getElementById('alb-prov').value;
-    const note = document.getElementById('alb-note').value;
+    const provName = (document.getElementById('alb-prov').value || '').trim();
+    const note = document.getElementById('alb-note').value || '';
     if(!provName) return showToast("Falta Proveedor", "error");
     if(!db.proveedores.find(p => p.n.toLowerCase() === provName.toLowerCase())) { db.proveedores.push({n: provName}); save("Nuevo proveedor"); }
-    const date = document.getElementById('alb-date').value;
+    const date = document.getElementById('alb-date').value || new Date().toISOString().split('T')[0];
     
     // Calcular total real sumando líneas
-    const total = tempItems.reduce((acc, it) => acc + (it.p * it.q * (1-it.d/100) * (1+it.iva/100)), 0);
+    const total = tempItems.reduce((acc, it) => acc + ((Number(it.p)||0) * (Number(it.q)||0) * (1-(Number(it.d||0)/100)) * (1+(Number(it.iva||0)/100))), 0);
     
     tempItems.forEach(item => {
-        // Coste unitario neto (sin IVA) para el escandallo
-        const netCost = item.p * (1 - item.d/100); 
-        let i = db.ingredientes.find(ing => ing.n.toLowerCase().trim() === item.n.toLowerCase().trim());
+        // unitNetCost: coste por unidad sin IVA ni dto
+        const qty = Number(item.q) || 1;
+        const price = Number(item.p) || 0;
+        const dto = Number(item.d) || 0;
+        const unitNetCost = qty > 0 ? ((price * (1 - dto/100)) / qty) : (price * (1 - dto/100));
+        let i = db.ingredientes.find(ing => (ing.n||'').toLowerCase().trim() === (item.n||'').toLowerCase().trim());
         if(i) {
-            if(i.stock>0) i.cost = ((i.stock*i.cost)+netCost) / (i.stock+item.q);
-            i.stock += item.q;
-        } else { db.ingredientes.push({ id: generateID(), n: item.n, stock: item.q, cost: netCost, min:0, unit: 'ud', yield: 1, aller: [] }); }
+            // Actualización por media ponderada
+            const prevTotal = (Number(i.stock) || 0) * (Number(i.cost) || 0);
+            const addedTotal = qty * unitNetCost;
+            const newStock = (Number(i.stock) || 0) + qty;
+            i.cost = newStock > 0 ? ((prevTotal + addedTotal) / newStock) : unitNetCost;
+            i.stock = newStock;
+        } else { 
+            db.ingredientes.push({ id: generateID(), n: item.n, stock: qty, cost: unitNetCost || 0, min:0, unit: 'ud', yield: 1, aller: [] }); 
+        }
     });
-    db.albaranes.push({ id: generateID(), date, prov: provName, items: [...tempItems], total, note, invoiced: false });
+    db.albaranes.push({ id: generateID(), date, prov: provName, items: JSON.parse(JSON.stringify(tempItems)), total, note, invoiced: false });
     save("Entrada confirmada"); renderContabilidad();
 }
 
@@ -425,7 +480,7 @@ function renderContabilidad() {
         ${Object.entries(grupos).map(([prov, d]) => `
             <div class="list-item">
                 <div><b>${prov}</b> <small>(${d.count} alb)</small></div>
-                <div style="text-align:right"><b>${d.total.toFixed(2)}€</b> <button class="btn btn-sm btn-accent" onclick="invoiceModal('${prov}','${d.ids}',${d.total})">Facturar</button></div>
+                <div style="text-align:right"><b>${d.total.toFixed(2)}€</b> <button class="btn btn-sm btn-accent" onclick="invoiceModal('${prov}','${d.ids.join(',')}',${d.total})">Facturar</button></div>
             </div>`).join('')}
     </div>
 
@@ -437,7 +492,6 @@ function renderContabilidad() {
                 <div style="text-align:right"><b>${a.total.toFixed(2)}€</b> <span style="font-size:1.2rem">👁️</span></div>
             </div>
         `).join('')}
-    </div>
 
     <div class="card">
         <div class="section-header">
@@ -452,211 +506,10 @@ function renderContabilidad() {
         <div class="section-header"><div class="title">HISTÓRICO FACTURAS</div></div>
         <div class="table-wrap">
             <table><thead><tr><th>Fecha</th><th>Prov</th><th>Nº</th><th>Total</th><th>Estado</th></tr></thead>
-            <tbody>${db.facturas.slice().reverse().map(f => `
-                <tr><td>${f.date.substring(5)}</td><td>${f.prov}</td><td>${f.code}</td><td><b>${f.total.toFixed(2)}€</b></td>
-                <td><button class="status-btn ${f.paid?'paid':'pending'}" onclick="togglePaid('${f.id}')">${f.paid?'PAGADO':'PENDIENTE'}</button></td></tr>
+            <tbody>${(db.facturas||[]).slice().reverse().map(f => `
+                <tr><td>${(f.date||'').substring(5)}</td><td>${f.prov}</td><td>${f.code||''}</td><td><b>${(f.total||0).toFixed(2)}€</b></td>
+                <td><button class="status-btn ${(f.paid)?'paid':'pending'}" onclick="togglePaid('${f.id}')">${(f.paid)?'PAGADO':'PENDIENTE'}</button></td></tr>
             `).join('')}</tbody></table>
         </div>
-    </div>`;
+    </div>`
 }
-
-function viewAlbaran(id) {
-    const a = db.albaranes.find(x => x.id === id);
-    if(!a) return;
-    
-    // Reconstruir lista HTML
-    const itemsHtml = a.items.map(it => `
-        <tr>
-            <td>${it.n}</td>
-            <td>${it.q}</td>
-            <td>${it.p}€</td>
-            <td>${it.d||0}%</td>
-            <td>${it.iva||0}%</td>
-            <td><b>${(it.q * it.p * (1-(it.d||0)/100) * (1+(it.iva||0)/100)).toFixed(2)}€</b></td>
-        </tr>
-    `).join('');
-
-    showModal(`Albarán ${a.prov}`, `
-        <div style="margin-bottom:15px; font-size:0.9rem; color:var(--sub)">
-            Fecha: <b>${a.date}</b><br>
-            Estado: <b>${a.invoiced ? 'FACTURADO' : 'PENDIENTE'}</b>
-        </div>
-        <div class="table-wrap" style="margin-bottom:15px">
-            <table style="font-size:0.8rem">
-                <thead><tr><th>Prod</th><th>Cant</th><th>Pre</th><th>Dto</th><th>IVA</th><th>Tot</th></tr></thead>
-                <tbody>${itemsHtml}</tbody>
-            </table>
-        </div>
-        <div style="text-align:right; font-size:1.2rem; font-weight:800; margin-bottom:10px">Total: ${a.total.toFixed(2)}€</div>
-        ${a.note ? `<div style="background:#fffbeb; padding:10px; border-radius:8px; font-size:0.9rem">📝 <b>Nota:</b> ${a.note}</div>` : ''}
-    `);
-}
-
-function invoiceModal(prov, idsStr, total) {
-    showModal("Nueva Factura", `<p>Prov: <b>${prov}</b> | Total: <b>${total.toFixed(2)}€</b></p><label>Nº Factura</label><input id="inv-code"><button class="btn btn-primary" onclick="createInvoice('${prov}','${idsStr}',${total})">Crear</button>`);
-}
-function createInvoice(prov, idsStr, total) {
-    const code = document.getElementById('inv-code').value;
-    if(!code) return showToast("Falta Nº", "error");
-    const ids = idsStr.split(','); ids.forEach(id => { const a = db.albaranes.find(x=>x.id==id); if(a) a.invoiced = true; });
-    db.facturas.push({ id:generateID(), date:new Date().toISOString().split('T')[0], prov, code, total, paid:false });
-    save("Factura Creada"); closeModal(); renderContabilidad();
-}
-function togglePaid(fid) { const f = db.facturas.find(x=>x.id==fid); if(f) { f.paid = !f.paid; save(f.paid?"Pagado":"Pendiente"); renderContabilidad(); } }
-
-/* ================= 8. EXTRAS ================= */
-function saveZ() {
-    const d = { date: new Date().toISOString().split('T')[0], total: parseFloat(document.getElementById('z-total').value)||0, cash: parseFloat(document.getElementById('z-cash').value)||0, card: parseFloat(document.getElementById('z-card').value)||0, inv: parseFloat(document.getElementById('z-inv').value)||0 };
-    const idx = db.diario.findIndex(x=>x.date===d.date); if(idx>=0) db.diario[idx]=d; else db.diario.push(d);
-    save("Cierre guardado"); render('Diario');
-}
-function renderChart(){
-    const ctx = document.getElementById('chartZ'); if(!ctx)return; if(chartInstance) chartInstance.destroy();
-    const data = db.diario.slice(-7);
-    chartInstance = new Chart(ctx, { type:'bar', data:{ labels:data.map(x=>x.date.substring(5)), datasets:[{label:'Ventas', data:data.map(x=>x.total), backgroundColor:'#2563eb', borderRadius:6}]} });
-}
-
-function calcRecipe(r){ let mat=0; r.items.forEach(it=>{const i=db.ingredientes.find(x=>x.id===it.id); if(i) mat+=(it.q/i.yield)*i.cost;}); const mo=(r.time/60)*CONFIG.COST_HOUR; return {mat, mo, total:mat+mo}; }
-function viewRecipe(id){
-    const r=db.recetas.find(x=>x.id===id); const c=calcRecipe(r); const margin=r.pvp-c.total;
-    showModal(r.n, `
-        <div class="row">
-            <div class="col" style="text-align:center;background:#f8fafc;padding:10px;border-radius:8px"><b>${c.mat.toFixed(2)}€</b><br><small>Materia</small></div>
-            <div class="col" style="text-align:center;background:#f8fafc;padding:10px;border-radius:8px"><b>${c.total.toFixed(2)}€</b><br><small>Total</small></div>
-            <div class="col" style="text-align:center;color:${margin>0?'#16a34a':'#ef4444'}"><b>${margin.toFixed(2)}€</b><br><small>Mg.</small></div>
-        </div>
-        <h4 style="margin:15px 0 5px 0; font-size:0.8rem; color:var(--sub)">INGREDIENTES</h4>
-        <table style="font-size:0.85rem">${r.items.map(it=>{ const i=db.ingredientes.find(x=>x.id===it.id); if(!i)return''; return `<tr><td>${i.n}</td><td>${it.q} (Net)</td><td>${(it.q/i.yield*i.cost).toFixed(2)}€</td></tr>`; }).join('')}</table>
-        <div style="text-align:right;margin-top:15px"><button class="btn btn-sm btn-ghost" onclick="editRecipe('${r.id}')">✏️ Editar</button></div>
-    `);
-}
-function editRecipe(id) {
-    const r = id ? db.recetas.find(x=>x.id===id) : {id:generateID(), n:'', cat:'', pvp:0, time:0, items:[]}; tempItems = JSON.parse(JSON.stringify(r.items));
-    showModal(id?"Editar":"Nueva", `
-        <label>Nombre</label><input id="er-n" value="${r.n}"><div class="row"><div class="col"><label>PVP</label><input id="er-pvp" type="number" value="${r.pvp}"></div><div class="col"><label>Cat</label><input id="er-cat" value="${r.cat}"></div></div>
-        <div id="er-list" style="background:#f8fafc;padding:10px;margin-bottom:10px;border-radius:8px;max-height:150px;overflow-y:auto"></div>
-        <div class="row"><select id="er-ing" style="flex:2">${db.ingredientes.map(i=>`<option value="${i.id}">${i.n}</option>`).join('')}</select><input id="er-q" placeholder="Cant" style="flex:1"><button class="btn btn-sm btn-accent" onclick="addRecItem()">+</button></div>
-        <button class="btn btn-primary" onclick="saveRecipe('${r.id}')">Guardar</button>
-    `); renderRecItems();
-}
-function renderRecItems(){ document.getElementById('er-list').innerHTML = tempItems.map((it,i)=>`<div class="list-item" style="padding:8px"><span>${db.ingredientes.find(x=>x.id==it.id)?.n}</span><span>${it.q}</span><button onclick="tempItems.splice(${i},1);renderRecItems()" style="color:var(--danger);border:none;background:none;font-weight:bold">✕</button></div>`).join(''); }
-function addRecItem(){ const id=document.getElementById('er-ing').value, q=parseFloat(document.getElementById('er-q').value); if(id&&q){tempItems.push({id,q}); renderRecItems();} }
-function saveRecipe(id){ 
-    const r = {id, n:document.getElementById('er-n').value, cat:document.getElementById('er-cat').value, pvp:parseFloat(document.getElementById('er-pvp').value), time:5, items:tempItems, sales: (id ? db.recetas.find(x=>x.id===id).sales : 0)};
-    const idx = db.recetas.findIndex(x=>x.id===id); if(idx>=0) db.recetas[idx]=r; else db.recetas.push(r); save("Receta guardada"); closeModal(); render('Cocina');
-}
-
-function downloadBackup() { const a = document.createElement('a'); a.href = "data:text/json;charset=utf-8,"+encodeURIComponent(JSON.stringify(db)); a.download = `arume_backup_${new Date().toISOString().slice(0,10)}.json`; a.click(); }
-
-function restoreBackup(input) {
-    const file = input.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = function(e) {
-        try {
-            const json = JSON.parse(e.target.result);
-            if(json.users && json.ingredientes && json.recetas) {
-                db = json;
-                save("Backup restaurado con éxito");
-                setTimeout(() => location.reload(), 1500);
-            } else {
-                showToast("Archivo no válido", "error");
-            }
-        } catch(err) { showToast("Error al leer archivo", "error"); }
-    };
-    reader.readAsText(file);
-}
-
-function showModal(t,h){ document.getElementById('m-title').innerText=t; document.getElementById('m-body').innerHTML=h; document.getElementById('modal-overlay').classList.remove('hidden'); }
-function closeModal(){ document.getElementById('modal-overlay').classList.add('hidden'); }
-function newIng(){ const n=prompt("Nombre:"); if(n){ db.ingredientes.push({id:generateID(), n, cost:0, stock:0, min:0, unit:'kg', yield:1, aller:[]}); save(); render('Stock'); }}
-function editIng(id){ 
-    const i=db.ingredientes.find(x=>x.id==id); 
-    showModal("Editar Stock", `<label>Nombre</label><input id="ei-n" value="${i.n}"><label>Coste (€/${i.unit})</label><input type="number" id="ei-c" value="${i.cost}"><label>Stock Actual</label><input type="number" id="ei-s" value="${i.stock}"><label>Stock Mínimo (Alerta Compra)</label><input type="number" id="ei-m" value="${i.min||0}"><button class="btn btn-primary" onclick="saveIng('${id}')">Guardar</button>`);
-}
-function saveIng(id){
-    const i=db.ingredientes.find(x=>x.id==id);
-    i.n = document.getElementById('ei-n').value;
-    i.cost = parseFloat(document.getElementById('ei-c').value);
-    i.stock = parseFloat(document.getElementById('ei-s').value);
-    i.min = parseFloat(document.getElementById('ei-m').value);
-    save("Ingrediente actualizado"); closeModal(); render('Stock');
-}
-function renderShoppingList(){
-    const toBuy = db.ingredientes.filter(i => i.stock < (i.min || 0));
-    if(toBuy.length === 0) return showToast("Stock OK (Nada que comprar)");
-    let txt = "🛒 LISTA DE COMPRA ARUME:\n";
-    toBuy.forEach(i => txt += `- ${i.n}: Pedir (Stock: ${i.stock} / Min: ${i.min})\n`);
-    alert(txt); 
-}
-function modalMerma(){ 
-    const html=`<select id="m-ing">${db.ingredientes.map(i=>`<option value="${i.id}">${i.n}</option>`).join('')}</select><input id="m-q" placeholder="Cantidad perdida"><button class="btn btn-danger" onclick="saveMerma()">Registrar Merma</button>`;
-    showModal("Merma", html);
-}
-function saveMerma(){
-    const id=document.getElementById('m-ing').value, q=parseFloat(document.getElementById('m-q').value);
-    const i=db.ingredientes.find(x=>x.id==id);
-    if(i && q){ i.stock-=q; db.mermas.push({date:new Date(), n:i.n, q}); save("Merma registrada"); closeModal(); render('Stock'); }
-}
-
-/* ================= 6. INGENIERÍA DE MENÚ (Recuperado) ================= */
-function renderEngineering() {
-    const prices = db.recetas.map(r => r.pvp).filter(p => p > 0).sort((a,b)=>a-b);
-    const minP = prices[0] || 0;
-    const maxP = prices[prices.length-1] || 0;
-    const omnesAlert = (minP > 0 && maxP/minP > 3) ? "⚠️ Rango > 3 (Revisar precios)" : "✅ Rango Precios OK";
-
-    let totalSales = 0;
-    db.recetas.forEach(r => totalSales += (r.sales||0));
-    let stars=0, plows=0, puzzles=0, dogs=0;
-    const avgPop = totalSales > 0 ? (100 / db.recetas.length) * 0.7 : 0; 
-
-    db.recetas.forEach(r => {
-        const c = calcRecipe(r);
-        const margin = r.pvp - c.total;
-        const pop = totalSales > 0 ? (r.sales / totalSales) * 100 : 0;
-        if(pop >= avgPop && margin >= 6) stars++;
-        else if(pop >= avgPop && margin < 6) plows++;
-        else if(pop < avgPop && margin >= 6) puzzles++;
-        else dogs++;
-    });
-
-    document.getElementById('admin-panel').innerHTML = `
-    <div class="card">
-        <div class="section-header"><div class="title">OMNES (AMPLITUD PRECIOS)</div></div>
-        <div class="row">
-            <div class="col" style="text-align:center; background:#f1f5f9; padding:10px; border-radius:8px">Min <b>${minP.toFixed(2)}€</b></div>
-            <div class="col" style="text-align:center; background:#f1f5f9; padding:10px; border-radius:8px">Max <b>${maxP.toFixed(2)}€</b></div>
-        </div>
-        <div style="text-align:center; margin-top:10px; font-weight:bold">${omnesAlert}</div>
-    </div>
-    <div class="card">
-        <div class="section-header"><div class="title">MATRIZ BCG</div></div>
-        <div class="matrix-grid">
-            <div class="matrix-box bg-star"><span class="matrix-val">${stars}</span><span class="matrix-lbl">Estrellas</span></div>
-            <div class="matrix-box bg-plow"><span class="matrix-val">${plows}</span><span class="matrix-lbl">Caballos</span></div>
-            <div class="matrix-box bg-puzzle"><span class="matrix-val">${puzzles}</span><span class="matrix-lbl">Puzzles</span></div>
-            <div class="matrix-box bg-dog"><span class="matrix-val">${dogs}</span><span class="matrix-lbl">Perros</span></div>
-        </div>
-        <button class="btn btn-accent" style="width:100%;margin-top:15px" onclick="editSales()">📝 Introducir Ventas (TPV)</button>
-    </div>`;
-}
-
-function editSales() {
-    const html = `<div style="max-height:60vh;overflow-y:auto">
-        <p style="color:var(--sub);font-size:0.8rem;margin-bottom:15px">Ventas periodo (unidades):</p>
-        ${db.recetas.map(r => `
-            <div class="list-item">
-                <span>${r.n}</span>
-                <input type="number" style="width:90px;margin:0;padding:10px;text-align:right" value="${r.sales||0}" onchange="updateSale('${r.id}', this.value)">
-            </div>
-        `).join('')}
-    </div>`;
-    showModal("Actualizar Ventas", html);
-}
-function updateSale(rid, val) { const r = db.recetas.find(x => x.id === rid); if(r) { r.sales = parseFloat(val)||0; save(); } }
-
-init();
-</script>
-</body>
-</html>
