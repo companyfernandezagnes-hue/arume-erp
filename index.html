@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-    <title>ARUME DIAMOND V48</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <title>ARUME V51 · Bulli Final</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;900&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
     <style>
@@ -15,35 +15,30 @@
             --border: #e2e8f0; --radius: 12px;
         }
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-        body { margin: 0; font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); padding-bottom: 100px; height: 100vh; overflow-y: scroll; }
+        body { margin: 0; font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); padding-bottom: 110px; height: 100vh; overflow-y: scroll; }
 
         /* HEADER */
-        header { background: var(--paper); padding: 15px 20px; position: sticky; top: 0; z-index: 50; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
-        h1 { margin: 0; font-size: 1.2rem; font-weight: 900; letter-spacing: 0.5px; color: var(--primary); }
-        .badge { padding: 5px 12px; border-radius: 99px; font-size: 0.75rem; background: #f1f5f9; color: var(--text); font-weight: 700; border: 1px solid var(--border); cursor: pointer; display: flex; align-items: center; gap: 6px; }
-        .dot { width: 8px; height: 8px; border-radius: 50%; background: #ccc; } .dot.ok { background: var(--success); box-shadow: 0 0 5px var(--success); }
+        header { background: var(--paper); padding: 15px 20px; position: sticky; top: 0; z-index: 50; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); box-shadow: 0 4px 10px -2px rgba(0,0,0,0.05); }
+        h1 { margin: 0; font-size: 1.3rem; font-weight: 900; letter-spacing: -0.5px; color: var(--primary); }
+        .badge { padding: 6px 12px; border-radius: 99px; font-size: 0.75rem; background: #f1f5f9; color: var(--text); font-weight: 700; border: 1px solid var(--border); cursor: pointer; display: flex; align-items: center; gap: 6px; }
+        .dot { width: 8px; height: 8px; border-radius: 50%; background: #ccc; } .dot.ok { background: var(--success); box-shadow: 0 0 6px var(--success); }
 
         /* LAYOUT */
         main { max-width: 800px; margin: 0 auto; padding: 20px; animation: fade 0.3s ease-out; }
         @keyframes fade { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
         
-        .card { background: var(--paper); border-radius: var(--radius); padding: 20px; margin-bottom: 15px; border: 1px solid var(--border); box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
-        .section-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #f8fafc; padding-bottom: 10px; margin-bottom: 15px; }
-        .title { font-size: 0.8rem; font-weight: 800; color: var(--sub); text-transform: uppercase; letter-spacing: 1px; }
-        .row { display: flex; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; } .col { flex: 1; min-width: 140px; }
+        .card { background: var(--paper); border-radius: var(--radius); padding: 20px; margin-bottom: 16px; border: 1px solid var(--border); box-shadow: 0 2px 5px rgba(0,0,0,0.02); }
+        .section-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #f8fafc; padding-bottom: 12px; margin-bottom: 15px; }
+        .title { font-size: 0.85rem; font-weight: 900; color: var(--primary); text-transform: uppercase; letter-spacing: 0.5px; }
+        .row { display: flex; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; } .col { flex: 1; min-width: 140px; }
 
-        /* LISTAS & TABLAS */
-        .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; }
-        table { width: 100%; border-collapse: collapse; font-size: 0.85rem; min-width: 100%; }
-        th { text-align: left; background: #f8fafc; color: var(--sub); padding: 12px 10px; font-size: 0.7rem; text-transform: uppercase; border-bottom: 1px solid var(--border); }
-        td { padding: 12px 10px; border-bottom: 1px solid #f1f5f9; }
-        tr:last-child td { border: none; }
-        
-        .list-item { display: flex; justify-content: space-between; align-items: center; padding: 14px 10px; border-bottom: 1px solid #f1f5f9; transition: 0.1s; }
-        .list-item:active { background: #f8fafc; }
-        .list-item:last-child { border: none; }
+        /* KPIs FINANCIEROS */
+        .kpi-row { display: flex; gap: 10px; margin-bottom: 15px; }
+        .kpi-card { flex:1; background: var(--primary); color: white; padding: 15px; border-radius: var(--radius); text-align: center; }
+        .kpi-val { font-size: 1.4rem; font-weight: 900; }
+        .kpi-lbl { font-size: 0.7rem; opacity: 0.8; text-transform: uppercase; margin-top: 4px; }
 
-        /* ENGINEERING MATRIX */
+        /* MATRIZ BCG & OMNES */
         .matrix-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
         .matrix-box { padding: 15px; border-radius: 12px; text-align: center; color: white; min-height: 100px; display: flex; flex-direction: column; justify-content: center; box-shadow: 0 4px 6px rgba(0,0,0,0.1); position: relative; overflow: hidden; }
         .bg-star { background: linear-gradient(135deg, #10b981, #059669); }
@@ -53,46 +48,57 @@
         .matrix-val { font-size: 2rem; font-weight: 800; line-height: 1; }
         .matrix-lbl { font-size: 0.75rem; font-weight: 700; opacity: 0.9; text-transform: uppercase; margin-top: 5px; }
 
+        /* LISTAS & TABLAS */
+        .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.85rem; min-width: 100%; }
+        th { text-align: left; background: #f8fafc; color: var(--sub); padding: 12px 10px; font-size: 0.7rem; text-transform: uppercase; border-bottom: 1px solid var(--border); }
+        td { padding: 14px 10px; border-bottom: 1px solid #f1f5f9; }
+        tr:last-child td { border: none; }
+        
+        .list-item { display: flex; justify-content: space-between; align-items: center; padding: 16px 10px; border-bottom: 1px solid #f1f5f9; transition: 0.1s; cursor: pointer; }
+        .list-item:active { background: #f1f5f9; }
+        .list-item:last-child { border: none; }
+
         /* INPUTS */
-        label { display: block; font-size: 0.7rem; font-weight: 700; color: var(--sub); margin-bottom: 4px; text-transform: uppercase; }
-        input, select, textarea { width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 16px; background: #fff; font-family: inherit; margin-bottom: 8px; outline: none; transition: 0.2s; -webkit-appearance: none; }
+        label { display: block; font-size: 0.7rem; font-weight: 700; color: var(--sub); margin-bottom: 5px; text-transform: uppercase; }
+        input, select, textarea { width: 100%; padding: 14px; border: 1px solid var(--border); border-radius: 10px; font-size: 16px; background: #fff; font-family: inherit; margin-bottom: 10px; outline: none; transition: 0.2s; -webkit-appearance: none; }
         input:focus, select:focus, textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px #bfdbfe; }
-        .search-bar { background: #fff; border: 1px solid var(--border); margin-bottom: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.02); }
+        .search-bar { background: #fff; border: 1px solid var(--border); margin-bottom: 15px; box-shadow: 0 4px 6px -2px rgba(0,0,0,0.03); }
 
         /* BOTONES */
-        .btn { width: 100%; padding: 14px; border-radius: 10px; border: none; font-weight: 600; cursor: pointer; font-size: 0.95rem; text-align: center; margin-top: 5px; transition: 0.1s; display: inline-block; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        .btn { width: 100%; padding: 16px; border-radius: 12px; border: none; font-weight: 600; cursor: pointer; font-size: 1rem; text-align: center; margin-top: 5px; transition: 0.1s; display: inline-block; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
         .btn:active { transform: scale(0.97); opacity: 0.9; }
         .btn-primary { background: var(--primary); color: white; }
         .btn-accent { background: var(--accent); color: white; }
         .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--text); }
         .btn-danger { background: #fee2e2; color: var(--danger); }
-        .btn-sm { width: auto; padding: 6px 12px; font-size: 0.8rem; margin: 0; }
+        .btn-sm { width: auto; padding: 8px 16px; font-size: 0.8rem; margin: 0; }
         
-        .status-btn { padding: 4px 10px; border-radius: 6px; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; cursor: pointer; border: none; transition: 0.2s; }
+        .status-btn { padding: 6px 12px; border-radius: 8px; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; cursor: pointer; border: none; transition: 0.2s; }
         .status-btn.paid { background: #dcfce7; color: #166534; border: 1px solid #86efac; }
         .status-btn.pending { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
 
         /* NAV */
-        nav { position: fixed; bottom: 0; width: 100%; background: rgba(255,255,255,0.95); backdrop-filter: blur(10px); border-top: 1px solid var(--border); display: flex; justify-content: space-around; padding: 10px 0; z-index: 40; padding-bottom: env(safe-area-inset-bottom); }
-        nav button { background: none; border: none; flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; color: var(--sub); font-size: 0.65rem; font-weight: 600; padding: 5px; opacity: 0.6; cursor: pointer; transition: 0.2s; }
-        nav button.active { opacity: 1; color: var(--accent); transform: translateY(-2px); }
-        nav button svg { width: 24px; height: 24px; fill: currentColor; }
+        nav { position: fixed; bottom: 0; width: 100%; background: rgba(255,255,255,0.96); backdrop-filter: blur(12px); border-top: 1px solid var(--border); display: flex; justify-content: space-around; padding: 12px 0; z-index: 40; padding-bottom: env(safe-area-inset-bottom); box-shadow: 0 -4px 20px rgba(0,0,0,0.03); }
+        nav button { background: none; border: none; flex: 1; display: flex; flex-direction: column; align-items: center; gap: 5px; color: var(--sub); font-size: 0.65rem; font-weight: 700; padding: 5px; opacity: 0.5; cursor: pointer; transition: 0.2s; }
+        nav button.active { opacity: 1; color: var(--accent); transform: translateY(-3px); }
+        nav button svg { width: 26px; height: 26px; fill: currentColor; }
 
         /* MODAL */
         .hidden { display: none !important; }
-        .overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 100; backdrop-filter: blur(3px); display: flex; align-items: center; justify-content: center; opacity: 0; animation: fadeIn 0.2s forwards; }
+        .overlay { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.7); z-index: 100; backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; opacity: 0; animation: fadeIn 0.2s forwards; }
         @keyframes fadeIn { to { opacity: 1; } }
-        .modal { background: white; width: 95%; max-width: 600px; max-height: 90vh; overflow-y: auto; padding: 25px; border-radius: 16px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); }
+        .modal { background: white; width: 95%; max-width: 600px; max-height: 90vh; overflow-y: auto; padding: 25px; border-radius: 20px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); }
 
         /* PIN PAD */
         #pin-screen { background: #0f172a; color: white; }
-        .pin-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-top: 20px; max-width: 300px; margin-left: auto; margin-right: auto; }
+        .pin-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-top: 30px; max-width: 320px; margin-left: auto; margin-right: auto; }
         .pin-btn { height: 75px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.05); font-size: 1.8rem; color: white; cursor: pointer; font-weight: 600; }
         .pin-btn:active { background: rgba(255,255,255,0.2); }
 
         /* TOAST */
-        #toast-container { position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%); z-index: 200; width: 90%; max-width: 400px; display: flex; flex-direction: column; gap: 10px; pointer-events: none; }
-        .toast { background: #1e293b; color: white; padding: 12px 20px; border-radius: 10px; font-size: 0.9rem; font-weight: 500; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); animation: slideUp 0.3s; display: flex; align-items: center; gap: 10px; justify-content: center; }
+        #toast-container { position: fixed; bottom: 110px; left: 50%; transform: translateX(-50%); z-index: 200; width: 90%; max-width: 400px; display: flex; flex-direction: column; gap: 10px; pointer-events: none; }
+        .toast { background: #1e293b; color: white; padding: 14px 20px; border-radius: 12px; font-size: 0.95rem; font-weight: 600; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); animation: slideUp 0.3s; display: flex; align-items: center; gap: 12px; justify-content: center; }
         .toast.success { border-bottom: 4px solid var(--success); }
         .toast.error { border-bottom: 4px solid var(--danger); }
         @keyframes slideUp { from{opacity:0; transform:translateY(20px) translateX(-50%)} to{opacity:1; transform:translateY(0) translateX(-50%)} }
@@ -101,9 +107,10 @@
 <body>
 
     <div id="toast-container"></div>
+    <input type="file" id="backup-input" style="display:none" accept=".json" onchange="restoreBackup(this)">
 
     <header>
-        <h1>ARUME <span style="font-size:0.6em; opacity:0.5; font-weight:400">DIAMOND V48</span></h1>
+        <h1>ARUME <span style="font-size:0.6em; opacity:0.6; font-weight:400">V51 BULLI</span></h1>
         <button id="user-display" class="badge" onclick="logout()">
             <div id="sync-dot" class="dot"></div> <span id="user-name">...</span>
         </button>
@@ -115,8 +122,8 @@
 
     <div id="modal-overlay" class="overlay hidden">
         <div class="modal">
-            <div style="display:flex; justify-content:space-between; margin-bottom:15px; align-items:center;">
-                <h3 id="m-title" style="margin:0; font-size:1.1rem; font-weight:800; color:var(--primary)"></h3>
+            <div style="display:flex; justify-content:space-between; margin-bottom:20px; align-items:center;">
+                <h3 id="m-title" style="margin:0; font-size:1.2rem; font-weight:900; color:var(--primary)"></h3>
                 <button onclick="closeModal()" style="background:none;border:none;font-size:2rem;cursor:pointer;color:var(--sub);line-height:1">&times;</button>
             </div>
             <div id="m-body"></div>
@@ -125,8 +132,8 @@
 
     <div id="pin-screen" class="overlay" style="opacity:1">
         <div class="modal" style="text-align:center; background:transparent; box-shadow:none; color:white">
-            <h2 style="font-size:2.5rem; margin:0; letter-spacing:2px; font-weight:900">ARUME</h2>
-            <p style="opacity:0.6; margin-bottom:40px; letter-spacing:1px">SISTEMA V48</p>
+            <h2 style="font-size:3rem; margin:0; letter-spacing:2px; font-weight:900">ARUME</h2>
+            <p style="opacity:0.6; margin-bottom:40px; letter-spacing:1px; text-transform:uppercase">Sistema de Gestión Integral</p>
             <div id="pin-display" style="font-size:3rem; font-weight:800; letter-spacing:15px; min-height:60px">****</div>
             <div class="pin-grid">
                 <button class="pin-btn" onclick="pinInput('1')">1</button><button class="pin-btn" onclick="pinInput('2')">2</button><button class="pin-btn" onclick="pinInput('3')">3</button>
@@ -145,19 +152,19 @@ const generateID = () => crypto.randomUUID ? crypto.randomUUID() : Date.now().to
 const CONFIG = { GOOGLE_URL: "", COST_HOUR: 15 };
 
 const DB_INIT = {
-    users: [{id:'u1', n:'Dueño', pin:'0150', role:'admin'}, {id:'u2', n:'Cocina', pin:'1111', role:'staff'}],
+    users: [{id:'u1', n:'Gerencia', pin:'0150', role:'admin'}, {id:'u2', n:'Cocina', pin:'1111', role:'staff'}],
     ingredientes: [
-        {id:'i1', n:'Salmón', cost:12.50, stock:5, unit:'kg', yield:0.60, aller:['Pescado']},
-        {id:'i2', n:'Arroz', cost:2.20, stock:25, unit:'kg', yield:1, aller:[]}
+        {id:'i1', n:'Salmón Fresco', cost:12.50, stock:4.5, min: 2, unit:'kg', yield:0.60, aller:['Pescado']},
+        {id:'i2', n:'Arroz Sushi', cost:2.20, stock:25, min: 10, unit:'kg', yield:1, aller:[]}
     ],
     recetas: [
-        {id:'r1', n:'Nigiri Salmón', cat:'Nigiris', pvp:5.50, time:5, sales:0, items:[{id:'i1',q:0.035},{id:'i2',q:0.040}]}
+        {id:'r1', n:'Nigiri Salmón (2pz)', cat:'Nigiris', pvp:5.50, time:5, sales:0, items:[{id:'i1',q:0.035},{id:'i2',q:0.040}]}
     ],
     proveedores: [{n:'Makro'}, {n:'Tokyo-ya'}, {n:'Frutas Daniel'}],
     albaranes: [], facturas: [], diario: [], mermas: [], lastSync: 0
 };
 
-let db = JSON.parse(localStorage.getItem('arume_v48')) || DB_INIT;
+let db = JSON.parse(localStorage.getItem('arume_v51')) || DB_INIT;
 let currentUser = null;
 let currentPin = "";
 let chartInstance = null;
@@ -182,7 +189,7 @@ function init() {
 
 function save(msg){
     db.lastSync = Date.now();
-    localStorage.setItem('arume_v48', JSON.stringify(db));
+    localStorage.setItem('arume_v51', JSON.stringify(db));
     if(CONFIG.GOOGLE_URL) fetch(CONFIG.GOOGLE_URL, {method:'POST', mode:'no-cors', body:JSON.stringify(db)});
     if(msg) showToast(msg, 'success');
 }
@@ -215,10 +222,10 @@ function loadApp() {
 function renderNav() {
     const nav = document.getElementById('navbar'); nav.innerHTML='';
     const views = {
-        'Diario': {icon:'<path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/>', label:'Caja Z'},
-        'Admin': {icon:'<path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.89 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>', label:'Gestión'},
-        'Cocina': {icon:'<path d="M8.1 13.34l2.83-2.83L3.91 3.5c-1.56 1.56-1.56 4.09 0 5.66l4.19 4.18zm6.78-1.81c1.53.71 3.68.21 5.27-1.38 1.91-1.91 2.28-4.65.81-6.12-1.46-1.46-4.2-1.1-6.12.81-1.59 1.59-2.09 3.74-1.38 5.27L3.7 19.87l1.41 1.41L12 14.41l6.88 6.88 1.41-1.41L13.41 13l1.47-1.47z"/>', label:'Fichas'},
-        'Stock': {icon:'<path d="M20 6h-2.18c.11-.31.18-.65.18-1 0-1.66-1.34-3-3-3-1.05 0-1.96.54-2.5 1.35l-.5.67-.5-.68C10.96 2.54 10.05 2 9 2 7.34 2 6 3.34 6 5c0 .35.07.69.18 1H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-5-2c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 1-1-.45-1-1zM9 4c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 1-1-.45-1-1z"/>', label:'Almacén'}
+        'Diario': {icon:'<path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/>', label:'CAJA Z'},
+        'Admin': {icon:'<path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.89 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>', label:'GESTIÓN'},
+        'Cocina': {icon:'<path d="M8.1 13.34l2.83-2.83L3.91 3.5c-1.56 1.56-1.56 4.09 0 5.66l4.19 4.18zm6.78-1.81c1.53.71 3.68.21 5.27-1.38 1.91-1.91 2.28-4.65.81-6.12-1.46-1.46-4.2-1.1-6.12.81-1.59 1.59-2.09 3.74-1.38 5.27L3.7 19.87l1.41 1.41L12 14.41l6.88 6.88 1.41-1.41L13.41 13l1.47-1.47z"/>', label:'FICHAS'},
+        'Stock': {icon:'<path d="M20 6h-2.18c.11-.31.18-.65.18-1 0-1.66-1.34-3-3-3-1.05 0-1.96.54-2.5 1.35l-.5.67-.5-.68C10.96 2.54 10.05 2 9 2 7.34 2 6 3.34 6 5c0 .35.07.69.18 1H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-5-2c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 1-1-.45-1-1zM9 4c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 1-1-.45-1-1z"/>', label:'STOCK'}
     };
     
     for(const [k,v] of Object.entries(views)){
@@ -250,7 +257,7 @@ function render(view) {
                 <div class="col"><label>Tarjeta</label><input type="number" id="z-card" value="${report?report.card:''}" placeholder="0.00"></div>
                 <div class="col"><label>Invitaciones</label><input type="number" id="z-inv" value="${report?report.inv:''}" placeholder="0.00"></div>
             </div>
-            <button class="btn btn-primary" onclick="saveZ()">💾 GUARDAR</button>
+            <button class="btn btn-primary" onclick="saveZ()">💾 GUARDAR CIERRE</button>
         </div>
         <div class="card">
             <div class="section-header"><div class="title">EVOLUCIÓN SEMANAL</div></div>
@@ -259,7 +266,7 @@ function render(view) {
         setTimeout(renderChart, 100);
     }
 
-    // --- ADMIN ---
+    // --- ADMIN (CON IMPORTAR/EXPORTAR) ---
     if(view === 'Admin') {
         app.innerHTML = `
         <div class="row">
@@ -291,7 +298,13 @@ function render(view) {
     // --- STOCK ---
     if(view === 'Stock') {
         const filtered = db.ingredientes.filter(i => i.n.toLowerCase().includes(searchFilter.toLowerCase()));
+        const totalValue = db.ingredientes.reduce((acc, i) => acc + (i.stock * i.cost), 0);
+        
         app.innerHTML = `
+        <div class="kpi-row">
+             <div class="kpi-card"><div class="kpi-val">${totalValue.toFixed(2)}€</div><div class="kpi-lbl">Valor Stock</div></div>
+             <div class="kpi-card" style="background:var(--accent); cursor:pointer" onclick="renderShoppingList()"><div class="kpi-val">🛒</div><div class="kpi-lbl">Generar Compra</div></div>
+        </div>
         <div class="card">
             <div class="section-header">
                 <div class="title">INVENTARIO</div>
@@ -300,29 +313,27 @@ function render(view) {
             <input class="search-bar" placeholder="🔍 Buscar ingrediente..." value="${searchFilter}" oninput="searchFilter=this.value; render('Stock')">
             ${filtered.map(i => `
                 <div class="list-item" onclick="editIng('${i.id}')">
-                    <div><b>${i.n}</b> <small>${i.cost.toFixed(2)}€/${i.unit}</small></div>
-                    <div style="text-align:right"><b>${i.stock.toFixed(2)} ${i.unit}</b><br><small>Rend: ${i.yield*100}%</small></div>
+                    <div><b>${i.n}</b> <small style="color:${i.stock<i.min?'red':'gray'}">${i.cost.toFixed(2)}€/${i.unit}</small></div>
+                    <div style="text-align:right"><b>${i.stock.toFixed(2)} ${i.unit}</b><br><small>Min: ${i.min||0}</small></div>
                 </div>`).join('')}
         </div>`;
     }
 }
 
-/* ================= 5. GESTIÓN ALBARANES (CON PROVIDER FIX) ================= */
+/* ================= 5. GESTIÓN ALBARANES (MAGIC PARSER) ================= */
 function renderAlbaran() {
     document.getElementById('admin-panel').innerHTML = `
     <div class="card" style="border-top:4px solid var(--accent)">
         <div class="section-header"><div class="title">RECEPCIÓN MERCANCÍA</div></div>
         <div class="row">
-            <div class="col"><label>Proveedor (Escribe o Selecciona)</label>
-                <input list="prov-list" id="alb-prov" placeholder="Ej: Pescadería Paco..." onfocus="this.value=''">
-                <datalist id="prov-list">
-                    ${db.proveedores.map(p=>`<option value="${p.n}">`).join('')}
-                </datalist>
+            <div class="col"><label>Proveedor</label>
+                <input list="prov-list" id="alb-prov" placeholder="Escribe o selecciona..." onfocus="this.value=''">
+                <datalist id="prov-list">${db.proveedores.map(p=>`<option value="${p.n}">`).join('')}</datalist>
             </div>
             <div class="col"><label>Fecha</label><input type="date" id="alb-date" value="${new Date().toISOString().split('T')[0]}"></div>
         </div>
-        <textarea id="alb-input" rows="3" placeholder="Pegar: Producto; Cantidad; Precio"></textarea>
-        <button class="btn btn-sm btn-ghost" onclick="parseAlb()">🪄 Procesar Texto</button>
+        <textarea id="alb-input" rows="3" placeholder="Pegar: Producto | Cantidad | Precio"></textarea>
+        <button class="btn btn-sm btn-ghost" onclick="parseAlb()">🪄 LECTURA MÁGICA</button>
         <div id="alb-body" style="margin-top:15px"></div>
         <div style="text-align:right; font-weight:800; margin:10px 0" id="alb-sum">Total: 0.00€</div>
         <button class="btn btn-primary" onclick="commitAlb()">CONFIRMAR ENTRADA</button>
@@ -332,10 +343,23 @@ function renderAlbaran() {
 
 function parseAlb() {
     const txt = document.getElementById('alb-input').value;
-    txt.split('\n').forEach(line => {
+    txt.split(/\r?\n/).forEach(line => {
         if(!line.trim()) return;
-        const p = line.split(/[;\t]+/);
-        if(p.length >= 3) tempItems.push({ n:p[0].trim(), q:parseFloat(p[1])||0, p:parseFloat(p[2].replace('€','').trim())||0, d:0 });
+        let parts = line.split(/[\t;]+/); 
+        if(parts.length < 2) parts = line.split(/\s{2,}/); 
+        
+        let n = "", q = 0, p = 0;
+        if(parts.length >= 2) {
+            const numParts = []; const textParts = [];
+            parts.forEach(part => {
+                let cleanNum = part.replace('€','').replace(',','.').trim();
+                if(!isNaN(cleanNum) && cleanNum !== "") numParts.push(parseFloat(cleanNum)); else textParts.push(part.trim());
+            });
+            n = textParts.join(" ") || "Producto";
+            if(numParts.length >= 2) { q = numParts[0]; p = numParts[1]; } 
+            else if (numParts.length === 1) { q = 1; p = numParts[0]; }
+        } else { n = line.trim(); }
+        tempItems.push({ n, q, p, d:0 });
     });
     renderAlbGrid();
 }
@@ -350,41 +374,29 @@ function renderAlbGrid() {
             <input value="${item.n}" onchange="tempItems[${i}].n=this.value" style="flex:2;margin:0">
             <input type="number" value="${item.q}" onchange="tempItems[${i}].q=parseFloat(this.value)" style="flex:0.5;margin:0">
             <input type="number" value="${item.p}" onchange="tempItems[${i}].p=parseFloat(this.value);renderAlbGrid()" style="flex:0.7;margin:0">
-            <button onclick="tempItems.splice(${i},1);renderAlbGrid()" style="background:none;border:none;color:var(--danger);cursor:pointer;font-weight:bold;font-size:1.2rem">&times;</button>
+            <button onclick="tempItems.splice(${i},1);renderAlbGrid()" style="background:none;border:none;color:var(--danger);font-weight:bold;font-size:1.2rem">&times;</button>
         </div>`;
     }).join('');
     document.getElementById('alb-sum').innerText = `Total: ${total.toFixed(2)}€`;
 }
 
 function commitAlb() {
-    if(!tempItems.length) return showToast("Albarán vacío", "error");
-    
-    // GUARDAR PROVEEDOR SI ES NUEVO
+    if(!tempItems.length) return showToast("Vacío", "error");
     const provName = document.getElementById('alb-prov').value;
     if(!provName) return showToast("Falta Proveedor", "error");
-    
-    if(!db.proveedores.find(p => p.n.toLowerCase() === provName.toLowerCase())) {
-        db.proveedores.push({n: provName});
-        save("Nuevo proveedor añadido");
-    }
-
+    if(!db.proveedores.find(p => p.n.toLowerCase() === provName.toLowerCase())) { db.proveedores.push({n: provName}); save("Nuevo proveedor"); }
     const date = document.getElementById('alb-date').value;
     const total = tempItems.reduce((acc, it) => acc + (it.p * (1 - it.d/100)), 0);
-    
     tempItems.forEach(item => {
         const netPrice = item.p * (1 - item.d/100);
         let i = db.ingredientes.find(ing => ing.n.toLowerCase().trim() === item.n.toLowerCase().trim());
         if(i) {
             if(i.stock>0) i.cost = ((i.stock*i.cost)+netPrice) / (i.stock+item.q);
             i.stock += item.q;
-        } else {
-            db.ingredientes.push({ id: generateID(), n: item.n, stock: item.q, cost: (item.q>0?netPrice/item.q:0), unit: 'ud', yield: 1, aller: [] });
-        }
+        } else { db.ingredientes.push({ id: generateID(), n: item.n, stock: item.q, cost: (item.q>0?netPrice/item.q:0), min:0, unit: 'ud', yield: 1, aller: [] }); }
     });
-
     db.albaranes.push({ id: generateID(), date, prov: provName, items: [...tempItems], total, invoiced: false });
-    save("Albarán guardado");
-    renderContabilidad();
+    save("Entrada confirmada"); renderContabilidad();
 }
 
 /* ================= 6. INGENIERÍA DE MENÚ ================= */
@@ -392,7 +404,7 @@ function renderEngineering() {
     const prices = db.recetas.map(r => r.pvp).filter(p => p > 0).sort((a,b)=>a-b);
     const minP = prices[0] || 0;
     const maxP = prices[prices.length-1] || 0;
-    const omnesAlert = (minP > 0 && maxP/minP > 3) ? "⚠️ Rango Precios > 3" : "✅ Rango Precios OK";
+    const omnesAlert = (minP > 0 && maxP/minP > 3) ? "⚠️ Rango > 3 (Revisar precios)" : "✅ Rango Precios OK";
 
     let totalSales = 0;
     db.recetas.forEach(r => totalSales += (r.sales||0));
@@ -411,12 +423,12 @@ function renderEngineering() {
 
     document.getElementById('admin-panel').innerHTML = `
     <div class="card">
-        <div class="section-header"><div class="title">OMNES</div></div>
+        <div class="section-header"><div class="title">OMNES (AMPLITUD PRECIOS)</div></div>
         <div class="row">
-            <div class="col" style="text-align:center">Min <b>${minP.toFixed(2)}€</b></div>
-            <div class="col" style="text-align:center">Max <b>${maxP.toFixed(2)}€</b></div>
+            <div class="col" style="text-align:center; background:#f1f5f9; padding:10px; border-radius:8px">Min <b>${minP.toFixed(2)}€</b></div>
+            <div class="col" style="text-align:center; background:#f1f5f9; padding:10px; border-radius:8px">Max <b>${maxP.toFixed(2)}€</b></div>
         </div>
-        <div style="text-align:center; padding:10px; background:#f1f5f9; border-radius:8px; margin-top:10px"><b>${omnesAlert}</b></div>
+        <div style="text-align:center; margin-top:10px; font-weight:bold">${omnesAlert}</div>
     </div>
     <div class="card">
         <div class="section-header"><div class="title">MATRIZ BCG</div></div>
@@ -432,7 +444,7 @@ function renderEngineering() {
 
 function editSales() {
     const html = `<div style="max-height:60vh;overflow-y:auto">
-        <p style="color:var(--sub);font-size:0.8rem;margin-bottom:15px">Unidades vendidas (del informe Madisa):</p>
+        <p style="color:var(--sub);font-size:0.8rem;margin-bottom:15px">Ventas periodo (unidades):</p>
         ${db.recetas.map(r => `
             <div class="list-item">
                 <span>${r.n}</span>
@@ -442,13 +454,9 @@ function editSales() {
     </div>`;
     showModal("Actualizar Ventas", html);
 }
+function updateSale(rid, val) { const r = db.recetas.find(x => x.id === rid); if(r) { r.sales = parseFloat(val)||0; save(); } }
 
-function updateSale(rid, val) {
-    const r = db.recetas.find(x => x.id === rid);
-    if(r) { r.sales = parseFloat(val)||0; save(); }
-}
-
-/* ================= 7. FACTURAS & UTILS ================= */
+/* ================= 7. FACTURAS & UTILS & BACKUP ================= */
 function renderContabilidad() {
     const pendientes = db.albaranes.filter(a => !a.invoiced);
     const grupos = {};
@@ -467,7 +475,16 @@ function renderContabilidad() {
             </div>`).join('')}
     </div>
     <div class="card">
-        <div class="section-header"><div class="title">HISTÓRICO</div> <button class="btn btn-sm btn-ghost" onclick="downloadBackup()">💾 Backup</button></div>
+        <div class="section-header">
+            <div class="title">COPIAS DE SEGURIDAD</div>
+        </div>
+        <div class="row">
+            <button class="btn btn-ghost col" onclick="downloadBackup()">💾 Guardar Copia (Exportar)</button>
+            <button class="btn btn-ghost col" style="color:var(--accent); border-color:var(--accent)" onclick="document.getElementById('backup-input').click()">📂 Cargar Copia (Importar)</button>
+        </div>
+    </div>
+    <div class="card">
+        <div class="section-header"><div class="title">HISTÓRICO FACTURAS</div></div>
         <div class="table-wrap">
             <table><thead><tr><th>Fecha</th><th>Prov</th><th>Nº</th><th>Total</th><th>Estado</th></tr></thead>
             <tbody>${db.facturas.slice().reverse().map(f => `
@@ -479,110 +496,103 @@ function renderContabilidad() {
 }
 
 function invoiceModal(prov, idsStr, total) {
-    showModal("Nueva Factura", `
-        <p>Prov: <b>${prov}</b> | Total: <b>${total.toFixed(2)}€</b></p>
-        <label>Nº Factura</label><input id="inv-code">
-        <button class="btn btn-primary" onclick="createInvoice('${prov}','${idsStr}',${total})">Crear</button>
-    `);
+    showModal("Nueva Factura", `<p>Prov: <b>${prov}</b> | Total: <b>${total.toFixed(2)}€</b></p><label>Nº Factura</label><input id="inv-code"><button class="btn btn-primary" onclick="createInvoice('${prov}','${idsStr}',${total})">Crear</button>`);
 }
-
 function createInvoice(prov, idsStr, total) {
     const code = document.getElementById('inv-code').value;
-    if(!code) return showToast("Falta Nº Factura", "error");
-    const ids = idsStr.split(',');
-    ids.forEach(id => { const a = db.albaranes.find(x=>x.id==id); if(a) a.invoiced = true; });
+    if(!code) return showToast("Falta Nº", "error");
+    const ids = idsStr.split(','); ids.forEach(id => { const a = db.albaranes.find(x=>x.id==id); if(a) a.invoiced = true; });
     db.facturas.push({ id:generateID(), date:new Date().toISOString().split('T')[0], prov, code, total, paid:false });
     save("Factura Creada"); closeModal(); renderContabilidad();
 }
-
-function togglePaid(fid) {
-    const f = db.facturas.find(x=>x.id==fid);
-    if(f) { f.paid = !f.paid; save(f.paid?"Pagado":"Pendiente"); renderContabilidad(); }
-}
+function togglePaid(fid) { const f = db.facturas.find(x=>x.id==fid); if(f) { f.paid = !f.paid; save(f.paid?"Pagado":"Pendiente"); renderContabilidad(); } }
 
 function saveZ() {
-    const d = {
-        date: new Date().toISOString().split('T')[0],
-        total: parseFloat(document.getElementById('z-total').value)||0,
-        cash: parseFloat(document.getElementById('z-cash').value)||0,
-        card: parseFloat(document.getElementById('z-card').value)||0,
-        inv: parseFloat(document.getElementById('z-inv').value)||0
-    };
-    const idx = db.diario.findIndex(x=>x.date===d.date);
-    if(idx>=0) db.diario[idx]=d; else db.diario.push(d);
+    const d = { date: new Date().toISOString().split('T')[0], total: parseFloat(document.getElementById('z-total').value)||0, cash: parseFloat(document.getElementById('z-cash').value)||0, card: parseFloat(document.getElementById('z-card').value)||0, inv: parseFloat(document.getElementById('z-inv').value)||0 };
+    const idx = db.diario.findIndex(x=>x.date===d.date); if(idx>=0) db.diario[idx]=d; else db.diario.push(d);
     save("Cierre guardado"); render('Diario');
 }
-
 function renderChart(){
-    const ctx = document.getElementById('chartZ');
-    if(!ctx)return;
-    if(chartInstance) chartInstance.destroy();
+    const ctx = document.getElementById('chartZ'); if(!ctx)return; if(chartInstance) chartInstance.destroy();
     const data = db.diario.slice(-7);
-    chartInstance = new Chart(ctx, { type:'bar', data:{ labels:data.map(x=>x.date.substring(5)), datasets:[{label:'Ventas', data:data.map(x=>x.total), backgroundColor:'#3b82f6', borderRadius:4}]} });
+    chartInstance = new Chart(ctx, { type:'bar', data:{ labels:data.map(x=>x.date.substring(5)), datasets:[{label:'Ventas', data:data.map(x=>x.total), backgroundColor:'#2563eb', borderRadius:6}]} });
 }
 
-function calcRecipe(r){
-    let mat=0; r.items.forEach(it=>{const i=db.ingredientes.find(x=>x.id===it.id); if(i) mat+=(it.q/i.yield)*i.cost;});
-    const mo=(r.time/60)*CONFIG.COST_HOUR;
-    return {mat, mo, total:mat+mo};
-}
-
+function calcRecipe(r){ let mat=0; r.items.forEach(it=>{const i=db.ingredientes.find(x=>x.id===it.id); if(i) mat+=(it.q/i.yield)*i.cost;}); const mo=(r.time/60)*CONFIG.COST_HOUR; return {mat, mo, total:mat+mo}; }
 function viewRecipe(id){
-    const r=db.recetas.find(x=>x.id===id); const c=calcRecipe(r);
-    const margin=r.pvp-c.total;
+    const r=db.recetas.find(x=>x.id===id); const c=calcRecipe(r); const margin=r.pvp-c.total;
     showModal(r.n, `
         <div class="row">
             <div class="col" style="text-align:center;background:#f8fafc;padding:10px;border-radius:8px"><b>${c.mat.toFixed(2)}€</b><br><small>Materia</small></div>
             <div class="col" style="text-align:center;background:#f8fafc;padding:10px;border-radius:8px"><b>${c.total.toFixed(2)}€</b><br><small>Total</small></div>
             <div class="col" style="text-align:center;color:${margin>0?'#16a34a':'#ef4444'}"><b>${margin.toFixed(2)}€</b><br><small>Mg.</small></div>
         </div>
-        <h4 style="margin:15px 0 5px 0; font-size:0.85rem; color:var(--sub)">INGREDIENTES</h4>
-        <table style="font-size:0.85rem">
-            ${r.items.map(it=>{
-                const i=db.ingredientes.find(x=>x.id===it.id);
-                if(!i)return'';
-                return `<tr><td>${i.n}</td><td>${it.q} (Net)</td><td>${(it.q/i.yield*i.cost).toFixed(2)}€</td></tr>`;
-            }).join('')}
-        </table>
+        <h4 style="margin:15px 0 5px 0; font-size:0.8rem; color:var(--sub)">INGREDIENTES</h4>
+        <table style="font-size:0.85rem">${r.items.map(it=>{ const i=db.ingredientes.find(x=>x.id===it.id); if(!i)return''; return `<tr><td>${i.n}</td><td>${it.q} (Net)</td><td>${(it.q/i.yield*i.cost).toFixed(2)}€</td></tr>`; }).join('')}</table>
         <div style="text-align:right;margin-top:15px"><button class="btn btn-sm btn-ghost" onclick="editRecipe('${r.id}')">✏️ Editar</button></div>
     `);
 }
-
 function editRecipe(id) {
-    const r = id ? db.recetas.find(x=>x.id===id) : {id:generateID(), n:'', cat:'', pvp:0, time:0, items:[]};
-    tempItems = JSON.parse(JSON.stringify(r.items));
+    const r = id ? db.recetas.find(x=>x.id===id) : {id:generateID(), n:'', cat:'', pvp:0, time:0, items:[]}; tempItems = JSON.parse(JSON.stringify(r.items));
     showModal(id?"Editar":"Nueva", `
-        <label>Nombre</label><input id="er-n" value="${r.n}">
-        <div class="row"><div class="col"><label>PVP</label><input id="er-pvp" type="number" value="${r.pvp}"></div><div class="col"><label>Cat</label><input id="er-cat" value="${r.cat}"></div></div>
+        <label>Nombre</label><input id="er-n" value="${r.n}"><div class="row"><div class="col"><label>PVP</label><input id="er-pvp" type="number" value="${r.pvp}"></div><div class="col"><label>Cat</label><input id="er-cat" value="${r.cat}"></div></div>
         <div id="er-list" style="background:#f8fafc;padding:10px;margin-bottom:10px;border-radius:8px;max-height:150px;overflow-y:auto"></div>
         <div class="row"><select id="er-ing" style="flex:2">${db.ingredientes.map(i=>`<option value="${i.id}">${i.n}</option>`).join('')}</select><input id="er-q" placeholder="Cant" style="flex:1"><button class="btn btn-sm btn-accent" onclick="addRecItem()">+</button></div>
         <button class="btn btn-primary" onclick="saveRecipe('${r.id}')">Guardar</button>
-    `);
-    renderRecItems();
+    `); renderRecItems();
 }
-
 function renderRecItems(){ document.getElementById('er-list').innerHTML = tempItems.map((it,i)=>`<div class="list-item" style="padding:8px"><span>${db.ingredientes.find(x=>x.id==it.id)?.n}</span><span>${it.q}</span><button onclick="tempItems.splice(${i},1);renderRecItems()" style="color:var(--danger);border:none;background:none;font-weight:bold">✕</button></div>`).join(''); }
 function addRecItem(){ const id=document.getElementById('er-ing').value, q=parseFloat(document.getElementById('er-q').value); if(id&&q){tempItems.push({id,q}); renderRecItems();} }
 function saveRecipe(id){ 
     const r = {id, n:document.getElementById('er-n').value, cat:document.getElementById('er-cat').value, pvp:parseFloat(document.getElementById('er-pvp').value), time:5, items:tempItems, sales: (id ? db.recetas.find(x=>x.id===id).sales : 0)};
-    const idx = db.recetas.findIndex(x=>x.id===id);
-    if(idx>=0) db.recetas[idx]=r; else db.recetas.push(r);
-    save("Receta guardada"); closeModal(); render('Cocina');
+    const idx = db.recetas.findIndex(x=>x.id===id); if(idx>=0) db.recetas[idx]=r; else db.recetas.push(r); save("Receta guardada"); closeModal(); render('Cocina');
 }
 
-function downloadBackup() {
-    const a = document.createElement('a');
-    a.href = "data:text/json;charset=utf-8,"+encodeURIComponent(JSON.stringify(db));
-    a.download = `arume_backup_${new Date().toISOString().slice(0,10)}.json`;
-    a.click();
+function downloadBackup() { const a = document.createElement('a'); a.href = "data:text/json;charset=utf-8,"+encodeURIComponent(JSON.stringify(db)); a.download = `arume_backup_${new Date().toISOString().slice(0,10)}.json`; a.click(); }
+
+function restoreBackup(input) {
+    const file = input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const json = JSON.parse(e.target.result);
+            if(json.users && json.ingredientes && json.recetas) {
+                db = json;
+                save("Backup restaurado con éxito");
+                setTimeout(() => location.reload(), 1500);
+            } else {
+                showToast("Archivo no válido", "error");
+            }
+        } catch(err) { showToast("Error al leer archivo", "error"); }
+    };
+    reader.readAsText(file);
 }
 
 function showModal(t,h){ document.getElementById('m-title').innerText=t; document.getElementById('m-body').innerHTML=h; document.getElementById('modal-overlay').classList.remove('hidden'); }
 function closeModal(){ document.getElementById('modal-overlay').classList.add('hidden'); }
-function newIng(){ const n=prompt("Nombre:"); if(n){ db.ingredientes.push({id:generateID(), n, cost:0, stock:0, unit:'kg', yield:1, aller:[]}); save(); render('Stock'); }}
-function editIng(id){ const i=db.ingredientes.find(x=>x.id==id); const c=prompt("Coste:", i.cost); if(c){ i.cost=parseFloat(c); save(); render('Stock'); }}
+function newIng(){ const n=prompt("Nombre:"); if(n){ db.ingredientes.push({id:generateID(), n, cost:0, stock:0, min:0, unit:'kg', yield:1, aller:[]}); save(); render('Stock'); }}
+function editIng(id){ 
+    const i=db.ingredientes.find(x=>x.id==id); 
+    showModal("Editar Stock", `<label>Nombre</label><input id="ei-n" value="${i.n}"><label>Coste (€/${i.unit})</label><input type="number" id="ei-c" value="${i.cost}"><label>Stock Actual</label><input type="number" id="ei-s" value="${i.stock}"><label>Stock Mínimo (Alerta Compra)</label><input type="number" id="ei-m" value="${i.min||0}"><button class="btn btn-primary" onclick="saveIng('${id}')">Guardar</button>`);
+}
+function saveIng(id){
+    const i=db.ingredientes.find(x=>x.id==id);
+    i.n = document.getElementById('ei-n').value;
+    i.cost = parseFloat(document.getElementById('ei-c').value);
+    i.stock = parseFloat(document.getElementById('ei-s').value);
+    i.min = parseFloat(document.getElementById('ei-m').value);
+    save("Ingrediente actualizado"); closeModal(); render('Stock');
+}
+function renderShoppingList(){
+    const toBuy = db.ingredientes.filter(i => i.stock < (i.min || 0));
+    if(toBuy.length === 0) return showToast("Stock OK (Nada que comprar)");
+    let txt = "🛒 LISTA DE COMPRA ARUME:\n";
+    toBuy.forEach(i => txt += `- ${i.n}: Pedir (Stock: ${i.stock} / Min: ${i.min})\n`);
+    alert(txt); 
+}
 function modalMerma(){ 
-    const html=`<select id="m-ing">${db.ingredientes.map(i=>`<option value="${i.id}">${i.n}</option>`).join('')}</select><input id="m-q" placeholder="Cantidad"><button class="btn btn-danger" onclick="saveMerma()">Registrar</button>`;
+    const html=`<select id="m-ing">${db.ingredientes.map(i=>`<option value="${i.id}">${i.n}</option>`).join('')}</select><input id="m-q" placeholder="Cantidad perdida"><button class="btn btn-danger" onclick="saveMerma()">Registrar Merma</button>`;
     showModal("Merma", html);
 }
 function saveMerma(){
