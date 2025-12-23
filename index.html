@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-    <title>ARUME V111 · Rescue Edition</title>
+    <title>ARUME V112 · Fixed Layout</title>
     
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;800&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -11,39 +11,36 @@
     <script src="https://cdn.tailwindcss.com"></script>
 
     <style>
-        /* --- ESTILOS PREMIUM --- */
-        body { font-family: 'Poppins', sans-serif; background: #f8fafc; padding-bottom: 120px; -webkit-tap-highlight-color: transparent; user-select: none; }
+        /* ESTÉTICA V112 */
+        body { font-family: 'Poppins', sans-serif; background: #f8fafc; padding-bottom: 100px; -webkit-tap-highlight-color: transparent; user-select: none; }
         
         .glass-card { 
-            background: rgba(255,255,255,0.95); 
-            backdrop-filter: blur(20px); 
-            border: 1px solid white; 
-            box-shadow: 0 10px 40px -10px rgba(0,0,0,0.05); 
-            border-radius: 24px; 
+            background: white; 
+            border: 1px solid #e2e8f0; 
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); 
+            border-radius: 20px; 
             padding: 20px; 
             margin-bottom: 20px; 
-            transition: transform 0.2s;
         }
         
         .btn-premium { 
             background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); 
-            color: white; padding: 14px; border-radius: 16px; 
-            font-weight: 700; box-shadow: 0 8px 20px -5px rgba(79, 70, 229, 0.4); 
+            color: white; padding: 14px; border-radius: 12px; 
+            font-weight: 700; box-shadow: 0 4px 10px rgba(79, 70, 229, 0.3); 
             width: 100%; display: flex; justify-content: center; align-items: center; gap: 8px; cursor: pointer;
         }
-        .btn-premium:active { transform: scale(0.97); }
+        .btn-premium:active { transform: scale(0.98); }
 
-        .btn-ghost { background: white; border: 1px solid #e2e8f0; color: #475569; font-weight: 600; padding: 10px; border-radius: 12px; width: 100%; cursor: pointer; transition: 0.2s; }
-        .btn-ghost:active { background: #f1f5f9; }
-
+        .btn-ghost { background: #f1f5f9; color: #475569; font-weight: 600; padding: 10px; border-radius: 12px; width: 100%; cursor: pointer; transition: 0.2s; }
+        
         .input-premium { 
-            width: 100%; padding: 12px; background: #f1f5f9; 
+            width: 100%; padding: 12px; background: #f8fafc; 
             border: 2px solid #e2e8f0; border-radius: 12px; 
             outline: none; transition: 0.3s; font-size: 15px;
         }
-        .input-premium:focus { border-color: #4f46e5; background: white; box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1); }
+        .input-premium:focus { border-color: #4f46e5; background: white; }
 
-        /* LOADING SPINNER */
+        /* LOADING */
         #loading-overlay { position: fixed; inset: 0; background: rgba(255,255,255,0.95); z-index: 9999; display: flex; justify-content: center; align-items: center; flex-direction: column; }
         .spinner { width: 40px; height: 40px; border: 4px solid #e2e8f0; border-top: 4px solid #4f46e5; border-radius: 50%; animation: spin 1s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
@@ -52,11 +49,18 @@
         .overlay { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(4px); z-index: 100; display: flex; align-items: center; justify-content: center; }
         .modal { background: white; width: 95%; max-width: 800px; max-height: 90vh; overflow-y: auto; border-radius: 24px; padding: 24px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); }
         
-        /* NAV */
-        nav { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); width: 90%; max-width: 450px; background: white; padding: 10px; border-radius: 24px; display: flex; justify-content: space-between; box-shadow: 0 20px 40px rgba(0,0,0,0.1); z-index: 50; border: 1px solid rgba(0,0,0,0.05); }
-        nav button { flex: 1; background: none; border: none; color: #94a3b8; display: flex; flex-direction: column; align-items: center; font-size: 0.65rem; font-weight: 700; transition: 0.3s; cursor: pointer; }
-        nav button.active { color: #4f46e5; transform: translateY(-4px); }
-        nav button svg { width: 26px; height: 26px; fill: currentColor; margin-bottom: 2px; }
+        /* NAV - AHORA FIJA ABAJO (ANCHO COMPLETO) */
+        nav { 
+            position: fixed; bottom: 0; left: 0; width: 100%; 
+            background: white; padding: 12px 0; 
+            display: flex; justify-content: space-around; 
+            box-shadow: 0 -4px 20px rgba(0,0,0,0.05); 
+            z-index: 50; border-top: 1px solid #e2e8f0;
+            padding-bottom: max(12px, env(safe-area-inset-bottom));
+        }
+        nav button { flex: 1; background: none; border: none; color: #94a3b8; display: flex; flex-direction: column; align-items: center; font-size: 0.7rem; font-weight: 600; transition: 0.2s; cursor: pointer; }
+        nav button.active { color: #4f46e5; transform: translateY(-2px); }
+        nav button svg { width: 24px; height: 24px; fill: currentColor; margin-bottom: 4px; }
 
         /* PIN SCREEN */
         #pin-screen { background: #1e1b4b; position: fixed; inset: 0; z-index: 200; display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; }
@@ -69,27 +73,26 @@
 </head>
 <body>
 
-    <div id="loading-overlay">
+    <div id="loading-overlay" class="hidden">
         <div class="spinner mb-4"></div>
-        <div class="font-bold text-gray-500 tracking-widest text-xs animate-pulse">INICIANDO SISTEMA...</div>
+        <div class="font-bold text-gray-500 tracking-widest text-xs animate-pulse">CARGANDO...</div>
     </div>
 
     <div id="toast-container" class="fixed top-5 left-1/2 -translate-x-1/2 z-[300] pointer-events-none"></div>
-    
     <input type="file" id="backup-input" class="hidden" onchange="restoreBackup(this)">
 
-    <header class="sticky top-0 z-40 px-6 py-4 flex justify-between items-center bg-white/90 backdrop-blur border-b border-gray-100 hidden" id="app-header">
+    <header class="sticky top-0 z-40 px-6 py-4 flex justify-between items-center bg-white/90 backdrop-blur border-b border-gray-100">
         <div>
-            <h1 class="text-2xl font-black text-gray-800 tracking-tight">ARUME <span class="text-indigo-600">V111</span></h1>
-            <p class="text-[10px] text-gray-400 font-bold tracking-widest uppercase">Rescue Edition</p>
+            <h1 class="text-2xl font-black text-gray-800 tracking-tight">ARUME <span class="text-indigo-600">V112</span></h1>
+            <p class="text-[10px] text-gray-400 font-bold tracking-widest uppercase">Fixed Layout</p>
         </div>
         <div class="bg-gray-100 px-3 py-1 rounded-full text-xs font-bold text-gray-600 flex items-center gap-2 cursor-pointer hover:bg-gray-200 transition" onclick="logout()">
             <div id="sync-dot" class="w-2 h-2 rounded-full bg-gray-400"></div> <span id="user-name">Login</span>
         </div>
     </header>
 
-    <main id="app" class="px-4 py-6 max-w-4xl mx-auto hidden"></main>
-    <nav id="navbar" class="hidden"></nav>
+    <main id="app" class="px-4 py-6 max-w-4xl mx-auto"></main>
+    <nav id="navbar"></nav>
 
     <div id="modal-overlay" class="overlay hidden">
         <div class="modal">
@@ -138,35 +141,21 @@ const DB_INIT = {
     albaranes: [], facturas: [], diario: [], mermas: [], lastSync: 0
 };
 
-// Cifrado Seguro con Fallback para evitar errores
+// Cifrado
 const secure = {
-    enc: (d) => { try { return btoa(encodeURIComponent(JSON.stringify(d))); } catch(e){ return null; } },
-    dec: (d) => { 
-        try { return JSON.parse(decodeURIComponent(atob(d))); } 
-        catch(e) { 
-            // Intento de recuperación si no estaba encriptado (legacy)
-            try { return JSON.parse(d); } catch(err) { return null; }
-        } 
-    }
+    enc: (d) => btoa(encodeURIComponent(JSON.stringify(d))),
+    dec: (d) => JSON.parse(decodeURIComponent(atob(d)))
 };
 
 let db = DB_INIT;
-let currentUser = null, currentPin = "", tempItems = [], activeAdminTab = 'albaranes';
+let currentUser = null, currentPin = "", tempItems = [], activeAdminTab = 'albaranes', searchFilter = "";
 
-/* ================= 2. CORE SYSTEM (RECUPERACIÓN) ================= */
+/* ================= 2. CORE SYSTEM ================= */
 const generateID = () => Math.random().toString(36).substr(2, 9);
 const getISO = () => new Date().toLocaleDateString('en-CA');
 function clean(str) { if(!str) return ''; return String(str).replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 
-function loading(show, msg="PROCESANDO...") { 
-    const el = document.getElementById('loading-overlay');
-    if(show) {
-        el.querySelector('div.font-bold').innerText = msg;
-        el.classList.remove('hidden');
-    } else {
-        el.classList.add('hidden');
-    }
-}
+function loading(show) { document.getElementById('loading-overlay').classList.toggle('hidden', !show); }
 
 function toast(msg, type='info') {
     const box = document.getElementById('toast-container');
@@ -176,62 +165,28 @@ function toast(msg, type='info') {
     el.innerText = msg; box.appendChild(el); setTimeout(() => el.remove(), 3000);
 }
 
-// INICIO ROBUSTO (PROTECCIÓN CONTRA PANTALLA BLANCA)
 function init() {
     try {
-        // Intentar recuperar de cualquier versión anterior
-        let stored = localStorage.getItem('arume_v110') || localStorage.getItem('arume_v105') || localStorage.getItem('arume_v90');
-        
-        if (stored) {
-            const data = secure.dec(stored);
-            if (data && data.users) db = data; // Solo cargar si parece válido
+        const stored = localStorage.getItem('arume_v112');
+        if(stored) db = secure.dec(stored);
+        else {
+            const old = localStorage.getItem('arume_v110') || localStorage.getItem('arume_v105'); 
+            if(old) db = secure.dec(old);
         }
-    } catch(e) { 
-        console.error("Error crítico DB:", e);
-        // Si falla, usamos DB_INIT por defecto para que arranque
-    }
-
-    // Asegurar estructura mínima
-    if(!db.users || !db.users.length) db.users = DB_INIT.users;
-    if(!db.ingredientes) db.ingredientes = [];
-    if(!db.albaranes) db.albaranes = [];
-
-    // Ocultar loader inicial
-    loading(false);
-
-    // Verificar sesión
-    const u = localStorage.getItem('arume_user');
-    if(u) { 
-        try {
-            currentUser = JSON.parse(u); 
-            unlockApp();
-        } catch(e) { showPinScreen(); }
-    } else { 
-        showPinScreen(); 
-    }
+    } catch(e) { console.warn("DB reset"); }
     
-    // Sincronización silenciosa en segundo plano
+    if(!db.users || !db.users.length) db.users = DB_INIT.users;
+
+    const u = localStorage.getItem('arume_user');
+    if(u) { currentUser=JSON.parse(u); document.getElementById('pin-screen').classList.add('hidden'); loadApp(); }
+    else { document.getElementById('pin-screen').classList.remove('hidden'); }
     if(CONFIG.GOOGLE_URL) sync();
 }
 
-function showPinScreen() {
-    document.getElementById('pin-screen').classList.remove('hidden');
-    document.getElementById('app-header').classList.add('hidden');
-    document.getElementById('navbar').classList.add('hidden');
-}
-
-function unlockApp() {
-    document.getElementById('pin-screen').classList.add('hidden');
-    document.getElementById('app-header').classList.remove('hidden');
-    document.getElementById('navbar').classList.remove('hidden');
-    document.getElementById('app').classList.remove('hidden');
-    loadApp();
-}
-
 async function save(msg){
-    loading(true, "GUARDANDO...");
+    loading(true);
     db.lastSync = Date.now();
-    localStorage.setItem('arume_v110', secure.enc(db));
+    localStorage.setItem('arume_v112', secure.enc(db));
     if(CONFIG.GOOGLE_URL) await fetch(CONFIG.GOOGLE_URL, {method:'POST', mode:'no-cors', body:JSON.stringify(db)}).catch(()=>{});
     loading(false);
     if(msg) toast(msg);
@@ -244,12 +199,7 @@ async function sync(){
     try {
         const r = await fetch(CONFIG.GOOGLE_URL);
         const c = await r.json();
-        if(c && c.lastSync > (db.lastSync||0)) { 
-            db = c; 
-            localStorage.setItem('arume_v110', secure.enc(db)); 
-            if(!document.getElementById('pin-screen').classList.contains('hidden')) location.reload(); // Solo recargar si no estoy trabajando
-            else loadApp(); // Refrescar UI suavemente
-        }
+        if(c && c.lastSync > (db.lastSync||0)) { db=c; localStorage.setItem('arume_v112', secure.enc(db)); location.reload(); }
         if(dot) dot.className="w-2 h-2 rounded-full bg-green-500 shadow-lg shadow-green-500/50";
     } catch(e){ if(dot) dot.className="w-2 h-2 rounded-full bg-red-500"; }
 }
@@ -257,11 +207,7 @@ async function sync(){
 function pin(n){
     if(n==='C') currentPin=""; else if(n==='OK') {
         const u = db.users.find(x=>x.pin===currentPin);
-        if(u){ 
-            currentUser=u; 
-            localStorage.setItem('arume_user', JSON.stringify(u)); 
-            unlockApp();
-        }
+        if(u){ currentUser=u; localStorage.setItem('arume_user', JSON.stringify(u)); document.getElementById('pin-screen').classList.add('hidden'); loadApp(); }
         else { toast("PIN Incorrecto", "error"); currentPin=""; document.getElementById('pin-display').innerText='****'; }
     } else if(currentPin.length<4) currentPin+=n;
     document.getElementById('pin-display').innerText = currentPin ? '*'.repeat(currentPin.length) : '****';
@@ -327,16 +273,15 @@ function renderAlbaranes(c) {
         </div>
         
         <div class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
-            <h4 class="font-bold text-xs text-gray-400 mb-4 uppercase tracking-wider">Historial (Editable)</h4>
+            <h4 class="font-bold text-xs text-gray-400 mb-4 uppercase tracking-wider">Historial</h4>
             ${db.albaranes.slice().reverse().map(a => `
                 <div class="flex justify-between items-center py-3 border-b border-gray-50 last:border-0">
                     <div><div class="font-bold text-gray-800 text-sm">${clean(a.prov)}</div><div class="text-[10px] text-gray-400 font-bold">${a.date}</div></div>
                     <div class="flex items-center gap-2">
                         <span class="font-mono font-bold text-gray-700">${a.total.toFixed(2)}€</span>
-                        ${!a.invoiced ? `
-                            <button class="bg-blue-50 text-blue-500 p-1.5 rounded-lg hover:bg-blue-100 text-xs shadow-sm font-bold" onclick="editAlb('${a.id}')">✏️</button>
-                            <button class="bg-red-50 text-red-500 p-1.5 rounded-lg hover:bg-red-100 text-xs shadow-sm font-bold" onclick="deleteAlb('${a.id}')">🗑️</button>
-                        ` : '<span class="text-[10px] bg-green-100 text-green-700 px-2 py-1 rounded font-bold">Fac.</span>'}
+                        <button class="bg-blue-50 text-blue-500 p-2 rounded-lg hover:bg-blue-100 text-xs shadow-sm font-bold" onclick="editAlb('${a.id}')">✏️</button>
+                        <button class="bg-red-50 text-red-500 p-2 rounded-lg hover:bg-red-100 text-xs shadow-sm font-bold" onclick="deleteAlb('${a.id}')">🗑️</button>
+                        ${a.invoiced ? '<span class="text-[10px] bg-green-100 text-green-700 px-2 py-1 rounded font-bold">F</span>' : ''}
                     </div>
                 </div>
             `).join('')}
@@ -365,7 +310,6 @@ function commitAlb() {
     if(!prov) return toast("Falta Proveedor", "error");
     if(!db.proveedores.find(p=>p.n===prov)) db.proveedores.push({n:prov});
 
-    // Actualizar Stock
     tempItems.forEach(it => {
         let i = db.ingredientes.find(x => x.n.toLowerCase() === it.n.toLowerCase());
         if(i) { i.cost=((i.stock*i.cost)+(it.q*it.p))/(i.stock+it.q); i.stock+=it.q; }
@@ -382,7 +326,6 @@ function deleteAlb(id) {
     const alb = db.albaranes.find(a => a.id === id);
     if(!alb) return;
     
-    // Aviso extra si está facturado
     let warning = "¿Borrar y RESTAR stock?";
     if (alb.invoiced) warning = "⚠️ ¡ESTÁ FACTURADO! \nSi borras esto, la factura perderá su origen.\n¿Borrar igualmente y restar stock?";
 
@@ -681,7 +624,6 @@ function saveZ(){
     const other = parseFloat(document.getElementById('z-other').value)||0;
     const total = cash + card + other;
     
-    // Buscar si ya existe cierre hoy para actualizarlo
     const idx = db.diario.findIndex(d => d.date === getISO());
     if(idx >= 0) db.diario[idx] = { date: getISO(), cash, card, other, total };
     else db.diario.push({ date: getISO(), cash, card, other, total });
