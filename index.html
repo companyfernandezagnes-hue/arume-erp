@@ -1,42 +1,32 @@
-¡Entendido! El problema era que el botón de borrar **se ocultaba** si el albarán ya estaba marcado como "Facturado" o "Procesado". A veces uno se equivoca, marca algo como facturado y luego necesita borrarlo, y el sistema no te dejaba.
-
-En esta **V110**, he "liberado" el botón de la papelera.
-
-### 🛠️ Mejoras Específicas V110:
-
-1. **Papelera Siempre Visible:** Ahora puedes borrar **CUALQUIER** albarán del historial, esté facturado o no.
-2. **Borrado Seguro:** Si intentas borrar un albarán que ya está en una factura, el sistema te avisará con una alerta extra ("¡Ojo! Esto ya está facturado"), pero te dejará borrarlo si insistes.
-3. **Visualización:** He puesto el botón de borrar en **Rojo Intenso** para que se vea bien claro en la lista.
-
-Aquí tienes el código completo. **Copia, pega y borra lo que quieras.**
-
-```html
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-    <title>ARUME V110 · Total Control</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <title>ARUME V110 · Sistema Integral</title>
+    
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;800&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
 
     <style>
-        /* ESTÉTICA V110 */
-        body { font-family: 'Poppins', sans-serif; background: #f8fafc; padding-bottom: 120px; user-select: none; -webkit-tap-highlight-color: transparent; }
+        /* --- ESTILOS PREMIUM PERSONALIZADOS --- */
+        body { font-family: 'Poppins', sans-serif; background: #f8fafc; padding-bottom: 120px; -webkit-tap-highlight-color: transparent; user-select: none; }
         
+        /* TARJETAS CRISTAL */
         .glass-card { 
             background: rgba(255,255,255,0.95); 
             backdrop-filter: blur(20px); 
             border: 1px solid white; 
-            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 10px 15px -3px rgba(0,0,0,0.05); 
+            box-shadow: 0 10px 40px -10px rgba(0,0,0,0.05); 
             border-radius: 24px; 
-            padding: 24px; 
+            padding: 20px; 
             margin-bottom: 20px; 
             transition: transform 0.2s;
         }
         
+        /* BOTONES */
         .btn-premium { 
             background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); 
             color: white; padding: 14px; border-radius: 16px; 
@@ -48,6 +38,7 @@ Aquí tienes el código completo. **Copia, pega y borra lo que quieras.**
         .btn-ghost { background: white; border: 1px solid #e2e8f0; color: #475569; font-weight: 600; padding: 10px; border-radius: 12px; width: 100%; cursor: pointer; transition: 0.2s; }
         .btn-ghost:active { background: #f1f5f9; }
 
+        /* INPUTS */
         .input-premium { 
             width: 100%; padding: 12px; background: #f1f5f9; 
             border: 2px solid #e2e8f0; border-radius: 12px; 
@@ -55,7 +46,7 @@ Aquí tienes el código completo. **Copia, pega y borra lo que quieras.**
         }
         .input-premium:focus { border-color: #4f46e5; background: white; box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1); }
 
-        /* LOADING */
+        /* LOADING SPINNER */
         #loading-overlay { position: fixed; inset: 0; background: rgba(255,255,255,0.9); z-index: 9999; display: flex; justify-content: center; align-items: center; flex-direction: column; }
         .spinner { width: 40px; height: 40px; border: 4px solid #e2e8f0; border-top: 4px solid #4f46e5; border-radius: 50%; animation: spin 1s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
@@ -64,13 +55,13 @@ Aquí tienes el código completo. **Copia, pega y borra lo que quieras.**
         .overlay { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(4px); z-index: 100; display: flex; align-items: center; justify-content: center; }
         .modal { background: white; width: 95%; max-width: 800px; max-height: 90vh; overflow-y: auto; border-radius: 24px; padding: 24px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); }
         
-        /* NAV */
+        /* NAVEGACIÓN INFERIOR */
         nav { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); width: 90%; max-width: 450px; background: white; padding: 10px; border-radius: 24px; display: flex; justify-content: space-between; box-shadow: 0 20px 40px rgba(0,0,0,0.1); z-index: 50; border: 1px solid rgba(0,0,0,0.05); }
         nav button { flex: 1; background: none; border: none; color: #94a3b8; display: flex; flex-direction: column; align-items: center; font-size: 0.65rem; font-weight: 700; transition: 0.3s; cursor: pointer; }
         nav button.active { color: #4f46e5; transform: translateY(-4px); }
         nav button svg { width: 26px; height: 26px; fill: currentColor; margin-bottom: 2px; }
 
-        /* PIN SCREEN */
+        /* PANTALLA PIN */
         #pin-screen { background: #1e1b4b; position: fixed; inset: 0; z-index: 200; display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; }
         .pin-btn { width: 70px; height: 70px; border-radius: 50%; background: rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center; font-size: 1.5rem; font-weight: 600; cursor: pointer; transition: 0.2s; }
         .pin-btn:active { background: rgba(255,255,255,0.3); transform: scale(0.95); }
@@ -87,6 +78,7 @@ Aquí tienes el código completo. **Copia, pega y borra lo que quieras.**
     </div>
 
     <div id="toast-container" class="fixed top-5 left-1/2 -translate-x-1/2 z-[300] pointer-events-none"></div>
+    
     <input type="file" id="backup-input" class="hidden" onchange="restoreBackup(this)">
 
     <header class="sticky top-0 z-40 px-6 py-4 flex justify-between items-center bg-white/90 backdrop-blur border-b border-gray-100">
@@ -95,11 +87,12 @@ Aquí tienes el código completo. **Copia, pega y borra lo que quieras.**
             <p class="text-[10px] text-gray-400 font-bold tracking-widest uppercase">Total Control</p>
         </div>
         <div class="bg-gray-100 px-3 py-1 rounded-full text-xs font-bold text-gray-600 flex items-center gap-2 cursor-pointer hover:bg-gray-200 transition" onclick="logout()">
-            <div id="sync-dot" class="w-2 h-2 rounded-full bg-gray-400"></div> <span id="user-name">...</span>
+            <div id="sync-dot" class="w-2 h-2 rounded-full bg-gray-400"></div> <span id="user-name">Login</span>
         </div>
     </header>
 
     <main id="app" class="px-4 py-6 max-w-4xl mx-auto"></main>
+    
     <nav id="navbar"></nav>
 
     <div id="modal-overlay" class="overlay hidden">
@@ -149,7 +142,7 @@ const DB_INIT = {
     albaranes: [], facturas: [], diario: [], mermas: [], lastSync: 0
 };
 
-// Cifrado Básico
+// Cifrado para seguridad de datos
 const secure = {
     enc: (d) => btoa(encodeURIComponent(JSON.stringify(d))),
     dec: (d) => JSON.parse(decodeURIComponent(atob(d)))
@@ -182,6 +175,7 @@ function init() {
             if(old) db = secure.dec(old);
         }
     } catch(e) { console.warn("DB reset"); }
+    
     if(!db.users || !db.users.length) db.users = DB_INIT.users;
 
     const u = localStorage.getItem('arume_user');
@@ -244,7 +238,7 @@ function render(view) {
     if(view==='Stock') renderStock(app);
 }
 
-/* ================= 5. GESTIÓN ================= */
+/* ================= 5. GESTIÓN (PANEL) ================= */
 function renderAdmin(app) {
     app.innerHTML = `
         <div class="flex gap-2 mb-6 bg-white p-1 rounded-2xl shadow-sm border border-gray-100">
@@ -260,7 +254,7 @@ function renderAdmin(app) {
     if(activeAdminTab==='facturas') renderFacturas(c);
 }
 
-// --- ALBARANES (CORREGIDO V110) ---
+// --- ALBARANES (CORREGIDO: BORRAR Y EDITAR) ---
 function renderAlbaranes(c) {
     c.innerHTML = `
         <div class="glass-card">
@@ -280,15 +274,15 @@ function renderAlbaranes(c) {
         </div>
         
         <div class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
-            <h4 class="font-bold text-xs text-gray-400 mb-4 uppercase tracking-wider">Historial</h4>
+            <h4 class="font-bold text-xs text-gray-400 mb-4 uppercase tracking-wider">Historial (Editable)</h4>
             ${db.albaranes.slice().reverse().map(a => `
                 <div class="flex justify-between items-center py-3 border-b border-gray-50 last:border-0">
                     <div><div class="font-bold text-gray-800 text-sm">${clean(a.prov)}</div><div class="text-[10px] text-gray-400 font-bold">${a.date}</div></div>
                     <div class="flex items-center gap-2">
                         <span class="font-mono font-bold text-gray-700">${a.total.toFixed(2)}€</span>
-                        <button class="bg-blue-50 text-blue-500 p-1.5 rounded-lg hover:bg-blue-100 text-xs shadow-sm" onclick="editAlb('${a.id}')">✏️</button>
-                        <button class="bg-red-50 text-red-500 p-1.5 rounded-lg hover:bg-red-100 text-xs shadow-sm" onclick="deleteAlb('${a.id}')">🗑️</button>
-                        ${a.invoiced ? '<span class="text-[10px] text-green-500 font-bold border border-green-200 px-1 rounded">F</span>' : ''}
+                        <button class="bg-blue-50 text-blue-500 p-2 rounded-lg hover:bg-blue-100 text-xs shadow-sm font-bold" onclick="editAlb('${a.id}')">✏️</button>
+                        <button class="bg-red-50 text-red-500 p-2 rounded-lg hover:bg-red-100 text-xs shadow-sm font-bold" onclick="deleteAlb('${a.id}')">🗑️</button>
+                        ${a.invoiced ? '<span class="text-[10px] bg-green-100 text-green-700 px-2 py-1 rounded font-bold">Fac.</span>' : ''}
                     </div>
                 </div>
             `).join('')}
@@ -326,7 +320,7 @@ function commitAlb() {
 
     db.albaranes.push({id:generateID(), date:document.getElementById('alb-date').value, prov, items:[...tempItems], total:parseFloat(document.getElementById('alb-total').innerText), invoiced:false});
     save("Entrada guardada"); 
-    tempItems = []; // Limpiar
+    tempItems = []; 
     renderAdmin(document.getElementById('app'));
 }
 
@@ -334,9 +328,9 @@ function deleteAlb(id) {
     const alb = db.albaranes.find(a => a.id === id);
     if(!alb) return;
     
-    // Aviso extra si está facturado
+    // Aviso si está facturado pero permite borrar
     let warning = "¿Borrar y RESTAR stock?";
-    if (alb.invoiced) warning = "⚠️ ¡ESTÁ FACTURADO! \n" + warning;
+    if (alb.invoiced) warning = "⚠️ ¡ESTÁ FACTURADO! \nSi borras esto, la factura perderá su origen.\n¿Borrar igualmente y restar stock?";
 
     if(confirm(warning)) {
         alb.items.forEach(it => {
@@ -360,9 +354,7 @@ function editAlb(id) {
         tempItems = JSON.parse(JSON.stringify(alb.items));
         document.getElementById('alb-prov').value = alb.prov;
         document.getElementById('alb-date').value = alb.date;
-        
         document.getElementById('edit-mode-indicator').classList.remove('hidden');
-        
         renderAlbGrid();
         db.albaranes = db.albaranes.filter(a => a.id !== id);
         toast("Modo Edición"); window.scrollTo(0,0);
@@ -428,7 +420,7 @@ function editSales() {
 }
 function updateSale(id,v){ const r=db.recetas.find(x=>x.id===id); if(r){ r.sales=Math.max(0,parseFloat(v)); save(); }}
 
-/* ================= 6. COCINA PRO ================= */
+/* ================= 6. COCINA PRO (FICHA TÉCNICA) ================= */
 function renderCocina(app) {
     app.innerHTML = `<div class="glass-card"><div class="flex justify-between items-center mb-4"><h2 class="font-black text-xl text-gray-800">RECETARIO</h2><button class="btn-premium w-auto px-4 py-2 text-xs" onclick="editRec()">+ NUEVA</button></div>
     ${db.recetas.map(r => {
@@ -516,7 +508,7 @@ function viewRec(id) {
     `);
 }
 
-/* ================= 7. STOCK & MERMAS ================= */
+/* ================= 7. STOCK & MERMAS (CONTROL TOTAL) ================= */
 function renderStock(app) {
     const filtered = db.ingredientes.filter(i => i.n.toLowerCase().includes(searchFilter.toLowerCase()));
     app.innerHTML = `
@@ -578,7 +570,6 @@ function editIng(id) {
         <label>Alérgenos</label><div class="flex flex-wrap gap-2 mt-2">${ALLERGENS.map(a=>`<div class="p-2 border rounded cursor-pointer ${i.aller.includes(a.k)?'bg-blue-100 border-blue-500':''}" onclick="this.classList.toggle('bg-blue-100');this.classList.toggle('border-blue-500');this.classList.toggle('active')">${a.i}</div>`).join('')}</div>
         <button class="btn-premium mt-6" onclick="saveIng('${i.id}')">GUARDAR</button>
     `);
-    // Marcar activos
     setTimeout(() => { const d = document.querySelectorAll('#m-body .flex div'); i.aller.forEach(k=>{ const idx=ALLERGENS.findIndex(a=>a.k===k); if(d[idx]) d[idx].classList.add('active','bg-blue-100','border-blue-500'); }); }, 50);
 }
 
@@ -591,7 +582,7 @@ function saveIng(id) {
     save(); closeModal(); render('Stock');
 }
 
-/* ================= 8. DIARIO (CAJA COMPLETA) ================= */
+/* ================= 8. DIARIO (CAJA COMPLETA RECUPERADA) ================= */
 function renderDiario(app){
     const today = getISO();
     const rep = db.diario.find(d => d.date === today) || {cash:0, card:0, other:0};
@@ -652,5 +643,3 @@ init();
 </script>
 </body>
 </html>
-
-```
