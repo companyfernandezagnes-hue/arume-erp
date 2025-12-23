@@ -169,6 +169,7 @@
 <script>
 /* ================= 1. CONFIGURACIÓN ================= */
 const generateID = () => crypto.randomUUID ? crypto.randomUUID() : Date.now().toString() + Math.random().toString(36).substring(2);
+const MAX_RECIPE_DEPTH = 5; // Maximum depth for sub-recipe recursion
 const CONFIG = { 
     GOOGLE_URL: "", // Left empty for future configuration
     COST_HOUR: 15 
@@ -505,7 +506,7 @@ function parseAlb() {
             const nums = [];
             const texts = [];
             tail.forEach(tok => {
-                const cleanVal = tok.replace('€','').replace('$','').replace(',','.').trim();
+                const cleanVal = tok.replace(/€/g,'').replace(/\$/g,'').replace(/,/g,'.').trim();
                 if(cleanVal !== "" && !isNaN(cleanVal) && /\d/.test(cleanVal)) nums.push(parseFloat(cleanVal));
                 else texts.push(tok);
             });
@@ -518,7 +519,7 @@ function parseAlb() {
             const tokens = line.split(/\s+/);
             const numParts = []; const textParts = [];
             tokens.forEach(part => {
-                let cleanVal = part.replace('€','').replace('$','').replace(',','.').trim();
+                let cleanVal = part.replace(/€/g,'').replace(/\$/g,'').replace(/,/g,'.').trim();
                 if(!isNaN(cleanVal) && cleanVal !== "" && /\d/.test(cleanVal)) {
                     numParts.push(parseFloat(cleanVal));
                 } else {
@@ -573,7 +574,7 @@ function renderAlbGrid() {
         }
 
         return `<div class="alb-row">
-            <input value="${item.n}" onchange="tempItems[${i}].n=this.value; renderAlbGrid()" class="alb-name" placeholder="Producto">
+            <input value="${item.n}" onchange="tempItems[${i}].n=this.value" class="alb-name" placeholder="Producto">
             ${priceIndicator}
             <input type="number" value="${item.q}" onchange="tempItems[${i}].q=parseFloat(this.value)||0;renderAlbGrid()" class="alb-num" placeholder="Cant">
             <input type="number" value="${item.p}" onchange="tempItems[${i}].p=parseFloat(this.value)||0;renderAlbGrid()" class="alb-num" placeholder="€/ud">
@@ -831,7 +832,7 @@ function renderChart(){
 
 /* ================= 9. RECETAS ================= */
 function calcRecipe(r, depth = 0) {
-    if (depth > 5) return { mat: 0, mo: 0, total: 0, allergens: [] }; // Prevent infinite recursion
+    if (depth > MAX_RECIPE_DEPTH) return { mat: 0, mo: 0, total: 0, allergens: [] }; // Prevent infinite recursion
     
     let mat = 0;
     let allergens = new Set();
@@ -1212,12 +1213,16 @@ function renderShoppingList(){
     });
     txt += "\n--\nGenerado automáticamente por ARUME V60";
     
+    // Escape text for safe HTML interpolation
+    const escapedText = txt.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    const encodedForWhatsApp = encodeURIComponent(txt);
+    
     // Show modal with WhatsApp button
     showModal("🛒 Lista de Compra", `
-        <textarea readonly style="min-height:200px; font-family:monospace">${txt}</textarea>
+        <textarea readonly style="min-height:200px; font-family:monospace">${escapedText}</textarea>
         <div style="display:flex; gap:8px; margin-top:10px">
-            <button class="btn btn-accent" onclick="copyToClipboard(\`${txt.replace(/`/g, '\\`')}\`)">📋 Copiar</button>
-            <button class="btn btn-primary" onclick="sendWhatsApp(\`${encodeURIComponent(txt)}\`)">📱 WhatsApp</button>
+            <button class="btn btn-accent" onclick="copyToClipboard(${JSON.stringify(txt)})">📋 Copiar</button>
+            <button class="btn btn-primary" onclick="sendWhatsApp('${encodedForWhatsApp}')">📱 WhatsApp</button>
         </div>
     `);
 }
@@ -1437,7 +1442,7 @@ function viewPriceHistory() {
 
 function exportToExcel() {
     if (typeof XLSX === 'undefined') {
-        return showToast("SheetJS no disponible", "error");
+        return showToast("Error: SheetJS library not loaded. Check internet connection or CDN availability.", "error");
     }
     
     // Create workbook
