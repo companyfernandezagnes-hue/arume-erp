@@ -33,5 +33,51 @@ No requiere instalación ni servidores.
 * Datos almacenados en local (LocalStorage).
 * Sistema de Backup manual incluido.
 
+## 🧪 Tests
+
+Este proyecto incluye tests unitarios para las funciones críticas de lógica de negocio.
+
+### Ejecutar tests localmente
+
+```bash
+# Instalar dependencias
+npm ci
+
+# Ejecutar todos los tests con cobertura
+npm test
+
+# Ejecutar tests en modo watch (útil durante desarrollo)
+npm run test:watch
+
+# Ejecutar linter
+npm run lint
+```
+
+### Estructura de tests
+
+Los tests están organizados en el directorio `__tests__/`:
+
+- `recipes.test.js` - Tests de cálculo de costes de recetas, yield/merma, y scaling
+- `stock.test.js` - Tests de actualización de stock y cálculo de Precio Medio Ponderado (PMP)
+- `backup.test.js` - Tests de exportación/importación de backups y validación de formato
+- `auth.test.js` - Tests de hashing y verificación de PINs
+
+### Lógica extraída
+
+La lógica de negocio ha sido extraída a módulos en `src/logic/`:
+
+- `recipes.js` - Cálculo de costes de recetas
+- `stock.js` - Gestión de stock y PMP
+- `backup.js` - Exportación e importación de datos
+- `auth.js` - Hashing y verificación de PINs
+
+### Integración Continua
+
+El proyecto incluye un workflow de GitHub Actions (`.github/workflows/ci.yml`) que:
+
+- Ejecuta el linter en cada push/PR a `main`
+- Ejecuta todos los tests con cobertura
+- Soporta Node.js 18.x
+
 ---
 *Desarrollado para Arume.*
