@@ -43,8 +43,11 @@ Este proyecto incluye tests unitarios para las funciones críticas de lógica de
 # Instalar dependencias
 npm ci
 
-# Ejecutar todos los tests con cobertura
+# Ejecutar todos los tests (rápido, sin cobertura)
 npm test
+
+# Ejecutar tests con cobertura
+npm run test:coverage
 
 # Ejecutar tests en modo watch (útil durante desarrollo)
 npm run test:watch
