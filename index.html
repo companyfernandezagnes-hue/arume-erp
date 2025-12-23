@@ -145,6 +145,13 @@
         </div>
     </div>
 
+<!-- Load logic modules -->
+<script src="src/logic/recipes.js"></script>
+<script src="src/logic/stock.js"></script>
+<script src="src/logic/backup.js"></script>
+<script src="src/logic/auth.js"></script>
+<script src="src/index.js"></script>
+
 <script>
 /* ================= 1. CONFIGURACIÓN ================= */
 const generateID = () => crypto.randomUUID ? crypto.randomUUID() : Date.now().toString() + Math.random().toString(36).substring(2);
@@ -441,24 +448,9 @@ function commitAlb() {
     // Calcular total real sumando líneas
     const total = tempItems.reduce((acc, it) => acc + ((Number(it.p)||0) * (Number(it.q)||0) * (1-(Number(it.d||0)/100)) * (1+(Number(it.iva||0)/100))), 0);
     
-    tempItems.forEach(item => {
-        // unitNetCost: coste por unidad sin IVA ni dto
-        const qty = Number(item.q) || 1;
-        const price = Number(item.p) || 0;
-        const dto = Number(item.d) || 0;
-        const unitNetCost = qty > 0 ? ((price * (1 - dto/100)) / qty) : (price * (1 - dto/100));
-        let i = db.ingredientes.find(ing => (ing.n||'').toLowerCase().trim() === (item.n||'').toLowerCase().trim());
-        if(i) {
-            // Actualización por media ponderada
-            const prevTotal = (Number(i.stock) || 0) * (Number(i.cost) || 0);
-            const addedTotal = qty * unitNetCost;
-            const newStock = (Number(i.stock) || 0) + qty;
-            i.cost = newStock > 0 ? ((prevTotal + addedTotal) / newStock) : unitNetCost;
-            i.stock = newStock;
-        } else { 
-            db.ingredientes.push({ id: generateID(), n: item.n, stock: qty, cost: unitNetCost || 0, min:0, unit: 'ud', yield: 1, aller: [] }); 
-        }
-    });
+    // Use the stock module to update stock levels
+    db.ingredientes = updateStockOnReceive(tempItems, db.ingredientes);
+    
     db.albaranes.push({ id: generateID(), date, prov: provName, items: JSON.parse(JSON.stringify(tempItems)), total, note, invoiced: false });
     save("Entrada confirmada"); renderContabilidad();
 }
@@ -593,17 +585,8 @@ function renderChart(){
 
 /* ================= 9. RECETAS ================= */
 function calcRecipe(r) {
-    let mat = 0;
-    (r.items || []).forEach(it => {
-        const i = db.ingredientes.find(x => x.id === it.id);
-        if (i) {
-            const yieldFactor = (i.yield && i.yield > 0) ? i.yield : 1;
-            mat += (Number(it.q) || 0) / yieldFactor * (Number(i.cost) || 0);
-        }
-    });
-    const mo = ((Number(r.time) || 0) / 60) * (Number(CONFIG.COST_HOUR) || 0);
-    const total = mat + mo;
-    return { mat, mo, total };
+    // Use the extracted calculateRecipeCost function from recipes.js module
+    return calculateRecipeCost(r, db.ingredientes, { COST_HOUR: CONFIG.COST_HOUR });
 }
 
 function viewRecipe(id){
@@ -706,7 +689,8 @@ function saveRecipe(id){
 /* ================= 10. BACKUP & RESTORE ================= */
 function downloadBackup() {
     const a = document.createElement('a');
-    const payload = JSON.stringify(db, null, 2);
+    // Use the backup module
+    const payload = exportBackup(db);
     a.href = "data:text/json;charset=utf-8," + encodeURIComponent(payload);
     a.download = `arume_backup_${new Date().toISOString().slice(0,19).replace(/[:T]/g, '_')}.json`;
     document.body.appendChild(a);
@@ -721,15 +705,14 @@ function restoreBackup(input) {
     const reader = new FileReader();
     reader.onload = function(e) {
         try {
-            const json = JSON.parse(e.target.result);
-            if(json.users && json.ingredientes && json.recetas) {
-                db = json;
-                save("Backup restaurado con éxito");
-                setTimeout(() => location.reload(), 1500);
-            } else {
-                showToast("Archivo no válido", "error");
-            }
-        } catch(err) { showToast("Error al leer archivo", "error"); }
+            // Use the backup module for validation
+            const json = importBackup(e.target.result);
+            db = json;
+            save("Backup restaurado con éxito");
+            setTimeout(() => location.reload(), 1500);
+        } catch(err) { 
+            showToast(err.message || "Error al leer archivo", "error"); 
+        }
     };
     reader.readAsText(file);
 }
