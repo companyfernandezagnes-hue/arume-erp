@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-    <title>ARUME V120 · Masterpiece</title>
+    <title>ARUME V121 · Fixed & Clean</title>
     
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;800&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -11,8 +11,8 @@
     <script src="https://cdn.tailwindcss.com"></script>
 
     <style>
-        /* ESTÉTICA V120 */
-        body { font-family: 'Poppins', sans-serif; background: #f8fafc; padding-bottom: 120px; user-select: none; -webkit-tap-highlight-color: transparent; }
+        /* ESTILOS V121 */
+        body { font-family: 'Poppins', sans-serif; background: #f8fafc; padding-bottom: 100px; -webkit-tap-highlight-color: transparent; user-select: none; }
         
         .glass-card { 
             background: white; 
@@ -40,16 +40,11 @@
         }
         .input-premium:focus { border-color: #4f46e5; background: white; }
 
-        /* LOADING */
-        #loading-overlay { position: fixed; inset: 0; background: rgba(255,255,255,0.95); z-index: 9999; display: flex; justify-content: center; align-items: center; flex-direction: column; }
-        .spinner { width: 40px; height: 40px; border: 4px solid #e2e8f0; border-top: 4px solid #4f46e5; border-radius: 50%; animation: spin 1s linear infinite; }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-
         /* MODAL */
         .overlay { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(4px); z-index: 100; display: flex; align-items: center; justify-content: center; }
         .modal { background: white; width: 95%; max-width: 800px; max-height: 90vh; overflow-y: auto; border-radius: 24px; padding: 24px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); }
         
-        /* NAV - FIJA ABAJO */
+        /* NAV */
         nav { 
             position: fixed; bottom: 0; left: 0; width: 100%; 
             background: white; padding: 12px 0; 
@@ -62,15 +57,17 @@
         nav button.active { color: #4f46e5; transform: translateY(-2px); }
         nav button svg { width: 24px; height: 24px; fill: currentColor; margin-bottom: 4px; }
 
-        /* PIN SCREEN */
+        /* LOADING & PIN */
+        #loading-overlay { position: fixed; inset: 0; background: rgba(255,255,255,0.95); z-index: 9999; display: flex; justify-content: center; align-items: center; flex-direction: column; }
+        .spinner { width: 40px; height: 40px; border: 4px solid #e2e8f0; border-top: 4px solid #4f46e5; border-radius: 50%; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
         #pin-screen { background: #1e1b4b; position: fixed; inset: 0; z-index: 200; display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; }
         .pin-btn { width: 70px; height: 70px; border-radius: 50%; background: rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center; font-size: 1.5rem; font-weight: 600; cursor: pointer; transition: 0.2s; }
         .pin-btn:active { background: rgba(255,255,255,0.3); transform: scale(0.95); }
 
         .hidden { display: none !important; }
         .list-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #f1f5f9; }
-        
-        /* ALÉRGENOS */
         .aller-tag { display: inline-block; width: 24px; height: 24px; text-align: center; line-height: 24px; background: #e0e7ff; border-radius: 50%; font-size: 0.8rem; margin-right: 2px; }
     </style>
 </head>
@@ -86,8 +83,8 @@
 
     <header class="sticky top-0 z-40 px-6 py-4 flex justify-between items-center bg-white/90 backdrop-blur border-b border-gray-100">
         <div>
-            <h1 class="text-2xl font-black text-gray-800 tracking-tight">ARUME <span class="text-indigo-600">V120</span></h1>
-            <p class="text-[10px] text-gray-400 font-bold tracking-widest uppercase">Masterpiece</p>
+            <h1 class="text-2xl font-black text-gray-800 tracking-tight">ARUME <span class="text-indigo-600">V121</span></h1>
+            <p class="text-[10px] text-gray-400 font-bold tracking-widest uppercase">Fixed & Clean</p>
         </div>
         <div class="bg-gray-100 px-3 py-1 rounded-full text-xs font-bold text-gray-600 flex items-center gap-2 cursor-pointer hover:bg-gray-200 transition" onclick="logout()">
             <div id="sync-dot" class="w-2 h-2 rounded-full bg-gray-400"></div> <span id="user-name">Login</span>
@@ -127,8 +124,7 @@
 /* ================= 1. CONFIGURACIÓN ================= */
 const CONFIG = { 
     GOOGLE_URL: "https://script.google.com/macros/s/AKfycbxL0hWPiYmQ_590bkFjd1B9xwsfrYQXQtEuUpP2Nraq973bDr2rpEgVnaJCpI3-DH8z/exec", 
-    COST_HOUR: 15,
-    DEFAULT_IVA: 10
+    COST_HOUR: 15
 };
 
 const ALLERGENS = [
@@ -169,7 +165,7 @@ function toast(msg, type='info') {
 
 function init() {
     try {
-        const stored = localStorage.getItem('arume_v120') || localStorage.getItem('arume_v115');
+        const stored = localStorage.getItem('arume_v121') || localStorage.getItem('arume_v120') || localStorage.getItem('arume_v115');
         if(stored) db = secure.dec(stored);
     } catch(e) { console.warn("DB reset"); }
     
@@ -184,7 +180,7 @@ function init() {
 async function save(msg){
     loading(true);
     db.lastSync = Date.now();
-    localStorage.setItem('arume_v120', secure.enc(db));
+    localStorage.setItem('arume_v121', secure.enc(db));
     if(CONFIG.GOOGLE_URL) await fetch(CONFIG.GOOGLE_URL, {method:'POST', mode:'no-cors', body:JSON.stringify(db)}).catch(()=>{});
     loading(false);
     if(msg) toast(msg);
@@ -197,7 +193,7 @@ async function sync(){
     try {
         const r = await fetch(CONFIG.GOOGLE_URL);
         const c = await r.json();
-        if(c && c.lastSync > (db.lastSync||0)) { db=c; localStorage.setItem('arume_v120', secure.enc(db)); location.reload(); }
+        if(c && c.lastSync > (db.lastSync||0)) { db=c; localStorage.setItem('arume_v121', secure.enc(db)); location.reload(); }
         if(dot) dot.className="w-2 h-2 rounded-full bg-green-500 shadow-lg shadow-green-500/50";
     } catch(e){ if(dot) dot.className="w-2 h-2 rounded-full bg-red-500"; }
 }
@@ -324,7 +320,7 @@ function commitAlb() {
 function deleteAlb(id) {
     const alb = db.albaranes.find(a => a.id === id);
     if(!alb) return;
-    if(confirm("¿Borrar? Se restará el stock de esta entrada.")) {
+    if(confirm("¿Borrar? Se restará el stock.")) {
         alb.items.forEach(it => {
             const i = db.ingredientes.find(x => x.n.toLowerCase() === it.n.toLowerCase());
             if(i) i.stock = Math.max(0, i.stock - it.q);
@@ -404,21 +400,26 @@ function viewRec(id) { const r = db.recetas.find(x=>x.id===id); const c = calcRe
 function renderStock(app) {
     const filtered = db.ingredientes.filter(i => i.n.toLowerCase().includes(searchFilter.toLowerCase()));
     app.innerHTML = `
-        <div class="glass-card"><div class="flex justify-between items-center mb-4"><h3 class="font-bold text-gray-800">ALMACÉN</h3><button class="bg-red-50 text-red-500 px-3 py-1 rounded-lg text-xs font-bold" onclick="verMermas()">📉 Mermas</button></div><input placeholder="🔍 Buscar..." onkeyup="searchFilter=this.value;render('Stock')" value="${searchFilter}" class="input-premium"><div class="max-h-[60vh] overflow-y-auto">${filtered.map(i => `<div class="bg-white p-3 rounded-xl mb-2 border border-gray-100 shadow-sm flex justify-between items-center"><div onclick="editIng('${i.id}')" class="flex-1 cursor-pointer"><div class="font-bold text-gray-800">${clean(i.n)}</div><div class="text-xs text-gray-400 flex items-center gap-1">${(i.aller||[]).map(k=>`<span class="aller-tag">${ALLERGENS.find(a=>a.k==k)?.i}</span>`).join('')} ${i.stock} ${i.unit} · ${i.cost.toFixed(2)}€</div></div><button class="bg-red-50 text-red-500 rounded p-2 text-xs font-bold" onclick="regMerma('${i.id}')">🗑️</button></div>`).join('')}</div><button class="btn-premium mt-4" onclick="editIng(generateID())">+ AÑADIR PRODUCTO</button></div>`;
+        <div class="glass-card"><div class="flex justify-between items-center mb-4"><h3 class="font-bold text-gray-800">ALMACÉN</h3><button class="bg-red-50 text-red-500 px-3 py-1 rounded-lg text-xs font-bold" onclick="verMermas()">📉 VER PÉRDIDAS</button></div><input placeholder="🔍 Buscar..." onkeyup="searchFilter=this.value;render('Stock')" value="${searchFilter}" class="input-premium"><div class="max-h-[60vh] overflow-y-auto">${filtered.map(i => `<div class="bg-white p-3 rounded-xl mb-2 border border-gray-100 shadow-sm flex justify-between items-center"><div onclick="editIng('${i.id}')" class="flex-1 cursor-pointer"><div class="font-bold text-gray-800">${clean(i.n)}</div><div class="text-xs text-gray-400 flex items-center gap-1">${(i.aller||[]).map(k=>`<span class="aller-tag">${ALLERGENS.find(a=>a.k==k)?.i}</span>`).join('')} ${i.stock} ${i.unit} · ${i.cost.toFixed(2)}€</div></div><div class="flex gap-1"><button class="bg-red-50 text-red-500 rounded p-2 text-xs font-bold shadow-sm" onclick="regMerma('${i.id}')">📉</button><button class="bg-gray-100 text-gray-400 rounded p-2 text-xs font-bold hover:text-red-500" onclick="deleteIng('${i.id}')">🗑️</button></div></div>`).join('')}</div><button class="btn-premium mt-4" onclick="editIng(generateID())">+ AÑADIR PRODUCTO</button></div>`;
 }
+function deleteIng(id){ if(confirm("¿Borrar producto?")){ db.ingredientes=db.ingredientes.filter(i=>i.id!==id); save("Borrado"); render('Stock'); }}
 function regMerma(id) { const i = db.ingredientes.find(x=>x.id===id); showModal('Registrar Merma', `<p class="text-sm text-gray-500 mb-4">Producto: <b>${clean(i.n)}</b></p><label>Cantidad Perdida</label><input type="number" id="m-q" class="input-premium"><label>Motivo</label><select id="m-r" class="input-premium"><option>Caducidad</option><option>Rotura</option><option>Error Cocina</option><option>Otro</option></select><button class="btn-danger w-full mt-4" onclick="saveMerma('${id}')">CONFIRMAR PÉRDIDA</button>`); }
 function saveMerma(id) { const i = db.ingredientes.find(x=>x.id===id); const q = parseFloat(document.getElementById('m-q').value); const r = document.getElementById('m-r').value; if(q>0) { i.stock -= q; db.mermas.push({ date:getISO(), n:i.n, q, reason:r, loss: q*i.cost }); save("Merma registrada"); closeModal(); render('Stock'); } }
 function verMermas() { const totalLoss = db.mermas.reduce((a,b)=>a+(b.loss||0),0); showModal('Historial de Mermas', `<div class="text-center mb-4"><h3 class="text-2xl font-black text-red-500">${totalLoss.toFixed(2)}€</h3><small>PÉRDIDAS TOTALES</small></div><div class="max-h-64 overflow-y-auto">${db.mermas.slice().reverse().map(m => `<div class="flex justify-between border-b py-2 text-sm"><span>${m.date} <b>${clean(m.n)}</b></span><span class="text-red-500 font-bold">-${m.loss.toFixed(2)}€</span></div>`).join('')}</div>`); }
 function editIng(id) { const i = db.ingredientes.find(x=>x.id===id) || {id, n:'', cost:0, stock:0, unit:'kg', aller:[]}; showModal('Editar Stock', `<label>Nombre</label><input id="ei-n" value="${clean(i.n)}" class="input-premium"><div class="grid grid-cols-2 gap-4"><div><label>Coste</label><input id="ei-c" type="number" value="${i.cost}" class="input-premium"></div><div><label>Stock</label><input id="ei-s" type="number" value="${i.stock}" class="input-premium"></div></div><label>Alérgenos</label><div class="flex flex-wrap gap-2 mt-2">${ALLERGENS.map(a=>`<div class="p-2 border rounded cursor-pointer ${i.aller.includes(a.k)?'bg-blue-100 border-blue-500':''}" onclick="this.classList.toggle('bg-blue-100');this.classList.toggle('border-blue-500');this.classList.toggle('active')">${a.i}</div>`).join('')}</div><button class="btn-premium mt-6" onclick="saveIng('${i.id}')">GUARDAR</button>`); setTimeout(() => { const d = document.querySelectorAll('#m-body .flex div'); i.aller.forEach(k=>{ const idx=ALLERGENS.findIndex(a=>a.k===k); if(d[idx]) d[idx].classList.add('active','bg-blue-100','border-blue-500'); }); }, 50); }
 function saveIng(id) { const divs = document.querySelectorAll('#m-body .flex div'); const aller = []; divs.forEach((d,i)=>{ if(d.classList.contains('active')) aller.push(ALLERGENS[i].k) }); const ing = { id, n:document.getElementById('ei-n').value, cost:parseFloat(document.getElementById('ei-c').value), stock:parseFloat(document.getElementById('ei-s').value), unit:'kg', aller }; const idx = db.ingredientes.findIndex(x=>x.id===id); if(idx>=0) db.ingredientes[idx]=ing; else db.ingredientes.push(ing); save(); closeModal(); render('Stock'); }
 
-/* ================= 8. DIARIO ================= */
+/* ================= 8. DIARIO (CAJA CORREGIDA) ================= */
 function renderDiario(app){
     const today = getISO(); const r = db.diario.find(d => d.date === today) || {cash:0, card:0, other:0};
     const total = (r.cash||0) + (r.card||0) + (r.other||0);
-    app.innerHTML = `<div class="glass-card"><div class="section-header"><div class="title">CIERRE CAJA</div><div class="text-indigo-600 font-bold">${today}</div></div><div class="space-y-3"><div><label>Efectivo</label><input type="number" id="z-cash" value="${r.cash||0}" class="input-premium text-right font-bold" oninput="calcTotal()"></div><div><label>Tarjeta</label><input type="number" id="z-card" value="${r.card||0}" class="input-premium text-right font-bold" oninput="calcTotal()"></div><div><label>Otros</label><input type="number" id="z-other" value="${r.other||0}" class="input-premium text-right font-bold" oninput="calcTotal()"></div><div class="flex justify-between items-center pt-2 border-t mt-2"><span class="font-bold text-gray-500">TOTAL</span><span id="z-total-display" class="text-2xl font-black text-indigo-600">${total.toFixed(2)}€</span></div></div><button class="btn-premium mt-4" onclick="saveZ()">GUARDAR CIERRE</button></div>
-    
-    <div class="glass-card"><h4 class="font-bold text-xs text-gray-400 mb-4 uppercase">Últimos 7 días</h4><div class="space-y-2">${db.diario.slice(-7).reverse().map(d => `<div class="flex justify-between text-sm border-b pb-1"><span>${d.date}</span><span class="font-bold">${d.total.toFixed(2)}€</span></div>`).join('')}</div></div>
+    app.innerHTML = `
+    <div class="glass-card"><div class="section-header"><div class="title">CIERRE CAJA</div><div class="text-indigo-600 font-bold">${today}</div></div>
+    <div class="space-y-4">
+        <div class="grid grid-cols-2 gap-4"><div><label>Efectivo</label><input type="number" id="z-cash" value="${r.cash||0}" class="input-premium text-2xl font-bold text-center" oninput="calcTotal()"></div><div><label>Tarjeta</label><input type="number" id="z-card" value="${r.card||0}" class="input-premium text-2xl font-bold text-center" oninput="calcTotal()"></div></div>
+        <div><label>Otros / Invitaciones</label><input type="number" id="z-other" value="${r.other||0}" class="input-premium text-center" oninput="calcTotal()"></div>
+        <div class="flex justify-between items-center pt-4 border-t border-gray-100"><span class="font-bold text-gray-400">TOTAL DÍA</span><span id="z-total-display" class="text-4xl font-black text-indigo-600">${total.toFixed(2)}€</span></div>
+    </div><button class="btn-premium mt-6" onclick="saveZ()">GUARDAR CIERRE</button></div>
     <div class="glass-card"><canvas id="chartZ"></canvas></div>`;
     new Chart(document.getElementById('chartZ'), {type:'bar', data:{labels:db.diario.slice(-7).map(d=>d.date.slice(5)), datasets:[{label:'Ventas', data:db.diario.slice(-7).map(d=>d.total), backgroundColor:'#6366f1', borderRadius:6}]}});
 }
