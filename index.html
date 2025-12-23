@@ -830,5 +830,48 @@ function updateSale(rid, val) { const r = db.recetas.find(x => x.id === rid); if
 
 init();
 </script>
+
+<!-- PIN hashing & safe migration helpers (inserted) -->
+<script>
+  window.CONFIG = window.CONFIG || {};
+  if (typeof window.CONFIG.PIN_HASH_MIGRATION === 'undefined') {
+    window.CONFIG.PIN_HASH_MIGRATION = false;
+  }
+  window.sha256Hex = async function(str) { const s = String(str || ''); const enc = new TextEncoder(); const buf = await crypto.subtle.digest('SHA-256', enc.encode(s)); return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join(''); };
+  window.verifyPinAttempt = async function(db, pin, saveFn) {
+    if(!db || !Array.isArray(db.users)) return null;
+    const h = await window.sha256Hex(pin);
+    const byHash = db.users.find(u => u.pinHash && u.pinHash === h);
+    if (byHash) return byHash;
+    const legacy = db.users.find(u => u.pin && u.pin === pin);
+    if (legacy) { legacy.pinHash = h; legacy.pinLegacy = true; if (typeof saveFn === 'function') saveFn("Usuario migrado a pinHash"); return legacy; }
+    return null;
+  };
+  window.performEmergencyReset = async function(db, userId, pin, saveFn, CONFIG) {
+    const user = (db.users||[]).find(u => u.id === userId);
+    if (!user) throw new Error("Usuario no encontrado");
+    user.pin = String(pin);
+    if (CONFIG && CONFIG.PIN_HASH_MIGRATION) { user.pinHash = await window.sha256Hex(pin); user.pinLegacy = true; }
+    if (typeof saveFn === 'function') saveFn("PIN forzado por admin");
+    return user;
+  };
+  async function pinCheckSafe(){
+    const pin = (typeof currentPin !== 'undefined') ? currentPin : null;
+    if(!pin) return (typeof showToast === 'function') ? showToast("Introduce PIN", "error") : null;
+    if(!window.CONFIG.PIN_HASH_MIGRATION) {
+      const u = (db && db.users) ? db.users.find(x => x.pin === pin) : null;
+      if (u) { currentUser = u; try { localStorage.setItem('arume_user', JSON.stringify(u)); } catch(e) {} if (document.getElementById('pin-screen')) document.getElementById('pin-screen').classList.add('hidden'); if (typeof loadApp === 'function') loadApp(); }
+      else { if (typeof showToast === 'function') showToast("Código incorrecto", "error"); if (typeof pinClear === 'function') pinClear(); }
+      return;
+    }
+    try {
+      const user = await window.verifyPinAttempt(db, pin, typeof save === 'function' ? save : null);
+      if (user) { currentUser = user; try { localStorage.setItem('arume_user', JSON.stringify(user)); } catch(e) {} if (document.getElementById('pin-screen')) document.getElementById('pin-screen').classList.add('hidden'); if (typeof loadApp === 'function') loadApp(); }
+      else { if (typeof showToast === 'function') showToast("Código incorrecto", "error"); if (typeof pinClear === 'function') pinClear(); }
+    } catch (e) { console.error("pinCheck error", e); if (typeof showToast === 'function') showToast("Error interno", "error"); }
+  }
+  try { if (typeof window.pinCheck === 'function') { window._legacyPinCheck = window.pinCheck; } } catch(e) {}
+  window.pinCheck = pinCheckSafe;
+</script>
 </body>
 </html>
