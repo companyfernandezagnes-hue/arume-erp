@@ -14,6 +14,13 @@ async function hashPin(pin) {
   }
 
   try {
+    // Check if we're in Node.js environment (for testing)
+    if (typeof process !== 'undefined' && process.versions && process.versions.node) {
+      // Use Node.js crypto module
+      const nodeCrypto = require('crypto');
+      return nodeCrypto.createHash('sha256').update(pin).digest('hex');
+    }
+    
     // Use Web Crypto API (available in modern browsers and Node.js 15+)
     if (typeof crypto !== 'undefined' && crypto.subtle) {
       const encoder = new TextEncoder();

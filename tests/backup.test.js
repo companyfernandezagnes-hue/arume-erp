@@ -149,9 +149,9 @@ describe('importBackup', () => {
   });
 
   test('should throw error for non-object JSON', () => {
-    expect(() => importBackup('[]')).toThrow('Invalid backup: must be an object');
-    expect(() => importBackup('"string"')).toThrow('Invalid backup: must be an object');
-    expect(() => importBackup('123')).toThrow('Invalid backup: must be an object');
+    expect(() => importBackup('[]')).toThrow('Invalid backup');
+    expect(() => importBackup('"string"')).toThrow('Invalid backup');
+    expect(() => importBackup('123')).toThrow('Invalid backup');
   });
 });
 

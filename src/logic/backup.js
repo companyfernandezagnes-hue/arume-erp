@@ -40,7 +40,7 @@ function importBackup(jsonString) {
 
     // Check for required fields
     const requiredFields = ['users', 'ingredientes', 'recetas'];
-    const missingFields = requiredFields.filter(field => !parsed.hasOwnProperty(field));
+    const missingFields = requiredFields.filter(field => !Object.prototype.hasOwnProperty.call(parsed, field));
     
     if (missingFields.length > 0) {
       throw new Error(`Invalid backup: missing required fields: ${missingFields.join(', ')}`);

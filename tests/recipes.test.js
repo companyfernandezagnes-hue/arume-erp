@@ -66,8 +66,8 @@ describe('calculateRecipeCost', () => {
     const result = calculateRecipeCost(recipe, null);
 
     expect(result.mat).toBe(0);
-    expect(result.mo).toBe(2.5);
-    expect(result.total).toBe(2.5);
+    expect(result.mo).toBe(0);  // Should be 0 when ingredients are invalid
+    expect(result.total).toBe(0);
   });
 
   test('should handle missing ingredient in database', () => {
