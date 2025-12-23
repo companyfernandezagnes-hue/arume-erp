@@ -1,0 +1,209 @@
+name: Apply pin-hash patch
+
+on:
+  workflow_dispatch:
+
+jobs:
+  apply-patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure git
+        run: |
+          git config user.name "Repo Automation"
+          git config user.email "actions@github.com"
+
+      - name: Create branch
+        run: |
+          git checkout -b fix/pin-hash-prepare
+
+      - name: Add src/auth-utils.js and tests
+        run: |
+          mkdir -p src tests
+
+          cat > src/auth-utils.js <<'EOF'
+// src/auth-utils.js
+// Utilities for PIN hashing and migration (Node / Jest friendly)
+
+async function sha256Hex(str) {
+  const s = String(str || '');
+  const enc = new TextEncoder();
+  const buf = await crypto.subtle.digest('SHA-256', enc.encode(s));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+}
+
+async function verifyPinAttempt(db, pin, saveFn) {
+  if (!db || !Array.isArray(db.users)) return null;
+  const h = await sha256Hex(pin);
+
+  // try match by pinHash
+  const byHash = db.users.find(u => u.pinHash && u.pinHash === h);
+  if (byHash) return byHash;
+
+  // fallback: match by legacy plain pin
+  const legacy = db.users.find(u => u.pin && u.pin === pin);
+  if (legacy) {
+    legacy.pinHash = h;
+    legacy.pinLegacy = true;
+    if (typeof saveFn === 'function') saveFn("Usuario migrado a pinHash");
+    return legacy;
+  }
+
+  return null;
+}
+
+async function updateUserPinHash(user, pin, saveFn) {
+  if (!user) return null;
+  user.pinHash = await sha256Hex(pin);
+  user.pinLegacy = true;
+  if (typeof saveFn === 'function') saveFn("PinHash actualizado");
+  return user;
+}
+
+async function performEmergencyReset(db, userId, pin, saveFn, CONFIG) {
+  const user = (db.users || []).find(u => u.id === userId);
+  if (!user) throw new Error("Usuario no encontrado");
+  user.pin = String(pin);
+  if (CONFIG && CONFIG.PIN_HASH_MIGRATION) {
+    user.pinHash = await sha256Hex(pin);
+    user.pinLegacy = true;
+  }
+  if (typeof saveFn === 'function') saveFn("PIN forzado por admin");
+  return user;
+}
+
+module.exports = { sha256Hex, verifyPinAttempt, updateUserPinHash, performEmergencyReset };
+EOF
+
+          cat > tests/auth-utils.test.js <<'EOF'
+// tests/auth-utils.test.js
+const { sha256Hex, verifyPinAttempt, performEmergencyReset } = require('../src/auth-utils');
+
+describe('sha256Hex', () => {
+  test('produces consistent known hash', async () => {
+    const h = await sha256Hex('0150');
+    expect(h).toHaveLength(64);
+    expect(/^[0-9a-f]+$/.test(h)).toBe(true);
+  });
+});
+
+describe('verifyPinAttempt and migration', () => {
+  test('fallback legacy migration creates pinHash', async () => {
+    const db = { users: [ { id:'u1', n:'Admin', pin:'0150' } ] };
+    let savedMessage = null;
+    const saveFn = (m) => { savedMessage = m; };
+    const user = await verifyPinAttempt(db, '0150', saveFn);
+    expect(user).not.toBeNull();
+    expect(user.pinHash).toBeDefined();
+    expect(user.pinLegacy).toBe(true);
+    expect(savedMessage).toMatch(/migrad/);
+  });
+
+  test('verify by pinHash works', async () => {
+    const db = { users: [ { id:'u2', n:'User', pin:'1111' } ] };
+    await verifyPinAttempt(db, '1111', () => {});
+    const hash = db.users[0].pinHash;
+    const res = await verifyPinAttempt(db, '1111', () => {});
+    expect(res).not.toBeNull();
+    expect(res.pinHash).toBe(hash);
+  });
+});
+
+describe('performEmergencyReset', () => {
+  test('sets pin and pinHash when migration enabled', async () => {
+    const db = { users: [ { id:'u3', n:'X', pin:'0000' } ] };
+    const user = await performEmergencyReset(db, 'u3', '4321', () => {}, { PIN_HASH_MIGRATION: true });
+    expect(user.pin).toBe('4321');
+    expect(user.pinHash).toBeDefined();
+  });
+});
+EOF
+
+      - name: Patch index.html (append safe script before </body>)
+        run: |
+          python3 - <<'PY'
+from pathlib import Path
+p = Path('index.html')
+if not p.exists():
+    print("index.html not found in repo root - aborting")
+    raise SystemExit(1)
+
+s = p.read_text(encoding='utf-8')
+insertion = r"""
+<!-- PIN hashing & safe migration helpers (inserted) -->
+<script>
+  window.CONFIG = window.CONFIG || {};
+  if (typeof window.CONFIG.PIN_HASH_MIGRATION === 'undefined') {
+    window.CONFIG.PIN_HASH_MIGRATION = false;
+  }
+  window.sha256Hex = async function(str) { const s = String(str || ''); const enc = new TextEncoder(); const buf = await crypto.subtle.digest('SHA-256', enc.encode(s)); return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join(''); };
+  window.verifyPinAttempt = async function(db, pin, saveFn) {
+    if(!db || !Array.isArray(db.users)) return null;
+    const h = await window.sha256Hex(pin);
+    const byHash = db.users.find(u => u.pinHash && u.pinHash === h);
+    if (byHash) return byHash;
+    const legacy = db.users.find(u => u.pin && u.pin === pin);
+    if (legacy) { legacy.pinHash = h; legacy.pinLegacy = true; if (typeof saveFn === 'function') saveFn("Usuario migrado a pinHash"); return legacy; }
+    return null;
+  };
+  window.performEmergencyReset = async function(db, userId, pin, saveFn, CONFIG) {
+    const user = (db.users||[]).find(u => u.id === userId);
+    if (!user) throw new Error("Usuario no encontrado");
+    user.pin = String(pin);
+    if (CONFIG && CONFIG.PIN_HASH_MIGRATION) { user.pinHash = await window.sha256Hex(pin); user.pinLegacy = true; }
+    if (typeof saveFn === 'function') saveFn("PIN forzado por admin");
+    return user;
+  };
+  async function pinCheckSafe(){
+    const pin = (typeof currentPin !== 'undefined') ? currentPin : null;
+    if(!pin) return (typeof showToast === 'function') ? showToast("Introduce PIN", "error") : null;
+    if(!window.CONFIG.PIN_HASH_MIGRATION) {
+      const u = (db && db.users) ? db.users.find(x => x.pin === pin) : null;
+      if (u) { currentUser = u; try { localStorage.setItem('arume_user', JSON.stringify(u)); } catch(e) {} if (document.getElementById('pin-screen')) document.getElementById('pin-screen').classList.add('hidden'); if (typeof loadApp === 'function') loadApp(); }
+      else { if (typeof showToast === 'function') showToast("Código incorrecto", "error"); if (typeof pinClear === 'function') pinClear(); }
+      return;
+    }
+    try {
+      const user = await window.verifyPinAttempt(db, pin, typeof save === 'function' ? save : null);
+      if (user) { currentUser = user; try { localStorage.setItem('arume_user', JSON.stringify(user)); } catch(e) {} if (document.getElementById('pin-screen')) document.getElementById('pin-screen').classList.add('hidden'); if (typeof loadApp === 'function') loadApp(); }
+      else { if (typeof showToast === 'function') showToast("Código incorrecto", "error"); if (typeof pinClear === 'function') pinClear(); }
+    } catch (e) { console.error("pinCheck error", e); if (typeof showToast === 'function') showToast("Error interno", "error"); }
+  }
+  try { if (typeof window.pinCheck === 'function') { window._legacyPinCheck = window.pinCheck; } } catch(e) {}
+  window.pinCheck = pinCheckSafe;
+</script>
+"""
+if '</body>' in s:
+    s = s.replace('</body>', insertion + '\n</body>')
+else:
+    s = s + insertion
+p.write_text(s, encoding='utf-8')
+print("index.html patched")
+PY
+
+      - name: Remove rc/auth-utils.js if present
+        run: |
+          if [ -f rc/auth-utils.js ]; then git rm rc/auth-utils.js || true; fi
+
+      - name: Commit and push changes
+        env:
+          REPO_PAT: ${{ secrets.REPO_PAT }}
+        run: |
+          git add src tests index.html || true
+          git commit -m "fix(auth): move auth-utils to src, add tests and safe pin helpers" || echo "No changes to commit"
+          git push "https://x-access-token:${REPO_PAT}@github.com/${{ github.repository }}" fix/pin-hash-prepare
+
+      - name: Create Draft PR
+        env:
+          REPO_PAT: ${{ secrets.REPO_PAT }}
+        run: |
+          curl -s -X POST \
+            -H "Authorization: token ${REPO_PAT}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/pulls" \
+            -d '{"title":"fix(auth): move auth-utils to src, add tests and safe pin helpers","head":"fix/pin-hash-prepare","base":"main","body":"Mueve rc/auth-utils.js a src/, añade tests y bloque seguro en index.html. Flag PIN_HASH_MIGRATION = false por defecto.","draft":true}' \
+            | sed -n '1,200p'
