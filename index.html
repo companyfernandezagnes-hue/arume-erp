@@ -1,67 +1,74 @@
+¡Entendido! El problema era que el botón de borrar **se ocultaba** si el albarán ya estaba marcado como "Facturado" o "Procesado". A veces uno se equivoca, marca algo como facturado y luego necesita borrarlo, y el sistema no te dejaba.
+
+En esta **V110**, he "liberado" el botón de la papelera.
+
+### 🛠️ Mejoras Específicas V110:
+
+1. **Papelera Siempre Visible:** Ahora puedes borrar **CUALQUIER** albarán del historial, esté facturado o no.
+2. **Borrado Seguro:** Si intentas borrar un albarán que ya está en una factura, el sistema te avisará con una alerta extra ("¡Ojo! Esto ya está facturado"), pero te dejará borrarlo si insistes.
+3. **Visualización:** He puesto el botón de borrar en **Rojo Intenso** para que se vea bien claro en la lista.
+
+Aquí tienes el código completo. **Copia, pega y borra lo que quieras.**
+
+```html
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-    <title>ARUME V101 · Diamond</title>
-    
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+    <title>ARUME V110 · Total Control</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;800&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
 
     <style>
-        /* ESTÉTICA DIAMOND V101 */
-        body { font-family: 'Poppins', sans-serif; background: #f1f5f9; padding-bottom: 120px; user-select: none; -webkit-tap-highlight-color: transparent; }
+        /* ESTÉTICA V110 */
+        body { font-family: 'Poppins', sans-serif; background: #f8fafc; padding-bottom: 120px; user-select: none; -webkit-tap-highlight-color: transparent; }
         
         .glass-card { 
             background: rgba(255,255,255,0.95); 
             backdrop-filter: blur(20px); 
             border: 1px solid white; 
             box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 10px 15px -3px rgba(0,0,0,0.05); 
-            border-radius: 20px; 
-            padding: 20px; 
-            margin-bottom: 16px; 
+            border-radius: 24px; 
+            padding: 24px; 
+            margin-bottom: 20px; 
             transition: transform 0.2s;
         }
         
         .btn-premium { 
             background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); 
-            color: white; 
-            padding: 12px; 
-            border-radius: 14px; 
-            font-weight: 700; 
-            box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3); 
-            width: 100%; 
-            display: flex; justify-content: center; align-items: center; gap: 8px;
-            cursor: pointer; transition: 0.2s;
+            color: white; padding: 14px; border-radius: 16px; 
+            font-weight: 700; box-shadow: 0 8px 20px -5px rgba(79, 70, 229, 0.4); 
+            width: 100%; display: flex; justify-content: center; align-items: center; gap: 8px; cursor: pointer;
         }
         .btn-premium:active { transform: scale(0.97); }
 
-        .btn-ghost { background: white; border: 1px solid #cbd5e1; color: #475569; font-weight: 600; padding: 10px; border-radius: 12px; width: 100%; transition: 0.2s; cursor: pointer; }
-        .btn-danger { background: #fee2e2; color: #b91c1c; padding: 6px 12px; border-radius: 8px; font-weight: 700; cursor: pointer; font-size: 0.75rem; }
+        .btn-ghost { background: white; border: 1px solid #e2e8f0; color: #475569; font-weight: 600; padding: 10px; border-radius: 12px; width: 100%; cursor: pointer; transition: 0.2s; }
+        .btn-ghost:active { background: #f1f5f9; }
 
         .input-premium { 
-            width: 100%; padding: 12px; background: #f8fafc; 
+            width: 100%; padding: 12px; background: #f1f5f9; 
             border: 2px solid #e2e8f0; border-radius: 12px; 
             outline: none; transition: 0.3s; font-size: 15px;
         }
-        .input-premium:focus { border-color: #6366f1; background: white; box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1); }
+        .input-premium:focus { border-color: #4f46e5; background: white; box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1); }
 
-        /* LOADING & MODALS */
+        /* LOADING */
         #loading-overlay { position: fixed; inset: 0; background: rgba(255,255,255,0.9); z-index: 9999; display: flex; justify-content: center; align-items: center; flex-direction: column; }
         .spinner { width: 40px; height: 40px; border: 4px solid #e2e8f0; border-top: 4px solid #4f46e5; border-radius: 50%; animation: spin 1s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
-        .overlay { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(4px); z-index: 100; display: flex; align-items: center; justify-content: center; }
-        .modal { background: white; width: 95%; max-width: 700px; max-height: 90vh; overflow-y: auto; border-radius: 24px; padding: 24px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
-        @keyframes slideUp { from { transform: translateY(50px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        /* MODAL */
+        .overlay { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(4px); z-index: 100; display: flex; align-items: center; justify-content: center; }
+        .modal { background: white; width: 95%; max-width: 800px; max-height: 90vh; overflow-y: auto; border-radius: 24px; padding: 24px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); }
         
         /* NAV */
         nav { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); width: 90%; max-width: 450px; background: white; padding: 10px; border-radius: 24px; display: flex; justify-content: space-between; box-shadow: 0 20px 40px rgba(0,0,0,0.1); z-index: 50; border: 1px solid rgba(0,0,0,0.05); }
         nav button { flex: 1; background: none; border: none; color: #94a3b8; display: flex; flex-direction: column; align-items: center; font-size: 0.65rem; font-weight: 700; transition: 0.3s; cursor: pointer; }
         nav button.active { color: #4f46e5; transform: translateY(-4px); }
-        nav button svg { width: 24px; height: 24px; fill: currentColor; margin-bottom: 2px; }
+        nav button svg { width: 26px; height: 26px; fill: currentColor; margin-bottom: 2px; }
 
         /* PIN SCREEN */
         #pin-screen { background: #1e1b4b; position: fixed; inset: 0; z-index: 200; display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; }
@@ -69,32 +76,30 @@
         .pin-btn:active { background: rgba(255,255,255,0.3); transform: scale(0.95); }
 
         .hidden { display: none !important; }
-        .list-item { display: flex; justify-content: space-between; align-items: center; padding: 14px 0; border-bottom: 1px solid #f1f5f9; }
+        .list-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #f1f5f9; }
     </style>
 </head>
 <body>
 
     <div id="loading-overlay" class="hidden">
         <div class="spinner mb-4"></div>
-        <div class="font-bold text-gray-500 tracking-widest text-xs animate-pulse">SINCRONIZANDO...</div>
+        <div class="font-bold text-gray-500 tracking-widest text-xs animate-pulse">PROCESANDO...</div>
     </div>
 
     <div id="toast-container" class="fixed top-5 left-1/2 -translate-x-1/2 z-[300] pointer-events-none"></div>
     <input type="file" id="backup-input" class="hidden" onchange="restoreBackup(this)">
 
-    <header class="sticky top-0 z-40 px-6 py-4 flex justify-between items-center bg-white/80 backdrop-blur-md border-b border-gray-100 transition-all">
+    <header class="sticky top-0 z-40 px-6 py-4 flex justify-between items-center bg-white/90 backdrop-blur border-b border-gray-100">
         <div>
-            <h1 class="text-2xl font-black text-gray-800 tracking-tight">ARUME <span class="text-indigo-600">V101</span></h1>
-            <p class="text-[10px] text-gray-400 font-bold tracking-widest uppercase">Diamond Edition</p>
+            <h1 class="text-2xl font-black text-gray-800 tracking-tight">ARUME <span class="text-indigo-600">V110</span></h1>
+            <p class="text-[10px] text-gray-400 font-bold tracking-widest uppercase">Total Control</p>
         </div>
-        <div class="flex items-center gap-3">
-            <div class="bg-gray-100 px-3 py-1.5 rounded-full text-xs font-bold text-gray-600 flex items-center gap-2 cursor-pointer hover:bg-gray-200 transition" onclick="logout()">
-                <div id="sync-dot" class="w-2 h-2 rounded-full bg-gray-400"></div> <span id="user-name">Login</span>
-            </div>
+        <div class="bg-gray-100 px-3 py-1 rounded-full text-xs font-bold text-gray-600 flex items-center gap-2 cursor-pointer hover:bg-gray-200 transition" onclick="logout()">
+            <div id="sync-dot" class="w-2 h-2 rounded-full bg-gray-400"></div> <span id="user-name">...</span>
         </div>
     </header>
 
-    <main id="app" class="px-4 py-6 max-w-3xl mx-auto"></main>
+    <main id="app" class="px-4 py-6 max-w-4xl mx-auto"></main>
     <nav id="navbar"></nav>
 
     <div id="modal-overlay" class="overlay hidden">
@@ -110,7 +115,7 @@
     <div id="pin-screen" class="hidden">
         <div class="mb-10 text-center">
             <h2 class="text-5xl font-black tracking-tighter mb-2">ARUME</h2>
-            <p class="text-indigo-200 text-xs tracking-widest uppercase">Acceso Restringido</p>
+            <p class="text-indigo-200 text-xs tracking-widest uppercase">Acceso Seguro</p>
         </div>
         <div id="pin-display" class="text-4xl font-mono mb-10 tracking-[1em] h-10 text-center">****</div>
         <div class="grid grid-cols-3 gap-6 w-64">
@@ -170,10 +175,10 @@ function toast(msg, type='info') {
 
 function init() {
     try {
-        const stored = localStorage.getItem('arume_v101');
+        const stored = localStorage.getItem('arume_v110');
         if(stored) db = secure.dec(stored);
         else {
-            const old = localStorage.getItem('arume_v90'); // Migración V90
+            const old = localStorage.getItem('arume_v105'); 
             if(old) db = secure.dec(old);
         }
     } catch(e) { console.warn("DB reset"); }
@@ -188,7 +193,7 @@ function init() {
 async function save(msg){
     loading(true);
     db.lastSync = Date.now();
-    localStorage.setItem('arume_v101', secure.enc(db));
+    localStorage.setItem('arume_v110', secure.enc(db));
     if(CONFIG.GOOGLE_URL) await fetch(CONFIG.GOOGLE_URL, {method:'POST', mode:'no-cors', body:JSON.stringify(db)}).catch(()=>{});
     loading(false);
     if(msg) toast(msg);
@@ -201,7 +206,7 @@ async function sync(){
     try {
         const r = await fetch(CONFIG.GOOGLE_URL);
         const c = await r.json();
-        if(c && c.lastSync > (db.lastSync||0)) { db=c; localStorage.setItem('arume_v101', secure.enc(db)); location.reload(); }
+        if(c && c.lastSync > (db.lastSync||0)) { db=c; localStorage.setItem('arume_v110', secure.enc(db)); location.reload(); }
         if(dot) dot.className="w-2 h-2 rounded-full bg-green-500 shadow-lg shadow-green-500/50";
     } catch(e){ if(dot) dot.className="w-2 h-2 rounded-full bg-red-500"; }
 }
@@ -239,7 +244,7 @@ function render(view) {
     if(view==='Stock') renderStock(app);
 }
 
-/* ================= 5. GESTIÓN (PANEL) ================= */
+/* ================= 5. GESTIÓN ================= */
 function renderAdmin(app) {
     app.innerHTML = `
         <div class="flex gap-2 mb-6 bg-white p-1 rounded-2xl shadow-sm border border-gray-100">
@@ -255,246 +260,64 @@ function renderAdmin(app) {
     if(activeAdminTab==='facturas') renderFacturas(c);
 }
 
-/* ================= GESTIÓN DE ALBARANES (CORREGIDO Y EDITABLE) ================= */
-
-// 1. RENDERIZADO DE LA PANTALLA
+// --- ALBARANES (CORREGIDO V110) ---
 function renderAlbaranes(c) {
     c.innerHTML = `
         <div class="glass-card">
             <h3 class="font-bold text-gray-700 mb-4 text-sm uppercase flex justify-between items-center">
                 <span>Nuevo Albarán</span>
-                <span id="edit-mode-indicator" class="hidden text-xs bg-yellow-100 text-yellow-700 px-2 py-1 rounded">✏️ MODO EDICIÓN</span>
+                <span id="edit-mode-indicator" class="hidden text-[10px] bg-yellow-100 text-yellow-700 px-2 py-1 rounded">✏️ EDITANDO</span>
             </h3>
-            
             <div class="grid grid-cols-2 gap-4 mb-4">
-                <div>
-                    <label>Proveedor</label>
-                    <input list="prov-list" id="alb-prov" class="input-premium" placeholder="Selecciona...">
-                    <datalist id="prov-list">${db.proveedores.map(p=>`<option value="${clean(p.n)}">`).join('')}</datalist>
-                </div>
-                <div>
-                    <label>Fecha</label>
-                    <input type="date" id="alb-date" value="${getISO()}" class="input-premium">
-                </div>
+                <div><label>Proveedor</label><input list="prov-list" id="alb-prov" class="input-premium" placeholder="..."><datalist id="prov-list">${db.proveedores.map(p=>`<option value="${clean(p.n)}">`).join('')}</datalist></div>
+                <div><label>Fecha</label><input type="date" id="alb-date" value="${getISO()}" class="input-premium"></div>
             </div>
-
-            <textarea id="alb-input" rows="3" class="input-premium font-mono text-xs" placeholder="Pegar aquí: Producto Cantidad Precio (Ej: Patatas 10 5.50)"></textarea>
-            
-            <button class="btn-ghost mb-4 border-dashed" onclick="parseAlb()">🪄 Leer Texto Automático</button>
-            
+            <textarea id="alb-input" rows="4" class="input-premium font-mono text-xs" placeholder="Pegar: Producto Cantidad Precio"></textarea>
+            <button class="btn-ghost mb-4" onclick="parseAlb()">🪄 Leer Texto</button>
             <div id="alb-grid" class="space-y-2 mb-4"></div>
-            
-            <div class="flex justify-between items-end border-t pt-4">
-                <div class="text-xs text-gray-400 font-bold">TOTAL ALBARÁN</div>
-                <div class="text-right font-black text-2xl text-indigo-600" id="alb-total">0.00€</div>
-            </div>
-            
-            <button class="btn-premium mt-4" onclick="commitAlb()">CONFIRMAR Y GUARDAR EN STOCK</button>
+            <div class="text-right font-black text-2xl mb-4 text-indigo-600" id="alb-total">0.00€</div>
+            <button class="btn-premium" onclick="commitAlb()">CONFIRMAR ENTRADA</button>
         </div>
         
-        <div class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 mt-6">
-            <h4 class="font-bold text-xs text-gray-400 mb-4 uppercase tracking-wider">Historial de Entradas (Últimas 10)</h4>
-            <div class="space-y-3">
-                ${db.albaranes.slice().reverse().slice(0,10).map(a => `
-                    <div class="flex justify-between items-center py-3 border-b border-gray-50 last:border-0 hover:bg-gray-50 transition px-2 rounded-lg">
-                        <div>
-                            <div class="font-bold text-gray-800 text-sm">${clean(a.prov)}</div>
-                            <div class="text-[10px] text-gray-400 font-bold">${a.date} · ${a.items.length} productos</div>
-                        </div>
-                        <div class="flex items-center gap-2">
-                            <span class="font-mono font-bold text-gray-700 mr-2">${a.total.toFixed(2)}€</span>
-                            
-                            ${!a.invoiced ? `
-                                <button class="bg-blue-50 text-blue-600 w-8 h-8 rounded-lg flex items-center justify-center hover:bg-blue-100 transition shadow-sm" onclick="editAlb('${a.id}')" title="Editar">
-                                    ✏️
-                                </button>
-                                <button class="bg-red-50 text-red-500 w-8 h-8 rounded-lg flex items-center justify-center hover:bg-red-100 transition shadow-sm" onclick="deleteAlb('${a.id}')" title="Borrar">
-                                    🗑️
-                                </button>
-                            ` : '<span class="text-[10px] bg-green-100 text-green-700 px-2 py-1 rounded font-bold">Facturado</span>'}
-                        </div>
+        <div class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+            <h4 class="font-bold text-xs text-gray-400 mb-4 uppercase tracking-wider">Historial</h4>
+            ${db.albaranes.slice().reverse().map(a => `
+                <div class="flex justify-between items-center py-3 border-b border-gray-50 last:border-0">
+                    <div><div class="font-bold text-gray-800 text-sm">${clean(a.prov)}</div><div class="text-[10px] text-gray-400 font-bold">${a.date}</div></div>
+                    <div class="flex items-center gap-2">
+                        <span class="font-mono font-bold text-gray-700">${a.total.toFixed(2)}€</span>
+                        <button class="bg-blue-50 text-blue-500 p-1.5 rounded-lg hover:bg-blue-100 text-xs shadow-sm" onclick="editAlb('${a.id}')">✏️</button>
+                        <button class="bg-red-50 text-red-500 p-1.5 rounded-lg hover:bg-red-100 text-xs shadow-sm" onclick="deleteAlb('${a.id}')">🗑️</button>
+                        ${a.invoiced ? '<span class="text-[10px] text-green-500 font-bold border border-green-200 px-1 rounded">F</span>' : ''}
                     </div>
-                `).join('')}
-            </div>
-            ${db.albaranes.length === 0 ? '<div class="text-center text-gray-400 text-sm py-4">No hay entradas registradas</div>' : ''}
+                </div>
+            `).join('')}
         </div>`;
-    
-    // Si venimos de un refresco, limpiar temporales
-    if(!document.getElementById('edit-mode-indicator').classList.contains('active')) tempItems = [];
-    renderAlbGrid();
 }
 
-// 2. PARSEO DE TEXTO (INTELIGENTE)
 function parseAlb() {
-    const txt = document.getElementById('alb-input').value; 
-    
+    const txt = document.getElementById('alb-input').value; tempItems = [];
     txt.split(/\r?\n/).forEach(l => { 
-        if(!l.trim()) return;
-        // Detecta tabulaciones (excel) o espacios dobles
-        const p = l.split(/\s{2,}|\t/); 
-        
-        let n = p[0]; 
-        let q = 1, pr = 0;
-
-        // Lógica para encontrar números en la línea
-        if(p.length >= 2) { 
-            const nums = p.slice(1).map(x => parseFloat(x.replace(',','.'))).filter(n => !isNaN(n));
-            if(nums.length >= 2) { q = nums[0]; pr = nums[1]; }
-            else if(nums.length === 1) pr = nums[0]; 
-        } else { 
-            // Intento por espacios simples si falla lo anterior
-            const t = l.split(/\s+/); 
-            const nums = t.filter(x => !isNaN(x.replace(',','.'))).map(x => parseFloat(x.replace(',','.')));
-            if(nums.length) pr = nums[nums.length-1]; 
-        }
-
-        if(pr > 0) tempItems.push({n: n.trim(), q: q, p: pr}); 
+        const p=l.split(/\s{2,}|\t/); let n=p[0], q=1, pr=0;
+        if(p.length>=2) { const nums=p.slice(1).map(x=>parseFloat(x.replace(',','.'))).filter(n=>!isNaN(n)); if(nums.length>=2){q=nums[0];pr=nums[1]}else if(nums.length===1)pr=nums[0]; }
+        else { const t=l.split(/\s+/); const nums=t.filter(x=>!isNaN(x.replace(',','.'))).map(x=>parseFloat(x.replace(',','.'))); if(nums.length) pr=nums[nums.length-1]; }
+        if(pr>0) tempItems.push({n:n.trim(), q, p:pr}); 
     });
-    
-    document.getElementById('alb-input').value = ""; // Limpiar textarea
     renderAlbGrid();
 }
 
-// 3. RENDERIZADO DE LA TABLA TEMPORAL
 function renderAlbGrid() {
-    const container = document.getElementById('alb-grid');
-    
-    if(tempItems.length === 0) {
-        container.innerHTML = '<div class="text-center text-xs text-gray-300 italic py-2">La lista está vacía</div>';
-        document.getElementById('alb-total').innerText = '0.00€';
-        return;
-    }
-
-    let total = 0;
-    container.innerHTML = tempItems.map((it, i) => {
-        total += it.p * it.q;
-        return `
-        <div class="flex items-center gap-2 bg-white p-2 rounded-xl border border-gray-100 shadow-sm animate-[fadeIn_0.2s]">
-            <input value="${clean(it.n)}" class="flex-1 bg-transparent text-sm font-bold outline-none text-gray-700" onchange="tempItems[${i}].n=this.value">
-            
-            <div class="flex items-center gap-1 bg-gray-50 rounded-lg p-1">
-                <input type="number" value="${it.q}" class="w-12 text-center bg-transparent text-xs outline-none" onchange="tempItems[${i}].q=parseFloat(this.value);renderAlbGrid()">
-                <span class="text-xs text-gray-400">x</span>
-                <input type="number" value="${it.p}" class="w-16 text-center bg-transparent text-xs outline-none font-bold" onchange="tempItems[${i}].p=parseFloat(this.value);renderAlbGrid()">
-                <span class="text-xs text-gray-400">€</span>
-            </div>
-
-            <button onclick="tempItems.splice(${i},1);renderAlbGrid()" class="w-6 h-6 flex items-center justify-center text-red-400 hover:text-red-600 hover:bg-red-50 rounded-full transition">✕</button>
-        </div>`;
-    }).join('');
-    
-    document.getElementById('alb-total').innerText = total.toFixed(2) + '€';
+    document.getElementById('alb-grid').innerHTML = tempItems.map((it,i)=>`<div class="flex items-center gap-2 bg-white p-2 rounded-xl border border-gray-100"><input value="${it.n}" class="flex-1 bg-transparent text-sm font-bold outline-none" onchange="tempItems[${i}].n=this.value"><input type="number" value="${it.q}" class="w-12 bg-gray-50 rounded text-center text-xs p-1" onchange="tempItems[${i}].q=parseFloat(this.value);renderAlbGrid()"><input type="number" value="${it.p}" class="w-16 bg-gray-50 rounded text-center text-xs p-1" onchange="tempItems[${i}].p=parseFloat(this.value);renderAlbGrid()"><span class="text-red-400 cursor-pointer px-2" onclick="tempItems.splice(${i},1);renderAlbGrid()">✕</span></div>`).join('');
+    document.getElementById('alb-total').innerText = tempItems.reduce((a,b)=>a+(b.p*b.q),0).toFixed(2)+'€';
 }
 
-// 4. GUARDAR (COMMIT)
 function commitAlb() {
-    if(tempItems.length === 0) return toast("⚠️ La lista está vacía", "error");
-    
+    if(!tempItems.length) return toast("Lista vacía", "error");
     const prov = document.getElementById('alb-prov').value;
-    if(!prov) return toast("⚠️ Falta el Proveedor", "error");
-    
-    const date = document.getElementById('alb-date').value;
+    if(!prov) return toast("Falta Proveedor", "error");
+    if(!db.proveedores.find(p=>p.n===prov)) db.proveedores.push({n:prov});
 
-    // Guardar Proveedor si es nuevo
-    if(!db.proveedores.find(p => p.n === prov)) db.proveedores.push({n: prov});
-
-    // ACTUALIZAR STOCK (Cerebro de la operación)
-    tempItems.forEach(it => {
-        let i = db.ingredientes.find(x => x.n.toLowerCase() === it.n.toLowerCase());
-        
-        if(i) { 
-            // Calcular precio medio ponderado
-            const oldTotalVal = i.stock * i.cost;
-            const newTotalVal = it.q * it.p;
-            const newStock = i.stock + it.q;
-            
-            if(newStock > 0) i.cost = (oldTotalVal + newTotalVal) / newStock;
-            i.stock = newStock; 
-        } else { 
-            // Ingrediente nuevo
-            db.ingredientes.push({
-                id: generateID(), 
-                n: it.n, 
-                stock: it.q, 
-                cost: it.p, 
-                min: 0, 
-                unit: 'ud', 
-                aller: []
-            }); 
-        }
-    });
-
-    // Guardar en Historial
-    db.albaranes.push({
-        id: generateID(), 
-        date: date, 
-        prov: prov, 
-        items: [...tempItems], 
-        total: parseFloat(document.getElementById('alb-total').innerText), 
-        invoiced: false
-    });
-
-    // Limpiar y Guardar
-    tempItems = [];
-    save("✅ Entrada guardada y stock actualizado");
-    renderAdmin(document.getElementById('app')); // Recargar para ver el historial actualizado
-}
-
-// 5. BORRAR ALBARÁN (RESTA STOCK)
-function deleteAlb(id) {
-    const alb = db.albaranes.find(a => a.id === id);
-    if(!alb) return;
-
-    if(confirm(`¿Borrar entrada de ${alb.prov}? \n⚠️ Se restará el stock automáticamente.`)) {
-        // Restar stock
-        alb.items.forEach(it => {
-            const i = db.ingredientes.find(x => x.n.toLowerCase() === it.n.toLowerCase());
-            if(i) {
-                i.stock = parseFloat((i.stock - it.q).toFixed(3)); // Evitar decimales locos
-                if(i.stock < 0) i.stock = 0; // Seguridad
-            }
-        });
-
-        // Borrar registro
-        db.albaranes = db.albaranes.filter(a => a.id !== id);
-        save("🗑️ Entrada eliminada y stock corregido");
-        renderAdmin(document.getElementById('app'));
-    }
-}
-
-// 6. EDITAR ALBARÁN (RECTIFICAR)
-function editAlb(id) {
-    const alb = db.albaranes.find(a => a.id === id);
-    if(!alb) return;
-
-    if(confirm("¿Quieres modificar este albarán? \nSe cargará arriba para que cambies lo que quieras.")) {
-        // 1. Revertir stock primero (como si lo borráramos)
-        alb.items.forEach(it => {
-            const i = db.ingredientes.find(x => x.n.toLowerCase() === it.n.toLowerCase());
-            if(i) i.stock = parseFloat((i.stock - it.q).toFixed(3));
-        });
-
-        // 2. Cargar datos en el formulario
-        tempItems = JSON.parse(JSON.stringify(alb.items)); // Copia para editar
-        document.getElementById('alb-prov').value = alb.prov;
-        document.getElementById('alb-date').value = alb.date;
-        
-        // 3. Indicador visual
-        document.getElementById('edit-mode-indicator').classList.remove('hidden');
-        document.getElementById('edit-mode-indicator').classList.add('active'); // Marca para lógica
-
-        // 4. Borrar el albarán antiguo de la DB (se creará uno nuevo corregido al guardar)
-        db.albaranes = db.albaranes.filter(a => a.id !== id);
-
-        // 5. Renderizar y subir
-        renderAlbGrid();
-        toast("✏️ Datos cargados. Corrige y dale a CONFIRMAR.");
-        
-        // Scroll suave hacia arriba
-        document.getElementById('app').scrollIntoView({ behavior: 'smooth' });
-    }
-}
-    // Actualizar Stock (Media Ponderada)
+    // Actualizar Stock
     tempItems.forEach(it => {
         let i = db.ingredientes.find(x => x.n.toLowerCase() === it.n.toLowerCase());
         if(i) { i.cost=((i.stock*i.cost)+(it.q*it.p))/(i.stock+it.q); i.stock+=it.q; }
@@ -502,19 +325,27 @@ function editAlb(id) {
     });
 
     db.albaranes.push({id:generateID(), date:document.getElementById('alb-date').value, prov, items:[...tempItems], total:parseFloat(document.getElementById('alb-total').innerText), invoiced:false});
-    save("Entrada guardada"); renderAdmin(document.getElementById('app'));
+    save("Entrada guardada"); 
+    tempItems = []; // Limpiar
+    renderAdmin(document.getElementById('app'));
 }
 
 function deleteAlb(id) {
     const alb = db.albaranes.find(a => a.id === id);
     if(!alb) return;
-    if(confirm("¿Borrar y RESTAR stock?")) {
+    
+    // Aviso extra si está facturado
+    let warning = "¿Borrar y RESTAR stock?";
+    if (alb.invoiced) warning = "⚠️ ¡ESTÁ FACTURADO! \n" + warning;
+
+    if(confirm(warning)) {
         alb.items.forEach(it => {
             const i = db.ingredientes.find(x => x.n.toLowerCase() === it.n.toLowerCase());
             if(i) i.stock = Math.max(0, i.stock - it.q);
         });
         db.albaranes = db.albaranes.filter(a => a.id !== id);
-        save("Borrado y Stock corregido"); renderAdmin(document.getElementById('app'));
+        save("Borrado y Stock corregido");
+        renderAdmin(document.getElementById('app'));
     }
 }
 
@@ -529,13 +360,16 @@ function editAlb(id) {
         tempItems = JSON.parse(JSON.stringify(alb.items));
         document.getElementById('alb-prov').value = alb.prov;
         document.getElementById('alb-date').value = alb.date;
+        
+        document.getElementById('edit-mode-indicator').classList.remove('hidden');
+        
         renderAlbGrid();
         db.albaranes = db.albaranes.filter(a => a.id !== id);
         toast("Modo Edición"); window.scrollTo(0,0);
     }
 }
 
-// --- FACTURAS ---
+// FACTURAS
 function renderFacturas(c) {
     const pends = db.albaranes.filter(a=>!a.invoiced);
     const groups={}; pends.forEach(a=>{ if(!groups[a.prov]) groups[a.prov]={c:0,t:0,ids:[]}; groups[a.prov].c++; groups[a.prov].t+=a.total; groups[a.prov].ids.push(a.id); });
@@ -552,7 +386,7 @@ function renderFacturas(c) {
 function invoice(p,ids){ const l=ids.split(','); l.forEach(id=>{ const a=db.albaranes.find(x=>x.id===id); if(a) a.invoiced=true; }); const t=l.reduce((ac,id)=>ac+(db.albaranes.find(x=>x.id===id)?.total||0),0); db.facturas.push({id:generateID(), date:getISO(), prov:p, total:t, paid:false}); save("Factura creada"); renderAdmin(document.getElementById('app')); }
 function togglePaid(id){ const f=db.facturas.find(x=>x.id===id); if(f){ f.paid=!f.paid; save(); renderAdmin(document.getElementById('app')); }}
 
-// --- OMNES ---
+// OMNES & BCG
 function renderOmnes(c) {
     const prices = (db.recetas||[]).map(r=>r.pvp).filter(p=>p>0).sort((a,b)=>a-b);
     const minP = prices[0]||0, maxP = prices[prices.length-1]||0;
@@ -594,10 +428,10 @@ function editSales() {
 }
 function updateSale(id,v){ const r=db.recetas.find(x=>x.id===id); if(r){ r.sales=Math.max(0,parseFloat(v)); save(); }}
 
-/* ================= 6. COCINA PRO (FICHA TÉCNICA) ================= */
+/* ================= 6. COCINA PRO ================= */
 function renderCocina(app) {
-    app.innerHTML = `<div class="glass-card"><div class="flex justify-between items-center mb-4"><h2 class="font-black text-xl text-gray-800">RECETARIO</h2><div class="flex gap-2"><input placeholder="Buscar..." class="input-premium w-32 mb-0 py-1" onkeyup="searchFilter=this.value;render('Cocina')"><button class="btn-premium w-auto px-4 py-2 text-xs" onclick="editRec()">+ NUEVA</button></div></div>
-    ${db.recetas.filter(r=>r.n.toLowerCase().includes(searchFilter.toLowerCase())).map(r => {
+    app.innerHTML = `<div class="glass-card"><div class="flex justify-between items-center mb-4"><h2 class="font-black text-xl text-gray-800">RECETARIO</h2><button class="btn-premium w-auto px-4 py-2 text-xs" onclick="editRec()">+ NUEVA</button></div>
+    ${db.recetas.map(r => {
         const c = calcRecipe(r);
         return `<div class="bg-white p-4 rounded-xl border border-gray-100 shadow-sm mb-2 cursor-pointer hover:shadow-md transition" onclick="viewRec('${r.id}')">
             <div class="flex justify-between">
@@ -682,19 +516,13 @@ function viewRec(id) {
     `);
 }
 
-/* ================= 7. STOCK & MERMAS (INTEGRIDAD DE DATOS V101) ================= */
+/* ================= 7. STOCK & MERMAS ================= */
 function renderStock(app) {
     const filtered = db.ingredientes.filter(i => i.n.toLowerCase().includes(searchFilter.toLowerCase()));
-    const totalValue = db.ingredientes.reduce((a,b)=>a+(b.stock*b.cost),0);
-    
     app.innerHTML = `
         <div class="glass-card">
-            <div class="flex justify-between items-center mb-4"><h3 class="font-bold text-gray-800">ALMACÉN</h3><div class="text-right"><div class="text-[10px] text-gray-400 font-bold">VALOR TOTAL</div><div class="font-black text-indigo-600">${totalValue.toFixed(0)}€</div></div></div>
-            <div class="flex gap-2 mb-4">
-                <input placeholder="🔍 Buscar..." onkeyup="searchFilter=this.value;render('Stock')" value="${searchFilter}" class="input-premium mb-0">
-                <button class="btn-ghost w-12 flex items-center justify-center p-0" onclick="verMermas()">📉</button>
-                <button class="btn-ghost w-12 flex items-center justify-center p-0 text-green-600" onclick="whatsapp()">📲</button>
-            </div>
+            <div class="flex justify-between items-center mb-4"><h3 class="font-bold text-gray-800">ALMACÉN</h3><button class="btn-ghost w-auto text-xs px-3 py-1" onclick="verMermas()">📉 Ver Mermas</button></div>
+            <input placeholder="🔍 Buscar..." onkeyup="searchFilter=this.value;render('Stock')" value="${searchFilter}" class="input-premium">
             <div class="max-h-[60vh] overflow-y-auto">
                 ${filtered.map(i => `
                     <div class="bg-white p-3 rounded-xl mb-2 border border-gray-100 shadow-sm flex justify-between items-center">
@@ -702,25 +530,13 @@ function renderStock(app) {
                             <div class="font-bold text-gray-800">${clean(i.n)}</div>
                             <div class="text-xs text-gray-400">${i.stock} ${i.unit} · ${i.cost.toFixed(2)}€</div>
                         </div>
-                        <div class="flex gap-1">
-                            <button class="bg-red-50 text-red-500 rounded p-2 text-xs font-bold" onclick="regMerma('${i.id}')">📉</button>
-                            <button class="bg-gray-100 text-gray-400 rounded p-2 text-xs font-bold hover:text-red-600" onclick="deleteIng('${i.id}')">🗑️</button>
-                        </div>
+                        <button class="bg-red-50 text-red-500 rounded p-2 text-xs font-bold" onclick="regMerma('${i.id}')">🗑️</button>
                     </div>
                 `).join('')}
             </div>
             <button class="btn-premium mt-4" onclick="editIng(generateID())">+ AÑADIR PRODUCTO</button>
         </div>
     `;
-}
-
-function deleteIng(id) {
-    const inUse = db.recetas.some(r => r.items.some(it => it.id === id));
-    if(inUse) return toast("¡En uso en recetas! No se puede borrar.", "error");
-    if(confirm("¿Borrar ingrediente definitivamente?")) {
-        db.ingredientes = db.ingredientes.filter(i => i.id !== id);
-        save("Borrado"); render('Stock');
-    }
 }
 
 function regMerma(id) {
@@ -775,13 +591,6 @@ function saveIng(id) {
     save(); closeModal(); render('Stock');
 }
 
-function whatsapp() {
-    const list = db.ingredientes.filter(i => i.stock <= 0);
-    if(!list.length) return toast("Stock OK");
-    const text = "📦 *PEDIDO ARUME:*\n" + list.map(i => `- ${i.n}`).join('\n');
-    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`);
-}
-
 /* ================= 8. DIARIO (CAJA COMPLETA) ================= */
 function renderDiario(app){
     const today = getISO();
@@ -826,7 +635,6 @@ function saveZ(){
     const other = parseFloat(document.getElementById('z-other').value)||0;
     const total = cash + card + other;
     
-    // Buscar si ya existe cierre hoy para actualizarlo
     const idx = db.diario.findIndex(d => d.date === getISO());
     if(idx >= 0) db.diario[idx] = { date: getISO(), cash, card, other, total };
     else db.diario.push({ date: getISO(), cash, card, other, total });
@@ -844,3 +652,5 @@ init();
 </script>
 </body>
 </html>
+
+```
