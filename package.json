@@ -1,0 +1,13 @@
+{
+  "name": "arume-erp-tests",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "test": "jest",
+    "lint": "eslint . --ext .js"
+  },
+  "devDependencies": {
+    "jest": "^29.6.0",
+    "eslint": "^8.0.0"
+  }
+}
