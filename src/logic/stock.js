@@ -83,10 +83,15 @@ function calculatePMP(currentStock, incoming) {
  * @returns {string} - Unique identifier
  */
 function generateID() {
+    // Use crypto.randomUUID if available, otherwise fall back to timestamp + random
     if (typeof crypto !== 'undefined' && crypto.randomUUID) {
         return crypto.randomUUID();
     }
-    return Date.now().toString() + Math.random().toString(36).substring(2);
+    // Fallback for environments without crypto.randomUUID
+    // Format: timestamp-random (similar to UUID structure)
+    const timestamp = Date.now().toString(36);
+    const randomPart = Math.random().toString(36).substring(2, 15);
+    return `${timestamp}-${randomPart}`;
 }
 
 module.exports = {
