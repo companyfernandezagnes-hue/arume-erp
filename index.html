@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-    <title>ARUME V202 · Emergency Fix</title>
+    <title>ARUME V205 · DEFINITIVA</title>
     
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700;800&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -11,16 +11,16 @@
     <script src="https://cdn.tailwindcss.com"></script>
 
     <style>
-        /* ESTÉTICA V200 RECUPERADA */
-        body { font-family: 'Poppins', sans-serif; background: #f8fafc; padding-bottom: 120px; -webkit-tap-highlight-color: transparent; user-select: none; }
+        /* V205 STYLES */
+        body { font-family: 'Poppins', sans-serif; background: #f1f5f9; padding-bottom: 120px; -webkit-tap-highlight-color: transparent; user-select: none; }
         
         .glass-card { 
             background: white; 
             border: 1px solid #e2e8f0; 
-            box-shadow: 0 4px 20px -2px rgba(0,0,0,0.05); 
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); 
             border-radius: 20px; 
-            padding: 24px; 
-            margin-bottom: 24px; 
+            padding: 20px; 
+            margin-bottom: 20px; 
         }
         
         .btn-premium { 
@@ -31,13 +31,13 @@
             transition: transform 0.1s; border: none;
         }
         .btn-premium:active { transform: scale(0.97); }
+
         .btn-action { background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%); } 
         .btn-whatsapp { background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%); }
         .btn-danger { background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); }
+        .btn-ghost { background: #fff; color: #475569; font-weight: 600; padding: 10px; border-radius: 10px; width: 100%; cursor: pointer; border: 1px solid #cbd5e1; }
         
-        .btn-ghost { background: #f1f5f9; color: #475569; font-weight: 600; padding: 10px; border-radius: 10px; width: 100%; cursor: pointer; border: 1px solid #cbd5e1; }
-        
-        .btn-icon { width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; border-radius: 8px; font-size: 1rem; cursor: pointer; border: none; transition: 0.2s; }
+        .btn-icon { width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; border-radius: 10px; font-size: 1.1rem; cursor: pointer; border: none; }
         .btn-edit { background: #eff6ff; color: #3b82f6; border: 1px solid #dbeafe; } 
         .btn-delete { background: #fef2f2; color: #ef4444; border: 1px solid #fee2e2; } 
         .btn-view { background: #f0fdf4; color: #15803d; border: 1px solid #dcfce7; }
@@ -51,15 +51,16 @@
         }
         .input-premium:focus { border-color: #4f46e5; background: white; }
 
+        /* CALENDARIO CUQUI */
         .date-navigator {
             display: flex; align-items: center; justify-content: space-between;
-            background: #f1f5f9; padding: 4px; border-radius: 12px; margin-bottom: 1rem;
+            background: #f1f5f9; padding: 4px; border-radius: 12px; margin-bottom: 1rem; border: 1px solid #e2e8f0;
         }
         .date-btn {
             width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
-            background: white; border-radius: 8px; color: #64748b; cursor: pointer; border: 1px solid #e2e8f0;
+            background: white; border-radius: 8px; color: #64748b; cursor: pointer; border: 1px solid #e2e8f0; font-weight: bold;
         }
-        .date-display { font-weight: 700; color: #334155; font-family: monospace; font-size: 1rem; }
+        .date-display { font-weight: 700; color: #334155; font-family: monospace; font-size: 0.9rem; }
 
         nav { 
             position: fixed; bottom: 0; left: 0; width: 100%; 
@@ -70,7 +71,7 @@
             padding-bottom: max(12px, env(safe-area-inset-bottom));
         }
         nav button { flex: 1; background: none; border: none; color: #94a3b8; display: flex; flex-direction: column; align-items: center; font-size: 0.65rem; font-weight: 600; transition: 0.2s; cursor: pointer; padding: 4px; }
-        nav button.active { color: #0f172a; transform: translateY(-2px); }
+        nav button.active { color: #0f172a; transform: translateY(-3px); }
         nav button.active svg { fill: #0f172a; }
         nav button svg { width: 24px; height: 24px; fill: #94a3b8; margin-bottom: 4px; }
         nav button.locked { opacity: 0.3; filter: grayscale(1); pointer-events: none; }
@@ -84,9 +85,11 @@
         .hidden { display: none !important; }
         
         .aller-tag { display: inline-block; width: 20px; height: 20px; text-align: center; line-height: 20px; background: #e0e7ff; border-radius: 50%; font-size: 0.7rem; margin-right: 2px; }
-        .tax-pill { font-size: 10px; padding: 2px 6px; border-radius: 4px; background: #f1f5f9; color: #64748b; font-weight: 700; border: 1px solid #e2e8f0; }
         .period-btn { font-size: 10px; padding: 6px 10px; border-radius: 20px; font-weight: bold; background: #f1f5f9; color: #64748b; transition:0.2s; border: none; }
         .period-btn.active { background: #0f172a; color: white; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+        
+        /* PIN SCREEN AZUL PARA DIFERENCIAR */
+        #pin-screen { background: linear-gradient(135deg, #1e3a8a 0%, #172554 100%); }
     </style>
 </head>
 <body>
@@ -101,8 +104,8 @@
 
     <header class="sticky top-0 z-40 px-6 py-4 flex justify-between items-center bg-white/90 backdrop-blur border-b border-gray-100">
         <div>
-            <h1 class="text-2xl font-black text-slate-900 tracking-tight">ARUME <span class="text-indigo-600">V202</span></h1>
-            <p class="text-[10px] text-gray-400 font-bold tracking-widest uppercase">Emergency Fix</p>
+            <h1 class="text-2xl font-black text-slate-900 tracking-tight">ARUME <span class="text-indigo-600">V205</span></h1>
+            <p class="text-[10px] text-gray-400 font-bold tracking-widest uppercase">Versión Definitiva</p>
         </div>
         <div class="bg-slate-100 px-3 py-1 rounded-full text-xs font-bold text-slate-600 flex items-center gap-2 cursor-pointer hover:bg-slate-200 transition" onclick="logout()">
             <div id="sync-dot" class="w-2 h-2 rounded-full bg-gray-400"></div> <span id="user-name">Login</span>
@@ -122,10 +125,10 @@
         </div>
     </div>
 
-    <div id="pin-screen" class="hidden bg-slate-900 fixed inset-0 z-[200] flex flex-col items-center justify-center text-white">
+    <div id="pin-screen" class="hidden fixed inset-0 z-[200] flex flex-col items-center justify-center text-white">
         <div class="mb-10 text-center">
             <h2 class="text-6xl font-black tracking-tighter mb-2 text-white">ARUME</h2>
-            <p class="text-indigo-400 text-xs tracking-[0.4em] uppercase">Gestión Integral</p>
+            <p class="text-indigo-200 text-xs tracking-[0.4em] uppercase">Gestión Segura</p>
         </div>
         <div id="pin-display" class="text-5xl font-mono mb-12 tracking-[0.5em] h-12 text-center opacity-80">****</div>
         <div class="grid grid-cols-3 gap-6 w-72">
@@ -142,7 +145,7 @@
             <button class="w-16 h-16 rounded-full border border-white/10 text-xl font-bold hover:bg-white/10" onclick="pin(0)">0</button>
             <button class="w-16 h-16 rounded-full bg-emerald-500/20 border border-emerald-500/50 text-emerald-300 font-bold" onclick="pin('OK')">OK</button>
         </div>
-    </div>
+        </div>
 
 <script>
 /* ================= 1. CORE UTILS ================= */
@@ -261,7 +264,7 @@ function renderAdmin(app) {
         <div class="flex gap-2 mb-6"><button class="flex-1 py-2.5 rounded-xl font-bold text-xs ${activeAdminTab==='dash'?'bg-slate-800 text-white shadow-md':''}" onclick="activeAdminTab='dash';renderAdmin(document.getElementById('app'))">Dashboard</button><button class="flex-1 py-2.5 rounded-xl font-bold text-xs ${activeAdminTab==='omnes'?'bg-slate-800 text-white shadow-md':''}" onclick="activeAdminTab='omnes';renderAdmin(document.getElementById('app'))">Análisis</button><button class="flex-1 py-2.5 rounded-xl font-bold text-xs ${activeAdminTab==='albaranes'?'bg-slate-800 text-white shadow-md':''}" onclick="activeAdminTab='albaranes';renderAdmin(document.getElementById('app'))">Albaranes</button><button class="flex-1 py-2.5 rounded-xl font-bold text-xs ${activeAdminTab==='facturas'?'bg-slate-800 text-white shadow-md':''}" onclick="activeAdminTab='facturas';renderAdmin(document.getElementById('app'))">Facturas</button></div><div id="adm-c"></div>`;
 
     const c = document.getElementById('adm-c');
-    if(activeAdminTab==='dash') { c.innerHTML = `<div class="glass-card"><h3 class="font-bold text-slate-800">Resumen Fiscal</h3><div class="grid grid-cols-3 gap-4 mt-4"><div class="p-4 bg-white rounded-lg text-center"><div class="text-xs text-gray-500">Ventas</div><div class="text-xl font-black">${Num.fmt(totalVentas)}</div></div><div class="p-4 bg-white rounded-lg text-center"><div class="text-xs text-gray-500">Costes</div><div class="text-xl font-black">${Num.fmt(periodCosts)}</div></div><div class="p-4 bg-white rounded-lg text-center"><div class="text-xs text-gray-500">Beneficio</div><div class="text-xl font-black">${Num.fmt(profit)}</div></div></div><div class="mt-4 p-3 bg-indigo-50 rounded-lg text-center text-sm font-bold text-indigo-700">IVA Soportado: ${Num.fmt(periodTax)}€</div><div class="mt-4"><button class="btn-premium btn-action" onclick="downloadBackup()">💾 Copia Seguridad</button></div></div>`; }
+    if(activeAdminTab==='dash') { c.innerHTML = `<div class="glass-card bg-gradient-to-br from-slate-900 to-slate-800 text-white border-0"><h3 class="text-xs font-bold text-slate-400 uppercase mb-4 tracking-widest">Resultado ${fiscalQuarter===0?'ANUAL':fiscalQuarter+'T'}</h3><div class="flex justify-between items-end mb-6"><div><div class="text-3xl font-black ${profit>=0?'text-emerald-400':'text-red-400'}">${Num.fmt(profit)}€</div><div class="text-xs opacity-60">Beneficio</div></div><div class="text-right"><div class="text-lg font-bold">${Num.fmt(totalVentas)}€</div><div class="text-xs opacity-60">Ventas</div></div></div><div class="h-2 bg-slate-700 rounded-full overflow-hidden flex"><div class="bg-emerald-500 h-full" style="width:${(totalVentas/(totalVentas+periodCosts)*100)||50}%"></div><div class="bg-red-500 h-full flex-1"></div></div><div class="flex justify-between text-[10px] mt-2 font-bold text-slate-400"><span>INGRESOS</span><span>GASTOS (${Num.fmt(periodCosts)}€)</span></div></div><div class="glass-card"><div class="flex justify-between items-center"><span class="font-bold text-slate-600">IVA Soportado</span><span class="font-black text-xl text-indigo-600">${Num.fmt(periodTax)}€</span></div></div><button class="btn-ghost w-full mb-4" onclick="downloadBackup()">💾 Copia Seguridad</button>`; }
     if(activeAdminTab==='omnes') renderOmnes(c);
     if(activeAdminTab==='albaranes') renderAlbaranes(c);
     if(activeAdminTab==='facturas') renderFacturas(c);
@@ -269,16 +272,20 @@ function renderAdmin(app) {
 
 function renderOmnes(c) {
     if (!db.recetas || db.recetas.length === 0) { c.innerHTML = `<div class="glass-card text-center"><h3 class="font-bold text-slate-800">No hay recetas</h3><p class="text-xs text-slate-400 mb-4">Crea platos en Cocina primero.</p></div>`; return; }
-    let html = `<div class="grid gap-3">`;
-    db.recetas.forEach(r => { const calc = calcRecipe(r); html += `<div class="bg-white p-3 rounded-xl border border-slate-100 flex justify-between items-center"><div><div class="font-bold">${clean(r.n)}</div><div class="text-xs text-slate-400">Coste: ${Num.fmt(calc.cost)}</div></div><div class="text-right"><div class="text-sm font-black">${Num.fmt((r.pvp||0) - calc.cost)}</div><div class="text-xs text-slate-400">${(r.sales||0)} uds</div></div></div>`; });
-    html += `</div>`;
-    c.innerHTML = `<div class="glass-card"><div class="flex justify-between mb-4"><h3 class="font-bold text-slate-800">Análisis</h3><button class="btn-premium btn-action text-xs px-3 w-auto" onclick="editSales()">Registrar Ventas</button></div>${html}</div>`;
+    let totalSold=0, totalRev=0, totalCost=0;
+    const periodSalesMap = {}; 
+    db.sales_history.filter(log => isInPeriod(log.date)).forEach(log => { log.items.forEach(it => { const rid = it.rid || db.recetas.find(r=>r.n===it.n)?.id; if(rid) periodSalesMap[rid] = (periodSalesMap[rid] || 0) + it.q; }); });
+    const useHistory = db.sales_history.length > 0;
+    const recipesData = (db.recetas||[]).map(r => { const costData = calcRecipe(r); const sales = useHistory ? (periodSalesMap[r.id] || 0) : (r.sales || 0); totalSold += sales; totalRev += (sales * r.pvp); totalCost += (sales * costData.t); return { r, sales, margin: r.pvp - costData.t, cost: costData.t }; });
+    const avgMargin = totalSold > 0 ? ((totalRev - totalCost) / totalSold) : 0; const popLimit = (totalSold > 0 ? (100 / recipesData.length) : 0) * 0.7;
+    let html = ''; recipesData.sort((a,b) => b.sales - a.sales).forEach(d => { if(d.sales > 0) { const isPop = (totalSold > 0 ? (d.sales/totalSold)*100 : 0) >= popLimit; const isRich = d.margin >= avgMargin; let type = isPop ? (isRich ? 'ESTRELLA' : 'CABALLO') : (isRich ? 'PUZZLE' : 'PERRO'); let css = isPop ? (isRich ? 'omnes-star' : 'omnes-plow') : (isRich ? 'omnes-puzz' : 'omnes-dog'); html += `<div class="bg-white p-3 rounded-xl omnes-card mb-2 shadow-sm flex justify-between items-center ${css}"><div class="flex-1"><div class="font-bold text-slate-700">${clean(d.r.n)}</div><div class="text-[10px] font-bold opacity-70">${type}</div></div><div class="text-right"><div class="font-black text-lg">${d.sales}</div><div class="text-[10px]">VENDIDOS</div></div></div>`; } });
+    c.innerHTML = `<div class="flex justify-between items-center mb-4"><h3 class="font-bold text-slate-800">Análisis ${fiscalQuarter===0?'ANUAL':fiscalQuarter+'T'}</h3><button class="btn-premium btn-action w-auto px-4 py-2 text-xs" onclick="editSales()">📝 REGISTRAR SERVICIO</button></div>${html || '<div class="text-center p-8 text-slate-400 border-2 border-dashed rounded-xl">Sin ventas en este periodo</div>'}`;
 }
 
 function editSales() {
     if (!db.recetas || db.recetas.length === 0) return toast("No hay recetas creadas", "error");
-    const html = db.recetas.map(r => `<div class="flex justify-between items-center py-2 border-b"><span class="text-sm font-medium">${clean(r.n)}</span><input id="sale-add-${r.id}" type="number" min="0" value="0" onclick="this.select()" class="input-premium w-24 text-right"></div>`).join('');
-    showModal('Cierre de Ventas', `<div class="bg-blue-50 p-3 rounded-lg text-blue-800 text-xs mb-4">Introduce <b>ventas del día</b>.</div><div style="max-height:40vh;overflow:auto;">${html}</div><div class="mt-4"><button class="btn-premium btn-action" onclick="commitSalesSession()">Procesar</button></div>`);
+    const html = db.recetas.map(r => `<div class="flex justify-between items-center py-2 border-b"><span class="text-sm font-medium w-1/2">${clean(r.n)}</span><input type="number" min="0" placeholder="0" id="sale-add-${r.id}" onclick="this.select()" class="input-premium w-20 text-center font-bold"></div>`).join('');
+    showModal('Cierre de Ventas', `<div class="bg-blue-50 p-3 rounded-lg text-blue-800 text-xs mb-4">Introduce <b>ventas del día</b>.</div><div class="max-h-[50vh] overflow-y-auto pr-2 mb-4">${html}</div><div class="mt-4"><button class="btn-premium btn-action" onclick="commitSalesSession()">Procesar</button></div>`);
 }
 
 function commitSalesSession() {
@@ -299,87 +306,124 @@ function renderAlbaranes(c) {
     const periodAlbs = (db.albaranes||[]).filter(a => isInPeriod(a.date)).slice().reverse();
     const provOptions = (db.proveedores||[]).map(p=>`<option value="${clean(p.n)}">`).join('');
     const ingOptions = (db.ingredientes||[]).map(i=>`<option value="${clean(i.n)}">`).join('');
-    c.innerHTML = `<div class="glass-card"><h3 class="font-bold text-slate-700 mb-4 text-sm uppercase">Nuevo Albarán <span id="edit-mode-indicator" class="hidden text-amber-500 ml-2">(EDITANDO)</span></h3><div class="grid grid-cols-2 gap-3 mb-3"><div><label>Proveedor</label><input id="alb-prov" list="prov-list" class="input-premium" placeholder="Proveedor..."><datalist id="prov-list">${provOptions}</datalist></div><div><label>Fecha</label><input id="alb-date" type="date" class="input-premium" value="${getISO()}"></div><div><label>Número</label><input id="alb-num" class="input-premium" placeholder="Nº albarán"></div><div><label>Productor</label><input id="alb-producer" class="input-premium" placeholder="Productor"></div></div><div class="mb-3"><label>Texto (Formato: Nombre ; Cantidad ; Unidad ; Precio ; IVA%)</label><textarea id="alb-input" class="input-premium" rows="3" placeholder="Tomate;10;kg;1.20;10"></textarea><div class="flex gap-2 mt-2"><button class="btn-premium btn-action" onclick="parseAlb()">Parsear</button><button class="btn-ghost" onclick="tempItems=[];renderAlbGrid()">Limpiar</button></div></div><datalist id="ing-list">${ingOptions}</datalist><div id="alb-grid" class="mb-3"></div><div class="text-right font-bold text-xl mb-3" id="alb-total">0.00€</div><div class="flex gap-2"><button class="btn-premium" onclick="commitAlb()">Guardar Albarán</button></div></div><div class="glass-card"><h3 class="font-bold text-slate-700 text-sm uppercase mb-2">Albaranes periodo</h3><div>${periodAlbs.map(a=>`<div class="py-2 border-b flex justify-between"><div><b>${clean(a.prov)}</b> ${a.date}</div><div>${Num.fmt(a.total||0)} <button class="btn-ghost text-xs" onclick="viewAlbDetails('${a.id}')">Ver</button> ${!a.invoiced ? `<button class="btn-ghost text-xs" onclick="editAlb('${a.id}')">Editar</button><button class="btn-ghost text-xs text-red-500" onclick="deleteAlb('${a.id}')">X</button>`:''}</div></div>`).join('')}</div></div>`;
+    // BANNER DE EDICIÓN
+    const editBanner = document.getElementById('alb-num') && document.getElementById('alb-num').dataset.editId ? 
+        `<div id="edit-banner" class="bg-amber-100 border-l-4 border-amber-500 p-4 mb-4 flex justify-between items-center"><span class="font-bold text-amber-800">🟠 EDITANDO ALBARÁN</span><button onclick="cancelEditAlb()" class="text-xs underline text-amber-800">Cancelar</button></div>` : '';
+
+    c.innerHTML = `${editBanner}<div class="glass-card"><h3 class="font-bold text-slate-700 mb-4 text-sm uppercase">Nuevo Albarán</h3>
+    <div class="grid grid-cols-2 gap-3 mb-3"><div><label>Proveedor</label><input id="alb-prov" list="prov-list" class="input-premium" placeholder="Proveedor..."><datalist id="prov-list">${provOptions}</datalist></div><div><label>Fecha</label><input id="alb-date" type="date" class="input-premium" value="${getISO()}"></div><div><label>Número</label><input id="alb-num" class="input-premium" placeholder="Nº albarán"></div><div><label>Productor</label><input id="alb-producer" class="input-premium" placeholder="Productor"></div></div>
+    <div class="mb-3"><label>Texto (Formato: Nombre ; Cantidad ; Unidad ; Precio ; IVA%)</label><textarea id="alb-input" class="input-premium" rows="3" placeholder="Ej: Tomate;10;kg;1.20;10"></textarea><div class="flex gap-2 mt-2"><button class="btn-premium btn-action" onclick="parseAlb()">Parsear</button><button class="btn-ghost" onclick="tempItems=[];renderAlbGrid()">Limpiar</button></div></div>
+    <datalist id="ing-list">${ingOptions}</datalist><div id="alb-grid" class="mb-3"></div><div class="text-right font-bold text-xl mb-3" id="alb-total">0.00€</div><div class="flex gap-2"><button class="btn-premium" onclick="commitAlb()">Guardar Albarán</button></div></div>
+    <div class="glass-card"><h3 class="font-bold text-slate-700 text-sm uppercase mb-2">Histórico (${fiscalQuarter===0?'AÑO':fiscalQuarter+'T'})</h3><div>${periodAlbs.map(a=>`<div class="py-2 border-b flex justify-between items-center"><div><b>${clean(a.prov)}</b> ${a.date}</div><div class="flex gap-2 items-center"><span class="font-bold">${Num.fmt(a.total)}€</span> <button class="btn-icon btn-view" onclick="viewAlbDetails('${a.id}')">👁</button> ${!a.invoiced ? `<button class="btn-icon btn-edit" onclick="editAlb('${a.id}')">✏️</button><button class="btn-icon btn-delete" onclick="deleteAlb('${a.id}')">🗑️</button>` : ''}</div></div>`).join('')}</div></div>`;
     renderAlbGrid();
 }
-function parseAlb() { const txt = document.getElementById('alb-input').value.trim(); tempItems = []; if (!txt) return toast("Texto vacío", "error"); txt.split(/\r?\n/).forEach(l => { const parts = l.split(';').map(p=>p.trim()); if(parts.length >= 4) { tempItems.push({ n: parts[0], q: Num.parse(parts[1]), unit: parts[2] || 'ud', p: Num.parse(parts[3]), tax: Num.parse(parts[4]) }); } }); renderAlbGrid(); }
+function parseAlb() { const txt = document.getElementById('alb-input').value.trim(); tempItems = []; if (!txt) return toast("Texto vacío", "error"); txt.split(/\r?\n/).forEach(l => { const parts = l.split(';').map(p=>p.trim()); if(parts.length >= 4) { tempItems.push({ n: parts[0], q: Num.parse(parts[1]), unit: UnitConverter.normalize(parts[2]), p: Num.parse(parts[3]), tax: Num.parse(parts[4]) }); } }); renderAlbGrid(); }
 function renderAlbGrid() {
     const el = document.getElementById('alb-grid'); if(!el) return;
-    el.innerHTML = tempItems.map((it,i) => `<div class="bg-white p-2 rounded-xl border border-slate-100 flex flex-wrap gap-2 items-center mb-2"><input list="ing-list" value="${clean(it.n)}" onchange="tempItems[${i}].n=this.value" class="input-premium w-32"><input type="number" value="${it.q}" onchange="tempItems[${i}].q=parseFloat(this.value);renderAlbGrid()" class="input-premium w-20"><input type="number" value="${it.p}" onchange="tempItems[${i}].p=parseFloat(this.value);renderAlbGrid()" class="input-premium w-20"><select onchange="tempItems[${i}].tax=parseFloat(this.value);renderAlbGrid()" class="input-premium w-16"><option value="10" ${it.tax==10?'selected':''}>10%</option><option value="21" ${it.tax==21?'selected':''}>21%</option><option value="4" ${it.tax==4?'selected':''}>4%</option></select><button class="btn-ghost text-red-500" onclick="tempItems.splice(${i},1);renderAlbGrid()">X</button></div>`).join('');
+    el.innerHTML = tempItems.map((it,i) => `<div class="bg-white p-2 rounded-xl border border-slate-100 flex flex-wrap gap-2 items-center mb-2"><input list="ing-list" value="${clean(it.n)}" onchange="tempItems[${i}].n=this.value" class="input-premium w-32"><input type="number" value="${it.q}" onchange="tempItems[${i}].q=parseFloat(this.value);renderAlbGrid()" class="input-premium w-20"><input type="number" value="${it.p}" onchange="tempItems[${i}].p=parseFloat(this.value);renderAlbGrid()" class="input-premium w-20"><select onchange="tempItems[${i}].tax=parseFloat(this.value);renderAlbGrid()" class="input-premium w-16"><option value="10" ${it.tax==10?'selected':''}>10%</option><option value="21" ${it.tax==21?'selected':''}>21%</option><option value="4" ${it.tax==4?'selected':''}>4%</option></select><button class="text-red-500 font-bold px-2" onclick="tempItems.splice(${i},1);renderAlbGrid()">✕</button></div>`).join('');
     const total = tempItems.reduce((a,b)=>a+(b.q*b.p)*(1+(b.tax||0)/100),0);
     const totalEl = document.getElementById('alb-total'); if(totalEl) totalEl.innerText = Num.fmt(total) + '€';
 }
 function commitAlb() {
     if(!tempItems.length) return toast("Vacío", "error");
-    const prov=document.getElementById('alb-prov').value || 'Proveedor';
-    const date=document.getElementById('alb-date').value || getISO();
+    const prov=document.getElementById('alb-prov').value, date=document.getElementById('alb-date').value;
     if(!prov || !date) return toast("Faltan datos", "error");
     if(!db.proveedores.find(p=>p.n===prov)) db.proveedores.push({n:prov});
+
+    // Si estamos editando, borramos el viejo (el stock ya se revirtió al pulsar el lápiz)
+    const editId = document.getElementById('alb-num').dataset.editId;
+    if(editId) db.albaranes = db.albaranes.filter(a => a.id !== editId);
+
     tempItems.forEach(it => {
         const cleanName = it.n.trim();
-        let ing = db.ingredientes.find(x => x.n && x.n.trim().toLowerCase() === cleanName.toLowerCase() && x.unit === it.unit);
+        let ing = db.ingredientes.find(x => x.n.trim().toLowerCase() === cleanName.toLowerCase() && x.unit === it.unit);
         if(!ing) { ing = {id:generateID(), n:cleanName, stock:0, cost:0, unit:it.unit, aller:[]}; db.ingredientes.push(ing); }
         const currentStock = Math.max(0, ing.stock || 0); const newTotalQty = currentStock + it.q;
         ing.cost = newTotalQty > 0 ? ((currentStock * (ing.cost||0)) + (it.q * it.p)) / newTotalQty : it.p;
-        ing.stock = (ing.stock || 0) + it.q; logStock(ing.id, it.q, 'IN', `Alb: ${prov}`, it.p);
+        ing.stock = (ing.stock || 0) + it.q;
+        logStock(ing.id, it.q, 'IN', `Alb: ${prov}`, it.p);
     });
+
     const total = tempItems.reduce((a,b)=>a+(b.q*b.p)*(1+(b.tax||0)/100),0);
     const taxes = tempItems.reduce((a,b)=>a+(b.q*b.p)*((b.tax||0)/100),0);
     db.albaranes.push({id:generateID(), num:document.getElementById('alb-num').value||'', prov, productor:document.getElementById('alb-producer').value||'', date, items:JSON.parse(JSON.stringify(tempItems)), total, taxes, invoiced:false});
-    save("Entrada OK"); tempItems=[]; document.getElementById('edit-mode-indicator').classList.add('hidden'); renderAdmin(document.getElementById('app'));
+    save("Entrada OK"); tempItems=[]; renderAdmin(document.getElementById('app'));
 }
 function editAlb(id) { 
     const alb = db.albaranes.find(a => a.id === id); if(!alb) return; 
-    if(confirm("¿Editar? Se revertirá el stock.")) { 
-        alb.items.forEach(it => { const ing = db.ingredientes.find(x => x.n.trim().toLowerCase()===it.n.trim().toLowerCase() && x.unit===it.unit); if(ing) { ing.stock -= it.q; logStock(ing.id, -it.q, 'REV', `Revert alb ${alb.num}`); } }); 
-        tempItems = JSON.parse(JSON.stringify(alb.items)); 
-        db.albaranes = db.albaranes.filter(a=>a.id!==id); 
-        document.getElementById('alb-prov').value = alb.prov; 
-        document.getElementById('alb-date').value = alb.date; 
-        document.getElementById('alb-num').value = alb.num;
-        document.getElementById('edit-mode-indicator').classList.remove('hidden');
-        renderAlbGrid(); toast("Modo Edición"); 
-        window.scrollTo(0,0);
+    if(confirm("¿EDITAR? Se revertirá el stock automáticamente.")) { 
+        alb.items.forEach(it=>{const i=db.ingredientes.find(x=>x.n.trim().toLowerCase()===it.n.trim().toLowerCase()&&x.unit===it.unit);if(i){i.stock-=it.q;logStock(i.id,-it.q,'REV',`Rev Alb`)}}); 
+        tempItems=JSON.parse(JSON.stringify(alb.items)); 
+        // Recargar vista para mostrar datos en inputs
+        renderAdmin(document.getElementById('app'));
+        setTimeout(() => {
+            document.getElementById('alb-prov').value = alb.prov; 
+            document.getElementById('alb-date').value = alb.date; 
+            document.getElementById('alb-num').value = alb.num;
+            document.getElementById('alb-num').dataset.editId = id; // MARCA IMPORTANTE
+            renderAlbGrid(); 
+            window.scrollTo(0,0);
+            toast("Modo Edición Activado"); 
+        }, 100);
     } 
 }
-function deleteAlb(id) { const alb = db.albaranes.find(a => a.id === id); if(!alb) return; if(confirm("¿Borrar?")) { alb.items.forEach(it => { const ing = db.ingredientes.find(x => x.n.trim().toLowerCase()===it.n.trim().toLowerCase() && x.unit===it.unit); if(ing) { ing.stock -= it.q; logStock(ing.id, -it.q, 'DEL', `Borrado alb ${alb.num}`); } }); db.albaranes = db.albaranes.filter(a=>a.id!==id); save("Borrado"); renderAdmin(document.getElementById('app')); } }
-function viewAlbDetails(id){ const a=db.albaranes.find(x=>x.id===id); if(a) showModal(`Detalle ${a.num||''}`, `<table class="w-full text-sm"><thead><tr><th>Prod</th><th>Q</th><th>€</th></tr></thead><tbody>${a.items.map(i=>`<tr><td>${clean(i.n)}</td><td>${i.q} ${i.unit}</td><td>${Num.fmt(i.p)}</td></tr>`).join('')}</tbody></table><div class="text-right font-black text-xl mt-4">${Num.fmt(a.total)}€</div>`); }
+function cancelEditAlb(){ 
+    tempItems = []; renderAdmin(document.getElementById('app')); 
+}
+function deleteAlb(id) { 
+    const alb = db.albaranes.find(a => a.id === id); if(!alb) return; 
+    if(confirm("¿Borrar y restar stock?")) { 
+        alb.items.forEach(it => { const ing = db.ingredientes.find(x => x.n.trim().toLowerCase()===it.n.trim().toLowerCase() && x.unit===it.unit); if(ing) { ing.stock -= it.q; logStock(ing.id, -it.q, 'DEL', `Borrado alb`); } }); 
+        db.albaranes = db.albaranes.filter(a => a.id !== id); 
+        save("Albarán borrado"); 
+        renderAdmin(document.getElementById('app')); 
+    } 
+}
+function viewAlbDetails(id){ const a=db.albaranes.find(x=>x.id===id); if(a) showModal(`Detalle ${a.num||''}`, `<div class="text-sm text-slate-500 mb-2">${a.prov} · ${a.date}</div><table class="alb-table"><thead><tr><th>Prod</th><th>Cant</th><th class="text-right">Total</th></tr></thead><tbody>${a.items.map(i=>`<tr><td>${clean(i.n)}</td><td class="text-center">${i.q} ${i.unit}</td><td class="num">${Num.fmt(i.q*i.p)}€</td></tr>`).join('')}</tbody></table><div class="text-right font-black text-xl mt-4">${Num.fmt(a.total)}€</div>`); }
 function exportAlbCSV(){ if(!tempItems.length) return toast("Vacío", "error"); const rows = tempItems.map(it => [it.n, Num.csv(it.q), Num.csv(it.p)]); const csv = ['Prod;Cant;Precio', ...rows.map(r=>r.join(';'))].join('\n'); const a=document.createElement('a'); a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv); a.download='albaran.csv'; a.click(); }
-function renderFacturas(c) { const pends = (db.albaranes||[]).filter(a=>!a.invoiced); c.innerHTML = `<div class="glass-card"><h3 class="font-bold">Facturación</h3><div class="mt-3">${pends.length? pends.map(a=>`<div class="py-2 border-b flex justify-between"><span>${a.prov} (${Num.fmt(a.total)}€)</span><button class="btn-ghost text-xs" onclick="invoice('${a.prov}','${a.id}')">Facturar</button></div>`).join('') : '<div class="text-sm text-slate-400">Sin albaranes pendientes</div>'}</div></div><div class="glass-card"><h3 class="font-bold">Histórico (${fiscalQuarter===0?'AÑO':fiscalQuarter+'T'})</h3><div>${db.facturas.filter(f=>isInPeriod(f.date)).slice().reverse().map(f=>`<div class="py-2 border-b flex justify-between"><span>${f.prov} - ${f.date}</span><span>${Num.fmt(f.total)}€</span></div>`).join('')}</div></div>`; }
-function invoice(p,ids){ const l = String(ids).split(','); l.forEach(id=>{ const a=db.albaranes.find(x=>x.id===id); if(a) a.invoiced=true; }); const t=l.reduce((ac,id)=>ac+(db.albaranes.find(x=>x.id===id)?.total||0),0); db.facturas.push({id:generateID(), date:getISO(), prov:p, total:t, paid:false}); save("Factura OK"); renderAdmin(document.getElementById('app')); }
+function renderFacturas(c) { const pends = (db.albaranes||[]).filter(a=>!a.invoiced); const hist = db.facturas.filter(f => isInPeriod(f.date)).slice().reverse(); c.innerHTML = `<div class="glass-card"><h3 class="font-bold">Facturación</h3><div class="mt-3">${pends.length? pends.map(a=>`<div class="py-2 border-b flex justify-between"><span>${a.prov} (${Num.fmt(a.total)}€)</span><button class="btn-ghost text-xs" onclick="invoice('${a.prov}','${a.id}')">Facturar</button></div>`).join('') : '<div class="text-sm text-slate-400">Sin albaranes pendientes</div>'}</div></div><div class="glass-card"><h3 class="font-bold">Histórico (${fiscalQuarter===0?'AÑO':fiscalQuarter+'T'})</h3>${hist.length ? hist.map(f => `<div class="py-2 border-b flex justify-between"><div>${f.prov} <small>${f.date}</small></div><div>${Num.fmt(f.total)}€ <button class="text-xs text-blue-500" onclick="viewFacturaAlbs('${f.id}')">Ver</button></div></div>`).join('') : 'Sin facturas'}</div>`; }
+function invoice(p,ids){ const l = String(ids).split(','); const newId = generateID(); let t=0; l.forEach(id=>{ const a=db.albaranes.find(x=>x.id===id); if(a) { a.invoiced=true; a.facturaId=newId; t+=a.total; } }); db.facturas.push({id:newId, date:getISO(), prov:p, total:t, albs:l}); save("Facturado"); renderAdmin(document.getElementById('app')); }
+function viewFacturaAlbs(fid){ const f = db.facturas.find(x=>x.id===fid); const albs = db.albaranes.filter(a=>a.facturaId===fid); showModal(`Factura ${f.prov}`, `<p class="mb-4 text-sm">Total: <b>${Num.fmt(f.total)}€</b></p><div class="space-y-2">${albs.map(a=>`<div class="border p-2 rounded text-sm flex justify-between"><span>${a.date} (${a.num||''})</span><span>${Num.fmt(a.total)}€</span></div>`).join('')}</div>`); }
 function togglePaid(id){ const f=db.facturas.find(x=>x.id===id); if(f){ f.paid=!f.paid; save(); renderAdmin(document.getElementById('app')); }}
 
 /* ================= 7. COCINA ================= */
 function renderCocina(app) {
     const recipes = db.recetas || [];
-    app.innerHTML = `<div class="glass-card"><div class="flex justify-between items-center mb-4"><h2 class="font-black text-xl text-slate-800">RECETARIO</h2><button class="btn-premium w-auto px-4 py-2" onclick="editRec()">+ CREAR RECETA</button></div><div class="space-y-2">${recipes.length? recipes.map(r=>`<div class="bg-white p-3 rounded-xl flex justify-between items-center shadow-sm"><div><div class="font-bold">${clean(r.n)}</div><div class="text-xs text-slate-400">PVP ${Num.fmt(r.pvp)} • Coste ${Num.fmt(calcRecipe(r).cost)}</div><div class="mt-1">${calcRecipe(r).aller.map(k=>`<span class="aller-tag">${ALLERGENS.find(a=>a.k==k)?.i}</span>`).join('')}</div></div><div><button class="btn-ghost text-xs" onclick="viewRec('${r.id}')">Ver</button> <button class="btn-ghost text-xs" onclick="editRec('${r.id}')">Edit</button> <button class="btn-ghost text-xs text-red-500" onclick="delRec('${r.id}')">X</button></div></div>`).join('') : '<div class="text-sm text-slate-400">No hay recetas</div>'}</div></div>`;
+    app.innerHTML = `<div class="glass-card"><div class="flex justify-between items-center mb-4"><h2 class="font-black text-xl text-slate-800">RECETARIO</h2><button class="btn-premium w-auto px-4 py-2 text-xs" onclick="editRec()">+ CREAR RECETA</button></div><div class="space-y-2">${recipes.length? recipes.map(r=>`<div class="bg-white p-3 rounded-xl flex justify-between items-center shadow-sm"><div><div class="font-bold">${clean(r.n)}</div><div class="text-xs text-slate-400">PVP ${Num.fmt(r.pvp)} • Coste ${Num.fmt(calcRecipe(r).cost)}</div><div class="mt-1">${calcRecipe(r).aller.map(k=>`<span class="aller-tag">${ALLERGENS.find(a=>a.k==k)?.i}</span>`).join('')}</div></div><div><button class="btn-ghost text-xs" onclick="viewRec('${r.id}')">Ver</button> <button class="btn-ghost text-xs" onclick="editRec('${r.id}')">Editar</button> <button class="btn-ghost text-xs text-red-500" onclick="deleteRec('${r.id}')">X</button></div></div>`).join('') : '<div class="text-sm text-slate-400">No hay recetas</div>'}</div></div>`;
 }
 function calcRecipe(r) { let t=0, all=new Set(); (r.items||[]).forEach(it => { if(it.type==='ing') { const i = db.ingredientes.find(x=>x.id===it.id); if(i) { let needed = it.q || 0; if(it.merma) { const m = (1 - (it.merma/100)); if(m>0) needed = needed / m; } t += (i.cost || 0) * needed; (i.aller||[]).forEach(a=>all.add(a)); } } }); return { cost: t, aller:Array.from(all) }; }
 function editRec(id) {
     const r = id ? db.recetas.find(x=>x.id===id) : {id:generateID(), n:'', pvp:0, time:10, items:[], sales:0, unit:'ud'};
     tempItems = JSON.parse(JSON.stringify(r.items || []));
-    const ingOptions = (db.ingredientes||[]).map(i=>`<option value="${clean(i.id)}">${clean(i.n)}</option>`).join('');
-    showModal(id ? 'Editar Receta' : 'Nueva Receta', `<label>Nombre</label><input id="er-n" class="input-premium mb-2" value="${clean(r.n)}"><label>PVP</label><input id="er-pvp" type="number" class="input-premium mb-2" value="${r.pvp||0}"><div class="mb-2"><label>Agregar ingrediente</label><div class="flex gap-2"><select id="er-sel" class="input-premium">${ingOptions}</select><input id="er-q" type="number" class="input-premium w-20" placeholder="q"><input id="er-m" type="number" class="input-premium" placeholder="merma %"><button class="btn-premium w-auto" onclick="addItemToRec()">+</button></div></div><div id="er-list" class="max-h-40 overflow-auto mb-2"></div><div class="flex gap-2"><button class="btn-premium" onclick="saveRec('${r.id}')">Guardar</button></div>`);
+    const ingOptions = (db.ingredientes||[]).map(i=>`<option value="${clean(i.id)}">${clean(i.n)} (${i.unit})</option>`).join('');
+    showModal(id ? 'Editar Receta' : 'Nueva Receta', `
+        <label>Nombre</label><input id="er-n" class="input-premium mb-2" value="${clean(r.n)}">
+        <label>PVP</label><input id="er-pvp" type="number" class="input-premium mb-2" value="${r.pvp||0}">
+        <hr class="my-2">
+        <div class="mb-2"><label>Agregar ingrediente</label><div class="flex gap-2"><select id="er-sel" class="input-premium">${ingOptions}</select><input id="er-q" type="number" class="input-premium w-20" placeholder="Cant"><input id="er-m" type="number" class="input-premium w-20" placeholder="Merma %"><button class="btn-premium w-auto" onclick="addItemToRec()">+</button></div></div>
+        <div id="er-list" class="max-h-40 overflow-auto mb-2"></div>
+        <div class="flex gap-2"><button class="btn-premium" onclick="saveRec('${r.id}')">Guardar</button></div>
+    `);
     renderRecItems();
 }
 function deleteRec(id) { if(confirm("¿Eliminar?")) { db.recetas=db.recetas.filter(x=>x.id!==id); save("Eliminada"); closeModal(); render('Cocina'); }}
-function addItemToRec() { const id = document.getElementById('er-sel').value; const q = Num.parse(document.getElementById('er-q').value); const m = Num.parse(document.getElementById('er-m').value) || 0; if(!id || q<=0) return toast("Datos inválidos", "error"); const ing = db.ingredientes.find(x=>x.id===id); tempItems.push({ type:'ing', id, n: ing ? ing.n : '?', q, merma: m }); renderRecItems(); }
-function renderRecItems() { const el = document.getElementById('er-list'); if(!el) return; el.innerHTML = tempItems.map((it,i) => `<div class="flex justify-between items-center py-2 border-b"><div><b>${clean(it.n)}</b> ${it.q} (m:${it.merma||0}%)</div><button class="btn-ghost" onclick="tempItems.splice(${i},1);renderRecItems()">X</button></div>`).join(''); }
+function addItemToRec() { const id = document.getElementById('er-sel').value; const q = Num.parse(document.getElementById('er-q').value); const m = Num.parse(document.getElementById('er-m').value) || 0; if(!id || q<=0) return toast("Inválido", "error"); const ing = db.ingredientes.find(x=>x.id===id); tempItems.push({ type:'ing', id, n: ing ? ing.n : 'Desconocido', q, merma: m }); renderRecItems(); }
+function renderRecItems() { document.getElementById('er-list').innerHTML = tempItems.map((it, i) => { const ing = db.ingredientes.find(x=>x.id===it.id); return `<div class="flex justify-between items-center text-sm border-b py-2"><div><b>${clean(ing?.n)}</b> ${it.q}</div><button onclick="tempItems.splice(${i},1);renderRecItems()" class="text-red-400">X</button></div>`; }).join(''); }
 function saveRec(id) { const idx = db.recetas.findIndex(x=>x.id===id); const r = { id, n:document.getElementById('er-n').value, pvp:Num.parse(document.getElementById('er-pvp').value), time:0, items:tempItems, sales: db.recetas.find(x=>x.id===id)?.sales || 0, unit:'ud' }; if(idx>=0) db.recetas[idx]=r; else db.recetas.push(r); save("Guardado"); closeModal(); render('Cocina'); }
-function viewRec(id) { const r = db.recetas.find(x=>x.id===id); if(!r) return; const c = calcRecipe(r); showModal(clean(r.n), `<div class="flex justify-between mb-6"><div>Coste: <b>${Num.fmt(c.cost)}</b></div><div>PVP: <b>${Num.fmt(r.pvp||0)}</b></div></div><div class="text-sm">${(r.items||[]).map(it=>`<div>${clean(it.n)} — ${it.q}</div>`).join('')}</div>`); }
+function viewRec(id) { const r = db.recetas.find(x=>x.id===id); if(!r) return; const c = calcRecipe(r); showModal(clean(r.n), `<div class="flex justify-between mb-4 font-bold"><div>Coste: ${Num.fmt(c.cost)}€</div><div>PVP: ${Num.fmt(r.pvp)}€</div></div><div class="space-y-1 text-sm">${(r.items||[]).map(it=>`<div>${clean(it.n)}: ${it.q}</div>`).join('')}</div>`); }
 
 /* ================= 8. STOCK ================= */
 function renderStock(app) {
     const isAdmin = currentUser?.role === 'admin';
     const filtered = (db.ingredientes||[]).filter(i => (i.n||'').toLowerCase().includes(searchFilter.toLowerCase())).sort((a,b) => (a.n||'').localeCompare(b.n||''));
-    app.innerHTML = `<div class="glass-card"><div class="flex justify-between items-center mb-4"><h3 class="font-bold text-slate-800">ALMACÉN</h3><div class="flex gap-2"><button class="btn-whatsapp text-xs font-bold px-3 py-1 rounded-lg border-0" onclick="sendWhatsApp()">📞 PEDIDO</button><button class="bg-emerald-50 text-emerald-700 px-3 py-1 rounded-lg" onclick="toggleInventoryMode()">${inventoryMode ? 'Modo Normal' : 'Modo Inventario'}</button></div></div><input placeholder="🔍 Buscar..." onkeyup="searchFilter=this.value;render('Stock')" value="${clean(searchFilter)}" class="input-premium mb-4"><div class="max-h-[60vh] overflow-y-auto pr-1 space-y-2">${filtered.map(i => { const lowStock = (i.stock||0) < (i.min||0); if(inventoryMode) { return `<div class="bg-white p-3 rounded-xl border ${lowStock ? 'border-red-200' : 'border-slate-100'} flex items-center justify-between"><div><div class="font-bold">${clean(i.n)}</div><div class="text-xs text-slate-400">Teórico: ${Num.fmt(i.stock||0)} ${i.unit}</div></div><div class="flex gap-2"><input id="real-stock-${i.id}" type="number" class="input-premium w-28" value="${Num.fmt(i.stock||0)}"><button class="btn-premium" onclick="adjustStock('${i.id}')">Ajustar</button></div></div>`; } else { return `<div class="bg-white p-3 rounded-xl border ${lowStock ? 'border-red-200' : 'border-slate-100'} flex items-center justify-between"><div><div class="font-bold">${clean(i.n)}</div><div class="text-xs text-slate-400">${Num.fmt(i.stock||0)} ${i.unit} ${isAdmin ? `• Coste ${Num.fmt(i.cost||0)}` : ''}</div><div class="mt-1">${(i.aller||[]).map(k=>`<span class="aller-tag">${ALLERGENS.find(a=>a.k==k)?.i}</span>`).join('')}</div></div><div class="flex gap-2"><button class="btn-ghost" onclick="showKardex('${i.id}')">Kardex</button><button class="btn-ghost" onclick="regMerma('${i.id}')">Merma</button>${isAdmin ? `<button class="btn-ghost" onclick="editIng('${i.id}')">Editar</button>` : ''}</div></div>`; } }).join('')}</div>${isAdmin && !inventoryMode ? `<button class="btn-premium mt-4" onclick="editIng(generateID())">+ AÑADIR PRODUCTO</button>` : ''}</div>`;
+    app.innerHTML = `<div class="glass-card"><div class="flex justify-between items-center mb-4"><h3 class="font-bold text-slate-800">ALMACÉN</h3><div class="flex gap-2"><button class="btn-whatsapp text-xs font-bold px-3 py-1 rounded-lg border-0" onclick="sendWhatsApp()">📞 PEDIDO</button><button class="bg-emerald-50 text-emerald-700 px-3 py-1 rounded-lg" onclick="toggleInventoryMode()">${inventoryMode ? 'Modo Normal' : 'Modo Inventario'}</button></div></div><input placeholder="🔍 Buscar..." onkeyup="searchFilter=this.value;render('Stock')" value="${clean(searchFilter)}" class="input-premium mb-4"><div class="max-h-[60vh] overflow-y-auto pr-1 space-y-2">${filtered.map(i => { const lowStock = (i.stock||0) < (i.min||0); if(inventoryMode) { return `<div class="bg-white p-3 rounded-xl border-2 ${lowStock?'border-red-100':'border-slate-100'} flex justify-between items-center"><div class="flex-1"><div class="font-bold text-slate-800">${clean(i.n)}</div><div class="text-xs text-slate-400">Teórico: ${Num.fmt(i.stock||0)} ${i.unit}</div></div><div class="flex items-center gap-2"><input id="real-stock-${i.id}" type="number" class="input-premium w-24" placeholder="${i.stock}" onclick="this.select()"><button class="btn-premium px-3" onclick="adjustStock('${i.id}')">OK</button></div></div>`; } else { return `<div class="bg-white p-3 rounded-xl border ${lowStock ? 'border-red-200' : 'border-slate-100'} flex items-center justify-between"><div><div class="font-bold">${clean(i.n)}</div><div class="text-xs text-slate-400">${Num.fmt(i.stock||0)} ${i.unit} ${isAdmin ? `• Coste ${Num.fmt(i.cost||0)}` : ''}</div><div class="flex gap-1 mt-1">${(i.aller||[]).map(k=>`<span class="aller-tag">${ALLERGENS.find(a=>a.k==k)?.i}</span>`).join('')}</div></div><div class="flex gap-2"><button class="btn-ghost" onclick="showKardex('${i.id}')">Kardex</button><button class="btn-ghost" onclick="regMerma('${i.id}')">Merma</button>${isAdmin ? `<button class="btn-ghost" onclick="editIng('${i.id}')">Edit</button>` : ''}</div></div>`; } }).join('')}</div>${isAdmin && !inventoryMode ? `<button class="btn-premium mt-4" onclick="editIng(generateID())">+ AÑADIR PRODUCTO</button>` : ''}</div>`;
 }
 function sendWhatsApp() { const list = (db.ingredientes||[]).filter(i => (i.stock||0) < (i.min || 0)).map(i => `- ${i.n}: ${((i.min||0) - i.stock + ((i.min||0)*0.2)).toFixed(2)} ${i.unit}`).join('%0A'); if(!list) return toast("No hay productos para pedir", "info"); const url = `https://wa.me/?text=${encodeURIComponent('Pedido:%0A' + list)}`; window.open(url,'_blank'); }
 function toggleInventoryMode() { inventoryMode = !inventoryMode; render('Stock'); }
 function adjustStock(id) { const realQty = Num.parse(document.getElementById(`real-stock-${id}`).value); const i = db.ingredientes.find(x => x.id === id); if (!isNaN(realQty) && i) { const diff = realQty - (i.stock || 0); i.stock = realQty; if(diff !== 0) logStock(i.id, diff, 'AJUSTE', 'Inventario'); save("Stock ajustado"); render('Stock'); } }
 function showKardex(id) { if(currentUser?.role!=='admin') return; const i = db.ingredientes.find(x => x.id === id); const logs = (db.kardex||[]).filter(k => k.ingId === id).reverse().slice(0, 50); showModal(`Kardex: ${clean(i.n)}`, `<div class="max-h-60 overflow-auto">${logs.map(l=>`<div class="py-1 border-b text-sm">${l.date} ${l.type} ${l.qty} ${l.unit} — ${clean(l.reason)}</div>`).join('')}</div>`); }
-function regMerma(id) { const i = db.ingredientes.find(x=>x.id===id); showModal('Merma', `<label>Cantidad Perdida (${i.unit})</label><input id="m-q" type="number" class="input-premium mb-2" value="0"><label>Motivo</label><input id="m-r" class="input-premium mb-4" value=""><button class="btn-danger btn-premium" onclick="saveMerma('${id}')">Registrar</button>`); }
-function saveMerma(id) { const i = db.ingredientes.find(x=>x.id===id); const q = Num.parse(document.getElementById('m-q').value); const r = document.getElementById('m-r').value; if(q>0) { i.stock -= q; db.mermas.push({id:generateID(), date:getTS(), ingId:id, q, reason:r, user:currentUser?.n}); logStock(i.id, -q, 'MERMA', r); save("Merma registrada"); closeModal(); render('Stock'); } }
+function regMerma(id) { const i = db.ingredientes.find(x=>x.id===id); showModal('Merma', `<p class="text-sm text-slate-500 mb-4">Producto: <b>${clean(i.n)}</b></p><label>Cantidad Perdida (${i.unit})</label><input id="m-q" type="number" class="input-premium mb-2" value="0"><label>Motivo</label><input id="m-r" class="input-premium mb-4" value=""><button class="btn-danger btn-premium" onclick="saveMerma('${id}')">Registrar</button>`); }
+function saveMerma(id) { const i = db.ingredientes.find(x=>x.id===id); const q = parseFloat(document.getElementById('m-q').value); const r = document.getElementById('m-r').value; if(q>0) { i.stock -= q; db.mermas.push({ date:getISO(), n:i.n, q, reason:r, loss: q*i.cost }); logStock(i.id, -q, 'MERMA', r); save("Merma registrada"); closeModal(); render('Stock'); } }
 function editIng(id) { const i = db.ingredientes.find(x=>x.id===id) || {id, n:'', cost:0, stock:0, min:0, unit:'kg', aller:[]}; const allergens = ALLERGENS.map((a,idx)=>`<div class="inline-block mr-2"><label><input type="checkbox" id="aller-${idx}" ${ (i.aller||[]).includes(a.k) ? 'checked' : '' }> ${a.i}</label></div>`).join(''); showModal('Ficha Almacén', `<label>Nombre</label><input id="ei-n" class="input-premium mb-2" value="${clean(i.n)}"><div class="grid grid-cols-2 gap-2"><input id="ei-cost" type="number" class="input-premium mb-2" value="${i.cost||0}" placeholder="Coste"><input id="ei-stock" type="number" class="input-premium mb-2" value="${i.stock||0}" placeholder="Stock"></div><div class="grid grid-cols-2 gap-2"><input id="ei-min" type="number" class="input-premium mb-2" value="${i.min||0}" placeholder="Min"><select id="ei-unit" class="input-premium mb-2"><option value="kg" ${i.unit=='kg'?'selected':''}>kg</option><option value="ud" ${i.unit=='ud'?'selected':''}>ud</option><option value="l" ${i.unit=='l'?'selected':''}>l</option></select></div><div class="mb-4">${allergens}</div><button class="btn-premium" onclick="saveIng('${id}')">Guardar</button>`); }
 function saveIng(id) { const i = db.ingredientes.find(x=>x.id===id) || {id}; const aller = []; ALLERGENS.forEach((a,idx)=>{ if(document.getElementById(`aller-${idx}`) && document.getElementById(`aller-${idx}`).checked) aller.push(a.k); }); i.n = document.getElementById('ei-n').value; i.cost = Num.parse(document.getElementById('ei-cost').value); i.stock = Num.parse(document.getElementById('ei-stock').value); i.min = Num.parse(document.getElementById('ei-min').value); i.unit = document.getElementById('ei-unit').value; i.aller = aller; if(!db.ingredientes.find(x=>x.id===id)) db.ingredientes.push(i); save("Guardado"); closeModal(); render('Stock'); }
 
@@ -409,7 +453,7 @@ function calcTotal() { const v = (id) => Num.parse(document.getElementById(id).v
 function saveZ(){ const v = (id) => Num.parse(document.getElementById(id).value); const data = { date: currentDiarioDate, cash: v('z-cash'), expenses: v('z-expenses'), visa: v('z-visa'), tpv: v('z-tpv'), amex: v('z-amex'), glovo: v('z-glovo'), uber: v('z-uber'), apper: v('z-apper'), total: v('z-cash') + v('z-visa') + v('z-tpv') + v('z-amex') + v('z-glovo') + v('z-uber') + v('z-apper') }; const idx = db.diario.findIndex(d=>d.date===data.date); if(idx>=0) db.diario[idx]=data; else db.diario.push(data); save("Cierre guardado"); renderDiario(document.getElementById('app')); }
 function exportDiarioCSV() { if(!db.diario.length) return toast("Vacío", "error"); const header = ['Fecha', 'Efectivo', 'Gastos', 'Visa', 'TPV', 'Amex', 'Glovo', 'Uber', 'Apper', 'Total']; const rows = db.diario.map(d=>[d.date, Num.csv(d.cash), Num.csv(d.expenses), Num.csv(d.visa), Num.csv(d.tpv), Num.csv(d.amex), Num.csv(d.glovo), Num.csv(d.uber), Num.csv(d.apper), Num.csv(d.total)]); const csv = [header.join(';'), ...rows.map(r=>r.join(';'))].join('\n'); const a=document.createElement('a'); a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv); a.download='diario.csv'; a.click(); }
 
-/* ================= 10. UTILS ================= */
+/* ================= 10. UTILS & BACKUP ================= */
 function showModal(t,c){ document.getElementById('m-title').innerText=t; document.getElementById('m-body').innerHTML=c; document.getElementById('modal-overlay').classList.remove('hidden'); }
 function closeModal(){ document.getElementById('modal-overlay').classList.add('hidden'); }
 function downloadBackup(){ if(currentUser?.role!=='admin') return toast("⛔ Solo Gerencia", "error"); const data = secure.enc(db); const a = document.createElement('a'); a.href = 'data:application/octet-stream;charset=utf-8,' + encodeURIComponent(data); a.download = `arume_backup_${getISO()}.arume`; a.click(); }
