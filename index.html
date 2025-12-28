@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-    <title>ARUME V138 · Gold Master</title>
+    <title>ARUME V140 · Production</title>
     
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;800&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -11,7 +11,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
 
     <style>
-        /* ESTÉTICA V138 GOLD */
+        /* ESTÉTICA V140 FINAL */
         body { font-family: 'Poppins', sans-serif; background: #f8fafc; padding-bottom: 110px; -webkit-tap-highlight-color: transparent; user-select: none; }
         
         .glass-card { 
@@ -23,7 +23,7 @@
             margin-bottom: 20px; 
         }
         
-        /* BOTONES MEJORADOS */
+        /* BOTONES OPTIMIZADOS */
         .btn-premium { 
             background: linear-gradient(135deg, #0f172a 0%, #334155 100%); 
             color: white; padding: 14px; border-radius: 12px; 
@@ -67,7 +67,7 @@
         nav button svg { width: 24px; height: 24px; fill: #94a3b8; margin-bottom: 4px; }
         
         /* BLOQUEO VISUAL */
-        nav button.locked { opacity: 0.4; pointer-events: none; filter: grayscale(1); }
+        nav button.locked { opacity: 0.4; filter: grayscale(1); pointer-events: none; }
 
         /* LOADING & UTILS */
         #loading-overlay { position: fixed; inset: 0; background: rgba(255,255,255,0.95); z-index: 9999; display: flex; justify-content: center; align-items: center; flex-direction: column; }
@@ -102,8 +102,8 @@
 
     <header class="sticky top-0 z-40 px-6 py-4 flex justify-between items-center bg-white/90 backdrop-blur border-b border-gray-100">
         <div>
-            <h1 class="text-2xl font-black text-slate-900 tracking-tight">ARUME <span class="text-indigo-600">V138</span></h1>
-            <p class="text-[10px] text-gray-400 font-bold tracking-widest uppercase">Gold Master</p>
+            <h1 class="text-2xl font-black text-slate-900 tracking-tight">ARUME <span class="text-indigo-600">V140</span></h1>
+            <p class="text-[10px] text-gray-400 font-bold tracking-widest uppercase">Final Production</p>
         </div>
         <div class="bg-slate-100 px-3 py-1 rounded-full text-xs font-bold text-slate-600 flex items-center gap-2 cursor-pointer hover:bg-slate-200 transition" onclick="logout()">
             <div id="sync-dot" class="w-2 h-2 rounded-full bg-gray-400"></div> <span id="user-name">Login</span>
@@ -125,7 +125,7 @@
 
     <div id="pin-screen" class="hidden bg-slate-900 fixed inset-0 z-[200] flex flex-col items-center justify-center text-white">
         <div class="mb-10 text-center">
-            <h2 class="text-6xl font-black tracking-tighter mb-2">ARUME</h2>
+            <h2 class="text-6xl font-black tracking-tighter mb-2 text-white">ARUME</h2>
             <p class="text-indigo-400 text-xs tracking-[0.4em] uppercase">Gestión Integral</p>
         </div>
         <div id="pin-display" class="text-5xl font-mono mb-12 tracking-[0.5em] h-12 text-center opacity-80">****</div>
@@ -195,7 +195,7 @@ function logout(){ if(confirm("¿Salir?")){ localStorage.removeItem('arume_user'
 
 /* ================= 3. LOGIC ENGINE (STOCK) ================= */
 const UnitConverter = {
-    normalize: (u) => { if(!u) return 'ud'; u=u.toLowerCase().trim(); if(['kg','kilo'].includes(u)) return 'kg'; if(['g','gr'].includes(u)) return 'g'; if(['l','litro'].includes(u)) return 'l'; if(['ml'].includes(u)) return 'ml'; return 'ud'; },
+    normalize: (u) => { if(!u) return 'ud'; u=u.toLowerCase().trim(); if(['kg','kilo'].includes(u)) return 'kg'; if(['g','gr','gramos'].includes(u)) return 'g'; if(['l','litro'].includes(u)) return 'l'; if(['ml'].includes(u)) return 'ml'; return 'ud'; },
     convert: (val,from,to) => { from=UnitConverter.normalize(from); to=UnitConverter.normalize(to); if(from===to) return val; if(from==='kg'&&to==='g') return val*1000; if(from==='g'&&to==='kg') return val/1000; if(from==='l'&&to==='ml') return val*1000; if(from==='ml'&&to==='l') return val/1000; return val; }
 };
 function logStock(ingId, qty, type, reason, price=0) { const ing=db.ingredientes.find(x=>x.id===ingId); if(ing) db.kardex.push({id:generateID(), ts:Date.now(), date:getTS(), ingId, n:ing.n, type, qty, unit:ing.unit, price, reason, user:currentUser.n}); }
@@ -213,7 +213,7 @@ function renderNav() {
     document.getElementById('navbar').innerHTML = views.map(v => `<button id="btn-${v.id}" class="${v.restricted?'locked':''}" onclick="render('${v.id}')"><svg viewBox="0 0 24 24">${v.restricted?'<path d="M12 17c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm6-9h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zM9 6c0-1.66 1.34-3 3-3s3 1.34 3 3v2H9V6z"/>':v.i}</svg><span>${v.l}</span></button>`).join('');
 }
 function render(view) {
-    if((view==='Diario'||view==='Admin') && currentUser.role!=='admin') return toast("⛔ Acceso Restringido a Gerencia", "error");
+    if((view==='Diario'||view==='Admin') && currentUser.role!=='admin') return toast("⛔ Acceso Restringido", "error");
     document.querySelectorAll('nav button').forEach(b=>b.classList.remove('active'));
     document.getElementById(`btn-${view}`)?.classList.add('active');
     const app = document.getElementById('app');
@@ -246,32 +246,72 @@ function renderAdmin(app) {
     if(activeAdminTab==='facturas') renderFacturas(c);
 }
 
-/* --- OMNES --- */
 function renderOmnes(c) {
+    // 1. Verificar si hay recetas
+    if (!db.recetas || db.recetas.length === 0) {
+        c.innerHTML = `<div class="glass-card text-center"><h3 class="font-bold text-slate-800">No hay recetas</h3><p class="text-xs text-slate-400 mb-4">Para analizar ventas, primero crea tus platos.</p><button class="btn-premium w-full" onclick="render('Cocina')">IR A COCINA</button></div>`;
+        return;
+    }
+
+    // 2. Cálculos Omnes
     let totalSold=0, totalRev=0, totalCost=0;
     const periodSalesMap = {}; 
     db.sales_history.filter(log => isInPeriod(log.date)).forEach(log => { log.items.forEach(it => { const rid = it.rid || db.recetas.find(r=>r.n===it.n)?.id; if(rid) periodSalesMap[rid] = (periodSalesMap[rid] || 0) + it.q; }); });
     const useHistory = db.sales_history.length > 0;
     const recipesData = (db.recetas||[]).map(r => { const costData = calcRecipe(r); const sales = useHistory ? (periodSalesMap[r.id] || 0) : (r.sales || 0); totalSold += sales; totalRev += (sales * r.pvp); totalCost += (sales * costData.t); return { r, sales, margin: r.pvp - costData.t, cost: costData.t }; });
     const avgMargin = totalSold > 0 ? ((totalRev - totalCost) / totalSold) : 0; const popLimit = (totalSold > 0 ? (100 / recipesData.length) : 0) * 0.7;
-    let html = ''; recipesData.sort((a,b) => b.sales - a.sales).forEach(d => { if(d.sales > 0) { const isPop = (totalSold > 0 ? (d.sales/totalSold)*100 : 0) >= popLimit; const isRich = d.margin >= avgMargin; let type = isPop ? (isRich ? 'ESTRELLA' : 'CABALLO') : (isRich ? 'PUZZLE' : 'PERRO'); let css = isPop ? (isRich ? 'omnes-star' : 'omnes-plow') : (isRich ? 'omnes-puzz' : 'omnes-dog'); html += `<div class="bg-white p-3 rounded-xl omnes-card mb-2 shadow-sm flex justify-between items-center ${css}"><div class="flex-1"><div class="font-bold text-slate-700">${clean(d.r.n)}</div><div class="text-[10px] font-bold opacity-70">${type}</div></div><div class="text-right"><div class="font-black text-lg">${d.sales}</div><div class="text-[10px]">VENDIDOS</div></div></div>`; } });
+    
+    let html = ''; 
+    recipesData.sort((a,b) => b.sales - a.sales).forEach(d => { if(d.sales > 0) { const isPop = (totalSold > 0 ? (d.sales/totalSold)*100 : 0) >= popLimit; const isRich = d.margin >= avgMargin; let type = isPop ? (isRich ? 'ESTRELLA' : 'CABALLO') : (isRich ? 'PUZZLE' : 'PERRO'); let css = isPop ? (isRich ? 'omnes-star' : 'omnes-plow') : (isRich ? 'omnes-puzz' : 'omnes-dog'); html += `<div class="bg-white p-3 rounded-xl omnes-card mb-2 shadow-sm flex justify-between items-center ${css}"><div class="flex-1"><div class="font-bold text-slate-700">${clean(d.r.n)}</div><div class="text-[10px] font-bold opacity-70">${type}</div></div><div class="text-right"><div class="font-black text-lg">${d.sales}</div><div class="text-[10px]">VENDIDOS</div></div></div>`; } });
     c.innerHTML = `<div class="flex justify-between items-center mb-4"><h3 class="font-bold text-slate-800">Análisis ${fiscalQuarter===0?'ANUAL':fiscalQuarter+'T'}</h3><button class="btn-premium btn-action w-auto px-4 py-2 text-xs" onclick="editSales()">📝 REGISTRAR SERVICIO</button></div>${html || '<div class="text-center p-8 text-slate-400 border-2 border-dashed rounded-xl">Sin ventas en este periodo</div>'}`;
 }
-function editSales() { const html = db.recetas.map(r => `<div class="flex justify-between items-center py-2 border-b border-slate-50"><span class="text-sm font-medium text-slate-700 w-1/2">${clean(r.n)}</span><div class="flex items-center gap-2"><input type="number" min="0" placeholder="+0" id="sale-add-${r.id}" class="bg-slate-50 border border-slate-200 rounded-lg w-20 text-center py-2 font-bold text-slate-800 focus:bg-white transition"></div></div>`).join(''); showModal('Cierre de Ventas (Stock)', `<div class="bg-blue-50 p-3 rounded-lg text-blue-800 text-xs mb-4">Introduce <b>solo ventas nuevas</b>.</div><div class="max-h-[50vh] overflow-y-auto pr-2 mb-4">${html}</div><div class="flex gap-2"><button class="btn-premium btn-action" onclick="commitSalesSession()">PROCESAR</button></div>`); }
-function commitSalesSession() {
-    if(!confirm("¿Confirmar ventas?")) return;
-    let log = { id: generateID(), date: getTS(), items: [] };
-    db.recetas.forEach(r => {
-        const qty = parseFloat(document.getElementById(`sale-add-${r.id}`).value) || 0;
-        if(qty > 0) {
-            r.items.forEach(it => { if(it.type === 'ing') { const ing = db.ingredientes.find(x => x.id === it.id); if(ing) { let needed = it.q * qty; if(it.merma) needed = needed / (1 - (it.merma/100)); const finalQty = UnitConverter.convert(needed, r.unit || 'kg', ing.unit); ing.stock -= finalQty; logStock(ing.id, finalQty, 'OUT', `Venta: ${r.n} (${qty})`); } } });
-            r.sales = (r.sales || 0) + qty; log.items.push({ rid: r.id, n: r.n, q: qty });
-        }
-    });
-    if(log.items.length) { db.sales_history.push(log); save("Procesado"); closeModal(); renderAdmin(document.getElementById('app')); } else toast("Sin cambios", "error");
+
+// CORRECCIÓN SOLICITADA: Función mejorada para evitar ventas vacías
+function editSales() {
+    if (!db.recetas || db.recetas.length === 0) {
+        return showModal('⚠️ Falta Información', `<div class="text-center p-4"><p class="text-slate-600 mb-4">No tienes platos en tu carta.</p><button class="btn-premium w-full" onclick="closeModal(); render('Cocina')">IR A CREAR RECETAS</button></div>`);
+    }
+    const html = db.recetas.map(r => `<div class="flex justify-between items-center py-3 border-b border-slate-50"><div class="w-1/2 font-bold text-slate-700 text-sm">${clean(r.n)}</div><div class="flex items-center gap-3"><input type="number" min="0" placeholder="0" id="sale-add-${r.id}" class="bg-white border-2 border-slate-200 rounded-xl w-24 text-center py-3 font-bold text-lg text-indigo-600 focus:border-indigo-500 outline-none transition shadow-sm"></div></div>`).join('');
+    showModal('Cierre de Ventas (Servicio)', `<div class="bg-blue-50 p-3 rounded-lg text-blue-800 text-xs mb-4">Introduce <b>solo ventas del día</b>.</div><div class="max-h-[50vh] overflow-y-auto pr-2 mb-4">${html}</div><div class="flex gap-2"><button class="btn-premium btn-action w-full" onclick="commitSalesSession()">✅ PROCESAR</button></div>`);
 }
 
-/* --- ALBARANES & FACTURAS --- */
+function commitSalesSession() {
+    let log = { id: generateID(), date: getTS(), items: [] };
+    let hasData = false;
+    
+    db.recetas.forEach(r => {
+        const val = document.getElementById(`sale-add-${r.id}`).value;
+        const qty = parseFloat(val);
+        
+        if(!isNaN(qty) && qty > 0) {
+            hasData = true;
+            r.items.forEach(it => { 
+                if(it.type === 'ing') { 
+                    const ing = db.ingredientes.find(x => x.id === it.id); 
+                    if(ing) { 
+                        let needed = it.q * qty; 
+                        if(it.merma) needed = needed / (1 - (it.merma/100)); 
+                        const finalQty = UnitConverter.convert(needed, r.unit || 'kg', ing.unit); 
+                        ing.stock -= finalQty; 
+                        logStock(ing.id, finalQty, 'OUT', `Venta: ${r.n} (${qty})`); 
+                    } 
+                } 
+            });
+            r.sales = (r.sales || 0) + qty; 
+            log.items.push({ rid: r.id, n: r.n, q: qty });
+        }
+    });
+
+    if(hasData) { 
+        db.sales_history.push(log); 
+        save("Ventas procesadas y Stock actualizado"); 
+        closeModal(); 
+        renderAdmin(document.getElementById('app')); 
+    } else { 
+        toast("No has introducido ninguna cantidad", "error"); 
+    }
+}
+
 function renderAlbaranes(c) {
     const periodAlbs = db.albaranes.filter(a => isInPeriod(a.date)).slice().reverse();
     const provOptions = db.proveedores.map(p=>`<option value="${clean(p.n)}">`).join('');
@@ -340,9 +380,9 @@ function editIng(id) { const i = db.ingredientes.find(x=>x.id===id) || {id, n:''
 function saveIng(id) { const divs = document.querySelectorAll('#m-body .flex div'); const aller = []; divs.forEach((d,i)=>{ if(d.classList.contains('active')) aller.push(ALLERGENS[i].k) }); const ing = { id, n:document.getElementById('ei-n').value, cost:parseFloat(document.getElementById('ei-c').value), stock:parseFloat(document.getElementById('ei-s').value), min:parseFloat(document.getElementById('ei-m').value), unit:document.getElementById('ei-unit').value || 'kg', aller }; const idx = db.ingredientes.findIndex(x=>x.id===id); if(idx>=0) db.ingredientes[idx]=ing; else db.ingredientes.push(ing); save(); closeModal(); render('Stock'); }
 function deleteIng(id){ if(confirm("¿Eliminar?")){ db.ingredientes=db.ingredientes.filter(i=>i.id!==id); save("Borrado"); closeModal(); render('Stock'); }}
 
-/* ================= 8. DIARIO & CAJA COMPLETA ================= */
+/* ================= 8. DIARIO & CAJA COMPLETA V140 ================= */
 function renderDiario(app){
-    const r = db.diario.find(d => d.date === currentDiarioDate) || { cash:0, tpv:0, visa:0, amex:0, glovo:0, uber:0, apper:0, expenses:0 };
+    const r = db.diario.find(d => d.date === currentDiarioDate) || { cash:0, visa:0, tpv:0, amex:0, glovo:0, uber:0, apper:0, expenses:0 };
     const totalVenta = (r.cash||0) + (r.visa||0) + (r.tpv||0) + (r.amex||0) + (r.glovo||0) + (r.uber||0) + (r.apper||0);
     const realCash = (r.cash||0) - (r.expenses||0);
     const historyRows = db.diario.filter(d => isInPeriod(d.date)).sort((a,b) => b.date.localeCompare(a.date)).map(d => `<div class="flex justify-between items-center py-2 border-b text-sm ${d.date===currentDiarioDate?'bg-indigo-50 -mx-2 px-2 rounded':''}"> <div class="font-bold text-slate-700 cursor-pointer" onclick="currentDiarioDate='${d.date}';render('Diario')">${d.date}</div> <div class="font-mono font-bold">${(d.total||0).toFixed(2)}€</div> </div>` ).join('');
