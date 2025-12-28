@@ -3,16 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-    <title>ARUME V205 · DEFINITIVA</title>
+    <title>ARUME V210 · Diamond Restore</title>
     
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;800&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
 
     <style>
-        /* V205 STYLES */
-        body { font-family: 'Poppins', sans-serif; background: #f1f5f9; padding-bottom: 120px; -webkit-tap-highlight-color: transparent; user-select: none; }
+        /* ESTÉTICA V141 DIAMOND (Tu favorita) */
+        body { font-family: 'Poppins', sans-serif; background: #f8fafc; padding-bottom: 110px; -webkit-tap-highlight-color: transparent; user-select: none; }
         
         .glass-card { 
             background: white; 
@@ -35,14 +35,15 @@
         .btn-action { background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%); } 
         .btn-whatsapp { background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%); }
         .btn-danger { background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); }
-        .btn-ghost { background: #fff; color: #475569; font-weight: 600; padding: 10px; border-radius: 10px; width: 100%; cursor: pointer; border: 1px solid #cbd5e1; }
         
-        .btn-icon { width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; border-radius: 10px; font-size: 1.1rem; cursor: pointer; border: none; }
-        .btn-edit { background: #eff6ff; color: #3b82f6; border: 1px solid #dbeafe; } 
-        .btn-delete { background: #fef2f2; color: #ef4444; border: 1px solid #fee2e2; } 
-        .btn-view { background: #f0fdf4; color: #15803d; border: 1px solid #dcfce7; }
-        .btn-merma { background: #fff7ed; color: #f97316; border: 1px solid #ffedd5; }
-        .btn-log { background: #f0fdf4; color: #16a34a; border: 1px solid #dcfce7; }
+        .btn-ghost { background: #f1f5f9; color: #475569; font-weight: 600; padding: 12px; border-radius: 12px; width: 100%; cursor: pointer; border: 1px solid #cbd5e1; }
+        
+        .btn-icon { width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; border-radius: 8px; font-size: 1rem; cursor: pointer; border: none; }
+        .btn-edit { background: #eff6ff; color: #3b82f6; } 
+        .btn-delete { background: #fef2f2; color: #ef4444; } 
+        .btn-view { background: #f0fdf4; color: #15803d; }
+        .btn-merma { background: #fff7ed; color: #f97316; } 
+        .btn-log { background: #f0fdf4; color: #16a34a; }
 
         .input-premium { 
             width: 100%; padding: 12px; background: #f8fafc; 
@@ -51,17 +52,7 @@
         }
         .input-premium:focus { border-color: #4f46e5; background: white; }
 
-        /* CALENDARIO CUQUI */
-        .date-navigator {
-            display: flex; align-items: center; justify-content: space-between;
-            background: #f1f5f9; padding: 4px; border-radius: 12px; margin-bottom: 1rem; border: 1px solid #e2e8f0;
-        }
-        .date-btn {
-            width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
-            background: white; border-radius: 8px; color: #64748b; cursor: pointer; border: 1px solid #e2e8f0; font-weight: bold;
-        }
-        .date-display { font-weight: 700; color: #334155; font-family: monospace; font-size: 0.9rem; }
-
+        /* NAV BAR */
         nav { 
             position: fixed; bottom: 0; left: 0; width: 100%; 
             background: white; padding: 10px 0; 
@@ -71,11 +62,12 @@
             padding-bottom: max(12px, env(safe-area-inset-bottom));
         }
         nav button { flex: 1; background: none; border: none; color: #94a3b8; display: flex; flex-direction: column; align-items: center; font-size: 0.65rem; font-weight: 600; transition: 0.2s; cursor: pointer; padding: 4px; }
-        nav button.active { color: #0f172a; transform: translateY(-3px); }
+        nav button.active { color: #0f172a; transform: translateY(-2px); }
         nav button.active svg { fill: #0f172a; }
         nav button svg { width: 24px; height: 24px; fill: #94a3b8; margin-bottom: 4px; }
-        nav button.locked { opacity: 0.3; filter: grayscale(1); pointer-events: none; }
+        nav button.locked { opacity: 0.4; filter: grayscale(1); pointer-events: none; }
 
+        /* LOADING & UTILS */
         #loading-overlay { position: fixed; inset: 0; background: rgba(255,255,255,0.95); z-index: 9999; display: flex; justify-content: center; align-items: center; flex-direction: column; }
         .spinner { width: 40px; height: 40px; border: 4px solid #e2e8f0; border-top: 4px solid #4f46e5; border-radius: 50%; animation: spin 1s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
@@ -85,11 +77,16 @@
         .hidden { display: none !important; }
         
         .aller-tag { display: inline-block; width: 20px; height: 20px; text-align: center; line-height: 20px; background: #e0e7ff; border-radius: 50%; font-size: 0.7rem; margin-right: 2px; }
-        .period-btn { font-size: 10px; padding: 6px 10px; border-radius: 20px; font-weight: bold; background: #f1f5f9; color: #64748b; transition:0.2s; border: none; }
+        .period-btn { font-size: 10px; padding: 6px 10px; border-radius: 20px; font-weight: bold; background: #f1f5f9; color: #64748b; transition:0.2s; }
         .period-btn.active { background: #0f172a; color: white; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
         
-        /* PIN SCREEN AZUL PARA DIFERENCIAR */
-        #pin-screen { background: linear-gradient(135deg, #1e3a8a 0%, #172554 100%); }
+        /* DATE NAVIGATOR (Recuperado) */
+        .date-navigator { display: flex; justify-content: space-between; align-items: center; background: #f1f5f9; padding: 5px; border-radius: 12px; margin-bottom: 15px; }
+        .date-btn { width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; background: white; border-radius: 8px; font-weight: bold; color: #64748b; border: 1px solid #e2e8f0; }
+        .date-disp { font-family: monospace; font-weight: bold; color: #334155; }
+        
+        /* EMERGENCY RESET BUTTON */
+        #emergency-reset { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #ef4444; color: white; padding: 20px; border-radius: 12px; z-index: 99999; box-shadow: 0 20px 50px rgba(0,0,0,0.5); text-align: center; display: none; }
     </style>
 </head>
 <body>
@@ -99,13 +96,19 @@
         <div class="font-bold text-gray-500 tracking-widest text-xs animate-pulse">CARGANDO...</div>
     </div>
 
+    <div id="emergency-reset">
+        <h2 class="text-xl font-bold mb-2">⚠️ ¿Pantalla en blanco?</h2>
+        <p class="text-sm mb-4">Parece que hay datos corruptos.</p>
+        <button class="bg-white text-red-600 font-bold px-6 py-3 rounded-full" onclick="fullReset()">REINICIAR SISTEMA</button>
+    </div>
+
     <div id="toast-container" class="fixed top-5 left-1/2 -translate-x-1/2 z-[300] pointer-events-none w-max"></div>
     <input type="file" id="backup-input" class="hidden" onchange="restoreBackup(this)">
 
     <header class="sticky top-0 z-40 px-6 py-4 flex justify-between items-center bg-white/90 backdrop-blur border-b border-gray-100">
         <div>
-            <h1 class="text-2xl font-black text-slate-900 tracking-tight">ARUME <span class="text-indigo-600">V205</span></h1>
-            <p class="text-[10px] text-gray-400 font-bold tracking-widest uppercase">Versión Definitiva</p>
+            <h1 class="text-2xl font-black text-slate-900 tracking-tight">ARUME <span class="text-indigo-600">V210</span></h1>
+            <p class="text-[10px] text-gray-400 font-bold tracking-widest uppercase">Diamond Restore</p>
         </div>
         <div class="bg-slate-100 px-3 py-1 rounded-full text-xs font-bold text-slate-600 flex items-center gap-2 cursor-pointer hover:bg-slate-200 transition" onclick="logout()">
             <div id="sync-dot" class="w-2 h-2 rounded-full bg-gray-400"></div> <span id="user-name">Login</span>
@@ -119,16 +122,16 @@
         <div class="modal">
             <div class="flex justify-between items-center mb-6 border-b pb-4">
                 <h3 id="m-title" class="text-lg font-black text-slate-800 uppercase tracking-wide"></h3>
-                <button onclick="closeModal()" class="w-8 h-8 flex items-center justify-center bg-slate-100 rounded-full text-slate-500 hover:bg-slate-200 text-lg font-bold">✕</button>
+                <button onclick="closeModal()" class="w-8 h-8 flex items-center justify-center bg-slate-100 rounded-full text-slate-500 hover:bg-slate-200 text-lg font-bold transition hover:scale-110">✕</button>
             </div>
             <div id="m-body"></div>
         </div>
     </div>
 
-    <div id="pin-screen" class="hidden fixed inset-0 z-[200] flex flex-col items-center justify-center text-white">
+    <div id="pin-screen" class="hidden bg-slate-900 fixed inset-0 z-[200] flex flex-col items-center justify-center text-white">
         <div class="mb-10 text-center">
-            <h2 class="text-6xl font-black tracking-tighter mb-2 text-white">ARUME</h2>
-            <p class="text-indigo-200 text-xs tracking-[0.4em] uppercase">Gestión Segura</p>
+            <h2 class="text-6xl font-black tracking-tighter mb-2">ARUME</h2>
+            <p class="text-indigo-400 text-xs tracking-[0.4em] uppercase">Gestión Integral</p>
         </div>
         <div id="pin-display" class="text-5xl font-mono mb-12 tracking-[0.5em] h-12 text-center opacity-80">****</div>
         <div class="grid grid-cols-3 gap-6 w-72">
@@ -145,14 +148,15 @@
             <button class="w-16 h-16 rounded-full border border-white/10 text-xl font-bold hover:bg-white/10" onclick="pin(0)">0</button>
             <button class="w-16 h-16 rounded-full bg-emerald-500/20 border border-emerald-500/50 text-emerald-300 font-bold" onclick="pin('OK')">OK</button>
         </div>
-        </div>
+    </div>
 
 <script>
 /* ================= 1. CORE UTILS ================= */
 const Num = {
     parse: (str) => {
-        if (str === null || str === undefined || str === '') return 0;
+        if (!str) return 0;
         if (typeof str === 'number') return str;
+        // Fix for standardizing input (1.200,50 -> 1200.50)
         const cleanStr = String(str).replace(/\./g, '').replace(',', '.').replace(/[^\d\.\-]/g,'');
         const val = parseFloat(cleanStr);
         return isNaN(val) ? 0 : val;
@@ -160,7 +164,12 @@ const Num = {
     fmt: (n) => (Number(n)||0).toLocaleString('es-ES', {minimumFractionDigits: 2, maximumFractionDigits: 2}),
     csv: (n) => String(n||0).replace('.', ',')
 };
-function clean(str) { if(!str) return ''; return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+
+function clean(str) { 
+    if(!str) return ''; 
+    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); 
+}
+
 const generateID = () => Math.random().toString(36).substr(2, 9);
 const getISO = () => new Date().toLocaleDateString('en-CA');
 const getTS = () => new Date().toLocaleString('es-ES');
@@ -200,13 +209,38 @@ function isInPeriod(dateStr) {
 }
 
 function init() {
-    try { const stored=localStorage.getItem('arume_v125'); if(stored) db=secure.dec(stored); } catch(e){ console.warn("Reset"); db = DB_INIT; }
-    if(!db.users || !db.users.length) db.users=DB_INIT.users;
-    if(!db.kardex) db.kardex=[]; if(!db.sales_history) db.sales_history=[];
-    const u=localStorage.getItem('arume_user');
-    if(u){ currentUser=JSON.parse(u); document.getElementById('pin-screen').classList.add('hidden'); loadApp(); }
-    else document.getElementById('pin-screen').classList.remove('hidden');
+    try { 
+        const stored = localStorage.getItem('arume_v125'); 
+        if(stored) db = secure.dec(stored); 
+    } catch(e) { 
+        console.warn("DB Corruption Detected"); 
+        // DO NOT OVERWRITE IMMEDIATELY to avoid data loss, just warn
+    }
+    
+    // Validate structure
+    if(!db || !db.users) db = DB_INIT;
+    if(!db.kardex) db.kardex = []; 
+    if(!db.sales_history) db.sales_history = [];
+
+    const u = localStorage.getItem('arume_user');
+    if(u) { currentUser=JSON.parse(u); document.getElementById('pin-screen').classList.add('hidden'); loadApp(); }
+    else { document.getElementById('pin-screen').classList.remove('hidden'); }
+    
     if(CONFIG.GOOGLE_URL) sync();
+    
+    // EMERGENCY CHECK
+    setTimeout(() => {
+        if(document.getElementById('app').innerHTML === '') {
+            document.getElementById('emergency-reset').style.display = 'block';
+        }
+    }, 3000);
+}
+
+function fullReset() {
+    if(confirm("ESTO BORRARÁ TODOS LOS DATOS LOCALES Y REINICIARÁ LA APP. ¿SEGURO?")) {
+        localStorage.clear();
+        location.reload();
+    }
 }
 
 async function save(msg){
@@ -284,7 +318,7 @@ function renderOmnes(c) {
 
 function editSales() {
     if (!db.recetas || db.recetas.length === 0) return toast("No hay recetas creadas", "error");
-    const html = db.recetas.map(r => `<div class="flex justify-between items-center py-2 border-b"><span class="text-sm font-medium w-1/2">${clean(r.n)}</span><input type="number" min="0" placeholder="0" id="sale-add-${r.id}" onclick="this.select()" class="input-premium w-20 text-center font-bold"></div>`).join('');
+    const html = db.recetas.map(r => `<div class="flex justify-between items-center py-2 border-b border-slate-50"><span class="text-sm font-medium text-slate-700 w-1/2">${clean(r.n)}</span><div class="flex items-center gap-2"><input type="number" min="0" placeholder="+0" id="sale-add-${r.id}" onclick="this.select()" class="input-premium w-20 text-center font-bold"></div></div>`).join('');
     showModal('Cierre de Ventas', `<div class="bg-blue-50 p-3 rounded-lg text-blue-800 text-xs mb-4">Introduce <b>ventas del día</b>.</div><div class="max-h-[50vh] overflow-y-auto pr-2 mb-4">${html}</div><div class="mt-4"><button class="btn-premium btn-action" onclick="commitSalesSession()">Procesar</button></div>`);
 }
 
@@ -294,7 +328,7 @@ function commitSalesSession() {
         const qty = Num.parse(document.getElementById(`sale-add-${r.id}`).value);
         if(qty > 0) {
             hasData = true;
-            (r.items||[]).forEach(it => { if(it.type === 'ing') { const ing = db.ingredientes.find(x => x.id === it.id); if(ing) { let needed = it.q * qty; if(it.merma) needed = needed / (1 - (it.merma/100)); ing.stock = (ing.stock || 0) - needed; logStock(ing.id, -needed, 'OUT', `Venta: ${r.n}`); } } });
+            (r.items||[]).forEach(it => { if(it.type === 'ing') { const ing = db.ingredientes.find(x => x.id === it.id); if(ing) { let needed = it.q * qty; if(it.merma) needed = needed / (1 - (it.merma/100)); const finalQty = UnitConverter.convert(needed, r.unit || 'kg', ing.unit); ing.stock -= finalQty; logStock(ing.id, -finalQty, 'OUT', `Venta: ${r.n}`); } } });
             r.sales = (r.sales || 0) + qty; log.items.push({ rid: r.id, n: r.n, q: qty });
         }
     });
@@ -346,7 +380,7 @@ function commitAlb() {
 
     const total = tempItems.reduce((a,b)=>a+(b.q*b.p)*(1+(b.tax||0)/100),0);
     const taxes = tempItems.reduce((a,b)=>a+(b.q*b.p)*((b.tax||0)/100),0);
-    db.albaranes.push({id:generateID(), num:document.getElementById('alb-num').value||'', prov, productor:document.getElementById('alb-producer').value||'', date, items:JSON.parse(JSON.stringify(tempItems)), total, taxes, invoiced:false});
+    db.albaranes.push({id:generateID(), num:document.getElementById('alb-num').value||'', prov, productor:document.getElementById('alb-producer').value||'', date, items:JSON.parse(JSON.stringify(tempItems)), total:total, taxes:taxes, subtotal:total-taxes, invoiced:false});
     save("Entrada OK"); tempItems=[]; renderAdmin(document.getElementById('app'));
 }
 function editAlb(id) { 
@@ -379,7 +413,7 @@ function deleteAlb(id) {
         renderAdmin(document.getElementById('app')); 
     } 
 }
-function viewAlbDetails(id){ const a=db.albaranes.find(x=>x.id===id); if(a) showModal(`Detalle ${a.num||''}`, `<div class="text-sm text-slate-500 mb-2">${a.prov} · ${a.date}</div><table class="alb-table"><thead><tr><th>Prod</th><th>Cant</th><th class="text-right">Total</th></tr></thead><tbody>${a.items.map(i=>`<tr><td>${clean(i.n)}</td><td class="text-center">${i.q} ${i.unit}</td><td class="num">${Num.fmt(i.q*i.p)}€</td></tr>`).join('')}</tbody></table><div class="text-right font-black text-xl mt-4">${Num.fmt(a.total)}€</div>`); }
+function viewAlbDetails(id){ const a=db.albaranes.find(x=>x.id===id); if(a) showModal(`Detalle ${a.num||''}`, `<div class="text-sm text-slate-500 mb-2">${a.prov} · ${a.date}</div><table class="w-full text-sm"><thead><tr><th>Prod</th><th>Q</th><th>€</th></tr></thead><tbody>${a.items.map(i=>`<tr><td>${clean(i.n)}</td><td class="text-center">${i.q} ${i.unit}</td><td class="text-right">${Num.fmt(i.q*i.p)}€</td></tr>`).join('')}</tbody></table><div class="text-right font-black text-xl mt-4">${Num.fmt(a.total)}€</div>`); }
 function exportAlbCSV(){ if(!tempItems.length) return toast("Vacío", "error"); const rows = tempItems.map(it => [it.n, Num.csv(it.q), Num.csv(it.p)]); const csv = ['Prod;Cant;Precio', ...rows.map(r=>r.join(';'))].join('\n'); const a=document.createElement('a'); a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv); a.download='albaran.csv'; a.click(); }
 function renderFacturas(c) { const pends = (db.albaranes||[]).filter(a=>!a.invoiced); const hist = db.facturas.filter(f => isInPeriod(f.date)).slice().reverse(); c.innerHTML = `<div class="glass-card"><h3 class="font-bold">Facturación</h3><div class="mt-3">${pends.length? pends.map(a=>`<div class="py-2 border-b flex justify-between"><span>${a.prov} (${Num.fmt(a.total)}€)</span><button class="btn-ghost text-xs" onclick="invoice('${a.prov}','${a.id}')">Facturar</button></div>`).join('') : '<div class="text-sm text-slate-400">Sin albaranes pendientes</div>'}</div></div><div class="glass-card"><h3 class="font-bold">Histórico (${fiscalQuarter===0?'AÑO':fiscalQuarter+'T'})</h3>${hist.length ? hist.map(f => `<div class="py-2 border-b flex justify-between"><div>${f.prov} <small>${f.date}</small></div><div>${Num.fmt(f.total)}€ <button class="text-xs text-blue-500" onclick="viewFacturaAlbs('${f.id}')">Ver</button></div></div>`).join('') : 'Sin facturas'}</div>`; }
 function invoice(p,ids){ const l = String(ids).split(','); const newId = generateID(); let t=0; l.forEach(id=>{ const a=db.albaranes.find(x=>x.id===id); if(a) { a.invoiced=true; a.facturaId=newId; t+=a.total; } }); db.facturas.push({id:newId, date:getISO(), prov:p, total:t, albs:l}); save("Facturado"); renderAdmin(document.getElementById('app')); }
@@ -416,7 +450,7 @@ function viewRec(id) { const r = db.recetas.find(x=>x.id===id); if(!r) return; c
 function renderStock(app) {
     const isAdmin = currentUser?.role === 'admin';
     const filtered = (db.ingredientes||[]).filter(i => (i.n||'').toLowerCase().includes(searchFilter.toLowerCase())).sort((a,b) => (a.n||'').localeCompare(b.n||''));
-    app.innerHTML = `<div class="glass-card"><div class="flex justify-between items-center mb-4"><h3 class="font-bold text-slate-800">ALMACÉN</h3><div class="flex gap-2"><button class="btn-whatsapp text-xs font-bold px-3 py-1 rounded-lg border-0" onclick="sendWhatsApp()">📞 PEDIDO</button><button class="bg-emerald-50 text-emerald-700 px-3 py-1 rounded-lg" onclick="toggleInventoryMode()">${inventoryMode ? 'Modo Normal' : 'Modo Inventario'}</button></div></div><input placeholder="🔍 Buscar..." onkeyup="searchFilter=this.value;render('Stock')" value="${clean(searchFilter)}" class="input-premium mb-4"><div class="max-h-[60vh] overflow-y-auto pr-1 space-y-2">${filtered.map(i => { const lowStock = (i.stock||0) < (i.min||0); if(inventoryMode) { return `<div class="bg-white p-3 rounded-xl border-2 ${lowStock?'border-red-100':'border-slate-100'} flex justify-between items-center"><div class="flex-1"><div class="font-bold text-slate-800">${clean(i.n)}</div><div class="text-xs text-slate-400">Teórico: ${Num.fmt(i.stock||0)} ${i.unit}</div></div><div class="flex items-center gap-2"><input id="real-stock-${i.id}" type="number" class="input-premium w-24" placeholder="${i.stock}" onclick="this.select()"><button class="btn-premium px-3" onclick="adjustStock('${i.id}')">OK</button></div></div>`; } else { return `<div class="bg-white p-3 rounded-xl border ${lowStock ? 'border-red-200' : 'border-slate-100'} flex items-center justify-between"><div><div class="font-bold">${clean(i.n)}</div><div class="text-xs text-slate-400">${Num.fmt(i.stock||0)} ${i.unit} ${isAdmin ? `• Coste ${Num.fmt(i.cost||0)}` : ''}</div><div class="flex gap-1 mt-1">${(i.aller||[]).map(k=>`<span class="aller-tag">${ALLERGENS.find(a=>a.k==k)?.i}</span>`).join('')}</div></div><div class="flex gap-2"><button class="btn-ghost" onclick="showKardex('${i.id}')">Kardex</button><button class="btn-ghost" onclick="regMerma('${i.id}')">Merma</button>${isAdmin ? `<button class="btn-ghost" onclick="editIng('${i.id}')">Edit</button>` : ''}</div></div>`; } }).join('')}</div>${isAdmin && !inventoryMode ? `<button class="btn-premium mt-4" onclick="editIng(generateID())">+ AÑADIR PRODUCTO</button>` : ''}</div>`;
+    app.innerHTML = `<div class="glass-card"><div class="flex justify-between items-center mb-4"><h3 class="font-bold text-slate-800">ALMACÉN</h3><div class="flex gap-2"><button class="btn-whatsapp text-xs font-bold px-3 py-1 rounded-lg border-0" onclick="sendWhatsApp()">📞 PEDIDO</button><button class="bg-emerald-50 text-emerald-700 px-3 py-1 rounded-lg" onclick="toggleInventoryMode()">${inventoryMode ? 'Modo Normal' : 'Modo Inventario'}</button></div></div><input placeholder="🔍 Buscar..." onkeyup="searchFilter=this.value;render('Stock')" value="${clean(searchFilter)}" class="input-premium mb-4"><div class="max-h-[60vh] overflow-y-auto pr-1 space-y-2">${filtered.map(i => { const lowStock = (i.stock||0) < (i.min||0); if(inventoryMode) { return `<div class="bg-white p-3 rounded-xl border-2 ${lowStock?'border-red-100':'border-slate-100'} flex justify-between items-center"><div class="flex-1"><div class="font-bold text-slate-800">${clean(i.n)}</div><div class="text-xs text-slate-400">Teórico: ${Num.fmt(i.stock||0)} ${i.unit}</div></div><div class="flex items-center gap-2"><input id="real-stock-${i.id}" type="number" class="input-premium w-24" placeholder="${i.stock}" onclick="this.select()"><button class="btn-premium px-3" onclick="adjustStock('${i.id}')">OK</button></div></div>`; } else { return `<div class="bg-white p-3 rounded-xl border ${lowStock ? 'border-red-200' : 'border-slate-100'} flex items-center justify-between"><div><div class="font-bold">${clean(i.n)}</div><div class="text-xs text-slate-400">${Num.fmt(i.stock||0)} ${i.unit} ${isAdmin ? `• Coste ${Num.fmt(i.cost||0)}` : ''}</div><div class="flex gap-1 mt-1">${(i.aller||[]).map(k=>`<span class="aller-tag">${ALLERGENS.find(a=>a.k==k)?.i}</span>`).join('')}</div></div><div class="flex gap-2"><button class="btn-ghost" onclick="showKardex('${i.id}')">Movs</button><button class="btn-ghost" onclick="regMerma('${i.id}')">Merma</button>${isAdmin ? `<button class="btn-ghost" onclick="editIng('${i.id}')">Edit</button>` : ''}</div></div>`; } }).join('')}</div>${isAdmin && !inventoryMode ? `<button class="btn-premium mt-4" onclick="editIng(generateID())">+ AÑADIR PRODUCTO</button>` : ''}</div>`;
 }
 function sendWhatsApp() { const list = (db.ingredientes||[]).filter(i => (i.stock||0) < (i.min || 0)).map(i => `- ${i.n}: ${((i.min||0) - i.stock + ((i.min||0)*0.2)).toFixed(2)} ${i.unit}`).join('%0A'); if(!list) return toast("No hay productos para pedir", "info"); const url = `https://wa.me/?text=${encodeURIComponent('Pedido:%0A' + list)}`; window.open(url,'_blank'); }
 function toggleInventoryMode() { inventoryMode = !inventoryMode; render('Stock'); }
@@ -424,10 +458,11 @@ function adjustStock(id) { const realQty = Num.parse(document.getElementById(`re
 function showKardex(id) { if(currentUser?.role!=='admin') return; const i = db.ingredientes.find(x => x.id === id); const logs = (db.kardex||[]).filter(k => k.ingId === id).reverse().slice(0, 50); showModal(`Kardex: ${clean(i.n)}`, `<div class="max-h-60 overflow-auto">${logs.map(l=>`<div class="py-1 border-b text-sm">${l.date} ${l.type} ${l.qty} ${l.unit} — ${clean(l.reason)}</div>`).join('')}</div>`); }
 function regMerma(id) { const i = db.ingredientes.find(x=>x.id===id); showModal('Merma', `<p class="text-sm text-slate-500 mb-4">Producto: <b>${clean(i.n)}</b></p><label>Cantidad Perdida (${i.unit})</label><input id="m-q" type="number" class="input-premium mb-2" value="0"><label>Motivo</label><input id="m-r" class="input-premium mb-4" value=""><button class="btn-danger btn-premium" onclick="saveMerma('${id}')">Registrar</button>`); }
 function saveMerma(id) { const i = db.ingredientes.find(x=>x.id===id); const q = parseFloat(document.getElementById('m-q').value); const r = document.getElementById('m-r').value; if(q>0) { i.stock -= q; db.mermas.push({ date:getISO(), n:i.n, q, reason:r, loss: q*i.cost }); logStock(i.id, -q, 'MERMA', r); save("Merma registrada"); closeModal(); render('Stock'); } }
-function editIng(id) { const i = db.ingredientes.find(x=>x.id===id) || {id, n:'', cost:0, stock:0, min:0, unit:'kg', aller:[]}; const allergens = ALLERGENS.map((a,idx)=>`<div class="inline-block mr-2"><label><input type="checkbox" id="aller-${idx}" ${ (i.aller||[]).includes(a.k) ? 'checked' : '' }> ${a.i}</label></div>`).join(''); showModal('Ficha Almacén', `<label>Nombre</label><input id="ei-n" class="input-premium mb-2" value="${clean(i.n)}"><div class="grid grid-cols-2 gap-2"><input id="ei-cost" type="number" class="input-premium mb-2" value="${i.cost||0}" placeholder="Coste"><input id="ei-stock" type="number" class="input-premium mb-2" value="${i.stock||0}" placeholder="Stock"></div><div class="grid grid-cols-2 gap-2"><input id="ei-min" type="number" class="input-premium mb-2" value="${i.min||0}" placeholder="Min"><select id="ei-unit" class="input-premium mb-2"><option value="kg" ${i.unit=='kg'?'selected':''}>kg</option><option value="ud" ${i.unit=='ud'?'selected':''}>ud</option><option value="l" ${i.unit=='l'?'selected':''}>l</option></select></div><div class="mb-4">${allergens}</div><button class="btn-premium" onclick="saveIng('${id}')">Guardar</button>`); }
-function saveIng(id) { const i = db.ingredientes.find(x=>x.id===id) || {id}; const aller = []; ALLERGENS.forEach((a,idx)=>{ if(document.getElementById(`aller-${idx}`) && document.getElementById(`aller-${idx}`).checked) aller.push(a.k); }); i.n = document.getElementById('ei-n').value; i.cost = Num.parse(document.getElementById('ei-cost').value); i.stock = Num.parse(document.getElementById('ei-stock').value); i.min = Num.parse(document.getElementById('ei-min').value); i.unit = document.getElementById('ei-unit').value; i.aller = aller; if(!db.ingredientes.find(x=>x.id===id)) db.ingredientes.push(i); save("Guardado"); closeModal(); render('Stock'); }
+function editIng(id) { const i = db.ingredientes.find(x=>x.id===id) || {id, n:'', cost:0, stock:0, min:0, unit:'kg', aller:[]}; const allergens = ALLERGENS.map((a,idx)=>`<div class="inline-block mr-2"><label><input type="checkbox" id="aller-${idx}" ${ (i.aller||[]).includes(a.k) ? 'checked' : '' }> ${a.i}</label></div>`).join(''); showModal('Ficha Almacén', `<label>Nombre</label><input id="ei-n" class="input-premium mb-2" value="${clean(i.n)}"><div class="grid grid-cols-3 gap-2"><div><label>Coste/Ud</label><input id="ei-cost" type="number" class="input-premium mb-2" value="${i.cost||0}"></div><div><label>Stock</label><input id="ei-stock" type="number" class="input-premium mb-2" value="${i.stock||0}"></div><div><label>Mínimo</label><input id="ei-min" type="number" class="input-premium mb-2" value="${i.min||0}"></div></div><label>Unidad Base</label><select id="ei-unit" class="input-premium"><option ${i.unit==='kg'?'selected':''} value="kg">kg (Kilos)</option><option ${i.unit==='g'?'selected':''} value="g">g (Gramos)</option><option ${i.unit==='l'?'selected':''} value="l">l (Litros)</option><option ${i.unit==='ml'?'selected':''} value="ml">ml (Mililitros)</option><option ${i.unit==='ud'?'selected':''} value="ud">ud (Unidad)</option></select><label>Alérgenos</label><div class="flex flex-wrap gap-2 mt-2">${ALLERGENS.map(a=>`<div class="p-2 border rounded cursor-pointer ${i.aller.includes(a.k)?'bg-blue-100 border-blue-500':''}" onclick="this.classList.toggle('bg-blue-100');this.classList.toggle('border-blue-500');this.classList.toggle('active')">${a.i}</div>`).join('')}</div><button class="btn-premium mt-6" onclick="saveIng('${i.id}')">GUARDAR</button><button class="btn-ghost text-red-500 mt-2 w-full" onclick="deleteIng('${id}')">Eliminar del Almacén</button>`); setTimeout(() => { const d = document.querySelectorAll('#m-body .flex div'); i.aller.forEach(k=>{ const idx=ALLERGENS.findIndex(a=>a.k===k); if(d[idx]) d[idx].classList.add('active','bg-blue-100','border-blue-500'); }); }, 50); }
+function saveIng(id) { const divs = document.querySelectorAll('#m-body .flex div'); const aller = []; divs.forEach((d,i)=>{ if(d.classList.contains('active')) aller.push(ALLERGENS[i].k) }); const ing = { id, n:document.getElementById('ei-n').value, cost:parseFloat(document.getElementById('ei-c').value), stock:parseFloat(document.getElementById('ei-s').value), min:parseFloat(document.getElementById('ei-m').value), unit:document.getElementById('ei-unit').value || 'kg', aller }; const idx = db.ingredientes.findIndex(x=>x.id===id); if(idx>=0) db.ingredientes[idx]=ing; else db.ingredientes.push(ing); save("Guardado"); closeModal(); render('Stock'); }
+function deleteIng(id){ if(confirm("¿Eliminar?")){ db.ingredientes=db.ingredientes.filter(i=>i.id!==id); save("Borrado"); closeModal(); render('Stock'); }}
 
-/* ================= 9. DIARIO V202 ================= */
+/* ================= 9. DIARIO V210 (Caja Completa) ================= */
 function renderDiario(app){
     const r = db.diario.find(d => d.date === currentDiarioDate) || { cash:0, visa:0, tpv:0, amex:0, glovo:0, uber:0, apper:0, expenses:0 };
     const totalVenta = (r.cash||0) + (r.visa||0) + (r.tpv||0) + (r.amex||0) + (r.glovo||0) + (r.uber||0) + (r.apper||0);
@@ -439,8 +474,8 @@ function renderDiario(app){
         <div class="section-header flex justify-between items-center mb-6"><h3 class="font-bold text-slate-800">CIERRE CAJA</h3><div class="date-navigator"><button class="date-btn" onclick="changeDate(-1)">◀</button><div class="date-display">${formatDateES(currentDiarioDate)}</div><button class="date-btn" onclick="changeDate(1)">▶</button></div></div>
         <div class="space-y-4">
             <div class="bg-emerald-50/50 p-4 rounded-xl border border-emerald-100"><div class="text-xs font-bold text-emerald-800 mb-2 uppercase tracking-wider">Efectivo</div><div class="grid grid-cols-2 gap-2"><input id="z-cash" class="input-premium text-center" value="${r.cash||0}" oninput="calcTotal()" onclick="this.select()" placeholder="Efectivo"><input id="z-expenses" class="input-premium text-center text-red-600" value="${r.expenses||0}" oninput="calcTotal()" onclick="this.select()" placeholder="Gastos"></div><div class="text-right mt-2 text-xs font-bold text-emerald-700">En Cajón: <span id="z-real-cash">${Num.fmt(realCash)}</span>€</div></div>
-            <div class="bg-blue-50/50 p-4 rounded-xl border border-blue-100"><div class="text-xs font-bold text-blue-800 mb-2 uppercase tracking-wider">Tarjetas</div><div class="grid grid-cols-3 gap-2"><input id="z-visa" class="input-premium" value="${r.visa||0}" oninput="calcTotal()" onclick="this.select()" placeholder="Visa"><input id="z-tpv" class="input-premium" value="${r.tpv||0}" oninput="calcTotal()" onclick="this.select()" placeholder="TPV"><input id="z-amex" class="input-premium" value="${r.amex||0}" oninput="calcTotal()" onclick="this.select()" placeholder="Amex"></div></div>
-            <div class="bg-orange-50/50 p-4 rounded-xl border border-orange-100"><div class="text-xs font-bold text-orange-800 mb-2 uppercase tracking-wider">Delivery</div><div class="grid grid-cols-3 gap-2"><input id="z-glovo" class="input-premium" value="${r.glovo||0}" oninput="calcTotal()" onclick="this.select()" placeholder="Glovo"><input id="z-uber" class="input-premium" value="${r.uber||0}" oninput="calcTotal()" onclick="this.select()" placeholder="Uber"><input id="z-apper" class="input-premium" value="${r.apper||0}" oninput="calcTotal()" onclick="this.select()" placeholder="Apper"></div></div>
+            <div class="bg-blue-50/50 p-4 rounded-xl border border-blue-100"><div class="text-xs font-bold text-blue-800 mb-2 uppercase tracking-wider">Tarjetas</div><div class="grid grid-cols-3 gap-2"><input id="z-visa" class="input-premium text-center" value="${r.visa||0}" oninput="calcTotal()" onclick="this.select()" placeholder="Visa"><input id="z-tpv" class="input-premium text-center" value="${r.tpv||0}" oninput="calcTotal()" onclick="this.select()" placeholder="TPV"><input id="z-amex" class="input-premium text-center" value="${r.amex||0}" oninput="calcTotal()" onclick="this.select()" placeholder="Amex"></div></div>
+            <div class="bg-orange-50/50 p-4 rounded-xl border border-orange-100"><div class="text-xs font-bold text-orange-800 mb-2 uppercase tracking-wider">Delivery</div><div class="grid grid-cols-3 gap-2"><input id="z-glovo" class="input-premium text-center" value="${r.glovo||0}" oninput="calcTotal()" onclick="this.select()" placeholder="Glovo"><input id="z-uber" class="input-premium text-center" value="${r.uber||0}" oninput="calcTotal()" onclick="this.select()" placeholder="Uber"><input id="z-apper" class="input-premium text-center" value="${r.apper||0}" oninput="calcTotal()" onclick="this.select()" placeholder="Apper"></div></div>
             <div class="flex justify-between items-center pt-4 border-t border-slate-200"><span class="font-bold text-slate-400">TOTAL</span><span id="z-total-display" class="text-4xl font-black text-slate-800">${Num.fmt(totalVenta)}</span></div>
         </div>
         <button class="btn-premium mt-6" onclick="saveZ()">GUARDAR CIERRE</button>
@@ -458,14 +493,6 @@ function showModal(t,c){ document.getElementById('m-title').innerText=t; documen
 function closeModal(){ document.getElementById('modal-overlay').classList.add('hidden'); }
 function downloadBackup(){ if(currentUser?.role!=='admin') return toast("⛔ Solo Gerencia", "error"); const data = secure.enc(db); const a = document.createElement('a'); a.href = 'data:application/octet-stream;charset=utf-8,' + encodeURIComponent(data); a.download = `arume_backup_${getISO()}.arume`; a.click(); }
 function restoreBackup(input){ const r = new FileReader(); r.onload = e => { try { const d = secure.dec(e.target.result); if(d && d.users) { db=d; save("Restaurado correctamente"); loadApp(); } else throw new Error(); } catch(err) { toast("Archivo corrupto", "error"); } }; if(input.files && input.files[0]) r.readAsText(input.files[0]); else toast("No se seleccionó archivo", "error"); }
-
-// EMERGENCY RESET: Si hay error fatal, borra la DB y recarga
-window.onerror = function() {
-    if(confirm("Se ha detectado un error crítico. ¿Deseas reiniciar la aplicación de fábrica? (Se perderán datos no guardados)")) {
-        localStorage.removeItem('arume_v125');
-        location.reload();
-    }
-};
 
 init();
 </script>
