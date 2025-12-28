@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-    <title>ARUME V142 · Final Master</title>
+    <title>ARUME V150 · Definitive</title>
     
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;800&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -11,87 +11,92 @@
     <script src="https://cdn.tailwindcss.com"></script>
 
     <style>
-        /* ESTÉTICA V142 FINAL */
-        body { font-family: 'Poppins', sans-serif; background: #f8fafc; padding-bottom: 110px; -webkit-tap-highlight-color: transparent; user-select: none; }
+        /* ESTÉTICA PREMIUM RECUPERADA */
+        body { font-family: 'Poppins', sans-serif; background: #f0f4f8; padding-bottom: 120px; -webkit-tap-highlight-color: transparent; user-select: none; }
         
         .glass-card { 
-            background: white; 
-            border: 1px solid #e2e8f0; 
-            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); 
-            border-radius: 20px; 
-            padding: 20px; 
-            margin-bottom: 20px; 
+            background: rgba(255, 255, 255, 0.95); 
+            border: 1px solid rgba(255, 255, 255, 0.5); 
+            box-shadow: 0 10px 30px -10px rgba(0,0,0,0.1); 
+            backdrop-filter: blur(10px);
+            border-radius: 24px; 
+            padding: 24px; 
+            margin-bottom: 24px; 
         }
         
-        /* BOTONES */
+        /* BOTONES CON ALMA */
         .btn-premium { 
-            background: linear-gradient(135deg, #0f172a 0%, #334155 100%); 
-            color: white; padding: 14px; border-radius: 12px; 
-            font-weight: 700; box-shadow: 0 4px 15px rgba(15, 23, 42, 0.2); 
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); 
+            color: white; padding: 16px; border-radius: 16px; 
+            font-weight: 700; box-shadow: 0 8px 20px -5px rgba(15, 23, 42, 0.4); 
             width: 100%; display: flex; justify-content: center; align-items: center; gap: 8px; cursor: pointer;
-            transition: transform 0.1s; border: none;
+            transition: transform 0.1s, box-shadow 0.1s; border: none;
         }
-        .btn-premium:active { transform: scale(0.97); }
+        .btn-premium:active { transform: scale(0.96); box-shadow: 0 4px 10px -2px rgba(0,0,0,0.3); }
 
-        .btn-action { background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%); } 
-        .btn-whatsapp { background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%); }
-        .btn-danger { background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); }
+        .btn-action { background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%); box-shadow: 0 8px 20px -5px rgba(79, 70, 229, 0.4); } 
+        .btn-whatsapp { background: linear-gradient(135deg, #22c55e 0%, #15803d 100%); box-shadow: 0 8px 20px -5px rgba(34, 197, 94, 0.4); }
+        .btn-danger { background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%); box-shadow: 0 8px 20px -5px rgba(239, 68, 68, 0.4); }
         
-        .btn-ghost { background: #f1f5f9; color: #475569; font-weight: 600; padding: 12px; border-radius: 12px; width: 100%; cursor: pointer; border: 1px solid #cbd5e1; }
-        
-        .btn-icon { width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; border-radius: 10px; font-size: 1rem; cursor: pointer; border: none; }
+        .btn-ghost { background: #f1f5f9; color: #475569; font-weight: 600; padding: 12px; border-radius: 12px; width: 100%; cursor: pointer; border: 1px solid #cbd5e1; transition: 0.2s; }
+        .btn-ghost:active { background: #e2e8f0; }
+
+        .btn-icon { width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border-radius: 12px; font-size: 1.1rem; cursor: pointer; border: none; transition: 0.2s; }
         .btn-edit { background: #eff6ff; color: #3b82f6; } 
         .btn-delete { background: #fef2f2; color: #ef4444; } 
         .btn-merma { background: #fff7ed; color: #f97316; } 
         .btn-log { background: #f0fdf4; color: #16a34a; }
 
         .input-premium { 
-            width: 100%; padding: 12px; background: #f8fafc; 
-            border: 2px solid #e2e8f0; border-radius: 10px; 
-            outline: none; font-size: 14px; font-weight: 500;
+            width: 100%; padding: 14px; background: #f8fafc; 
+            border: 2px solid #e2e8f0; border-radius: 14px; 
+            outline: none; font-size: 15px; font-weight: 600; color: #334155;
+            transition: 0.3s;
         }
-        .input-premium:focus { border-color: #4f46e5; background: white; }
+        .input-premium:focus { border-color: #4f46e5; background: white; box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.1); }
 
         /* NAV BAR */
         nav { 
             position: fixed; bottom: 0; left: 0; width: 100%; 
-            background: white; padding: 10px 0; 
-            display: flex; justify-content: space-around; 
-            box-shadow: 0 -4px 20px rgba(0,0,0,0.05); 
+            background: rgba(255,255,255,0.9); backdrop-filter: blur(10px);
+            padding: 12px 0; display: flex; justify-content: space-around; 
+            box-shadow: 0 -4px 25px rgba(0,0,0,0.08); 
             z-index: 50; border-top: 1px solid #e2e8f0;
             padding-bottom: max(12px, env(safe-area-inset-bottom));
         }
-        nav button { flex: 1; background: none; border: none; color: #94a3b8; display: flex; flex-direction: column; align-items: center; font-size: 0.65rem; font-weight: 600; transition: 0.2s; cursor: pointer; padding: 4px; }
-        nav button.active { color: #0f172a; transform: translateY(-2px); }
-        nav button.active svg { fill: #0f172a; }
-        nav button svg { width: 24px; height: 24px; fill: #94a3b8; margin-bottom: 4px; }
-        nav button.locked { opacity: 0.4; filter: grayscale(1); pointer-events: none; }
+        nav button { flex: 1; background: none; border: none; color: #94a3b8; display: flex; flex-direction: column; align-items: center; font-size: 0.7rem; font-weight: 600; transition: 0.2s; cursor: pointer; padding: 4px; }
+        nav button.active { color: #4f46e5; transform: translateY(-4px); }
+        nav button.active svg { fill: #4f46e5; filter: drop-shadow(0 4px 6px rgba(79,70,229,0.3)); }
+        nav button svg { width: 26px; height: 26px; fill: #94a3b8; margin-bottom: 4px; transition: 0.2s; }
+        nav button.locked { opacity: 0.3; filter: grayscale(1); pointer-events: none; }
 
-        /* UTILS */
-        #loading-overlay { position: fixed; inset: 0; background: rgba(255,255,255,0.95); z-index: 9999; display: flex; justify-content: center; align-items: center; flex-direction: column; }
-        .spinner { width: 40px; height: 40px; border: 4px solid #e2e8f0; border-top: 4px solid #4f46e5; border-radius: 50%; animation: spin 1s linear infinite; }
+        /* UTILS & LOADING */
+        #loading-overlay { position: fixed; inset: 0; background: rgba(255,255,255,0.98); z-index: 9999; display: flex; justify-content: center; align-items: center; flex-direction: column; }
+        .spinner { width: 50px; height: 50px; border: 5px solid #e2e8f0; border-top: 5px solid #4f46e5; border-radius: 50%; animation: spin 0.8s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
-        .overlay { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.9); backdrop-filter: blur(2px); z-index: 100; display: flex; align-items: center; justify-content: center; }
-        .modal { background: white; width: 95%; max-width: 800px; max-height: 90vh; overflow-y: auto; border-radius: 24px; padding: 24px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); }
+        .overlay { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(4px); z-index: 100; display: flex; align-items: center; justify-content: center; }
+        .modal { background: white; width: 95%; max-width: 800px; max-height: 90vh; overflow-y: auto; border-radius: 28px; padding: 24px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); }
         .hidden { display: none !important; }
         
-        .aller-tag { display: inline-block; width: 20px; height: 20px; text-align: center; line-height: 20px; background: #e0e7ff; border-radius: 50%; font-size: 0.7rem; margin-right: 2px; }
-        .tax-pill { font-size: 10px; padding: 2px 6px; border-radius: 4px; background: #f1f5f9; color: #64748b; font-weight: 700; border: 1px solid #e2e8f0; }
-        .omnes-card { border-left: 4px solid; }
+        .aller-tag { display: inline-block; width: 24px; height: 24px; text-align: center; line-height: 24px; background: #e0e7ff; border-radius: 50%; font-size: 0.8rem; margin-right: 2px; }
+        .tax-pill { font-size: 10px; padding: 2px 6px; border-radius: 6px; background: #f1f5f9; color: #64748b; font-weight: 700; border: 1px solid #e2e8f0; }
+        
+        .omnes-card { border-left: 6px solid; }
         .omnes-star { border-color: #10b981; background: #ecfdf5; }
         .omnes-plow { border-color: #f59e0b; background: #fffbeb; }
         .omnes-puzz { border-color: #3b82f6; background: #eff6ff; }
         .omnes-dog  { border-color: #ef4444; background: #fef2f2; }
-        .period-btn { font-size: 10px; padding: 6px 10px; border-radius: 20px; font-weight: bold; background: #f1f5f9; color: #64748b; transition:0.2s; }
-        .period-btn.active { background: #0f172a; color: white; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+        
+        .period-btn { font-size: 11px; padding: 8px 12px; border-radius: 20px; font-weight: bold; background: #f1f5f9; color: #64748b; transition:0.2s; border: none; cursor: pointer; }
+        .period-btn.active { background: #0f172a; color: white; box-shadow: 0 4px 10px rgba(0,0,0,0.2); transform: translateY(-1px); }
     </style>
 </head>
 <body>
 
     <div id="loading-overlay" class="hidden">
         <div class="spinner mb-4"></div>
-        <div class="font-bold text-gray-500 tracking-widest text-xs animate-pulse">PROCESANDO...</div>
+        <div class="font-bold text-gray-500 tracking-widest text-xs animate-pulse">CARGANDO...</div>
     </div>
 
     <div id="toast-container" class="fixed top-5 left-1/2 -translate-x-1/2 z-[300] pointer-events-none w-max"></div>
@@ -99,10 +104,10 @@
 
     <header class="sticky top-0 z-40 px-6 py-4 flex justify-between items-center bg-white/90 backdrop-blur border-b border-gray-100">
         <div>
-            <h1 class="text-2xl font-black text-slate-900 tracking-tight">ARUME <span class="text-indigo-600">V142</span></h1>
-            <p class="text-[10px] text-gray-400 font-bold tracking-widest uppercase">Final Master</p>
+            <h1 class="text-3xl font-black text-slate-900 tracking-tight">ARUME <span class="text-indigo-600">V150</span></h1>
+            <p class="text-[10px] text-gray-400 font-bold tracking-widest uppercase">Definitive Edition</p>
         </div>
-        <div class="bg-slate-100 px-3 py-1 rounded-full text-xs font-bold text-slate-600 flex items-center gap-2 cursor-pointer hover:bg-slate-200 transition" onclick="logout()">
+        <div class="bg-slate-100 px-4 py-2 rounded-full text-xs font-bold text-slate-600 flex items-center gap-2 cursor-pointer hover:bg-slate-200 transition" onclick="logout()">
             <div id="sync-dot" class="w-2 h-2 rounded-full bg-gray-400"></div> <span id="user-name">Login</span>
         </div>
     </header>
@@ -113,8 +118,8 @@
     <div id="modal-overlay" class="overlay hidden">
         <div class="modal">
             <div class="flex justify-between items-center mb-6 border-b pb-4">
-                <h3 id="m-title" class="text-lg font-black text-slate-800 uppercase tracking-wide"></h3>
-                <button onclick="closeModal()" class="w-8 h-8 flex items-center justify-center bg-slate-100 rounded-full text-slate-500 hover:bg-slate-200 text-lg font-bold transition hover:scale-110">✕</button>
+                <h3 id="m-title" class="text-xl font-black text-slate-800 uppercase tracking-wide"></h3>
+                <button onclick="closeModal()" class="w-10 h-10 flex items-center justify-center bg-slate-100 rounded-full text-slate-500 hover:bg-slate-200 text-xl font-bold transition hover:scale-110">✕</button>
             </div>
             <div id="m-body"></div>
         </div>
@@ -122,25 +127,25 @@
 
     <div id="pin-screen" class="hidden bg-slate-900 fixed inset-0 z-[200] flex flex-col items-center justify-center text-white">
         <div class="mb-10 text-center">
-            <h2 class="text-6xl font-black tracking-tighter mb-2">ARUME</h2>
-            <p class="text-indigo-400 text-xs tracking-[0.4em] uppercase">Gestión Integral</p>
+            <h2 class="text-7xl font-black tracking-tighter mb-2 text-transparent bg-clip-text bg-gradient-to-r from-white to-slate-400">ARUME</h2>
+            <p class="text-indigo-400 text-xs tracking-[0.5em] uppercase">Gestión Profesional</p>
         </div>
         <div id="pin-display" class="text-5xl font-mono mb-12 tracking-[0.5em] h-12 text-center opacity-80">****</div>
         <div class="grid grid-cols-3 gap-6 w-72">
-            <button class="pin-btn w-16 h-16 rounded-full border border-white/10 text-xl font-bold hover:bg-white/10" onclick="pin(1)">1</button>
-            <button class="pin-btn w-16 h-16 rounded-full border border-white/10 text-xl font-bold hover:bg-white/10" onclick="pin(2)">2</button>
-            <button class="pin-btn w-16 h-16 rounded-full border border-white/10 text-xl font-bold hover:bg-white/10" onclick="pin(3)">3</button>
-            <button class="pin-btn w-16 h-16 rounded-full border border-white/10 text-xl font-bold hover:bg-white/10" onclick="pin(4)">4</button>
-            <button class="pin-btn w-16 h-16 rounded-full border border-white/10 text-xl font-bold hover:bg-white/10" onclick="pin(5)">5</button>
-            <button class="pin-btn w-16 h-16 rounded-full border border-white/10 text-xl font-bold hover:bg-white/10" onclick="pin(6)">6</button>
-            <button class="pin-btn w-16 h-16 rounded-full border border-white/10 text-xl font-bold hover:bg-white/10" onclick="pin(7)">7</button>
-            <button class="pin-btn w-16 h-16 rounded-full border border-white/10 text-xl font-bold hover:bg-white/10" onclick="pin(8)">8</button>
-            <button class="pin-btn w-16 h-16 rounded-full border border-white/10 text-xl font-bold hover:bg-white/10" onclick="pin(9)">9</button>
-            <button class="pin-btn w-16 h-16 rounded-full bg-red-500/20 border border-red-500/50 text-red-300 font-bold" onclick="pin('C')">C</button>
-            <button class="pin-btn w-16 h-16 rounded-full border border-white/10 text-xl font-bold hover:bg-white/10" onclick="pin(0)">0</button>
-            <button class="pin-btn w-16 h-16 rounded-full bg-emerald-500/20 border border-emerald-500/50 text-emerald-300 font-bold" onclick="pin('OK')">OK</button>
+            <button class="pin-btn w-16 h-16 rounded-full border border-white/10 text-xl font-bold hover:bg-white/10 transition active:scale-95" onclick="pin(1)">1</button>
+            <button class="pin-btn w-16 h-16 rounded-full border border-white/10 text-xl font-bold hover:bg-white/10 transition active:scale-95" onclick="pin(2)">2</button>
+            <button class="pin-btn w-16 h-16 rounded-full border border-white/10 text-xl font-bold hover:bg-white/10 transition active:scale-95" onclick="pin(3)">3</button>
+            <button class="pin-btn w-16 h-16 rounded-full border border-white/10 text-xl font-bold hover:bg-white/10 transition active:scale-95" onclick="pin(4)">4</button>
+            <button class="pin-btn w-16 h-16 rounded-full border border-white/10 text-xl font-bold hover:bg-white/10 transition active:scale-95" onclick="pin(5)">5</button>
+            <button class="pin-btn w-16 h-16 rounded-full border border-white/10 text-xl font-bold hover:bg-white/10 transition active:scale-95" onclick="pin(6)">6</button>
+            <button class="pin-btn w-16 h-16 rounded-full border border-white/10 text-xl font-bold hover:bg-white/10 transition active:scale-95" onclick="pin(7)">7</button>
+            <button class="pin-btn w-16 h-16 rounded-full border border-white/10 text-xl font-bold hover:bg-white/10 transition active:scale-95" onclick="pin(8)">8</button>
+            <button class="pin-btn w-16 h-16 rounded-full border border-white/10 text-xl font-bold hover:bg-white/10 transition active:scale-95" onclick="pin(9)">9</button>
+            <button class="pin-btn w-16 h-16 rounded-full bg-red-500/20 border border-red-500/50 text-red-300 font-bold active:scale-95" onclick="pin('C')">C</button>
+            <button class="pin-btn w-16 h-16 rounded-full border border-white/10 text-xl font-bold hover:bg-white/10 transition active:scale-95" onclick="pin(0)">0</button>
+            <button class="pin-btn w-16 h-16 rounded-full bg-emerald-500/20 border border-emerald-500/50 text-emerald-300 font-bold active:scale-95" onclick="pin('OK')">OK</button>
         </div>
-        <p class="mt-8 text-slate-500 text-xs">PIN 0150: Admin | PIN 1111: Equipo</p>
+        <p class="mt-8 text-slate-500 text-xs font-mono">0150: Gerencia | 1111: Equipo</p>
     </div>
 
 <script>
@@ -189,7 +194,7 @@ function toast(msg, type='info') {
     const box = document.getElementById('toast-container');
     const bg = type==='error' ? 'bg-red-500' : (type==='success' ? 'bg-emerald-600' : 'bg-slate-800');
     const el = document.createElement('div');
-    el.className = `${bg} text-white px-6 py-3 rounded-full shadow-xl font-bold text-sm mb-3 animate-bounce text-center backdrop-blur`;
+    el.className = `${bg} text-white px-6 py-4 rounded-xl shadow-2xl font-bold text-sm mb-4 animate-bounce text-center backdrop-blur border border-white/20`;
     el.innerText = msg; box.appendChild(el); setTimeout(() => el.remove(), 3000);
 }
 function isInPeriod(dateStr) {
@@ -239,7 +244,7 @@ function loadApp() { document.getElementById('user-name').innerText=currentUser?
 function renderNav() {
     const isAdmin = currentUser?.role==='admin';
     const views = [
-        {id:'Diario', l:'Caja', svg:`<path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/>`, restricted:false},
+        {id:'Diario', l:'Caja', svg:`<path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/>`, restricted:!isAdmin},
         {id:'Admin', l:'Gestión', svg:`<path d="M12 2L3 5v6c0 5 3.8 9.7 9 11 5.2-1.3 9-6 9-11V5l-9-3z"/>`, restricted:!isAdmin},
         {id:'Cocina', l:'Cocina', svg:`<path d="M12 2C8.1 6 7 8 7 11c0 3.9 3.1 7 7 7s7-3.1 7-7c0-3-1.1-5-5-9z"/>`, restricted:false},
         {id:'Stock', l:'Stock', svg:`<path d="M20 6H6v13h14V6zM4 4h15l1 1v16H3V4z"/>`, restricted:false}
@@ -259,14 +264,16 @@ function renderAdmin(app) {
     const totalVentas = (db.diario||[]).filter(d => isInPeriod(d.date)).reduce((acc, d) => acc + (d.total||0), 0);
     const periodAlbs = (db.albaranes||[]).filter(a => isInPeriod(a.date));
     const periodCosts = periodAlbs.reduce((acc, a) => acc + (a.total||0), 0);
+    const periodTax = periodAlbs.reduce((acc, a) => acc + (a.taxes||0), 0);
     const profit = totalVentas - periodCosts;
+
     const qCtrl = `<div class="flex justify-center gap-2 mb-4"><button class="period-btn ${fiscalQuarter===0?'active':''}" onclick="fiscalQuarter=0;renderAdmin(document.getElementById('app'))">Año</button><button class="period-btn ${fiscalQuarter===1?'active':''}" onclick="fiscalQuarter=1;renderAdmin(document.getElementById('app'))">T1</button><button class="period-btn ${fiscalQuarter===2?'active':''}" onclick="fiscalQuarter=2;renderAdmin(document.getElementById('app'))">T2</button><button class="period-btn ${fiscalQuarter===3?'active':''}" onclick="fiscalQuarter=3;renderAdmin(document.getElementById('app'))">T3</button><button class="period-btn ${fiscalQuarter===4?'active':''}" onclick="fiscalQuarter=4;renderAdmin(document.getElementById('app'))">T4</button></div>`;
 
     app.innerHTML = `<div class="text-center font-bold text-slate-400 mb-2">${fiscalYear}</div>${qCtrl}
         <div class="flex gap-2 mb-6"><button class="flex-1 py-2.5 rounded-xl font-bold text-xs ${activeAdminTab==='dash'?'bg-slate-800 text-white shadow-md':''}" onclick="activeAdminTab='dash';renderAdmin(document.getElementById('app'))">Dashboard</button><button class="flex-1 py-2.5 rounded-xl font-bold text-xs ${activeAdminTab==='omnes'?'bg-slate-800 text-white shadow-md':''}" onclick="activeAdminTab='omnes';renderAdmin(document.getElementById('app'))">Análisis</button><button class="flex-1 py-2.5 rounded-xl font-bold text-xs ${activeAdminTab==='albaranes'?'bg-slate-800 text-white shadow-md':''}" onclick="activeAdminTab='albaranes';renderAdmin(document.getElementById('app'))">Albaranes</button><button class="flex-1 py-2.5 rounded-xl font-bold text-xs ${activeAdminTab==='facturas'?'bg-slate-800 text-white shadow-md':''}" onclick="activeAdminTab='facturas';renderAdmin(document.getElementById('app'))">Facturas</button></div><div id="adm-c"></div>`;
 
     const c = document.getElementById('adm-c');
-    if(activeAdminTab==='dash') { c.innerHTML = `<div class="glass-card"><h3 class="font-bold text-slate-800">Resumen</h3><div class="grid grid-cols-3 gap-4 mt-4"><div class="p-4 bg-white rounded-lg text-center"><div class="text-xs text-gray-500">Ventas</div><div class="text-xl font-black">${Num.fmt(totalVentas)}</div></div><div class="p-4 bg-white rounded-lg text-center"><div class="text-xs text-gray-500">Costes</div><div class="text-xl font-black">${Num.fmt(periodCosts)}</div></div><div class="p-4 bg-white rounded-lg text-center"><div class="text-xs text-gray-500">Beneficio</div><div class="text-xl font-black">${Num.fmt(profit)}</div></div></div><div class="mt-4"><button class="btn-premium btn-action" onclick="downloadBackup()">💾 Copia Seguridad</button></div></div>`; }
+    if(activeAdminTab==='dash') { c.innerHTML = `<div class="glass-card"><h3 class="font-bold text-slate-800">Resumen Fiscal</h3><div class="grid grid-cols-3 gap-4 mt-4"><div class="p-4 bg-white rounded-lg text-center"><div class="text-xs text-gray-500">Ventas</div><div class="text-xl font-black">${Num.fmt(totalVentas)}</div></div><div class="p-4 bg-white rounded-lg text-center"><div class="text-xs text-gray-500">Costes</div><div class="text-xl font-black">${Num.fmt(periodCosts)}</div></div><div class="p-4 bg-white rounded-lg text-center"><div class="text-xs text-gray-500">Beneficio</div><div class="text-xl font-black ${profit>=0?'text-emerald-500':'text-red-500'}">${Num.fmt(profit)}</div></div></div><div class="mt-4 p-3 bg-indigo-50 rounded-lg text-center text-sm font-bold text-indigo-700">IVA Soportado: ${Num.fmt(periodTax)}€</div><div class="mt-4"><button class="btn-premium btn-action" onclick="downloadBackup()">💾 Copia Seguridad</button></div></div>`; }
     if(activeAdminTab==='omnes') renderOmnes(c);
     if(activeAdminTab==='albaranes') renderAlbaranes(c);
     if(activeAdminTab==='facturas') renderFacturas(c);
@@ -277,13 +284,13 @@ function renderOmnes(c) {
     let html = `<div class="grid gap-3">`;
     db.recetas.forEach(r => { const calc = calcRecipe(r); html += `<div class="bg-white p-3 rounded-xl border border-slate-100 flex justify-between items-center"><div><div class="font-bold">${clean(r.n)}</div><div class="text-xs text-slate-400">Coste: ${Num.fmt(calc.cost)}</div></div><div class="text-right"><div class="text-sm font-black">${Num.fmt((r.pvp||0) - calc.cost)}</div><div class="text-xs text-slate-400">${(r.sales||0)} uds</div></div></div>`; });
     html += `</div>`;
-    c.innerHTML = `<div class="glass-card"><div class="flex justify-between mb-4"><h3 class="font-bold text-slate-800">Análisis</h3><button class="btn-premium btn-action text-xs px-3" onclick="editSales()">Registrar Ventas</button></div>${html}</div>`;
+    c.innerHTML = `<div class="glass-card"><div class="flex justify-between mb-4"><h3 class="font-bold text-slate-800">Análisis</h3><button class="btn-premium btn-action text-xs px-3 w-auto" onclick="editSales()">Registrar Ventas</button></div>${html}</div>`;
 }
 
 function editSales() {
     if (!db.recetas || db.recetas.length === 0) return toast("No hay recetas creadas", "error");
     const html = db.recetas.map(r => `<div class="flex justify-between items-center py-2 border-b"><span class="text-sm font-medium">${clean(r.n)}</span><input id="sale-add-${r.id}" type="number" min="0" value="0" onclick="this.select()" class="input-premium w-24 text-right"></div>`).join('');
-    showModal('Cierre de Ventas', `<div class="bg-blue-50 p-3 rounded-lg text-blue-800 text-xs mb-4">Introduce <b>ventas del día</b>.</div><div style="max-height:40vh;overflow:auto;">${html}</div><div class="mt-4"><button class="btn-premium" onclick="commitSalesSession()">Procesar</button></div>`);
+    showModal('Cierre de Ventas', `<div class="bg-blue-50 p-3 rounded-lg text-blue-800 text-xs mb-4">Introduce <b>ventas del día</b>.</div><div style="max-height:40vh;overflow:auto;">${html}</div><div class="mt-4"><button class="btn-premium btn-action" onclick="commitSalesSession()">Procesar</button></div>`);
 }
 
 function commitSalesSession() {
@@ -304,34 +311,32 @@ function renderAlbaranes(c) {
     const periodAlbs = (db.albaranes||[]).filter(a => isInPeriod(a.date)).slice().reverse();
     const provOptions = (db.proveedores||[]).map(p=>`<option value="${clean(p.n)}">`).join('');
     const ingOptions = (db.ingredientes||[]).map(i=>`<option value="${clean(i.n)}">`).join('');
-    c.innerHTML = `<div class="glass-card"><h3 class="font-bold text-slate-700 mb-4 text-sm uppercase">Nuevo Albarán <span id="edit-mode-indicator" class="hidden text-amber-500 ml-2">(EDITANDO)</span></h3><div class="grid grid-cols-2 gap-3 mb-3"><div><label>Proveedor</label><input id="alb-prov" list="prov-list" class="input-premium" placeholder="Proveedor..."><datalist id="prov-list">${provOptions}</datalist></div><div><label>Fecha</label><input id="alb-date" type="date" class="input-premium" value="${getISO()}"></div><div><label>Número</label><input id="alb-num" class="input-premium" placeholder="Nº albarán"></div><div><label>Productor</label><input id="alb-producer" class="input-premium" placeholder="Productor"></div></div><div class="mb-3"><textarea id="alb-input" class="input-premium" rows="3" placeholder="Nombre ; Cantidad ; Unidad ; Precio ; IVA%"></textarea><div class="flex gap-2 mt-2"><button class="btn-premium btn-action" onclick="parseAlb()">Parsear</button><button class="btn-ghost" onclick="tempItems=[];renderAlbGrid()">Limpiar</button></div></div><datalist id="ing-list">${ingOptions}</datalist><div id="alb-grid" class="mb-3"></div><div class="text-right font-bold text-xl mb-3" id="alb-total">0.00€</div><div class="flex gap-2"><button class="btn-premium" onclick="commitAlb()">Guardar</button></div></div><div class="glass-card"><h3 class="font-bold text-slate-700 text-sm uppercase mb-2">Histórico</h3><div>${periodAlbs.map(a=>`<div class="py-2 border-b flex justify-between"><div><b>${clean(a.prov)}</b> ${a.date}</div><div>${Num.fmt(a.total||0)}€ <button class="btn-ghost text-xs" onclick="editAlb('${a.id}')">Editar</button></div></div>`).join('')}</div></div>`;
+    c.innerHTML = `<div class="glass-card"><h3 class="font-bold text-slate-700 mb-4 text-sm uppercase">Nuevo Albarán <span id="edit-mode-indicator" class="hidden text-amber-500 ml-2">(EDITANDO)</span></h3><div class="grid grid-cols-2 gap-3 mb-3"><div><label>Proveedor</label><input id="alb-prov" list="prov-list" class="input-premium" placeholder="Proveedor..."><datalist id="prov-list">${provOptions}</datalist></div><div><label>Fecha</label><input id="alb-date" type="date" class="input-premium" value="${getISO()}"></div><div><label>Número</label><input id="alb-num" class="input-premium" placeholder="Nº albarán"></div><div><label>Productor</label><input id="alb-producer" class="input-premium" placeholder="Productor"></div></div><div class="mb-3"><label>Texto (Formato: Nombre ; Cantidad ; Unidad ; Precio ; IVA%)</label><textarea id="alb-input" class="input-premium" rows="3" placeholder="Tomate;10;kg;1.20;10"></textarea><div class="flex gap-2 mt-2"><button class="btn-premium btn-action" onclick="parseAlb()">Parsear</button><button class="btn-ghost" onclick="tempItems=[];renderAlbGrid()">Limpiar</button></div></div><datalist id="ing-list">${ingOptions}</datalist><div id="alb-grid" class="mb-3"></div><div class="text-right font-bold text-xl mb-3" id="alb-total">0.00€</div><div class="flex gap-2"><button class="btn-premium" onclick="commitAlb()">Guardar Albarán</button></div></div><div class="glass-card"><h3 class="font-bold text-slate-700 text-sm uppercase mb-2">Albaranes periodo</h3><div>${periodAlbs.map(a=>`<div class="py-2 border-b flex justify-between"><div><b>${clean(a.prov)}</b> ${a.date}</div><div>${Num.fmt(a.total||0)} <button class="btn-ghost text-xs" onclick="viewAlbDetails('${a.id}')">Ver</button> ${!a.invoiced ? `<button class="btn-ghost text-xs" onclick="editAlb('${a.id}')">Editar</button><button class="btn-ghost text-xs text-red-500" onclick="deleteAlb('${a.id}')">X</button>`:''}</div></div>`).join('')}</div></div>`;
     renderAlbGrid();
 }
 function parseAlb() { const txt = document.getElementById('alb-input').value.trim(); tempItems = []; if (!txt) return toast("Texto vacío", "error"); txt.split(/\r?\n/).forEach(l => { const parts = l.split(';').map(p=>p.trim()); if(parts.length >= 4) { tempItems.push({ n: parts[0], q: Num.parse(parts[1]), unit: parts[2] || 'ud', p: Num.parse(parts[3]), tax: Num.parse(parts[4]) }); } }); renderAlbGrid(); }
-function renderAlbGrid() {
-    const el = document.getElementById('alb-grid'); if(!el) return;
-    el.innerHTML = tempItems.map((it,i) => `<div class="bg-white p-2 rounded-xl border border-slate-100 flex flex-wrap gap-2 items-center mb-2"><input list="ing-list" value="${clean(it.n)}" onchange="tempItems[${i}].n=this.value" class="input-premium w-32"><input type="number" value="${it.q}" onchange="tempItems[${i}].q=parseFloat(this.value);renderAlbGrid()" class="input-premium w-20"><input type="number" value="${it.p}" onchange="tempItems[${i}].p=parseFloat(this.value);renderAlbGrid()" class="input-premium w-20"><select onchange="tempItems[${i}].tax=parseFloat(this.value);renderAlbGrid()" class="input-premium w-16"><option value="10" ${it.tax==10?'selected':''}>10%</option><option value="21" ${it.tax==21?'selected':''}>21%</option><option value="4" ${it.tax==4?'selected':''}>4%</option></select><button class="btn-ghost text-red-500" onclick="tempItems.splice(${i},1);renderAlbGrid()">X</button></div>`).join('');
-    const total = tempItems.reduce((a,b)=>a+(b.q*b.p)*(1+(b.tax||0)/100),0);
-    const totalEl = document.getElementById('alb-total'); if(totalEl) totalEl.innerText = Num.fmt(total) + '€';
-}
+function renderAlbGrid() { const el = document.getElementById('alb-grid'); if(!el) return; el.innerHTML = tempItems.map((it,i) => `<div class="bg-white p-2 rounded-xl border border-slate-100 flex flex-wrap gap-2 items-center mb-2"><input list="ing-list" value="${clean(it.n)}" onchange="tempItems[${i}].n=this.value" class="input-premium w-32"><input type="number" value="${it.q}" onchange="tempItems[${i}].q=parseFloat(this.value);renderAlbGrid()" class="input-premium w-20"><input type="number" value="${it.p}" onchange="tempItems[${i}].p=parseFloat(this.value);renderAlbGrid()" class="input-premium w-20"><select onchange="tempItems[${i}].tax=parseFloat(this.value);renderAlbGrid()" class="input-premium w-16"><option value="10" ${it.tax==10?'selected':''}>10%</option><option value="21" ${it.tax==21?'selected':''}>21%</option><option value="4" ${it.tax==4?'selected':''}>4%</option></select><button class="btn-ghost text-red-500" onclick="tempItems.splice(${i},1);renderAlbGrid()">X</button></div>`).join(''); const total = tempItems.reduce((a,b)=>a+(b.q*b.p)*(1+(b.tax||0)/100),0); if(document.getElementById('alb-total')) document.getElementById('alb-total').innerText = Num.fmt(total) + '€'; }
 function commitAlb() {
     if(!tempItems.length) return toast("Vacío", "error");
-    const prov=document.getElementById('alb-prov').value, date=document.getElementById('alb-date').value;
+    const prov=document.getElementById('alb-prov').value || 'Proveedor';
+    const date=document.getElementById('alb-date').value || getISO();
     if(!prov || !date) return toast("Faltan datos", "error");
     if(!db.proveedores.find(p=>p.n===prov)) db.proveedores.push({n:prov});
     tempItems.forEach(it => {
-        const cleanName = it.n.trim(); let ing = db.ingredientes.find(x => x.n && x.n.trim().toLowerCase() === cleanName.toLowerCase() && x.unit === it.unit);
+        const cleanName = it.n.trim();
+        let ing = db.ingredientes.find(x => x.n && x.n.trim().toLowerCase() === cleanName.toLowerCase() && x.unit === it.unit);
         if(!ing) { ing = {id:generateID(), n:cleanName, stock:0, cost:0, unit:it.unit, aller:[]}; db.ingredientes.push(ing); }
-        const currentStock = Math.max(0, ing.stock || 0); const newTotalQty = currentStock + it.q;
+        const currentStock = Math.max(0, ing.stock || 0);
+        const newTotalQty = currentStock + it.q;
         ing.cost = newTotalQty > 0 ? ((currentStock * (ing.cost||0)) + (it.q * it.p)) / newTotalQty : it.p;
-        ing.stock = (ing.stock || 0) + it.q; logStock(ing.id, it.q, 'IN', `Alb: ${prov}`, it.p);
+        ing.stock = (ing.stock || 0) + it.q;
+        logStock(ing.id, it.q, 'IN', `Alb: ${prov}`, it.p);
     });
     const total = tempItems.reduce((a,b)=>a+(b.q*b.p)*(1+(b.tax||0)/100),0);
     const taxes = tempItems.reduce((a,b)=>a+(b.q*b.p)*((b.tax||0)/100),0);
     db.albaranes.push({id:generateID(), num:document.getElementById('alb-num').value||'', prov, productor:document.getElementById('alb-producer').value||'', date, items:JSON.parse(JSON.stringify(tempItems)), total, taxes, invoiced:false});
     save("Entrada OK"); tempItems=[]; renderAdmin(document.getElementById('app'));
 }
-// FIX: Edit Alb carga datos en el formulario principal, no en modal
 function editAlb(id) { 
     const alb = db.albaranes.find(a => a.id === id); if(!alb) return; 
     if(confirm("¿Editar? Se revertirá el stock.")) { 
@@ -346,8 +351,12 @@ function editAlb(id) {
         window.scrollTo(0,0);
     } 
 }
+function deleteAlb(id) { const alb = db.albaranes.find(a => a.id === id); if(!alb) return; if(confirm("¿Borrar?")) { alb.items.forEach(it => { const ing = db.ingredientes.find(x => x.n.trim().toLowerCase()===it.n.trim().toLowerCase() && x.unit===it.unit); if(ing) { ing.stock -= it.q; logStock(ing.id, -it.q, 'DEL', `Borrado alb ${alb.num}`); } }); db.albaranes = db.albaranes.filter(a=>a.id!==id); save("Albarán borrado"); renderAdmin(document.getElementById('app')); } }
+function viewAlbDetails(id){ const a=db.albaranes.find(x=>x.id===id); if(a) showModal(`Detalle ${a.num||''}`, `<table class="w-full text-sm"><thead><tr><th>Prod</th><th>Q</th><th>€</th></tr></thead><tbody>${a.items.map(i=>`<tr><td>${clean(i.n)}</td><td>${i.q} ${i.unit}</td><td>${Num.fmt(i.p)}</td></tr>`).join('')}</tbody></table>`); }
+function exportAlbCSV(){ if(!tempItems.length) return toast("Vacío", "error"); const rows = tempItems.map(it => [it.n, Num.csv(it.q), Num.csv(it.p)]); const csv = ['Prod;Cant;Precio', ...rows.map(r=>r.join(';'))].join('\n'); const a=document.createElement('a'); a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv); a.download='albaran.csv'; a.click(); }
 function renderFacturas(c) { const pends = (db.albaranes||[]).filter(a=>!a.invoiced); c.innerHTML = `<div class="glass-card"><h3 class="font-bold">Facturación</h3><div class="mt-3">${pends.length? pends.map(a=>`<div class="py-2 border-b"><b>${clean(a.prov)}</b> ${a.date} — ${Num.fmt(a.total||0)} <button class="btn-ghost text-xs" onclick="invoice('${a.prov}','${a.id}')">Facturar</button></div>`).join('') : '<div class="text-sm text-slate-400">Sin albaranes pendientes</div>'}</div></div>`; }
 function invoice(p,ids){ const l = String(ids).split(','); l.forEach(id=>{ const a=db.albaranes.find(x=>x.id===id); if(a) a.invoiced=true; }); save("Facturado"); renderAdmin(document.getElementById('app')); }
+function togglePaid(id){ const f=db.facturas.find(x=>x.id===id); if(f){ f.paid=!f.paid; save(); renderAdmin(document.getElementById('app')); }}
 
 /* ================= 7. COCINA ================= */
 function renderCocina(app) {
@@ -355,34 +364,29 @@ function renderCocina(app) {
     app.innerHTML = `<div class="glass-card"><div class="flex justify-between items-center mb-4"><h2 class="font-black text-xl text-slate-800">RECETARIO</h2><div><button class="btn-premium" onclick="editRec()">+ NUEVA</button></div></div><div class="space-y-2">${recipes.length? recipes.map(r=>`<div class="bg-white p-3 rounded-xl flex justify-between items-center"><div><div class="font-bold">${clean(r.n)}</div><div class="text-xs text-slate-400">PVP ${Num.fmt(r.pvp||0)} • Vendidos ${r.sales||0}</div></div><div><button class="btn-ghost" onclick="viewRec('${r.id}')">Ver</button> <button class="btn-ghost" onclick="editRec('${r.id}')">Editar</button> <button class="btn-ghost" onclick="deleteRec('${r.id}')">Eliminar</button></div></div>`).join('') : '<div class="text-sm text-slate-400">No hay recetas</div>'}</div></div>`;
 }
 function calcRecipe(r) { let t=0; (r.items||[]).forEach(it => { if(it.type==='ing') { const i = db.ingredientes.find(x=>x.id===it.id); if(i) { let needed = it.q || 0; if(it.merma) { const m = (1 - (it.merma/100)); if(m>0) needed = needed / m; } t += (i.cost || 0) * needed; } } }); return { cost: t }; }
-function editRec(id) {
-    const r = id ? db.recetas.find(x=>x.id===id) : {id:generateID(), n:'', pvp:0, time:10, items:[], sales:0, unit:'ud'};
-    tempItems = JSON.parse(JSON.stringify(r.items || []));
-    const ingOptions = (db.ingredientes||[]).map(i=>`<option value="${clean(i.id)}">${clean(i.n)}</option>`).join('');
-    showModal(id ? 'Editar Receta' : 'Nueva Receta', `<label>Nombre</label><input id="er-n" class="input-premium mb-2" value="${clean(r.n)}"><label>PVP</label><input id="er-pvp" type="number" class="input-premium mb-2" value="${r.pvp||0}"><div class="mb-2"><label>Agregar ingrediente</label><div class="flex gap-2"><select id="er-sel" class="input-premium">${ingOptions}</select><input id="er-q" type="number" class="input-premium" placeholder="q"><input id="er-m" type="number" class="input-premium" placeholder="merma %"><button class="btn-premium" onclick="addItemToRec()">+</button></div></div><div id="er-list" class="max-h-40 overflow-auto mb-2"></div><div class="flex gap-2"><button class="btn-premium" onclick="saveRec('${r.id}')">Guardar</button></div>`);
-    renderRecItems();
-}
+function editRec(id) { const r = id ? db.recetas.find(x=>x.id===id) : {id:generateID(), n:'', pvp:0, time:10, items:[], sales:0, unit:'ud'}; tempItems = JSON.parse(JSON.stringify(r.items || [])); const ingOptions = (db.ingredientes||[]).map(i=>`<option value="${clean(i.id)}">${clean(i.n)}</option>`).join(''); showModal(id ? 'Editar Receta' : 'Nueva Receta', `<label>Nombre</label><input id="er-n" class="input-premium mb-2" value="${clean(r.n)}"><label>PVP</label><input id="er-pvp" type="number" class="input-premium mb-2" value="${r.pvp||0}"><div class="mb-2"><label>Agregar ingrediente</label><div class="flex gap-2"><select id="er-sel" class="input-premium">${ingOptions}</select><input id="er-q" type="number" class="input-premium" placeholder="q"><input id="er-m" type="number" class="input-premium" placeholder="merma %"><button class="btn-premium" onclick="addItemToRec()">Agregar</button></div></div><div id="er-list" class="max-h-40 overflow-auto mb-2"></div><div class="flex gap-2"><button class="btn-premium" onclick="saveRec('${r.id}')">Guardar</button></div>`); renderRecItems(); }
 function deleteRec(id) { if(confirm("¿Eliminar?")) { db.recetas=db.recetas.filter(x=>x.id!==id); save("Eliminada"); closeModal(); render('Cocina'); }}
 function addItemToRec() { const id = document.getElementById('er-sel').value; const q = Num.parse(document.getElementById('er-q').value); const m = Num.parse(document.getElementById('er-m').value) || 0; if(!id || q<=0) return toast("Datos inválidos", "error"); const ing = db.ingredientes.find(x=>x.id===id); tempItems.push({ type:'ing', id, n: ing ? ing.n : '?', q, merma: m }); renderRecItems(); }
 function renderRecItems() { const el = document.getElementById('er-list'); if(!el) return; el.innerHTML = tempItems.map((it,i) => `<div class="flex justify-between items-center py-2 border-b"><div><b>${clean(it.n)}</b> ${it.q} (m:${it.merma||0}%)</div><button class="btn-ghost" onclick="tempItems.splice(${i},1);renderRecItems()">X</button></div>`).join(''); }
 function saveRec(id) { const idx = db.recetas.findIndex(x=>x.id===id); const r = { id, n:document.getElementById('er-n').value, pvp:Num.parse(document.getElementById('er-pvp').value), time:0, items:tempItems, sales: db.recetas.find(x=>x.id===id)?.sales || 0, unit:'ud' }; if(idx>=0) db.recetas[idx]=r; else db.recetas.push(r); save("Receta guardada"); closeModal(); render('Cocina'); }
-function viewRec(id) { const r = db.recetas.find(x=>x.id===id); if(!r) return; const c = calcRecipe(r); showModal(clean(r.n), `<div class="flex justify-between mb-6"><div>Coste: <b>${Num.fmt(c.cost)}</b></div><div>PVP: <b>${Num.fmt(r.pvp||0)}</b></div></div><div class="text-sm">${(r.items||[]).map(it=>`<div>${clean(it.n)} — ${it.q}</div>`).join('')}</div>`); }
+function viewRec(id) { const r = db.recetas.find(x=>x.id===id); if(!r) return; const c = calcRecipe(r); showModal(clean(r.n), `<div class="flex justify-between mb-6"><div>Coste: <b>${Num.fmt(c.cost)}</b></div><div>PVP: <b>${Num.fmt(r.pvp||0)}</b></div></div><div class="text-sm">${(r.items||[]).map(it=>`<div>${clean(it.n)} — ${it.q} ${it.merma?`(merma ${it.merma}%)`:''}</div>`).join('')}</div>`); }
 
 /* ================= 8. STOCK ================= */
 function renderStock(app) {
     const isAdmin = currentUser?.role === 'admin';
     const filtered = (db.ingredientes||[]).filter(i => (i.n||'').toLowerCase().includes(searchFilter.toLowerCase())).sort((a,b) => (a.n||'').localeCompare(b.n||''));
-    app.innerHTML = `<div class="glass-card"><div class="flex justify-between items-center mb-4"><h3 class="font-bold text-slate-800">ALMACÉN</h3><div class="flex gap-2"><button class="btn-whatsapp text-xs font-bold px-3 py-1 rounded-lg" onclick="sendWhatsApp()">📞 PEDIDO</button><button class="bg-emerald-50 text-emerald-700 px-3 py-1 rounded-lg" onclick="toggleInventoryMode()">${inventoryMode ? 'Modo Normal' : 'Modo Inventario'}</button></div></div><input placeholder="🔍 Buscar..." onkeyup="searchFilter=this.value;render('Stock')" value="${clean(searchFilter)}" class="input-premium mb-4"><div class="max-h-[60vh] overflow-y-auto pr-1 space-y-2">${filtered.map(i => { const lowStock = (i.stock||0) < (i.min||0); if(inventoryMode) { return `<div class="bg-white p-3 rounded-xl border ${lowStock ? 'border-red-200' : 'border-slate-100'} flex items-center justify-between"><div><div class="font-bold">${clean(i.n)}</div><div class="text-xs text-slate-400">${Num.fmt(i.stock||0)} ${i.unit}</div></div><div class="flex gap-2"><input id="real-stock-${i.id}" type="number" class="input-premium w-28" value="${Num.fmt(i.stock||0)}"><button class="btn-premium" onclick="adjustStock('${i.id}')">Ajustar</button></div></div>`; } else { return `<div class="bg-white p-3 rounded-xl border ${lowStock ? 'border-red-200' : 'border-slate-100'} flex items-center justify-between"><div><div class="font-bold">${clean(i.n)}</div><div class="text-xs text-slate-400">${Num.fmt(i.stock||0)} ${i.unit} ${isAdmin ? `• Coste ${Num.fmt(i.cost||0)}` : ''}</div></div><div class="flex gap-2"><button class="btn-ghost" onclick="regMerma('${i.id}')">Merma</button>${isAdmin ? `<button class="btn-ghost" onclick="editIng('${i.id}')">Editar</button>` : ''}</div></div>`; } }).join('')}</div>${isAdmin && !inventoryMode ? `<button class="btn-premium mt-4" onclick="editIng(generateID())">+ AÑADIR PRODUCTO</button>` : ''}</div>`;
+    app.innerHTML = `<div class="glass-card"><div class="flex justify-between items-center mb-4"><h3 class="font-bold text-slate-800">ALMACÉN</h3><div class="flex gap-2"><button class="btn-whatsapp text-xs font-bold px-3 py-1 rounded-lg border-0" onclick="sendWhatsApp()">📞 PEDIDO</button><button class="bg-emerald-50 text-emerald-700 px-3 py-1 rounded-lg" onclick="toggleInventoryMode()">${inventoryMode ? 'Modo Normal' : 'Modo Inventario'}</button></div></div><input placeholder="🔍 Buscar..." onkeyup="searchFilter=this.value;render('Stock')" value="${clean(searchFilter)}" class="input-premium mb-4"><div class="max-h-[60vh] overflow-y-auto pr-1 space-y-2">${filtered.map(i => { const lowStock = (i.stock||0) < (i.min||0); if(inventoryMode) { return `<div class="bg-white p-3 rounded-xl border ${lowStock ? 'border-red-200' : 'border-slate-100'} flex items-center justify-between"><div><div class="font-bold">${clean(i.n)}</div><div class="text-xs text-slate-400">${Num.fmt(i.stock||0)} ${i.unit} • Coste ${Num.fmt(i.cost||0)}</div></div><div class="flex gap-2"><input id="real-stock-${i.id}" type="number" class="input-premium w-28" value="${Num.fmt(i.stock||0)}"><button class="btn-premium" onclick="adjustStock('${i.id}')">Ajustar</button></div></div>`; } else { return `<div class="bg-white p-3 rounded-xl border ${lowStock ? 'border-red-200' : 'border-slate-100'} flex items-center justify-between"><div><div class="font-bold">${clean(i.n)}</div><div class="text-xs text-slate-400">${Num.fmt(i.stock||0)} ${i.unit} • Coste ${Num.fmt(i.cost||0)}</div></div><div class="flex gap-2"><button class="btn-ghost" onclick="showKardex('${i.id}')">Kardex</button><button class="btn-ghost" onclick="regMerma('${i.id}')">Merma</button>${isAdmin ? `<button class="btn-ghost" onclick="editIng('${i.id}')">Editar</button>` : ''}</div></div>`; } }).join('')}</div>${isAdmin && !inventoryMode ? `<button class="btn-premium mt-4" onclick="editIng(generateID())">+ AÑADIR PRODUCTO</button>` : ''}</div>`;
 }
 function sendWhatsApp() { const list = (db.ingredientes||[]).filter(i => (i.stock||0) < (i.min || 0)).map(i => `- ${i.n}: ${((i.min||0) - i.stock + ((i.min||0)*0.2)).toFixed(2)} ${i.unit}`).join('%0A'); if(!list) return toast("No hay productos para pedir", "info"); const url = `https://wa.me/?text=${encodeURIComponent('Pedido:%0A' + list)}`; window.open(url,'_blank'); }
 function toggleInventoryMode() { inventoryMode = !inventoryMode; render('Stock'); }
 function adjustStock(id) { const realQty = Num.parse(document.getElementById(`real-stock-${id}`).value); const i = db.ingredientes.find(x => x.id === id); if (!isNaN(realQty) && i) { const diff = realQty - (i.stock || 0); i.stock = realQty; if(diff !== 0) logStock(i.id, diff, 'AJUSTE', 'Inventario'); save("Stock ajustado"); render('Stock'); } }
-function regMerma(id) { const i = db.ingredientes.find(x=>x.id===id); showModal('Merma', `<label>Cantidad Perdida (${i.unit})</label><input id="m-q" type="number" class="input-premium mb-2" value="0"><label>Motivo</label><input id="m-r" class="input-premium mb-4" value=""><button class="btn-danger btn-premium" onclick="saveMerma('${id}')">Registrar</button>`); }
-function saveMerma(id) { const i = db.ingredientes.find(x=>x.id===id); const q = Num.parse(document.getElementById('m-q').value); const r = document.getElementById('m-r').value; if(q>0) { i.stock -= q; db.mermas.push({id:generateID(), date:getTS(), ingId:id, q, reason:r, user:currentUser?.n}); logStock(i.id, -q, 'MERMA', r); save("Merma registrada"); closeModal(); render('Stock'); } }
-function editIng(id) { const i = db.ingredientes.find(x=>x.id===id) || {id, n:'', cost:0, stock:0, min:0, unit:'kg', aller:[]}; showModal('Ficha Almacén', `<label>Nombre</label><input id="ei-n" class="input-premium mb-2" value="${clean(i.n)}"><label>Coste</label><input id="ei-cost" type="number" class="input-premium mb-2" value="${i.cost||0}"><label>Stock</label><input id="ei-stock" type="number" class="input-premium mb-2" value="${i.stock||0}"><label>Mínimo</label><input id="ei-min" type="number" class="input-premium mb-2" value="${i.min||0}"><label>Unidad</label><input id="ei-unit" class="input-premium mb-2" value="${i.unit||'kg'}"><button class="btn-premium" onclick="saveIng('${id}')">Guardar</button>`); }
-function saveIng(id) { const i = db.ingredientes.find(x=>x.id===id) || {id}; i.n = document.getElementById('ei-n').value; i.cost = Num.parse(document.getElementById('ei-cost').value); i.stock = Num.parse(document.getElementById('ei-stock').value); i.min = Num.parse(document.getElementById('ei-min').value); i.unit = document.getElementById('ei-unit').value; if(!db.ingredientes.find(x=>x.id===id)) db.ingredientes.push(i); save("Guardado"); closeModal(); render('Stock'); }
+function showKardex(id) { if(currentUser?.role!=='admin') return; const i = db.ingredientes.find(x => x.id === id); const logs = (db.kardex||[]).filter(k => k.ingId === id).reverse().slice(0, 50); showModal(`Kardex: ${clean(i.n)}`, `<div class="max-h-60 overflow-auto">${logs.map(l=>`<div class="py-1 border-b text-sm">${l.date} ${l.type} ${l.qty} ${l.unit} — ${clean(l.reason)}</div>`).join('')}</div>`); }
+function regMerma(id) { const i = db.ingredientes.find(x=>x.id===id); showModal('Merma', `<p class="text-sm text-slate-500 mb-4">Producto: <b>${clean(i.n)}</b></p><label>Cantidad Perdida (${i.unit})</label><input id="m-q" type="number" class="input-premium mb-2" value="0"><label>Motivo</label><input id="m-r" class="input-premium mb-4" value=""><div class="flex gap-2"><button class="btn-danger btn-premium" onclick="saveMerma('${id}')">Registrar</button><button class="btn-ghost" onclick="closeModal()">Cancelar</button></div>`); }
+function saveMerma(id) { const i = db.ingredientes.find(x=>x.id===id); const q = Num.parse(document.getElementById('m-q').value); const r = document.getElementById('m-r').value || 'Merma'; if(!i) return; if(q>0) { i.stock -= q; db.mermas.push({id:generateID(), date:getTS(), ingId:id, q, reason:r, user:currentUser?.n}); logStock(i.id, -q, 'MERMA', r); save("Merma registrada"); closeModal(); render('Stock'); } else toast("Cantidad inválida", "error"); }
+function editIng(id) { const i = db.ingredientes.find(x=>x.id===id) || {id, n:'', cost:0, stock:0, min:0, unit:'kg', aller:[]}; const allergens = ALLERGENS.map((a,idx)=>`<div class="inline-block mr-2"><label><input type="checkbox" id="aller-${idx}" ${ (i.aller||[]).includes(a.k) ? 'checked' : '' }> ${a.i}</label></div>`).join(''); showModal('Ficha Almacén', `<label>Nombre</label><input id="ei-n" class="input-premium mb-2" value="${clean(i.n)}"><label>Coste unidad</label><input id="ei-cost" type="number" class="input-premium mb-2" value="${i.cost||0}"><label>Stock</label><input id="ei-stock" type="number" class="input-premium mb-2" value="${i.stock||0}"><label>Mínimo</label><input id="ei-min" type="number" class="input-premium mb-2" value="${i.min||0}"><label>Unidad</label><input id="ei-unit" class="input-premium mb-2" value="${i.unit||'kg'}"><label>Alergenos</label><div class="mb-4">${allergens}</div><div class="flex gap-2"><button class="btn-premium" onclick="saveIng('${id}')">Guardar</button><button class="btn-ghost" onclick="closeModal()">Cancelar</button></div>`); }
+function saveIng(id) { const i = db.ingredientes.find(x=>x.id===id) || {id}; const aller = []; ALLERGENS.forEach((a,idx)=>{ if(document.getElementById(`aller-${idx}`) && document.getElementById(`aller-${idx}`).checked) aller.push(a.k); }); i.n = document.getElementById('ei-n').value; i.cost = Num.parse(document.getElementById('ei-cost').value); i.stock = Num.parse(document.getElementById('ei-stock').value); i.min = Num.parse(document.getElementById('ei-min').value); i.unit = document.getElementById('ei-unit').value; i.aller = aller; if(!db.ingredientes.find(x=>x.id===id)) db.ingredientes.push(i); save("Guardado"); closeModal(); render('Stock'); }
 
-/* ================= 9. DIARIO V142 ================= */
+/* ================= 9. DIARIO V150 ================= */
 function renderDiario(app){
     const r = db.diario.find(d => d.date === currentDiarioDate) || { cash:0, visa:0, tpv:0, amex:0, glovo:0, uber:0, apper:0, expenses:0 };
     const totalVenta = (r.cash||0) + (r.visa||0) + (r.tpv||0) + (r.amex||0) + (r.glovo||0) + (r.uber||0) + (r.apper||0);
@@ -390,20 +394,23 @@ function renderDiario(app){
     const hist = (db.diario||[]).filter(d => isInPeriod(d.date)).sort((a,b) => b.date.localeCompare(a.date)).map(d => `<div class="py-2 border-b text-sm"><b>${d.date}</b> — ${Num.fmt(d.total||0)}</div>`).join('');
 
     app.innerHTML = `
-    <div class="glass-card"><div class="section-header flex justify-between items-center mb-6"><h3 class="font-bold text-slate-800">CIERRE CAJA</h3><input type="date" id="z-date" value="${currentDiarioDate}" class="input-premium" onchange="currentDiarioDate=this.value;renderDiario(document.getElementById('app'))"></div>
-    <div class="space-y-4">
-        <div class="bg-emerald-50/50 p-4 rounded-xl border border-emerald-100"><div class="text-xs font-bold text-emerald-800 mb-2 uppercase tracking-wider">Efectivo</div><div class="grid grid-cols-2 gap-2"><input id="z-cash" class="input-premium" value="${r.cash||0}" oninput="calcTotal()"><input id="z-expenses" class="input-premium text-red-600" value="${r.expenses||0}" oninput="calcTotal()"></div><div class="text-right mt-2 text-xs font-bold text-emerald-700">En Cajón: <span id="z-real-cash">${Num.fmt(realCash)}</span>€</div></div>
-        <div class="bg-blue-50/50 p-4 rounded-xl border border-blue-100"><div class="text-xs font-bold text-blue-800 mb-2 uppercase tracking-wider">Tarjetas</div><div class="grid grid-cols-3 gap-2"><input id="z-visa" class="input-premium" value="${r.visa||0}" oninput="calcTotal()"><input id="z-tpv" class="input-premium" value="${r.tpv||0}" oninput="calcTotal()"><input id="z-amex" class="input-premium" value="${r.amex||0}" oninput="calcTotal()"></div></div>
-        <div class="bg-orange-50/50 p-4 rounded-xl border border-orange-100"><div class="text-xs font-bold text-orange-800 mb-2 uppercase tracking-wider">Delivery</div><div class="grid grid-cols-3 gap-2"><input id="z-glovo" class="input-premium" value="${r.glovo||0}" oninput="calcTotal()"><input id="z-uber" class="input-premium" value="${r.uber||0}" oninput="calcTotal()"><input id="z-apper" class="input-premium" value="${r.apper||0}" oninput="calcTotal()"></div></div>
-        <div class="flex justify-between items-center pt-4 border-t border-slate-200"><span class="font-bold text-slate-400">TOTAL</span><span id="z-total-display" class="text-4xl font-black text-slate-800">${Num.fmt(totalVenta)}</span></div>
-    </div><button class="btn-premium mt-6" onclick="saveZ()">GUARDAR CIERRE</button></div>
-    <div class="glass-card"><h3 class="font-bold text-xs text-slate-400 mb-4 uppercase">Histórico</h3><div class="max-h-60 overflow-y-auto mb-4">${hist}</div><button class="btn-ghost w-full" onclick="exportDiarioCSV()">Descargar CSV</button></div>`;
+    <div class="glass-card">
+        <div class="section-header flex justify-between items-center mb-6"><h3 class="font-bold text-slate-800">CIERRE CAJA</h3><input type="date" id="z-date" value="${currentDiarioDate}" class="input-premium" onchange="currentDiarioDate=this.value;renderDiario(document.getElementById('app'))"></div>
+        <div class="space-y-4">
+            <div class="bg-emerald-50/50 p-4 rounded-xl border border-emerald-100"><div class="text-xs font-bold text-emerald-800 mb-2 uppercase tracking-wider">Efectivo</div><div class="grid grid-cols-2 gap-2"><input id="z-cash" class="input-premium" value="${r.cash||0}" oninput="calcTotal()"><input id="z-expenses" class="input-premium text-red-600" value="${r.expenses||0}" oninput="calcTotal()"></div></div>
+            <div class="bg-blue-50/50 p-4 rounded-xl border border-blue-100"><div class="text-xs font-bold text-blue-800 mb-2 uppercase tracking-wider">Tarjetas</div><div class="grid grid-cols-3 gap-2"><input id="z-visa" class="input-premium" value="${r.visa||0}" oninput="calcTotal()"><input id="z-tpv" class="input-premium" value="${r.tpv||0}" oninput="calcTotal()"><input id="z-amex" class="input-premium" value="${r.amex||0}" oninput="calcTotal()"></div></div>
+            <div class="bg-orange-50/50 p-4 rounded-xl border border-orange-100"><div class="text-xs font-bold text-orange-800 mb-2 uppercase tracking-wider">Delivery</div><div class="grid grid-cols-3 gap-2"><input id="z-glovo" class="input-premium" value="${r.glovo||0}" oninput="calcTotal()"><input id="z-uber" class="input-premium" value="${r.uber||0}" oninput="calcTotal()"><input id="z-apper" class="input-premium" value="${r.apper||0}" oninput="calcTotal()"></div></div>
+            <div class="flex justify-between items-center pt-4 border-t border-slate-200"><span class="font-bold text-slate-400">VENTA TOTAL</span><span id="z-total-display" class="text-4xl font-black text-slate-800">${Num.fmt(totalVenta)}</span></div>
+        </div>
+        <button class="btn-premium mt-6" onclick="saveZ()">GUARDAR CIERRE</button>
+    </div>
+    <div class="glass-card"><h3 class="font-bold text-xs text-slate-400 mb-4 uppercase">Histórico (${fiscalQuarter===0?'AÑO':fiscalQuarter+'T'})</h3><div class="max-h-60 overflow-y-auto mb-4">${hist}</div></div>
+    `;
 }
-function calcTotal() { const v = (id) => Num.parse(document.getElementById(id).value); const cash = v('z-cash'), exp = v('z-expenses'); const total = cash + v('z-visa') + v('z-tpv') + v('z-amex') + v('z-glovo') + v('z-uber') + v('z-apper'); document.getElementById('z-total-display').innerText = Num.fmt(total)+'€'; document.getElementById('z-real-cash').innerText = Num.fmt(cash - exp); }
+function calcTotal() { const v = (id) => Num.parse(document.getElementById(id).value); const cash = v('z-cash'), exp = v('z-expenses'); const total = cash + v('z-visa') + v('z-tpv') + v('z-amex') + v('z-glovo') + v('z-uber') + v('z-apper'); document.getElementById('z-total-display').innerText = Num.fmt(total)+'€'; }
 function saveZ(){ const v = (id) => Num.parse(document.getElementById(id).value); const data = { date: currentDiarioDate, cash: v('z-cash'), expenses: v('z-expenses'), visa: v('z-visa'), tpv: v('z-tpv'), amex: v('z-amex'), glovo: v('z-glovo'), uber: v('z-uber'), apper: v('z-apper') }; data.total = (data.cash||0) + (data.visa||0) + (data.tpv||0) + (data.amex||0) + (data.glovo||0) + (data.uber||0) + (data.apper||0); const idx = db.diario.findIndex(d=>d.date===data.date); if(idx>=0) db.diario[idx]=data; else db.diario.push(data); save("Cierre guardado"); renderDiario(document.getElementById('app')); }
-function exportDiarioCSV() { if(!db.diario.length) return toast("Vacío", "error"); const header = ['Fecha', 'Efectivo', 'Gastos', 'Visa', 'TPV', 'Amex', 'Glovo', 'Uber', 'Apper', 'Total']; const rows = db.diario.map(d=>[d.date, d.cash, d.expenses, d.visa, d.tpv, d.amex, d.glovo, d.uber, d.apper, d.total].map(x=>Num.csv(x)).join(';')); const csv = [header.join(';'), ...rows].join('\n'); const a=document.createElement('a'); a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv); a.download='diario.csv'; a.click(); }
 
-/* ================= 10. UTILS & BACKUP ================= */
+/* ================= 10. UTILS ================= */
 function showModal(t,c){ document.getElementById('m-title').innerText=t; document.getElementById('m-body').innerHTML=c; document.getElementById('modal-overlay').classList.remove('hidden'); }
 function closeModal(){ document.getElementById('modal-overlay').classList.add('hidden'); }
 function downloadBackup(){ if(currentUser?.role!=='admin') return toast("⛔ Solo Gerencia", "error"); const data = secure.enc(db); const a = document.createElement('a'); a.href = 'data:application/octet-stream;charset=utf-8,' + encodeURIComponent(data); a.download = `arume_backup_${getISO()}.arume`; a.click(); }
