@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-    <title>ARUME V141 · Diamond Audit</title>
+    <title>ARUME V220 · Hybrid Stable</title>
     <meta name="description" content="Sistema de Gestión Integral para Hostelería">
     
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;800&display=swap" rel="stylesheet">
@@ -12,7 +12,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
 
     <style>
-        /* ESTÉTICA V141 DIAMOND */
+        /* ESTÉTICA V141 DIAMOND (LA QUE FUNCIONA) */
         body { font-family: 'Poppins', sans-serif; background: #f8fafc; padding-bottom: 110px; -webkit-tap-highlight-color: transparent; user-select: none; }
         
         .glass-card { 
@@ -24,14 +24,12 @@
             margin-bottom: 20px; 
         }
         
-        /* BOTONES OPTIMIZADOS */
         .btn-premium { 
             background: linear-gradient(135deg, #0f172a 0%, #334155 100%); 
             color: white; padding: 14px; border-radius: 12px; 
             font-weight: 700; box-shadow: 0 4px 15px rgba(15, 23, 42, 0.2); 
             width: 100%; display: flex; justify-content: center; align-items: center; gap: 8px; cursor: pointer;
-            transition: transform 0.1s;
-            border: none;
+            transition: transform 0.1s; border: none;
         }
         .btn-premium:active { transform: scale(0.97); }
 
@@ -54,7 +52,17 @@
         }
         .input-premium:focus { border-color: #4f46e5; background: white; }
 
-        /* NAV BAR */
+        /* CALENDARIO CUQUI */
+        .date-navigator {
+            display: flex; align-items: center; justify-content: space-between;
+            background: #f1f5f9; padding: 4px; border-radius: 12px; margin-bottom: 1rem; border: 1px solid #e2e8f0;
+        }
+        .date-btn {
+            width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
+            background: white; border-radius: 8px; color: #64748b; cursor: pointer; border: 1px solid #e2e8f0; font-weight: bold;
+        }
+        .date-display { font-weight: 700; color: #334155; font-family: monospace; font-size: 0.9rem; }
+
         nav { 
             position: fixed; bottom: 0; left: 0; width: 100%; 
             background: white; padding: 10px 0; 
@@ -63,13 +71,12 @@
             z-index: 50; border-top: 1px solid #e2e8f0;
             padding-bottom: max(12px, env(safe-area-inset-bottom));
         }
-        nav button { flex: 1; background: none; border: none; color: #94a3b8; display: flex; flex-direction: column; align-items: center; font-size: 0.65rem; font-weight: 600; transition: 0.2s; cursor: pointer; }
+        nav button { flex: 1; background: none; border: none; color: #94a3b8; display: flex; flex-direction: column; align-items: center; font-size: 0.65rem; font-weight: 600; transition: 0.2s; cursor: pointer; padding: 6px 4px; }
         nav button.active { color: #0f172a; transform: translateY(-2px); }
         nav button.active svg { fill: #0f172a; }
         nav button svg { width: 24px; height: 24px; fill: #94a3b8; margin-bottom: 4px; }
         nav button.locked { opacity: 0.4; filter: grayscale(1); pointer-events: none; }
 
-        /* UTILS */
         #loading-overlay { position: fixed; inset: 0; background: rgba(255,255,255,0.95); z-index: 9999; display: flex; justify-content: center; align-items: center; flex-direction: column; }
         .spinner { width: 40px; height: 40px; border: 4px solid #e2e8f0; border-top: 4px solid #4f46e5; border-radius: 50%; animation: spin 1s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
@@ -101,8 +108,8 @@
 
     <header class="sticky top-0 z-40 px-6 py-4 flex justify-between items-center bg-white/90 backdrop-blur border-b border-gray-100">
         <div>
-            <h1 class="text-2xl font-black text-slate-900 tracking-tight">ARUME <span class="text-indigo-600">V141</span></h1>
-            <p class="text-[10px] text-gray-400 font-bold tracking-widest uppercase">Diamond Audit</p>
+            <h1 class="text-2xl font-black text-slate-900 tracking-tight">ARUME <span class="text-indigo-600">V220</span></h1>
+            <p class="text-[10px] text-gray-400 font-bold tracking-widest uppercase">Hybrid Stable</p>
         </div>
         <div class="bg-slate-100 px-3 py-1 rounded-full text-xs font-bold text-slate-600 flex items-center gap-2 cursor-pointer hover:bg-slate-200 transition" onclick="logout()">
             <div id="sync-dot" class="w-2 h-2 rounded-full bg-gray-400"></div> <span id="user-name">Login</span>
@@ -142,37 +149,31 @@
             <button class="pin-btn w-16 h-16 rounded-full border border-white/10 text-xl font-bold hover:bg-white/10" onclick="pin(0)">0</button>
             <button class="pin-btn w-16 h-16 rounded-full bg-emerald-500/20 border border-emerald-500/50 text-emerald-300 font-bold" onclick="pin('OK')">OK</button>
         </div>
-        <p class="mt-8 text-slate-500 text-xs">PIN 0150: Admin | PIN 1111: Equipo</p>
     </div>
 
 <script>
-/* ================= 1. CORE UTILS & NUMERICS (AUDIT FIX) ================= */
-// Manejo robusto de decimales y sanitización
+/* ================= 1. CORE UTILS & NUMERICS ================= */
 const Num = {
-    // Convierte string "1.200,50" -> float 1200.50
     parse: (str) => {
-        if (!str) return 0;
+        if (str === null || str === undefined || str === '') return 0;
         if (typeof str === 'number') return str;
-        // Eliminar puntos de miles y cambiar coma por punto
-        const cleanStr = String(str).replace(/\./g, '').replace(',', '.');
+        const cleanStr = String(str).replace(/\./g, '').replace(',', '.').replace(/[^\d\.\-]/g,'');
         const val = parseFloat(cleanStr);
         return isNaN(val) ? 0 : val;
     },
-    // Formatea float -> "1.200,50"
-    fmt: (n) => (n||0).toLocaleString('es-ES', {minimumFractionDigits: 2, maximumFractionDigits: 2}),
-    // Formato CSV (Excel español usa coma decimal)
+    fmt: (n) => (Number(n)||0).toLocaleString('es-ES', {minimumFractionDigits: 2, maximumFractionDigits: 2}),
     csv: (n) => String(n||0).replace('.', ',')
 };
 
 function clean(str) { 
-    if(!str) return ''; 
-    // Sanitización básica para evitar inyección HTML
+    if(str === null || str === undefined) return ''; 
     return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); 
 }
 
 const generateID = () => Math.random().toString(36).substr(2, 9);
 const getISO = () => new Date().toLocaleDateString('en-CA');
 const getTS = () => new Date().toLocaleString('es-ES');
+const formatDateES = (d) => { if(!d)return''; const p=d.split('-'); return `${p[2]}/${p[1]}/${p[0]}`; };
 
 /* ================= 2. CONFIGURACIÓN & DB ================= */
 const CONFIG = { 
@@ -180,12 +181,7 @@ const CONFIG = {
     COST_HOUR: 15 
 };
 
-const ALLERGENS = [
-    {k:'glu',i:'🌾'},{k:'cru',i:'🦐'},{k:'hue',i:'🥚'},{k:'pes',i:'🐟'},
-    {k:'cac',i:'🥜'},{k:'soj',i:'🫘'},{k:'lac',i:'🥛'},{k:'fru',i:'🌰'},
-    {k:'api',i:'🥬'},{k:'mos',i:'🌭'},{k:'ses',i:'🌱'},{k:'sul',i:'🍷'},
-    {k:'alt',i:'🫘'},{k:'mol',i:'🐙'}
-];
+const ALLERGENS = [{k:'glu',i:'🌾'},{k:'cru',i:'🦐'},{k:'hue',i:'🥚'},{k:'pes',i:'🐟'},{k:'cac',i:'🥜'},{k:'soj',i:'🫘'},{k:'lac',i:'🥛'},{k:'fru',i:'🌰'},{k:'api',i:'🥬'},{k:'mos',i:'🌭'},{k:'ses',i:'🌱'},{k:'sul',i:'🍷'},{k:'alt',i:'🫘'},{k:'mol',i:'🐙'}];
 
 const DB_INIT = { 
     users: [{id:'u1', n:'Gerencia', pin:'0150', role:'admin'}, {id:'u2', n:'Equipo', pin:'1111', role:'staff'}], 
@@ -193,7 +189,6 @@ const DB_INIT = {
     kardex: [], sales_history: [], lastSync: 0 
 };
 
-// "Encriptación" ligera para almacenamiento local (No es seguridad militar, evita lectura accidental)
 const secure = { 
     enc: (d) => btoa(encodeURIComponent(JSON.stringify(d))), 
     dec: (d) => JSON.parse(decodeURIComponent(atob(d))) 
@@ -219,7 +214,8 @@ function toast(msg, type='info') {
 }
 
 function isInPeriod(dateStr) { 
-    if(fiscalQuarter===0) return true; 
+    if(!dateStr) return false;
+    if(fiscalQuarter===0) return new Date(dateStr).getFullYear()===fiscalYear;
     const d=new Date(dateStr); 
     return d.getFullYear()===fiscalYear && (Math.floor(d.getMonth()/3)+1)===fiscalQuarter; 
 }
@@ -228,9 +224,8 @@ function init() {
     try { 
         const stored=localStorage.getItem('arume_v125'); 
         if(stored) db=secure.dec(stored); 
-    } catch(e){ console.warn("DB Integrity Reset"); }
+    } catch(e){ console.warn("DB Integrity Reset"); db = DB_INIT; }
     
-    // Migraciones de estructura seguras
     if(!db.users || !db.users.length) db.users=DB_INIT.users;
     if(!db.kardex) db.kardex=[]; 
     if(!db.sales_history) db.sales_history=[];
@@ -248,9 +243,7 @@ async function save(msg){
         db.lastSync=Date.now(); 
         localStorage.setItem('arume_v125', secure.enc(db)); 
         if(CONFIG.GOOGLE_URL) { 
-            const c=new AbortController(); 
-            setTimeout(()=>c.abort(),4000); 
-            // no-cors es necesario para Google Apps Script simple
+            const c=new AbortController(); setTimeout(()=>c.abort(),4000); 
             await fetch(CONFIG.GOOGLE_URL,{method:'POST',mode:'no-cors',body:JSON.stringify(db),signal:c.signal}).catch(()=>{}); 
         }
         if(msg) toast(msg,'success'); 
@@ -261,13 +254,8 @@ async function save(msg){
 async function sync(){ 
     if(!CONFIG.GOOGLE_URL) return; 
     try{ 
-        const r=await fetch(CONFIG.GOOGLE_URL); 
-        const c=await r.json(); 
-        if(c&&c.lastSync>(db.lastSync||0)){ 
-            db=c; localStorage.setItem('arume_v125',secure.enc(db)); 
-            // No recargar, repintar
-            loadApp(); toast("Datos sincronizados");
-        } 
+        const r=await fetch(CONFIG.GOOGLE_URL); const c=await r.json(); 
+        if(c&&c.lastSync>(db.lastSync||0)){ db=c; localStorage.setItem('arume_v125',secure.enc(db)); loadApp(); toast("Datos sincronizados"); } 
     }catch(e){} 
 }
 
@@ -275,13 +263,9 @@ function pin(n){
     if(n==='C') currentPin=""; 
     else if(n==='OK'){ 
         const u=db.users.find(x=>x.pin===currentPin); 
-        if(u){ 
-            currentUser=u; 
-            localStorage.setItem('arume_user',JSON.stringify(u)); 
-            document.getElementById('pin-screen').classList.add('hidden'); 
-            loadApp(); 
-        } else { toast("PIN Incorrecto","error"); currentPin=""; }
-    } else if(currentPin.length<4) currentPin+=n; 
+        if(u){ currentUser=u; localStorage.setItem('arume_user',JSON.stringify(u)); document.getElementById('pin-screen').classList.add('hidden'); loadApp(); } 
+        else { toast("PIN Incorrecto","error"); currentPin=""; }
+    } else if(String(currentPin).length<6) currentPin+=n; 
     document.getElementById('pin-display').innerText=currentPin?'*'.repeat(currentPin.length):'****'; 
 }
 
@@ -289,229 +273,423 @@ function logout(){ if(confirm("¿Cerrar sesión?")){ localStorage.removeItem('ar
 
 /* ================= 4. LOGIC ENGINE ================= */
 const UnitConverter = {
-    normalize: (u) => { 
-        if(!u) return 'ud'; u=u.toLowerCase().trim(); 
-        if(['kg','kilo','kilos'].includes(u)) return 'kg'; 
-        if(['g','gr','gramos','gramo'].includes(u)) return 'g'; 
-        if(['l','litro','litros'].includes(u)) return 'l'; 
-        if(['ml','mililitro'].includes(u)) return 'ml'; 
-        return 'ud'; 
-    },
-    convert: (val,from,to) => { 
-        from=UnitConverter.normalize(from); to=UnitConverter.normalize(to); 
-        if(from===to) return val; 
-        if(from==='kg'&&to==='g') return val*1000; 
-        if(from==='g'&&to==='kg') return val/1000; 
-        if(from==='l'&&to==='ml') return val*1000; 
-        if(from==='ml'&&to==='l') return val/1000; 
-        return val; 
-    }
+    normalize: (u) => { if(!u) return 'ud'; u=u.toLowerCase().trim(); if(['kg','kilo','kilos'].includes(u)) return 'kg'; if(['g','gr','gramos','gramo'].includes(u)) return 'g'; if(['l','litro','litros'].includes(u)) return 'l'; if(['ml','mililitro'].includes(u)) return 'ml'; return 'ud'; },
+    convert: (val,from,to) => { from=UnitConverter.normalize(from); to=UnitConverter.normalize(to); if(from===to) return val; if(from==='kg'&&to==='g') return val*1000; if(from==='g'&&to==='kg') return val/1000; if(from==='l'&&to==='ml') return val*1000; if(from==='ml'&&to==='l') return val/1000; return val; }
 };
 
 function logStock(ingId, qty, type, reason, price=0) { 
     const ing=db.ingredientes.find(x=>x.id===ingId); 
-    if(ing) db.kardex.push({
-        id:generateID(), ts:Date.now(), date:getTS(), 
-        ingId, n:ing.n, type, qty, unit:ing.unit, price, reason, user:currentUser.n
-    }); 
+    if(ing) db.kardex.push({ id:generateID(), ts:Date.now(), date:getTS(), ingId, n:ing.n, type, qty, unit:ing.unit, price, reason, user:currentUser?.n || 'sistema' }); 
 }
 
 /* ================= 5. UI RENDER & SECURITY ================= */
 function loadApp() { 
-    document.getElementById('user-name').innerText=currentUser.n; 
+    document.getElementById('user-name').innerText=currentUser?.n || 'Login'; 
     renderNav(); 
-    // Redirigir a vista segura si es staff
-    render(currentUser.role==='admin' ? 'Admin' : 'Cocina'); 
+    render(currentUser?.role==='admin' ? 'Admin' : 'Cocina'); 
 }
 
 function renderNav() {
     const isAdmin = currentUser?.role==='admin';
     const views = [
-        {id:'Diario', l:'Caja', i:'<path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/>', restricted:!isAdmin},
-        {id:'Admin', l:'Gestión', i:'<path d="M12 2L3 5v6c0 5 3.8 9.7 9 11 5.2-1.3 9-6 9-11V5l-9-3z"/>', restricted:!isAdmin},
-        {id:'Cocina', l:'Cocina', i:'<path d="M12 2C8.1 6 7 8 7 11c0 3.9 3.1 7 7 7s7-3.1 7-7c0-3-1.1-5-5-9z"/>', restricted:false},
-        {id:'Stock', l:'Stock', i:'<path d="M20 6h-2.18c.11-.31.18-.65.18-1 0-1.66-1.34-3-3-3-1.05 0-1.96.54-2.5 1.35l-.5.67-.5-.68C10.96 2.54 10.05 2 9 2 7.34 2 6 3.34 6 5c0 .35.07.69.18 1H4c-1.11 0-1.99.89-1.99 2L2 19c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm-5-2c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 1-1-.45-1-1zM9 4c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 1-1-.45-1-1z"/>', restricted:false}
+        {id:'Diario', l:'Caja', svg:`<path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/>`, restricted:!isAdmin},
+        {id:'Admin', l:'Gestión', svg:`<path d="M12 2L3 5v6c0 5 3.8 9.7 9 11 5.2-1.3 9-6 9-11V5l-9-3z"/>`, restricted:!isAdmin},
+        {id:'Cocina', l:'Cocina', svg:`<path d="M12 2C8.1 6 7 8 7 11c0 3.9 3.1 7 7 7s7-3.1 7-7c0-3-1.1-5-5-9z"/>`, restricted:false},
+        {id:'Stock', l:'Stock', svg:`<path d="M20 6H6v13h14V6zM4 4h15l1 1v16H3V4z"/>`, restricted:false}
     ];
-    document.getElementById('navbar').innerHTML = views.map(v => `<button type="button" id="btn-${v.id}" class="${v.restricted?'locked':''}" onclick="render('${v.id}')"><svg viewBox="0 0 24 24">${v.restricted?'<path d="M12 17c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm6-9h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zM9 6c0-1.66 1.34-3 3-3s3 1.34 3 3v2H9V6z"/>':v.i}</svg><span>${v.l}</span></button>`).join('');
+    document.getElementById('navbar').innerHTML = views.map(v => {
+        const lockedClass = v.restricted ? 'locked' : '';
+        return `<button type="button" id="btn-${v.id}" class="${lockedClass}" onclick="render('${v.id}')"><svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">${v.svg}</svg><span>${v.l}</span></button>`;
+    }).join('');
 }
 
 function render(view) {
-    if((view==='Diario'||view==='Admin') && currentUser.role!=='admin') return toast("⛔ Acceso Restringido", "error");
+    if((view==='Diario'||view==='Admin') && currentUser?.role!=='admin' && view==='Admin') return toast("⛔ Acceso Restringido", "error");
     document.querySelectorAll('nav button').forEach(b=>b.classList.remove('active'));
     document.getElementById(`btn-${view}`)?.classList.add('active');
     const app = document.getElementById('app');
-    if(view==='Diario') renderDiario(app); if(view==='Admin') renderAdmin(app); if(view==='Cocina') renderCocina(app); if(view==='Stock') renderStock(app);
+    if(view==='Diario') renderDiario(app); 
+    else if(view==='Admin') renderAdmin(app); 
+    else if(view==='Cocina') renderCocina(app); 
+    else if(view==='Stock') renderStock(app);
 }
 
 /* ================= 6. GESTIÓN (ADMIN) ================= */
 function renderAdmin(app) {
-    const totalVentas = db.diario.filter(d => isInPeriod(d.date)).reduce((acc, d) => acc + (d.total||0), 0);
-    const periodAlbs = db.albaranes.filter(a => isInPeriod(a.date));
+    const totalVentas = (db.diario||[]).filter(d => isInPeriod(d.date)).reduce((acc, d) => acc + (d.total||0), 0);
+    const periodAlbs = (db.albaranes||[]).filter(a => isInPeriod(a.date));
     const periodCosts = periodAlbs.reduce((acc, a) => acc + (a.total||0), 0);
-    const periodTax = periodAlbs.reduce((acc, a) => acc + (a.taxes||0), 0);
     const profit = totalVentas - periodCosts;
 
-    const qCtrl = `<div class="flex justify-between bg-white p-1 rounded-full shadow-sm mb-6"><button class="period-btn ${fiscalQuarter===1?'active':''}" onclick="fiscalQuarter=1;renderAdmin(document.getElementById('app'))">1T</button><button class="period-btn ${fiscalQuarter===2?'active':''}" onclick="fiscalQuarter=2;renderAdmin(document.getElementById('app'))">2T</button><button class="period-btn ${fiscalQuarter===3?'active':''}" onclick="fiscalQuarter=3;renderAdmin(document.getElementById('app'))">3T</button><button class="period-btn ${fiscalQuarter===4?'active':''}" onclick="fiscalQuarter=4;renderAdmin(document.getElementById('app'))">4T</button><button class="period-btn ${fiscalQuarter===0?'active':''}" onclick="fiscalQuarter=0;renderAdmin(document.getElementById('app'))">AÑO</button></div>`;
+    const qCtrl = `<div class="flex justify-center gap-2 mb-4">
+        <button class="period-btn ${fiscalQuarter===0?'active':''}" onclick="fiscalQuarter=0;renderAdmin(document.getElementById('app'))">Año</button>
+        <button class="period-btn ${fiscalQuarter===1?'active':''}" onclick="fiscalQuarter=1;renderAdmin(document.getElementById('app'))">T1</button>
+        <button class="period-btn ${fiscalQuarter===2?'active':''}" onclick="fiscalQuarter=2;renderAdmin(document.getElementById('app'))">T2</button>
+        <button class="period-btn ${fiscalQuarter===3?'active':''}" onclick="fiscalQuarter=3;renderAdmin(document.getElementById('app'))">T3</button>
+        <button class="period-btn ${fiscalQuarter===4?'active':''}" onclick="fiscalQuarter=4;renderAdmin(document.getElementById('app'))">T4</button>
+    </div>`;
 
-    app.innerHTML = `<div class="text-center font-bold text-slate-400 mb-2">${fiscalYear}</div>${qCtrl}
-        <div class="flex gap-2 mb-6 bg-white p-1 rounded-2xl shadow-sm border border-slate-100">
-            <button class="flex-1 py-2.5 rounded-xl font-bold text-xs transition ${activeAdminTab==='dash'?'bg-slate-800 text-white shadow-md':'text-slate-500 hover:bg-slate-50'}" onclick="activeAdminTab='dash';renderAdmin(document.getElementById('app'))">RESUMEN</button>
-            <button class="flex-1 py-2.5 rounded-xl font-bold text-xs transition ${activeAdminTab==='omnes'?'bg-slate-800 text-white shadow-md':'text-slate-500 hover:bg-slate-50'}" onclick="activeAdminTab='omnes';renderAdmin(document.getElementById('app'))">OMNES</button>
-            <button class="flex-1 py-2.5 rounded-xl font-bold text-xs transition ${activeAdminTab==='albaranes'?'bg-slate-800 text-white shadow-md':'text-slate-500 hover:bg-slate-50'}" onclick="activeAdminTab='albaranes';renderAdmin(document.getElementById('app'))">COMPRAS</button>
-            <button class="flex-1 py-2.5 rounded-xl font-bold text-xs transition ${activeAdminTab==='facturas'?'bg-slate-800 text-white shadow-md':'text-slate-500 hover:bg-slate-50'}" onclick="activeAdminTab='facturas';renderAdmin(document.getElementById('app'))">FACTURAS</button>
+    app.innerHTML = `
+        <div class="text-center font-bold text-slate-400 mb-2">${fiscalYear}</div>
+        ${qCtrl}
+        <div class="flex gap-2 mb-6">
+            <button class="flex-1 py-2.5 rounded-xl font-bold text-xs ${activeAdminTab==='dash'?'bg-slate-800 text-white shadow-md':''}" onclick="activeAdminTab='dash';renderAdmin(document.getElementById('app'))">Dashboard</button>
+            <button class="flex-1 py-2.5 rounded-xl font-bold text-xs ${activeAdminTab==='omnes'?'bg-slate-800 text-white shadow-md':''}" onclick="activeAdminTab='omnes';renderAdmin(document.getElementById('app'))">Análisis</button>
+            <button class="flex-1 py-2.5 rounded-xl font-bold text-xs ${activeAdminTab==='albaranes'?'bg-slate-800 text-white shadow-md':''}" onclick="activeAdminTab='albaranes';renderAdmin(document.getElementById('app'))">Albaranes</button>
+            <button class="flex-1 py-2.5 rounded-xl font-bold text-xs ${activeAdminTab==='facturas'?'bg-slate-800 text-white shadow-md':''}" onclick="activeAdminTab='facturas';renderAdmin(document.getElementById('app'))">Facturas</button>
         </div>
-        ${activeAdminTab === 'dash' ? `<div class="glass-card bg-gradient-to-br from-slate-900 to-slate-800 text-white border-0"><h3 class="text-xs font-bold text-slate-400 uppercase mb-4 tracking-widest">Resultado ${fiscalQuarter===0?'ANUAL':fiscalQuarter+'T'}</h3><div class="flex justify-between items-end mb-6"><div><div class="text-3xl font-black ${profit>=0?'text-emerald-400':'text-red-400'}">${Num.fmt(profit)}€</div><div class="text-xs opacity-60">Beneficio</div></div><div class="text-right"><div class="text-lg font-bold">${Num.fmt(totalVentas)}€</div><div class="text-xs opacity-60">Ventas</div></div></div><div class="h-2 bg-slate-700 rounded-full overflow-hidden flex"><div class="bg-emerald-500 h-full" style="width:${(totalVentas/(totalVentas+periodCosts)*100)||50}%"></div><div class="bg-red-500 h-full flex-1"></div></div><div class="flex justify-between text-[10px] mt-2 font-bold text-slate-400"><span>INGRESOS</span><span>GASTOS (${Num.fmt(periodCosts)}€)</span></div></div><div class="glass-card"><div class="flex justify-between items-center"><span class="font-bold text-slate-600">IVA Soportado</span><span class="font-black text-xl text-indigo-600">${Num.fmt(periodTax)}€</span></div></div><button class="btn-ghost w-full mb-4" onclick="downloadBackup()">💾 COPIA DE SEGURIDAD</button>` : ''}
-        <div id="adm-c"></div>`;
-    
+        <div id="adm-c"></div>
+    `;
+
     const c = document.getElementById('adm-c');
+    if(activeAdminTab==='dash') {
+        c.innerHTML = `<div class="glass-card"><h3 class="font-bold text-slate-800">Resumen</h3>
+            <div class="grid grid-cols-3 gap-4 mt-4">
+                <div class="p-4 bg-white rounded-lg text-center"><div class="text-xs text-gray-500">Ventas</div><div class="text-xl font-black">${Num.fmt(totalVentas)}</div></div>
+                <div class="p-4 bg-white rounded-lg text-center"><div class="text-xs text-gray-500">Costes</div><div class="text-xl font-black">${Num.fmt(periodCosts)}</div></div>
+                <div class="p-4 bg-white rounded-lg text-center"><div class="text-xs text-gray-500">Beneficio</div><div class="text-xl font-black">${Num.fmt(profit)}</div></div>
+            </div>
+            <div class="mt-4"><button class="btn-premium btn-action" onclick="downloadBackup()">💾 Copia Seguridad</button></div>
+        </div>`;
+    }
     if(activeAdminTab==='omnes') renderOmnes(c);
     if(activeAdminTab==='albaranes') renderAlbaranes(c);
     if(activeAdminTab==='facturas') renderFacturas(c);
 }
 
 function renderOmnes(c) {
-    if (!db.recetas || db.recetas.length === 0) {
-        c.innerHTML = `<div class="glass-card text-center"><h3 class="font-bold text-slate-800">No hay recetas</h3><p class="text-xs text-slate-400 mb-4">Crea platos en Cocina primero.</p><button class="btn-premium w-full" onclick="render('Cocina')">IR A COCINA</button></div>`;
+    const recipes = db.recetas || [];
+    if (recipes.length === 0) {
+        c.innerHTML = `<div class="glass-card text-center"><h3 class="font-bold text-slate-800">No hay recetas</h3><p class="text-xs text-slate-400 mb-4">Crea platos en Cocina primero.</p></div>`;
         return;
     }
-    let totalSold=0, totalRev=0, totalCost=0;
-    const periodSalesMap = {}; 
-    db.sales_history.filter(log => isInPeriod(log.date)).forEach(log => { log.items.forEach(it => { const rid = it.rid || db.recetas.find(r=>r.n===it.n)?.id; if(rid) periodSalesMap[rid] = (periodSalesMap[rid] || 0) + it.q; }); });
-    const useHistory = db.sales_history.length > 0;
-    const recipesData = (db.recetas||[]).map(r => { const costData = calcRecipe(r); const sales = useHistory ? (periodSalesMap[r.id] || 0) : (r.sales || 0); totalSold += sales; totalRev += (sales * r.pvp); totalCost += (sales * costData.t); return { r, sales, margin: r.pvp - costData.t, cost: costData.t }; });
-    const avgMargin = totalSold > 0 ? ((totalRev - totalCost) / totalSold) : 0; const popLimit = (totalSold > 0 ? (100 / recipesData.length) : 0) * 0.7;
-    let html = ''; recipesData.sort((a,b) => b.sales - a.sales).forEach(d => { if(d.sales > 0) { const isPop = (totalSold > 0 ? (d.sales/totalSold)*100 : 0) >= popLimit; const isRich = d.margin >= avgMargin; let type = isPop ? (isRich ? 'ESTRELLA' : 'CABALLO') : (isRich ? 'PUZZLE' : 'PERRO'); let css = isPop ? (isRich ? 'omnes-star' : 'omnes-plow') : (isRich ? 'omnes-puzz' : 'omnes-dog'); html += `<div class="bg-white p-3 rounded-xl omnes-card mb-2 shadow-sm flex justify-between items-center ${css}"><div class="flex-1"><div class="font-bold text-slate-700">${clean(d.r.n)}</div><div class="text-[10px] font-bold opacity-70">${type}</div></div><div class="text-right"><div class="font-black text-lg">${d.sales}</div><div class="text-[10px]">VENDIDOS</div></div></div>`; } });
-    c.innerHTML = `<div class="flex justify-between items-center mb-4"><h3 class="font-bold text-slate-800">Análisis ${fiscalQuarter===0?'ANUAL':fiscalQuarter+'T'}</h3><button class="btn-premium btn-action w-auto px-4 py-2 text-xs" onclick="editSales()">📝 REGISTRAR SERVICIO</button></div>${html || '<div class="text-center p-8 text-slate-400 border-2 border-dashed rounded-xl">Sin ventas en este periodo</div>'}`;
+    let html = `<div class="grid gap-3">`;
+    recipes.forEach(r => {
+        const calc = calcRecipe(r);
+        html += `<div class="bg-white p-3 rounded-xl border border-slate-100">
+            <div class="flex justify-between items-center">
+                <div><div class="font-bold">${clean(r.n)}</div><div class="text-xs text-slate-400">Coste: ${Num.fmt(calc.cost)} • PVP: ${Num.fmt(r.pvp||0)}</div></div>
+                <div class="text-right"><div class="text-sm font-black">${Num.fmt((r.pvp||0) - calc.cost)}</div><div class="text-xs text-slate-400">${(r.sales||0)} vendidos</div></div>
+            </div>
+        </div>`;
+    });
+    html += `</div>`;
+    c.innerHTML = `<div class="glass-card"><div class="flex justify-between items-center mb-4"><h3 class="font-bold text-slate-800">Análisis</h3><button class="btn-premium btn-action w-auto px-3 text-xs" onclick="editSales()">Registrar Ventas</button></div>${html}</div>`;
 }
 
 function editSales() {
     if (!db.recetas || db.recetas.length === 0) return toast("No hay recetas creadas", "error");
-    const html = db.recetas.map(r => `<div class="flex justify-between items-center py-2 border-b border-slate-50"><span class="text-sm font-medium text-slate-700 w-1/2">${clean(r.n)}</span><div class="flex items-center gap-2"><input type="number" min="0" placeholder="0" id="sale-add-${r.id}" onfocus="this.select()" class="bg-white border-2 border-slate-200 rounded-xl w-20 text-center py-2 font-bold text-indigo-600 focus:border-indigo-500 outline-none shadow-sm transition"></div></div>`).join('');
-    showModal('Cierre de Ventas', `<div class="bg-blue-50 p-3 rounded-lg text-blue-800 text-xs mb-4">Introduce <b>ventas del día</b>.</div><div class="max-h-[50vh] overflow-y-auto pr-2 mb-4">${html}</div><div class="flex gap-2"><button class="btn-premium btn-action w-full" onclick="commitSalesSession()">PROCESAR Y DESCONTAR STOCK</button></div>`);
+    const html = db.recetas.map(r => `<div class="flex justify-between items-center py-2 border-b"><span class="text-sm font-medium">${clean(r.n)}</span><input id="sale-add-${r.id}" type="number" min="0" value="0" onclick="this.select()" class="input-premium w-24 text-right"></div>`).join('');
+    showModal('Cierre de Ventas', `<div class="bg-blue-50 p-3 rounded-lg text-blue-800 text-xs mb-4">Introduce <b>ventas del día</b>.</div><div style="max-height:40vh;overflow:auto;">${html}</div><div class="mt-4"><button class="btn-premium" onclick="commitSalesSession()">Procesar</button></div>`);
 }
 
 function commitSalesSession() {
     let log = { id: generateID(), date: getTS(), items: [] };
     let hasData = false;
-    db.recetas.forEach(r => {
-        const qty = Num.parse(document.getElementById(`sale-add-${r.id}`).value);
+    (db.recetas||[]).forEach(r => {
+        const el = document.getElementById(`sale-add-${r.id}`);
+        const qty = el ? Num.parse(el.value) : 0;
         if(qty > 0) {
             hasData = true;
-            r.items.forEach(it => { if(it.type === 'ing') { const ing = db.ingredientes.find(x => x.id === it.id); if(ing) { let needed = it.q * qty; if(it.merma) needed = needed / (1 - (it.merma/100)); const finalQty = UnitConverter.convert(needed, r.unit || 'kg', ing.unit); ing.stock -= finalQty; logStock(ing.id, finalQty, 'OUT', `Venta: ${r.n} (${qty})`); } } });
-            r.sales = (r.sales || 0) + qty; log.items.push({ rid: r.id, n: r.n, q: qty });
+            (r.items||[]).forEach(it => {
+                if(it.type === 'ing') {
+                    const ing = db.ingredientes.find(x => x.id === it.id);
+                    if(ing) {
+                        let needed = it.q * qty;
+                        if(it.merma) { const mermaFactor = (1 - (it.merma/100)); if(mermaFactor > 0) needed = needed / mermaFactor; }
+                        ing.stock = (ing.stock || 0) - needed;
+                        logStock(ing.id, -needed, 'OUT', `Venta: ${r.n}`, ing.cost || 0);
+                    }
+                }
+            });
+            r.sales = (r.sales || 0) + qty;
+            log.items.push({ rid: r.id, n: r.n, q: qty });
         }
     });
     if(hasData) { db.sales_history.push(log); save("Ventas procesadas"); closeModal(); renderAdmin(document.getElementById('app')); } else toast("No has introducido cantidades", "error");
 }
 
-/* --- ALBARANES --- */
+/* --- ALBARANES (MEJORADO CON EDITAR Y BORRAR) --- */
 function renderAlbaranes(c) {
-    const periodAlbs = db.albaranes.filter(a => isInPeriod(a.date)).slice().reverse();
-    const provOptions = db.proveedores.map(p=>`<option value="${clean(p.n)}">`).join('');
-    const ingOptions = db.ingredientes.map(i=>`<option value="${clean(i.n)}">`).join('');
-    c.innerHTML = `<div class="glass-card"><h3 class="font-bold text-slate-700 mb-4 text-sm uppercase">Nuevo Albarán</h3><div class="grid grid-cols-3 gap-3 mb-3"><div><label>Proveedor</label><input list="prov-list" id="alb-prov" class="input-premium" placeholder="..."><datalist id="prov-list">${provOptions}</datalist></div><div><label>Productor</label><input id="alb-producer" class="input-premium"></div><div><label>Ref</label><input id="alb-num" class="input-premium" value="A-${new Date().getFullYear().toString().slice(-2)}-${(db.albaranes.length+1).toString().padStart(4,'0')}"></div></div><div class="grid grid-cols-2 gap-3 mb-3"><div><label>Fecha</label><input type="date" id="alb-date" value="${getISO()}" class="input-premium"></div><div><label>Nota</label><input id="alb-note" class="input-premium"></div></div><datalist id="ing-list">${ingOptions}</datalist><textarea id="alb-input" rows="3" class="input-premium font-mono text-xs mb-2" placeholder="Pegar: Producto TAB Cantidad TAB Precio..."></textarea><div class="flex gap-2 mb-4"><button class="btn-ghost" onclick="parseAlb()">🪄 Leer</button><button class="btn-ghost" onclick="tempItems=[];renderAlbGrid()">Borrar</button></div><div id="alb-grid" class="space-y-2 mb-4"></div><div class="border-t border-slate-100 pt-3 text-right"><div class="text-2xl font-black text-slate-800"><span id="alb-total">0.00€</span></div></div><div class="grid grid-cols-2 gap-3 mt-4"><button class="btn-premium btn-action" onclick="commitAlb()">CONFIRMAR</button><button class="btn-ghost" onclick="exportAlbCSV()">CSV</button></div></div><div class="glass-card"><h4 class="text-xs font-bold text-slate-400 uppercase mb-4">Historial (${fiscalQuarter===0?'AÑO':fiscalQuarter+'T'})</h4>${periodAlbs.length ? periodAlbs.map(a => `<div class="flex justify-between items-center py-3 border-b border-slate-50"><div class="text-sm font-bold text-slate-700">${clean(a.prov)}<div class="text-[10px] text-slate-400 font-normal">${a.date}</div></div><div class="flex items-center gap-2"><span class="font-bold text-sm mr-2">${Num.fmt(a.total)}€</span><button class="btn-icon btn-ghost" onclick="viewAlbDetails('${a.id}')">👁</button>${!a.invoiced ? `<button class="btn-icon btn-edit" onclick="editAlb('${a.id}')">✏️</button><button class="btn-icon btn-delete" onclick="deleteAlb('${a.id}')">🗑️</button>` : ''}</div></div>`).join('') : '<div class="text-center p-4 text-slate-400">Sin compras</div>'}</div>`;
+    const periodAlbs = (db.albaranes||[]).filter(a => isInPeriod(a.date)).slice().reverse();
+    const provOptions = (db.proveedores||[]).map(p=>`<option value="${clean(p.n)}">`).join('');
+    const ingOptions = (db.ingredientes||[]).map(i=>`<option value="${clean(i.n)}">`).join('');
+    
+    // Banner de Edición
+    const editBanner = document.getElementById('alb-num') && document.getElementById('alb-num').dataset.editId ? 
+        `<div id="edit-banner" class="bg-amber-100 text-amber-800 p-2 mb-2 rounded font-bold text-xs text-center">🟠 MODO EDICIÓN</div>` : '';
+
+    c.innerHTML = `${editBanner}<div class="glass-card">
+        <h3 class="font-bold text-slate-700 mb-4 text-sm uppercase">Nuevo Albarán</h3>
+        <div class="grid grid-cols-2 gap-3 mb-3">
+            <div><label>Proveedor</label><input id="alb-prov" list="prov-list" class="input-premium" placeholder="Proveedor..."><datalist id="prov-list">${provOptions}</datalist></div>
+            <div><label>Fecha</label><input id="alb-date" type="date" class="input-premium" value="${getISO()}"></div>
+            <div><label>Número</label><input id="alb-num" class="input-premium" placeholder="Nº albarán"></div>
+            <div><label>Productor</label><input id="alb-producer" class="input-premium" placeholder="Productor"></div>
+        </div>
+        <div class="mb-3">
+            <label>Texto (una línea = producto ; formato: Nombre ; Cantidad ; Unidad ; Precio ; IVA%)</label>
+            <textarea id="alb-input" class="input-premium" rows="4" placeholder="Tomate;10;kg;1.20;10"></textarea>
+            <div class="flex gap-2 mt-2">
+                <button class="btn-action btn-premium" onclick="parseAlb()">Parsear</button>
+                <button class="btn-ghost" onclick="tempItems=[];renderAlbGrid()">Limpiar</button>
+            </div>
+        </div>
+        <div id="alb-grid" class="mb-3"></div>
+        <div class="text-right font-bold text-xl mb-3" id="alb-total">0.00€</div>
+        <div class="flex gap-2"><button class="btn-premium" onclick="commitAlb()">Guardar Albarán</button></div>
+    </div>
+    <div class="glass-card"><h3 class="font-bold text-slate-700 text-sm uppercase mb-2">Albaranes periodo</h3>
+        <div>${periodAlbs.map(a=>`<div class="py-2 border-b flex justify-between items-center">
+            <div><b>${clean(a.prov)}</b> ${a.date}</div>
+            <div class="flex items-center gap-2">
+                <span class="font-bold">${Num.fmt(a.total||0)}€</span> 
+                <button class="btn-icon btn-view" onclick="viewAlbDetails('${a.id}')">👁</button>
+                ${!a.invoiced ? `<button class="btn-icon btn-edit" onclick="editAlb('${a.id}')">✏️</button><button class="btn-icon btn-delete" onclick="deleteAlb('${a.id}')">🗑️</button>` : ''}
+            </div>
+        </div>`).join('')}</div>
+    </div>`;
     renderAlbGrid();
 }
-function parseAlb() { const txt = document.getElementById('alb-input').value.trim(); tempItems = []; if (!txt) return toast("Texto vacío", "error"); txt.split(/\r?\n/).forEach(l => { let parts = l.split(/\t/); if(parts.length<2) parts=l.split(/,(?=\s*\d)/); if(parts.length>=2){ const n=parts[0].trim(), qS=parts[1].trim(), pS=parts[2]?parts[2].trim():'0'; const qM = qS.match(/^([\d\.,]+)\s*([a-zA-Z]+)?$/); const qty = qM ? Num.parse(qM[1]) : Num.parse(qS); const unit = qM && qM[2] ? UnitConverter.normalize(qM[2]) : 'ud'; const price = Num.parse(pS); if(n && price>0) tempItems.push({n, q:qty, p:price, unit, d:0, dType:'abs', tax:10}); } }); renderAlbGrid(); }
-function renderAlbGrid() { const el = document.getElementById('alb-grid'); if(!el) return; el.innerHTML = tempItems.map((it,i) => `<div class="bg-white p-2 rounded-xl border border-slate-100 flex flex-wrap items-center gap-2 shadow-sm"><input list="ing-list" value="${clean(it.n)}" class="flex-1 min-w-[120px] bg-transparent font-bold text-sm outline-none" onchange="tempItems[${i}].n=this.value"><input type="number" value="${it.q}" class="w-16 bg-slate-50 text-center text-xs p-1 rounded font-bold" onchange="tempItems[${i}].q=parseFloat(this.value);renderAlbGrid()"><select onchange="tempItems[${i}].unit=this.value" class="w-14 bg-slate-50 text-xs p-1 rounded"><option ${it.unit==='ud'?'selected':''} value="ud">ud</option><option ${it.unit==='kg'?'selected':''} value="kg">kg</option><option ${it.unit==='l'?'selected':''} value="l">l</option></select><input type="number" value="${it.p}" class="w-16 bg-slate-50 text-center text-xs p-1 rounded" onchange="tempItems[${i}].p=parseFloat(this.value);renderAlbGrid()"><select onchange="tempItems[${i}].tax=parseFloat(this.value);renderAlbGrid()" class="w-12 bg-blue-50 text-blue-700 font-bold text-xs p-1 rounded border-0"><option ${it.tax===10?'selected':''} value="10">10%</option><option ${it.tax===21?'selected':''} value="21">21%</option><option ${it.tax===4?'selected':''} value="4">4%</option></select><div class="font-mono font-bold w-16 text-right text-xs">${Num.fmt(it.q*it.p)}€</div><button class="text-red-400 hover:text-red-600 px-1" onclick="tempItems.splice(${i},1);renderAlbGrid()">✕</button></div>`).join(''); const total = tempItems.reduce((a,b)=>a+(b.q*b.p)*(1+b.tax/100),0); document.getElementById('alb-total').innerText = Num.fmt(total)+'€'; }
+function parseAlb() { 
+    const txt = document.getElementById('alb-input').value.trim(); tempItems = []; 
+    if (!txt) return toast("Texto vacío", "error"); 
+    txt.split(/\r?\n/).forEach(l => { 
+        const parts = l.split(';').map(p=>p.trim());
+        if(parts.length >= 4) {
+            tempItems.push({ n: parts[0], q: Num.parse(parts[1]), unit: parts[2] || 'ud', p: Num.parse(parts[3]), tax: Num.parse(parts[4]) });
+        }
+    });
+    renderAlbGrid();
+}
+function renderAlbGrid() { 
+    const el = document.getElementById('alb-grid'); if(!el) return; 
+    el.innerHTML = tempItems.map((it,i) => `<div class="bg-white p-2 rounded-xl border border-slate-100 flex flex-wrap justify-between items-center mb-2 gap-2">
+        <input list="ing-list" value="${clean(it.n)}" onchange="tempItems[${i}].n=this.value" class="input-premium w-24">
+        <input type="number" value="${it.q}" onchange="tempItems[${i}].q=parseFloat(this.value);renderAlbGrid()" class="input-premium w-16">
+        <select onchange="tempItems[${i}].unit=this.value" class="input-premium w-14"><option value="ud" ${it.unit=='ud'?'selected':''}>ud</option><option value="kg" ${it.unit=='kg'?'selected':''}>kg</option><option value="l" ${it.unit=='l'?'selected':''}>l</option></select>
+        <input type="number" value="${it.p}" onchange="tempItems[${i}].p=parseFloat(this.value);renderAlbGrid()" class="input-premium w-16">
+        <button class="text-red-500 font-bold px-2" onclick="tempItems.splice(${i},1);renderAlbGrid()">✕</button>
+    </div>`).join('');
+    const total = tempItems.reduce((a,b)=>a+(b.q*b.p)*(1+(b.tax||0)/100),0);
+    const totalEl = document.getElementById('alb-total'); if(totalEl) totalEl.innerText = Num.fmt(total) + '€';
+}
 function commitAlb() {
     if(!tempItems.length) return toast("Vacío", "error");
-    const prov=document.getElementById('alb-prov').value, date=document.getElementById('alb-date').value;
+    const prov=document.getElementById('alb-prov').value || 'Proveedor';
+    const date=document.getElementById('alb-date').value || getISO();
     if(!prov || !date) return toast("Faltan datos", "error");
     if(!db.proveedores.find(p=>p.n===prov)) db.proveedores.push({n:prov});
+
+    // Handle Edit Mode: Remove old albarán
+    const editId = document.getElementById('alb-num').dataset.editId;
+    if(editId) db.albaranes = db.albaranes.filter(a => a.id !== editId);
+
     tempItems.forEach(it => {
         const cleanName = it.n.trim();
-        let ing = db.ingredientes.find(x => x.n.trim().toLowerCase() === cleanName.toLowerCase() && x.unit === it.unit);
+        let ing = db.ingredientes.find(x => x.n && x.n.trim().toLowerCase() === cleanName.toLowerCase() && x.unit === it.unit);
         if(!ing) { ing = {id:generateID(), n:cleanName, stock:0, cost:0, unit:it.unit, aller:[]}; db.ingredientes.push(ing); }
-        const totalQty = Math.max(0, ing.stock) + it.q; ing.cost = totalQty > 0 ? ((Math.max(0, ing.stock)*ing.cost) + (it.q*it.p)) / totalQty : it.p; ing.stock += it.q;
+        const currentStock = Math.max(0, ing.stock || 0);
+        const newTotalQty = currentStock + it.q;
+        ing.cost = newTotalQty > 0 ? ((currentStock * (ing.cost||0)) + (it.q * it.p)) / newTotalQty : it.p;
+        ing.stock = (ing.stock || 0) + it.q;
         logStock(ing.id, it.q, 'IN', `Alb: ${prov}`, it.p);
     });
-    const base = tempItems.reduce((a,b)=>a+(b.q*b.p),0); const tax = tempItems.reduce((a,b)=>a+(b.q*b.p*b.tax/100),0);
-    db.albaranes.push({id:generateID(), num:document.getElementById('alb-num').value, prov, productor:document.getElementById('alb-producer').value, date, items:JSON.parse(JSON.stringify(tempItems)), total:base+tax, taxes:tax, subtotal:base, invoiced:false});
+    const total = tempItems.reduce((a,b)=>a+(b.q*b.p)*(1+(b.tax||0)/100),0);
+    const taxes = tempItems.reduce((a,b)=>a+(b.q*b.p)*((b.tax||0)/100),0);
+    db.albaranes.push({id:generateID(), num:document.getElementById('alb-num').value||'', prov, productor:document.getElementById('alb-producer').value||'', date, items:JSON.parse(JSON.stringify(tempItems)), total, taxes, invoiced:false});
     save("Entrada OK"); tempItems=[]; renderAdmin(document.getElementById('app'));
 }
-function editAlb(id) { const alb = db.albaranes.find(a => a.id === id); if(!alb) return; if(confirm("¿Editar? Se revertirá el stock.")) { alb.items.forEach(it => { const ing = db.ingredientes.find(x => x.n.trim().toLowerCase() === it.n.trim().toLowerCase() && x.unit === it.unit); if(ing) { ing.stock -= it.q; logStock(ing.id, it.q, 'OUT', `Corrección Alb`); } }); tempItems = JSON.parse(JSON.stringify(alb.items)); document.getElementById('alb-prov').value = alb.prov; document.getElementById('alb-num').value = alb.num; document.getElementById('alb-date').value = alb.date; db.albaranes = db.albaranes.filter(a => a.id !== id); document.getElementById('edit-mode-indicator').classList.remove('hidden'); renderAlbGrid(); window.scrollTo(0,0); toast("Modo Edición"); } }
-function deleteAlb(id) { const alb = db.albaranes.find(a => a.id === id); if(!alb) return; if(confirm("¿Borrar?")) { alb.items.forEach(it => { const ing = db.ingredientes.find(x => x.n.trim().toLowerCase() === it.n.trim().toLowerCase() && x.unit === it.unit); if(ing) { ing.stock -= it.q; logStock(ing.id, it.q, 'OUT', `Borrado Alb`); } }); db.albaranes = db.albaranes.filter(a => a.id !== id); save("Borrado"); renderAdmin(document.getElementById('app')); } }
-function viewAlbDetails(id){ const a=db.albaranes.find(x=>x.id===id); if(a) showModal(`Detalle`, `<table class="w-full text-sm"><thead><tr><th>P</th><th>Q</th><th>€</th></tr></thead><tbody>${a.items.map(i=>`<tr><td>${i.n}</td><td>${i.q}${i.unit}</td><td class="text-right">${Num.fmt(i.q*i.p)}</td></tr>`).join('')}</tbody></table><div class="text-right font-black text-xl mt-4">${Num.fmt(a.total)}€</div>`); }
-function exportAlbCSV(){ if(!tempItems.length) return toast("Vacío", "error"); const rows = tempItems.map(it => [it.n, Num.csv(it.q), Num.csv(it.p)]); const csv = ['Prod;Cant;Precio', ...rows.map(r=>r.join(';'))].join('\n'); const blob = new Blob(["\uFEFF"+csv], {type:'text/csv;charset=utf-8'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='Albaran.csv'; a.click(); }
-function renderFacturas(c) { const pends = db.albaranes.filter(a=>!a.invoiced); const groups={}; pends.forEach(a=>{ if(!groups[a.prov]) groups[a.prov]={c:0,t:0,ids:[]}; groups[a.prov].c++; groups[a.prov].t+=a.total; groups[a.prov].ids.push(a.id); }); const hist = db.facturas.filter(f => isInPeriod(f.date)).slice().reverse(); c.innerHTML = `${Object.keys(groups).length ? `<div class="glass-card"><h3 class="font-bold text-xs text-slate-400 mb-3 uppercase">Pendiente</h3>${Object.entries(groups).map(([p,d])=>`<div class="flex justify-between items-center py-2 border-b"><div><div class="font-bold text-slate-800">${clean(p)}</div><div class="text-xs text-slate-400">${d.c} albaranes</div></div><div class="flex items-center gap-3"><span class="font-bold">${Num.fmt(d.t)}€</span><button class="bg-indigo-600 text-white px-3 py-1 rounded-lg text-xs font-bold" onclick="invoice('${p}','${d.ids}')">GENERAR</button></div></div>`).join('')}</div>` : ''} <div class="glass-card"><h3 class="font-bold text-xs text-slate-400 mb-4 uppercase">Histórico (${fiscalQuarter===0?'AÑO':fiscalQuarter+'T'})</h3>${hist.length ? hist.map(f => `<div class="flex justify-between items-center py-3 border-b"><div class="text-sm font-bold text-slate-800">${clean(f.prov)}<div class="text-[10px] text-slate-400 font-normal">${f.date}</div></div><div class="text-right"><div class="font-mono font-bold">${Num.fmt(f.total)}€</div><div class="text-[10px] font-bold cursor-pointer ${f.paid?'text-emerald-500':'text-red-400'}" onclick="togglePaid('${f.id}')">${f.paid?'PAGADO':'PENDIENTE'}</div></div></div>`).join('') : '<div class="text-center p-4 text-slate-400">Sin facturas</div>'}</div>`; }
-function invoice(p,ids){ const l=ids.split(','); l.forEach(id=>{ const a=db.albaranes.find(x=>x.id===id); if(a) a.invoiced=true; }); const t=l.reduce((ac,id)=>ac+(db.albaranes.find(x=>x.id===id)?.total||0),0); db.facturas.push({id:generateID(), date:getISO(), prov:p, total:t, paid:false}); save("Factura OK"); renderAdmin(document.getElementById('app')); }
+function editAlb(id) { 
+    const alb = db.albaranes.find(a => a.id === id); if(!alb) return; 
+    if(confirm("¿EDITAR? Se revertirá el stock y se cargará en el formulario.")) { 
+        alb.items.forEach(it => { const ing = db.ingredientes.find(x => x.n.trim().toLowerCase()===it.n.trim().toLowerCase() && x.unit===it.unit); if(ing) { ing.stock -= it.q; logStock(ing.id, -it.q, 'REV', `Rev Alb`); } }); 
+        tempItems = JSON.parse(JSON.stringify(alb.items)); 
+        document.getElementById('alb-prov').value = alb.prov; 
+        document.getElementById('alb-date').value = alb.date; 
+        document.getElementById('alb-num').value = alb.num || ''; 
+        document.getElementById('alb-num').dataset.editId = id; // Store ID for save
+        renderAlbGrid(); 
+        window.scrollTo(0,0);
+        toast("Modo Edición Activado");
+    } 
+}
+function deleteAlb(id) { 
+    const alb = db.albaranes.find(a => a.id === id); if(!alb) return; 
+    if(confirm("¿Borrar Albarán? Se restará el stock.")) { 
+        alb.items.forEach(it => { const ing = db.ingredientes.find(x => x.n.trim().toLowerCase()===it.n.trim().toLowerCase() && x.unit===it.unit); if(ing) { ing.stock -= it.q; logStock(ing.id, -it.q, 'DEL', `Del Alb`); } }); 
+        db.albaranes = db.albaranes.filter(a=>a.id!==id); 
+        save("Albarán borrado"); renderAdmin(document.getElementById('app')); 
+    } 
+}
+function viewAlbDetails(id){ const a=db.albaranes.find(x=>x.id===id); if(a) showModal(`Detalle ${a.num||''}`, `<table class="w-full text-sm"><thead><tr><th>Prod</th><th>Q</th><th>€</th></tr></thead><tbody>${a.items.map(i=>`<tr><td>${clean(i.n)}</td><td>${i.q} ${i.unit}</td><td>${Num.fmt(i.q*i.p)}</td></tr>`).join('')}</tbody></table><div class="text-right font-black mt-2">${Num.fmt(a.total)}€</div>`); }
+function exportAlbCSV(){ if(!tempItems.length) return toast("Vacío", "error"); const rows = tempItems.map(it => [it.n, Num.csv(it.q), Num.csv(it.p)]); const csv = ['Prod;Cant;Precio', ...rows.map(r=>r.join(';'))].join('\n'); const a=document.createElement('a'); a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv); a.download='albaran.csv'; a.click(); }
+
+/* Facturas */
+function renderFacturas(c) { 
+    const pends = (db.albaranes||[]).filter(a=>!a.invoiced);
+    c.innerHTML = `<div class="glass-card"><h3 class="font-bold">Facturación</h3>
+        <div class="mt-3">${pends.length? pends.map(a=>`<div class="py-2 border-b"><b>${clean(a.prov)}</b> ${a.date} — ${Num.fmt(a.total||0)} <button class="btn-ghost text-xs" onclick="invoice('${a.prov}','${a.id}')">Facturar</button></div>`).join('') : '<div class="text-sm text-slate-400">Sin albaranes pendientes</div>'}</div>
+    </div>`;
+}
+function invoice(p,ids){ const l = String(ids).split(','); l.forEach(id=>{ const a=db.albaranes.find(x=>x.id===id); if(a) a.invoiced=true; }); save("Facturado"); renderAdmin(document.getElementById('app')); }
 function togglePaid(id){ const f=db.facturas.find(x=>x.id===id); if(f){ f.paid=!f.paid; save(); renderAdmin(document.getElementById('app')); }}
 
 /* ================= 7. COCINA ================= */
 function renderCocina(app) {
-    app.innerHTML = `<div class="glass-card"><div class="flex justify-between items-center mb-4"><h2 class="font-black text-xl text-slate-800">RECETARIO</h2><button class="btn-premium w-auto px-4 py-2 text-xs" onclick="editRec()">+ CREAR RECETA</button></div>${db.recetas.map(r => { const c = calcRecipe(r); return `<div class="bg-white p-4 rounded-xl border border-slate-100 shadow-sm mb-2 cursor-pointer hover:shadow-md transition" onclick="viewRec('${r.id}')"><div class="flex justify-between"><div class="font-bold text-slate-800">${clean(r.n)}</div><div class="font-black text-indigo-600">${Num.fmt(c.t)}€</div></div><div class="text-xs text-slate-400 mt-1">${c.all.map(k=>ALLERGENS.find(a=>a.k==k)?.i).join(' ')}</div></div>` }).join('')}</div>`;
+    const recipes = db.recetas || [];
+    app.innerHTML = `<div class="glass-card"><div class="flex justify-between items-center mb-4"><h2 class="font-black text-xl text-slate-800">RECETARIO</h2><div><button class="btn-premium" onclick="editRec()">+ NUEVA</button></div></div>
+        <div class="space-y-2">${recipes.length? recipes.map(r=>`<div class="bg-white p-3 rounded-xl flex justify-between items-center"><div><div class="font-bold">${clean(r.n)}</div><div class="text-xs text-slate-400">PVP ${Num.fmt(r.pvp||0)} • Vendidos ${r.sales||0}</div></div><div><button class="btn-ghost" onclick="viewRec('${r.id}')">Ver</button> <button class="btn-ghost" onclick="editRec('${r.id}')">Editar</button> <button class="btn-ghost" onclick="deleteRec('${r.id}')">Eliminar</button></div></div>`).join('') : '<div class="text-sm text-slate-400">No hay recetas</div>'}</div></div>`;
 }
-function calcRecipe(r) { let t=0, all=new Set(); (r.items||[]).forEach(it => { if(it.type==='ing') { const i = db.ingredientes.find(x=>x.id===it.id); if(i) { const yieldFactor = (it.merma && it.merma > 0) ? (1 - (it.merma/100)) : 1; const costUnit = UnitConverter.convert(1, r.unit||'kg', i.unit); t += (it.q * costUnit * i.cost) / yieldFactor; (i.aller||[]).forEach(k=>all.add(k)); } } }); t += (r.time/60)*CONFIG.COST_HOUR; return {t, all:Array.from(all)}; }
-function editRec(id) { const r = id ? db.recetas.find(x=>x.id===id) : {id:generateID(), n:'', pvp:0, time:10, items:[], sales:0, unit:'ud'}; tempItems = JSON.parse(JSON.stringify(r.items)); showModal('Ficha Técnica', `<div class="grid grid-cols-2 gap-4 mb-4"><div class="col-span-2"><label>Nombre</label><input id="er-n" value="${clean(r.n)}" class="input-premium"></div><div><label>PVP (€)</label><input type="number" id="er-pvp" value="${r.pvp}" class="input-premium"></div><div><label>M. Obra (min)</label><input type="number" id="er-time" value="${r.time}" class="input-premium"></div></div><div class="bg-slate-50 p-4 rounded-xl mb-4 border border-slate-100"><div id="er-list" class="space-y-2"></div></div><div class="flex gap-2 items-end bg-white border border-slate-200 p-3 rounded-xl shadow-sm"><div class="flex-1"><label>Ingrediente</label><select id="er-sel" class="input-premium mb-0 bg-transparent border-0 p-0 text-sm font-bold"></select></div><div class="w-20"><label>Cant</label><input id="er-q" type="number" class="input-premium mb-0 p-1 text-center" placeholder="0"></div><div class="w-16"><label>Merma %</label><input id="er-m" type="number" class="input-premium mb-0 p-1 text-center" placeholder="0"></div><button class="bg-indigo-600 text-white rounded-lg w-8 h-8 flex items-center justify-center font-bold" onclick="addItemToRec()">+</button></div><button class="btn-premium mt-6" onclick="saveRec('${r.id}')">GUARDAR FICHA</button>${id ? `<button class="btn-ghost text-red-400 mt-2 w-full" onclick="deleteRec('${id}')">Eliminar</button>` : ''}`); document.getElementById('er-sel').innerHTML = db.ingredientes.sort((a,b)=>a.n.localeCompare(b.n)).map(i=>`<option value="${i.id}">${clean(i.n)} (${i.unit})</option>`).join(''); renderRecItems(); }
+
+function calcRecipe(r) { 
+    let t=0; 
+    (r.items||[]).forEach(it => { 
+        if(it.type==='ing') {
+            const i = db.ingredientes.find(x=>x.id===it.id);
+            if(i) {
+                let needed = it.q || 0;
+                if(it.merma) {
+                    const m = (1 - (it.merma/100));
+                    if(m>0) needed = needed / m;
+                }
+                t += (i.cost || 0) * needed;
+            }
+        }
+    });
+    return { cost: t };
+}
+
+function editRec(id) { 
+    const r = id ? db.recetas.find(x=>x.id===id) : {id:generateID(), n:'', pvp:0, time:10, items:[], sales:0, unit:'ud'}; 
+    tempItems = JSON.parse(JSON.stringify(r.items || [])); 
+    const ingOptions = (db.ingredientes||[]).map(i=>`<option value="${clean(i.id)}">${clean(i.n)}</option>`).join('');
+    showModal(id ? 'Editar Receta' : 'Nueva Receta', `
+        <label>Nombre</label><input id="er-n" class="input-premium mb-2" value="${clean(r.n)}">
+        <label>PVP</label><input id="er-pvp" type="number" class="input-premium mb-2" value="${r.pvp||0}">
+        <label>Tiempo (min)</label><input id="er-time" type="number" class="input-premium mb-2" value="${r.time||10}">
+        <hr class="my-2">
+        <div class="mb-2"><label>Agregar ingrediente</label><div class="flex gap-2"><select id="er-sel" class="input-premium">${ingOptions}</select><input id="er-q" type="number" class="input-premium" placeholder="q"><input id="er-m" type="number" class="input-premium" placeholder="merma %"><button class="btn-premium" onclick="addItemToRec()">Agregar</button></div></div>
+        <div id="er-list" class="max-h-40 overflow-auto mb-2"></div>
+        <div class="flex gap-2"><button class="btn-premium" onclick="saveRec('${r.id}')">Guardar</button><button class="btn-ghost" onclick="closeModal()">Cancelar</button></div>
+    `);
+    renderRecItems();
+}
+
 function deleteRec(id) { if(confirm("¿Eliminar?")) { db.recetas=db.recetas.filter(x=>x.id!==id); save("Eliminada"); closeModal(); render('Cocina'); }}
-function addItemToRec() { const id = document.getElementById('er-sel').value; const q = parseFloat(document.getElementById('er-q').value); const m = parseFloat(document.getElementById('er-m').value) || 0; if(id && q>0) { tempItems.push({type:'ing', id, q, merma:m}); renderRecItems(); } }
-function renderRecItems() { document.getElementById('er-list').innerHTML = tempItems.map((it, i) => { const ing = db.ingredientes.find(x=>x.id===it.id); return `<div class="flex justify-between items-center text-sm border-b border-slate-200 pb-2"><div><div class="font-bold text-slate-700">${clean(ing?.n)}</div><div class="text-xs text-slate-400">Neto: ${it.q} | Merma: ${it.merma}%</div></div><button onclick="tempItems.splice(${i},1);renderRecItems()" class="text-red-400 text-xs">✕</button></div>`; }).join(''); }
-function saveRec(id) { const idx = db.recetas.findIndex(x=>x.id===id); const r = { id, n:document.getElementById('er-n').value, pvp:parseFloat(document.getElementById('er-pvp').value), time:parseFloat(document.getElementById('er-time').value), items:tempItems, sales:(db.recetas.find(x=>x.id===id)?.sales || 0) }; if(idx>=0) db.recetas[idx]=r; else db.recetas.push(r); save("Ficha Guardada"); closeModal(); render('Cocina'); }
-function viewRec(id) { const r = db.recetas.find(x=>x.id===id); const c = calcRecipe(r); showModal(clean(r.n), `<div class="flex justify-around mb-6 bg-slate-50 p-4 rounded-xl"><div class="text-center"><div class="text-xs text-slate-400 font-bold">COSTE</div><div class="text-2xl font-black text-slate-800">${Num.fmt(c.t)}€</div></div><div class="text-center"><div class="text-xs text-slate-400 font-bold">MARGEN</div><div class="text-2xl font-black text-indigo-600">${r.pvp > 0 ? ((1-(c.t/r.pvp))*100).toFixed(0) : 0}%</div></div></div><div class="flex flex-wrap gap-2 mb-6 justify-center">${c.all.map(k=>`<span class="bg-blue-50 text-blue-600 px-2 py-1 rounded text-xs border border-blue-100">${ALLERGENS.find(a=>a.k==k)?.i} ${ALLERGENS.find(a=>a.k==k)?.n}</span>`).join('')}</div><button class="btn-ghost w-full" onclick="editRec('${id}')">EDITAR DATOS TÉCNICOS</button>`); }
+function addItemToRec() { 
+    const id = document.getElementById('er-sel').value; 
+    const q = Num.parse(document.getElementById('er-q').value); 
+    const m = Num.parse(document.getElementById('er-m').value) || 0;
+    if(!id || q<=0) return toast("Seleccione ingrediente y cantidad válida", "error");
+    const ing = db.ingredientes.find(x=>x.id===id);
+    tempItems.push({ type:'ing', id, n: ing ? ing.n : 'Desconocido', q, merma: m });
+    renderRecItems();
+}
+function renderRecItems() { 
+    const el = document.getElementById('er-list');
+    if(!el) return;
+    if(!tempItems.length) { el.innerHTML = '<div class="text-sm text-slate-400">Sin ingredientes</div>'; return; }
+    el.innerHTML = tempItems.map((it,i) => {
+        return `<div class="flex justify-between items-center py-2 border-b"><div><b>${clean(it.n)}</b><div class="text-xs text-slate-400">${it.q} • merma ${it.merma || 0}%</div></div><div><button class="btn-ghost" onclick="tempItems.splice(${i},1);renderRecItems()">Eliminar</button></div></div>`;
+    }).join('');
+}
+function saveRec(id) { 
+    const idx = db.recetas.findIndex(x=>x.id===id);
+    const r = { id, n:document.getElementById('er-n').value, pvp:Num.parse(document.getElementById('er-pvp').value), time:Num.parse(document.getElementById('er-time').value), items:tempItems, sales: db.recetas.find(x=>x.id===id)?.sales || 0, unit:'ud' };
+    if(idx>=0) db.recetas[idx]=r; else db.recetas.push(r);
+    save("Receta guardada"); closeModal(); render('Cocina');
+}
+function viewRec(id) { const r = db.recetas.find(x=>x.id===id); if(!r) return; const c = calcRecipe(r); showModal(clean(r.n), `<div class="flex justify-between mb-6"><div>Coste: <b>${Num.fmt(c.cost)}</b></div><div>PVP: <b>${Num.fmt(r.pvp||0)}</b></div></div><div class="text-sm">${(r.items||[]).map(it=>`<div>${clean(it.n)} — ${it.q} ${it.merma?`(merma ${it.merma}%)`:''}</div>`).join('')}</div>`); }
 
 /* ================= 8. STOCK ================= */
 function renderStock(app) {
     const isAdmin = currentUser?.role === 'admin';
-    const filtered = db.ingredientes.filter(i => i.n.toLowerCase().includes(searchFilter.toLowerCase())).sort((a,b) => a.n.localeCompare(b.n));
+    const filtered = (db.ingredientes||[]).filter(i => (i.n||'').toLowerCase().includes(searchFilter.toLowerCase())).sort((a,b) => (a.n||'').localeCompare(b.n||''));
     app.innerHTML = `
         <div class="glass-card">
             <div class="flex justify-between items-center mb-4"><h3 class="font-bold text-slate-800">ALMACÉN</h3>
-            <div class="flex gap-2"><button class="btn-whatsapp text-xs font-bold px-3 py-1 rounded-lg border-0" onclick="sendWhatsApp()">📞 PEDIDO</button><button class="bg-emerald-50 text-emerald-600 px-3 py-1 rounded-lg text-xs font-bold border border-emerald-200" onclick="toggleInventoryMode()">${inventoryMode ? '❌ SALIR' : '📋 AUDITORÍA'}</button></div></div>
-            <input placeholder="🔍 Buscar..." onkeyup="searchFilter=this.value;render('Stock')" value="${searchFilter}" class="input-premium mb-4">
-            <div class="max-h-[60vh] overflow-y-auto pr-1 space-y-2">${filtered.map(i => { const lowStock = i.stock < (i.min||0); if(inventoryMode) { return `<div class="bg-white p-3 rounded-xl border-2 ${lowStock?'border-red-100':'border-slate-100'} flex justify-between items-center"><div class="flex-1"><div class="font-bold text-slate-800">${clean(i.n)}</div><div class="text-xs text-slate-400">Teórico: ${i.stock} ${i.unit}</div></div><div class="flex items-center gap-2"><input type="number" id="real-stock-${i.id}" placeholder="${i.stock}" class="w-20 bg-indigo-50 border border-indigo-200 rounded p-2 text-center font-bold"><span class="text-xs font-bold text-slate-500">${i.unit}</span><button class="btn-icon bg-emerald-100 text-emerald-600" onclick="adjustStock('${i.id}')">✔</button></div></div>`; } else { return `<div class="bg-white p-3 rounded-xl border ${lowStock?'border-red-300 bg-red-50/30':'border-slate-100'} flex justify-between items-center"><div onclick="showKardex('${i.id}')" class="flex-1 cursor-pointer"><div class="font-bold text-slate-800">${clean(i.n)}</div><div class="text-xs text-slate-500 flex items-center gap-1">${(i.aller||[]).map(k=>`<span class="aller-tag">${ALLERGENS.find(a=>a.k==k)?.i}</span>`).join('')}<span class="font-mono font-bold ${lowStock?'text-red-600':''}">${parseFloat(i.stock).toFixed(2)} ${i.unit}</span> ${isAdmin ? `· ${Num.fmt(i.cost)}€` : ''}</div></div><div class="flex gap-2"><button class="btn-icon btn-merma" onclick="regMerma('${i.id}')">📉</button>${isAdmin ? `<button class="btn-icon btn-log" onclick="showKardex('${i.id}')">📜</button>` : ''}</div></div>`; } }).join('')}</div>
+            <div class="flex gap-2"><button class="btn-whatsapp text-xs font-bold px-3 py-1 rounded-lg border-0" onclick="sendWhatsApp()">📞 PEDIDO</button><button class="bg-emerald-50 text-emerald-700 px-3 py-1 rounded-lg" onclick="toggleInventoryMode()">${inventoryMode ? 'Modo Normal' : 'Modo Inventario'}</button></div></div>
+            <input placeholder="🔍 Buscar..." onkeyup="searchFilter=this.value;render('Stock')" value="${clean(searchFilter)}" class="input-premium mb-4">
+            <div class="max-h-[60vh] overflow-y-auto pr-1 space-y-2">${filtered.map(i => {
+                const lowStock = (i.stock||0) < (i.min||0);
+                if(inventoryMode) {
+                    return `<div class="bg-white p-3 rounded-xl border ${lowStock ? 'border-red-200' : 'border-slate-100'} flex items-center justify-between">
+                        <div><div class="font-bold">${clean(i.n)}</div><div class="text-xs text-slate-400">${Num.fmt(i.stock||0)} ${i.unit} • Coste ${Num.fmt(i.cost||0)}</div></div>
+                        <div class="flex gap-2"><input id="real-stock-${i.id}" type="number" class="input-premium w-28" value="${Num.fmt(i.stock||0)}" onclick="this.select()"><button class="btn-premium" onclick="adjustStock('${i.id}')">Ajustar</button></div>
+                    </div>`;
+                } else {
+                    return `<div class="bg-white p-3 rounded-xl border ${lowStock ? 'border-red-200' : 'border-slate-100'} flex items-center justify-between">
+                        <div><div class="font-bold">${clean(i.n)}</div><div class="text-xs text-slate-400">${Num.fmt(i.stock||0)} ${i.unit} • Coste ${Num.fmt(i.cost||0)}</div></div>
+                        <div class="flex gap-2">
+                            <button class="btn-ghost" onclick="showKardex('${i.id}')">Kardex</button>
+                            <button class="btn-ghost" onclick="regMerma('${i.id}')">Merma</button>
+                            ${isAdmin ? `<button class="btn-ghost" onclick="editIng('${i.id}')">Editar</button>` : ''}
+                        </div>
+                    </div>`;
+                }
+            }).join('')}</div>
             ${isAdmin && !inventoryMode ? `<button class="btn-premium mt-4" onclick="editIng(generateID())">+ AÑADIR PRODUCTO</button>` : ''}
         </div>`;
 }
-function sendWhatsApp() { const list = db.ingredientes.filter(i => i.stock < (i.min || 0)).map(i => `- ${i.n}: ${((i.min||0) - i.stock + (i.min*0.2)).toFixed(2)} ${i.unit}`).join('%0A'); if(!list) return toast("Stock OK", "success"); window.open(`https://wa.me/?text=${encodeURIComponent("🛒 *PEDIDO ARUME*\n\n")}${list}`, '_blank'); }
+function sendWhatsApp() { const list = (db.ingredientes||[]).filter(i => (i.stock||0) < (i.min || 0)).map(i => `- ${i.n}: ${((i.min||0) - i.stock + ((i.min||0)*0.2)).toFixed(2)} ${i.unit}`).join('%0A'); if(!list) return toast("No hay productos para pedir", "info"); const url = `https://wa.me/?text=${encodeURIComponent('Pedido:%0A' + list)}`; window.open(url,'_blank'); }
 function toggleInventoryMode() { inventoryMode = !inventoryMode; render('Stock'); }
-function adjustStock(id) { const realQty = Num.parse(document.getElementById(`real-stock-${id}`).value); const i = db.ingredientes.find(x => x.id === id); if (!isNaN(realQty) && i) { const diff = realQty - i.stock; if(diff !== 0) { logStock(i.id, Math.abs(diff), 'ADJ', 'Inventario Real', i.cost); i.stock = realQty; save("Ajustado"); render('Stock'); } } }
-function showKardex(id) { if(currentUser.role!=='admin') return; const i = db.ingredientes.find(x => x.id === id); const logs = db.kardex.filter(k => k.ingId === id).reverse().slice(0, 50); showModal(`Kardex: ${clean(i.n)}`, `<div class="max-h-60 overflow-y-auto">${logs.map(l => `<div class="flex justify-between py-2 border-b text-xs"><div><b>${l.date}</b> ${l.reason}</div><div class="${l.type==='IN'?'text-emerald-500':'text-red-500'}">${l.type==='IN'?'+':'-'} ${l.qty}</div></div>`).join('')}</div><button class="btn-ghost w-full mt-4" onclick="editIng('${id}')">EDITAR</button>`); }
-function regMerma(id) { const i = db.ingredientes.find(x=>x.id===id); showModal('Merma', `<p class="text-sm text-slate-500 mb-4">Producto: <b>${clean(i.n)}</b></p><label>Cantidad Perdida (${i.unit})</label><input type="number" id="m-q" class="input-premium"><label>Motivo</label><select id="m-r" class="input-premium"><option>Caducidad</option><option>Rotura</option><option>Error Cocina</option></select><button class="btn-premium btn-danger mt-4 border-0" onclick="saveMerma('${id}')">REGISTRAR</button>`); }
-function saveMerma(id) { const i = db.ingredientes.find(x=>x.id===id); const q = parseFloat(document.getElementById('m-q').value); const r = document.getElementById('m-r').value; if(q>0) { i.stock -= q; db.mermas.push({ date:getISO(), n:i.n, q, reason:r, loss: q*i.cost }); logStock(i.id, q, 'OUT', `Merma: ${r}`); save("Merma registrada"); closeModal(); render('Stock'); } }
-function editIng(id) { const i = db.ingredientes.find(x=>x.id===id) || {id, n:'', cost:0, stock:0, min:0, unit:'kg', aller:[]}; showModal('Ficha Almacén', `<label>Nombre</label><input id="ei-n" value="${clean(i.n)}" class="input-premium"><div class="grid grid-cols-3 gap-2"><div><label>Coste/Ud</label><input id="ei-c" type="number" value="${i.cost}" class="input-premium"></div><div><label>Stock</label><input id="ei-s" type="number" value="${i.stock}" class="input-premium"></div><div><label>Mínimo</label><input id="ei-m" type="number" value="${i.min||0}" class="input-premium"></div></div><label>Unidad Base</label><select id="ei-unit" class="input-premium"><option ${i.unit==='kg'?'selected':''} value="kg">kg (Kilos)</option><option ${i.unit==='g'?'selected':''} value="g">g (Gramos)</option><option ${i.unit==='l'?'selected':''} value="l">l (Litros)</option><option ${i.unit==='ml'?'selected':''} value="ml">ml (Mililitros)</option><option ${i.unit==='ud'?'selected':''} value="ud">ud (Unidad)</option></select><label>Alérgenos</label><div class="flex flex-wrap gap-2 mt-2">${ALLERGENS.map(a=>`<div class="p-2 border rounded cursor-pointer ${i.aller.includes(a.k)?'bg-blue-100 border-blue-500':''}" onclick="this.classList.toggle('bg-blue-100');this.classList.toggle('border-blue-500');this.classList.toggle('active')">${a.i}</div>`).join('')}</div><button class="btn-premium mt-6" onclick="saveIng('${i.id}')">GUARDAR</button><button class="btn-ghost text-red-500 mt-2 w-full" onclick="deleteIng('${id}')">Eliminar del Almacén</button>`); setTimeout(() => { const d = document.querySelectorAll('#m-body .flex div'); i.aller.forEach(k=>{ const idx=ALLERGENS.findIndex(a=>a.k===k); if(d[idx]) d[idx].classList.add('active','bg-blue-100','border-blue-500'); }); }, 50); }
-function saveIng(id) { const divs = document.querySelectorAll('#m-body .flex div'); const aller = []; divs.forEach((d,i)=>{ if(d.classList.contains('active')) aller.push(ALLERGENS[i].k) }); const ing = { id, n:document.getElementById('ei-n').value, cost:parseFloat(document.getElementById('ei-c').value), stock:parseFloat(document.getElementById('ei-s').value), min:parseFloat(document.getElementById('ei-m').value), unit:document.getElementById('ei-unit').value || 'kg', aller }; const idx = db.ingredientes.findIndex(x=>x.id===id); if(idx>=0) db.ingredientes[idx]=ing; else db.ingredientes.push(ing); save(); closeModal(); render('Stock'); }
+function adjustStock(id) { const realQty = Num.parse(document.getElementById(`real-stock-${id}`).value); const i = db.ingredientes.find(x => x.id === id); if (!isNaN(realQty) && i) { const diff = realQty - (i.stock || 0); i.stock = realQty; if(diff !== 0) logStock(i.id, diff, 'AJUSTE', 'Inventario'); save("Stock ajustado"); render('Stock'); } }
+function showKardex(id) { if(currentUser?.role!=='admin') return; const i = db.ingredientes.find(x => x.id === id); const logs = (db.kardex||[]).filter(k => k.ingId === id).reverse().slice(0, 50); showModal(`Kardex: ${clean(i.n)}`, `<div class="max-h-60 overflow-auto">${logs.map(l=>`<div class="py-1 border-b text-sm">${l.date} ${l.type} ${l.qty} ${l.unit} — ${clean(l.reason)}</div>`).join('')}</div>`); }
+function regMerma(id) { const i = db.ingredientes.find(x=>x.id===id); showModal('Merma', `<p class="text-sm text-slate-500 mb-4">Producto: <b>${clean(i.n)}</b></p><label>Cantidad Perdida (${i.unit})</label><input id="m-q" type="number" class="input-premium mb-2" value="0"><label>Motivo</label><input id="m-r" class="input-premium mb-4" value=""><div class="flex gap-2"><button class="btn-danger btn-premium" onclick="saveMerma('${id}')">Registrar</button><button class="btn-ghost" onclick="closeModal()">Cancelar</button></div>`); }
+function saveMerma(id) { const i = db.ingredientes.find(x=>x.id===id); const q = Num.parse(document.getElementById('m-q').value); const r = document.getElementById('m-r').value || 'Merma'; if(!i) return; if(q>0) { i.stock -= q; db.mermas.push({id:generateID(), date:getTS(), ingId:id, q, reason:r, user:currentUser?.n}); logStock(i.id, -q, 'MERMA', r); save("Merma registrada"); closeModal(); render('Stock'); } else toast("Cantidad inválida", "error"); }
+function editIng(id) { const i = db.ingredientes.find(x=>x.id===id) || {id, n:'', cost:0, stock:0, min:0, unit:'kg', aller:[]}; const allergens = ALLERGENS.map((a,idx)=>`<div class="inline-block mr-2"><label><input type="checkbox" id="aller-${idx}" ${ (i.aller||[]).includes(a.k) ? 'checked' : '' }> ${a.i}</label></div>`).join(''); showModal('Ficha Almacén', `<label>Nombre</label><input id="ei-n" class="input-premium mb-2" value="${clean(i.n)}"><label>Coste unidad</label><input id="ei-cost" type="number" class="input-premium mb-2" value="${i.cost||0}"><label>Stock</label><input id="ei-stock" type="number" class="input-premium mb-2" value="${i.stock||0}"><label>Mínimo</label><input id="ei-min" type="number" class="input-premium mb-2" value="${i.min||0}"><label>Unidad</label><input id="ei-unit" class="input-premium mb-2" value="${i.unit||'kg'}"><label>Alergenos</label><div class="mb-4">${allergens}</div><div class="flex gap-2"><button class="btn-premium" onclick="saveIng('${id}')">Guardar</button><button class="btn-ghost" onclick="closeModal()">Cancelar</button></div>`); }
+function saveIng(id) { const i = db.ingredientes.find(x=>x.id===id) || {id}; const aller = []; ALLERGENS.forEach((a,idx)=>{ if(document.getElementById(`aller-${idx}`) && document.getElementById(`aller-${idx}`).checked) aller.push(a.k); }); i.n = document.getElementById('ei-n').value; i.cost = Num.parse(document.getElementById('ei-cost').value); i.stock = Num.parse(document.getElementById('ei-stock').value); i.min = Num.parse(document.getElementById('ei-min').value); i.unit = document.getElementById('ei-unit').value; i.aller = aller; if(!db.ingredientes.find(x=>x.id===id)) db.ingredientes.push(i); save("Guardado"); closeModal(); render('Stock'); }
 function deleteIng(id){ if(confirm("¿Eliminar?")){ db.ingredientes=db.ingredientes.filter(i=>i.id!==id); save("Borrado"); closeModal(); render('Stock'); }}
 
-/* ================= 9. DIARIO & CAJA V141 ================= */
+/* ================= 9. DIARIO & CAJA V220 ================= */
 function renderDiario(app){
     const r = db.diario.find(d => d.date === currentDiarioDate) || { cash:0, visa:0, tpv:0, amex:0, glovo:0, uber:0, apper:0, expenses:0 };
     const totalVenta = (r.cash||0) + (r.visa||0) + (r.tpv||0) + (r.amex||0) + (r.glovo||0) + (r.uber||0) + (r.apper||0);
     const realCash = (r.cash||0) - (r.expenses||0);
-    const historyRows = db.diario.filter(d => isInPeriod(d.date)).sort((a,b) => b.date.localeCompare(a.date)).map(d => `<div class="flex justify-between items-center py-2 border-b text-sm ${d.date===currentDiarioDate?'bg-indigo-50 -mx-2 px-2 rounded':''}"> <div class="font-bold text-slate-700 cursor-pointer" onclick="currentDiarioDate='${d.date}';render('Diario')">${d.date}</div> <div class="font-mono font-bold">${Num.fmt(d.total)}€</div> </div>` ).join('');
+    const hist = (db.diario||[]).filter(d => isInPeriod(d.date)).sort((a,b) => b.date.localeCompare(a.date)).map(d => `<div class="py-2 border-b text-sm"><b>${formatDateES(d.date)}</b> — ${Num.fmt(d.total||0)}</div>`).join('');
 
     app.innerHTML = `
-    <div class="glass-card"><div class="section-header flex justify-between items-center mb-6"><h3 class="font-bold text-slate-800">CIERRE CAJA</h3><input type="date" value="${currentDiarioDate}" class="bg-slate-100 border-0 rounded p-1 font-bold text-indigo-600" onchange="currentDiarioDate=this.value;render('Diario')"></div>
-    <div class="space-y-4">
-        <div class="bg-emerald-50/50 p-4 rounded-xl border border-emerald-100"><div class="text-xs font-bold text-emerald-800 mb-2 uppercase tracking-wider">Efectivo</div><div class="grid grid-cols-2 gap-4"><div><label>Venta Efectivo</label><input type="number" id="z-cash" value="${r.cash||0}" class="input-premium text-center font-bold" oninput="calcTotal()" onclick="this.select()"></div><div><label class="text-red-500">Gastos Caja</label><input type="number" id="z-expenses" value="${r.expenses||0}" class="input-premium text-center text-red-600 font-bold" oninput="calcTotal()" onclick="this.select()"></div></div><div class="text-right mt-2 text-xs font-bold text-emerald-700">En Cajón: <span id="z-real-cash">${Num.fmt(realCash)}</span>€</div></div>
-        <div class="bg-blue-50/50 p-4 rounded-xl border border-blue-100"><div class="text-xs font-bold text-blue-800 mb-2 uppercase tracking-wider">Tarjetas</div><div class="grid grid-cols-3 gap-2"><div><label>Visa</label><input type="number" id="z-visa" value="${r.visa||0}" class="input-premium text-center" oninput="calcTotal()" onclick="this.select()"></div><div><label>TPV</label><input type="number" id="z-tpv" value="${r.tpv||0}" class="input-premium text-center" oninput="calcTotal()" onclick="this.select()"></div><div><label>Amex</label><input type="number" id="z-amex" value="${r.amex||0}" class="input-premium text-center" oninput="calcTotal()" onclick="this.select()"></div></div></div>
-        <div class="bg-orange-50/50 p-4 rounded-xl border border-orange-100"><div class="text-xs font-bold text-orange-800 mb-2 uppercase tracking-wider">Delivery</div><div class="grid grid-cols-3 gap-2"><div><label>Glovo</label><input type="number" id="z-glovo" value="${r.glovo||0}" class="input-premium text-center" oninput="calcTotal()" onclick="this.select()"></div><div><label>Uber</label><input type="number" id="z-uber" value="${r.uber||0}" class="input-premium text-center" oninput="calcTotal()" onclick="this.select()"></div><div><label>Apper</label><input type="number" id="z-apper" value="${r.apper||0}" class="input-premium text-center" oninput="calcTotal()" onclick="this.select()"></div></div></div>
-        <div class="flex justify-between items-center pt-4 border-t border-slate-200"><span class="font-bold text-slate-400">VENTA TOTAL</span><span id="z-total-display" class="text-4xl font-black text-indigo-600">${Num.fmt(totalVenta)}€</span></div>
-    </div><button class="btn-premium mt-6" onclick="saveZ()">GUARDAR CIERRE</button></div>
-    <div class="glass-card"><h3 class="font-bold text-xs text-slate-400 mb-4 uppercase">Histórico (${fiscalQuarter===0?'AÑO':fiscalQuarter+'T'})</h3><div class="max-h-60 overflow-y-auto mb-4">${historyRows}</div><button class="btn-ghost w-full" onclick="exportDiarioCSV()">📊 DESCARGAR EXCEL CAJAS</button></div>`;
+    <div class="glass-card">
+        <div class="section-header flex justify-between items-center mb-6">
+            <h3 class="font-bold text-slate-800">CIERRE CAJA</h3>
+            <div class="date-navigator"><button class="date-btn" onclick="changeDate(-1)">◀</button><div class="date-display">${formatDateES(currentDiarioDate)}</div><button class="date-btn" onclick="changeDate(1)">▶</button></div>
+        </div>
+        <div class="space-y-4">
+            <div class="bg-emerald-50/50 p-4 rounded-xl border border-emerald-100"><div class="text-xs font-bold text-emerald-800 mb-2 uppercase tracking-wider">Efectivo</div><div class="grid grid-cols-2 gap-2"><input id="z-cash" class="input-premium" value="${r.cash||0}" oninput="calcTotal()" onclick="this.select()" placeholder="Efectivo"><input id="z-expenses" class="input-premium text-red-600" value="${r.expenses||0}" oninput="calcTotal()" onclick="this.select()" placeholder="Gastos"></div><div class="text-right mt-2 text-xs font-bold text-emerald-700">En Cajón: <span id="z-real-cash">${Num.fmt(realCash)}</span>€</div></div>
+            <div class="bg-blue-50/50 p-4 rounded-xl border border-blue-100"><div class="text-xs font-bold text-blue-800 mb-2 uppercase tracking-wider">Tarjetas</div><div class="grid grid-cols-3 gap-2"><input id="z-visa" class="input-premium" value="${r.visa||0}" oninput="calcTotal()" onclick="this.select()" placeholder="Visa"><input id="z-tpv" class="input-premium" value="${r.tpv||0}" oninput="calcTotal()" onclick="this.select()" placeholder="TPV"><input id="z-amex" class="input-premium" value="${r.amex||0}" oninput="calcTotal()" onclick="this.select()" placeholder="Amex"></div></div>
+            <div class="bg-orange-50/50 p-4 rounded-xl border border-orange-100"><div class="text-xs font-bold text-orange-800 mb-2 uppercase tracking-wider">Delivery</div><div class="grid grid-cols-3 gap-2"><input id="z-glovo" class="input-premium" value="${r.glovo||0}" oninput="calcTotal()" onclick="this.select()" placeholder="Glovo"><input id="z-uber" class="input-premium" value="${r.uber||0}" oninput="calcTotal()" onclick="this.select()" placeholder="Uber"><input id="z-apper" class="input-premium" value="${r.apper||0}" oninput="calcTotal()" onclick="this.select()" placeholder="Apper"></div></div>
+            <div class="flex justify-between items-center pt-4 border-t border-slate-200"><span class="font-bold text-slate-400">VENTA TOTAL</span><span id="z-total-display" class="text-4xl font-black text-slate-800">${Num.fmt(totalVenta)}</span></div>
+        </div>
+        <button class="btn-premium mt-6" onclick="saveZ()">GUARDAR CIERRE</button>
+    </div>
+    <div class="glass-card"><h3 class="font-bold text-xs text-slate-400 mb-4 uppercase">Histórico (${fiscalQuarter===0?'AÑO':fiscalQuarter+'T'})</h3><div class="max-h-60 overflow-y-auto mb-4">${hist}</div></div>
+    `;
 }
+function changeDate(d) { const date = new Date(currentDiarioDate); date.setDate(date.getDate() + d); currentDiarioDate = date.toISOString().split('T')[0]; render('Diario'); }
+function formatDateES(d) { if(!d) return ''; const p=d.split('-'); return `${p[2]}/${p[1]}/${p[0]}`; }
 function calcTotal() { const v = (id) => Num.parse(document.getElementById(id).value); const cash = v('z-cash'), exp = v('z-expenses'); const total = cash + v('z-visa') + v('z-tpv') + v('z-amex') + v('z-glovo') + v('z-uber') + v('z-apper'); document.getElementById('z-total-display').innerText = Num.fmt(total)+'€'; document.getElementById('z-real-cash').innerText = Num.fmt(cash - exp); }
-function saveZ(){ const v = (id) => Num.parse(document.getElementById(id).value); const data = { date: currentDiarioDate, cash: v('z-cash'), expenses: v('z-expenses'), visa: v('z-visa'), tpv: v('z-tpv'), amex: v('z-amex'), glovo: v('z-glovo'), uber: v('z-uber'), apper: v('z-apper'), total: v('z-cash') + v('z-visa') + v('z-tpv') + v('z-amex') + v('z-glovo') + v('z-uber') + v('z-apper') }; const idx = db.diario.findIndex(d => d.date === currentDiarioDate); if(idx>=0) db.diario[idx] = data; else db.diario.push(data); save("Cierre Guardado"); render('Diario'); }
-function exportDiarioCSV() { if(!db.diario.length) return toast("Vacío", "error"); const header = ['Fecha', 'Efectivo', 'Gastos', 'Visa', 'TPV', 'Amex', 'Glovo', 'Uber', 'Apper', 'Total']; const rows = db.diario.filter(d=>isInPeriod(d.date)).sort((a,b)=>b.date.localeCompare(a.date)).map(d => [d.date, Num.csv(d.cash), Num.csv(d.expenses), Num.csv(d.visa), Num.csv(d.tpv), Num.csv(d.amex), Num.csv(d.glovo), Num.csv(d.uber), Num.csv(d.apper), Num.csv(d.total)]); const csv = [header.join(';'), ...rows.map(r=>r.join(';'))].join('\n'); const blob = new Blob(["\uFEFF"+csv], {type:'text/csv;charset=utf-8'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`Cajas_${fiscalYear}_Q${fiscalQuarter}.csv`; a.click(); }
+function saveZ(){ const v = (id) => Num.parse(document.getElementById(id).value); const data = { date: currentDiarioDate, cash: v('z-cash'), expenses: v('z-expenses'), visa: v('z-visa'), tpv: v('z-tpv'), amex: v('z-amex'), glovo: v('z-glovo'), uber: v('z-uber'), apper: v('z-apper') }; data.total = (data.cash||0) + (data.visa||0) + (data.tpv||0) + (data.amex||0) + (data.glovo||0) + (data.uber||0) + (data.apper||0); const idx = db.diario.findIndex(d=>d.date===data.date); if(idx>=0) db.diario[idx]=data; else db.diario.push(data); save("Cierre guardado"); renderDiario(document.getElementById('app')); }
+function exportDiarioCSV() { if(!db.diario.length) return toast("Vacío", "error"); const header = ['Fecha', 'Efectivo', 'Gastos', 'Visa', 'TPV', 'Amex', 'Glovo', 'Uber', 'Apper', 'Total']; const rows = db.diario.map(d=>[d.date, d.cash, d.expenses, d.visa, d.tpv, d.amex, d.glovo, d.uber, d.apper, d.total].map(x=>Num.csv(x)).join(';')); const csv = [header.join(';'), ...rows].join('\n'); const a=document.createElement('a'); a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv); a.download='diario.csv'; a.click(); }
 
 /* ================= 10. UTILS & BACKUP ================= */
 function showModal(t,c){ document.getElementById('m-title').innerText=t; document.getElementById('m-body').innerHTML=c; document.getElementById('modal-overlay').classList.remove('hidden'); }
 function closeModal(){ document.getElementById('modal-overlay').classList.add('hidden'); }
-function downloadBackup(){ if(currentUser.role!=='admin') return toast("⛔ Solo Gerencia", "error"); const data = secure.enc(db); const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([data], {type: 'text/plain'})); a.download = `Arume_Backup_${getISO()}.arume`; a.click(); }
-function restoreBackup(input){ 
-    const r = new FileReader(); 
-    r.onload = e => { 
-        try { 
-            const d = secure.dec(e.target.result); 
-            if(d && d.users) { 
-                db=d; 
-                save("Restaurado correctamente"); 
-                // No usar reload, repintar
-                loadApp();
-            } else throw new Error(); 
-        } catch(err) { toast("Archivo corrupto", "error"); } 
-    }; 
-    r.readAsText(input.files[0]); 
+function downloadBackup(){ if(currentUser?.role!=='admin') return toast("⛔ Solo Gerencia", "error"); const data = secure.enc(db); const a = document.createElement('a'); a.href = 'data:application/octet-stream;charset=utf-8,' + encodeURIComponent(data); a.download = `arume_backup_${getISO()}.arume`; a.click(); }
+function restoreBackup(input){ 
+    const r = new FileReader(); 
+    r.onload = e => { 
+        try { 
+            const d = secure.dec(e.target.result); 
+            if(d && d.users) { 
+                db=d; 
+                save("Restaurado correctamente"); 
+                // No usar reload, repintar
+                loadApp();
+            } else throw new Error(); 
+        } catch(err) { toast("Archivo corrupto", "error"); } 
+    }; 
+    if(input.files && input.files[0]) r.readAsText(input.files[0]); else toast("No se seleccionó archivo", "error");
 }
 
 /* ================= INIT ================= */
