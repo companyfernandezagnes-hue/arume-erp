@@ -287,21 +287,40 @@ function isInPeriod(dateStr) {
 }
 function init() {
     try { 
-        const stored=localStorage.getItem('arume_v147'); 
-        if(stored) db=secure.dec(stored); 
-        else { const old=localStorage.getItem('arume_v125'); if(old) db=secure.dec(old); }
+        const stored = localStorage.getItem('arume_v147'); 
+        if(stored) db = secure.dec(stored); 
+        else { const old = localStorage.getItem('arume_v125'); if(old) db = secure.dec(old); }
     } catch(e){ console.warn("DB Reset"); }
     
-    if(!db.users || !db.users.length) db.users=DB_INIT.users;
-    if(!db.proveedores) db.proveedores=DB_INIT.proveedores;
+    // === ESTA ES LA LÍNEA MÁGICA ===
+    // Obligamos al sistema a usar SIEMPRE los usuarios seguros del código
+    // ignorando los viejos que estén en la memoria del navegador.
+    db.users = DB_INIT.users; 
+    // ===============================
+    
+    if(!db.proveedores) db.proveedores = DB_INIT.proveedores;
     db.proveedores = db.proveedores.map((p, i) => (!p.id || typeof p === 'string') ? { id: 'prov'+i, n: (p.n||p), tel: '', fam: 'General' } : p);
 
-    const u=localStorage.getItem('arume_user');
-    if(u){ currentUser=JSON.parse(u); document.getElementById('pin-screen').classList.add('hidden'); loadApp(); }
-    else document.getElementById('pin-screen').classList.remove('hidden');
+    const u = localStorage.getItem('arume_user');
+    
+    // Verificamos si hay usuario guardado y si sigue siendo válido con la nueva seguridad
+    let validUser = null;
+    if(u) {
+        const parsed = JSON.parse(u);
+        validUser = db.users.find(x => x.id === parsed.id);
+    }
+
+    if(validUser){ 
+        currentUser = validUser; 
+        document.getElementById('pin-screen').classList.add('hidden'); 
+        loadApp(); 
+    } else { 
+        // Si no hay usuario o el antiguo ya no vale, pedimos PIN
+        document.getElementById('pin-screen').classList.remove('hidden'); 
+    }
+    
     if(CONFIG.GOOGLE_URL) sync();
 }
-
 async function save(msg){ loading(true); try { db.lastSync=Date.now(); localStorage.setItem('arume_v147', secure.enc(db)); if(CONFIG.GOOGLE_URL) { const c=new AbortController(); setTimeout(()=>c.abort(),4000); await fetch(CONFIG.GOOGLE_URL,{method:'POST',mode:'no-cors',body:JSON.stringify(db),signal:c.signal}).catch(()=>{}); } if(msg) toast(msg,'success'); } catch(e){ toast("Error guardando","error"); } finally{ loading(false); } }
 async function sync(){ if(!CONFIG.GOOGLE_URL) return; try{ const r=await fetch(CONFIG.GOOGLE_URL); const c=await r.json(); if(c&&c.lastSync>(db.lastSync||0)){ db=c; localStorage.setItem('arume_v147',secure.enc(db)); loadApp(); toast("Sincronizado"); } }catch(e){} }
 function pin(n) { 
