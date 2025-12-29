@@ -433,28 +433,35 @@ function parseAlb() {
 
     lines.forEach(l => {
         let cleanLine = l.replace(/[€$]/g, '').trim(); 
+        // Detectamos separadores (TAB, punto y coma o espacios dobles)
         let parts = cleanLine.split(/[\t;]|\s{2,}/);
-
-        if (parts.length < 2) {
-            const match = cleanLine.match(/^(.*?)\s+([\d\.,]+[a-zA-Z]*)\s+([\d\.,]+)$/);
-            if (match) parts = [match[1], match[2], match[3]];
-        }
 
         if (parts.length >= 2) {
             const n = parts[0].trim();
             const qStr = parts[1].trim().replace(/\s/g, ''); 
+            const pStr = parts[2] ? parts[2].trim() : '0';
             
-            // ✅ ESTA ES LA LÍNEA CORREGIDA (Sin .replace)
-            const pStr = parts[2] ? parts[2].trim() : '0'; 
+            // NUEVAS COLUMNAS: Descuento (3) e IVA (4)
+            const dStr = parts[3] ? parts[3].trim() : '0';
+            const taxStr = parts[4] ? parts[4].trim() : '10';
 
             const qMatch = qStr.match(/^([\d\.,]+)([a-zA-Z]+)?$/);
             
             const qty = qMatch ? Num.parse(qMatch[1]) : Num.parse(qStr);
             const unit = qMatch && qMatch[2] && typeof UnitConverter !== 'undefined' ? UnitConverter.normalize(qMatch[2]) : 'ud';
             const price = Num.parse(pStr);
+            const discount = Num.parse(dStr);
+            const tax = Num.parse(taxStr);
 
             if (n && qty > 0) {
-                tempItems.push({ n, q: qty, p: price, unit, d: 0, tax: 10 });
+                tempItems.push({ 
+                    n, 
+                    q: qty, 
+                    p: price, 
+                    unit, 
+                    d: discount, 
+                    tax: tax 
+                });
                 found++;
             }
         }
@@ -463,12 +470,11 @@ function parseAlb() {
     if (found > 0) {
         renderAlbGrid();
         document.getElementById('alb-input').value = ''; 
-        toast(`✅ ${found} líneas detectadas`);
+        toast(`✅ ${found} líneas con IVA/Dto detectadas`);
     } else {
-        toast("⚠️ Formato no reconocido. Prueba: Nombre TAB Cantidad TAB Precio", "error");
+        toast("⚠️ Error de formato", "error");
     }
 }
-
 function renderAlbGrid() {
     const el = document.getElementById('alb-grid'); if (!el) return;
     el.innerHTML = tempItems.map((it, i) => {
