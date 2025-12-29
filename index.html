@@ -3,12 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-    <title>ARUME V141 · Diamond Audit</title>
+    <title>ARUME V145 · Diamond Audit</title>
     <meta name="description" content="Sistema de Gestión Integral para Hostelería">
     
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;800&display=swap" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
 
     <style>
@@ -70,10 +68,6 @@
         nav button.locked { opacity: 0.4; filter: grayscale(1); pointer-events: none; }
 
         /* UTILS */
-        function triggerRestore() {
-    // Busca el input oculto y simula un clic
-    document.getElementById('backup-input').click();
-}
         #loading-overlay { position: fixed; inset: 0; background: rgba(255,255,255,0.95); z-index: 9999; display: flex; justify-content: center; align-items: center; flex-direction: column; }
         .spinner { width: 40px; height: 40px; border: 4px solid #e2e8f0; border-top: 4px solid #4f46e5; border-radius: 50%; animation: spin 1s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
@@ -91,31 +85,18 @@
         .omnes-dog  { border-color: #ef4444; background: #fef2f2; }
         .period-btn { font-size: 10px; padding: 6px 10px; border-radius: 20px; font-weight: bold; background: #f1f5f9; color: #64748b; transition:0.2s; }
         .period-btn.active { background: #0f172a; color: white; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
-            /* === MODO IMPRESIÓN (COCINA) === */
+
+        /* === MODO IMPRESIÓN (COCINA) === */
         @media print {
-            /* Ocultar todo lo que no sea contenido vital */
             body { padding: 0; background: white; }
             nav, header, .btn-premium, .btn-ghost, .btn-icon, .input-premium, button, input, select { display: none !important; }
-            
-            /* Mostrar solo el Modal si está abierto, o la App si no */
-            #modal-overlay { 
-                position: static; background: white; padding: 0; display: block !important; 
-            }
-            .modal { 
-                box-shadow: none; border: none; width: 100%; max-width: 100%; padding: 0; 
-                overflow: visible; 
-            }
-            
-            /* Si no hay modal, ocultar app base para no imprimir basura */
+            #modal-overlay { position: static; background: white; padding: 0; display: block !important; }
+            .modal { box-shadow: none; border: none; width: 100%; max-width: 100%; padding: 0; overflow: visible; }
             #modal-overlay.hidden + #app { display: none; }
-
-            /* Estilos específicos para papel */
             body { font-size: 12pt; color: black; }
             h1, h2, h3 { color: black !important; }
             .text-slate-400 { color: #666 !important; }
-            .bg-slate-50, .bg-indigo-50 { background: none !important; border: 1px solid #ddd; }
-            
-            /* Asegurar que las instrucciones se lean bien */
+            .bg-slate-50, .bg-indigo-50, .bg-yellow-50 { background: none !important; border: 1px solid #ddd; }
             p, li { page-break-inside: avoid; }
         }
     </style>
@@ -132,7 +113,7 @@
 
     <header class="sticky top-0 z-40 px-6 py-4 flex justify-between items-center bg-white/90 backdrop-blur border-b border-gray-100">
         <div>
-            <h1 class="text-2xl font-black text-slate-900 tracking-tight">ARUME <span class="text-indigo-600">V141</span></h1>
+            <h1 class="text-2xl font-black text-slate-900 tracking-tight">ARUME <span class="text-indigo-600">V145</span></h1>
             <p class="text-[10px] text-gray-400 font-bold tracking-widest uppercase">Diamond Audit</p>
         </div>
         <div class="bg-slate-100 px-3 py-1 rounded-full text-xs font-bold text-slate-600 flex items-center gap-2 cursor-pointer hover:bg-slate-200 transition" onclick="logout()">
@@ -177,27 +158,21 @@
     </div>
 
 <script>
-/* ================= 1. CORE UTILS & NUMERICS (AUDIT FIX) ================= */
-// Manejo robusto de decimales y sanitización
+/* ================= 1. CORE UTILS & NUMERICS ================= */
 const Num = {
-    // Convierte string "1.200,50" -> float 1200.50
     parse: (str) => {
         if (!str) return 0;
         if (typeof str === 'number') return str;
-        // Eliminar puntos de miles y cambiar coma por punto
         const cleanStr = String(str).replace(/\./g, '').replace(',', '.');
         const val = parseFloat(cleanStr);
         return isNaN(val) ? 0 : val;
     },
-    // Formatea float -> "1.200,50"
     fmt: (n) => (n||0).toLocaleString('es-ES', {minimumFractionDigits: 2, maximumFractionDigits: 2}),
-    // Formato CSV (Excel español usa coma decimal)
     csv: (n) => String(n||0).replace('.', ',')
 };
 
 function clean(str) { 
     if(!str) return ''; 
-    // Sanitización básica para evitar inyección HTML
     return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); 
 }
 
@@ -205,7 +180,7 @@ const generateID = () => Math.random().toString(36).substr(2, 9);
 const getISO = () => new Date().toLocaleDateString('en-CA');
 const getTS = () => new Date().toLocaleString('es-ES');
 
-/* ================= 2. CONFIGURACIÓN & DB (MEJORADA V145) ================= */
+/* ================= 2. CONFIGURACIÓN & DB (V145) ================= */
 const CONFIG = { 
     GOOGLE_URL: "https://script.google.com/macros/s/AKfycbxL0hWPiYmQ_590bkFjd1B9xwsfrYQXQtEuUpP2Nraq973bDr2rpEgVnaJCpI3-DH8z/exec", 
     COST_HOUR: 15 
@@ -222,7 +197,6 @@ const DB_INIT = {
     users: [{id:'u1', n:'Gerencia', pin:'0150', role:'admin'}, {id:'u2', n:'Equipo', pin:'1111', role:'staff'}], 
     ingredientes: [], 
     recetas: [], 
-    // CAMBIO IMPORTANTE: Ahora los proveedores tienen ID, Teléfono y Familia
     proveedores: [
         { id: 'p1', n: 'Makro', tel: '', fam: 'General' },
         { id: 'p2', n: 'Frutas y Verduras', tel: '', fam: 'Verdura' }
@@ -231,7 +205,6 @@ const DB_INIT = {
     kardex: [], sales_history: [], lastSync: 0 
 };
 
-// "Encriptación" ligera para almacenamiento local (No es seguridad militar, evita lectura accidental)
 const secure = { 
     enc: (d) => btoa(encodeURIComponent(JSON.stringify(d))), 
     dec: (d) => JSON.parse(decodeURIComponent(atob(d))) 
@@ -243,6 +216,7 @@ let currentDiarioDate = new Date().toLocaleDateString('en-CA');
 let inventoryMode = false;
 let fiscalYear = new Date().getFullYear();
 let fiscalQuarter = Math.floor(new Date().getMonth() / 3) + 1;
+
 /* ================= 3. SYSTEM FUNCTIONS ================= */
 function loading(show) { document.getElementById('loading-overlay').classList.toggle('hidden', !show); }
 
@@ -267,26 +241,15 @@ function init() {
         if(stored) db=secure.dec(stored); 
     } catch(e){ console.warn("DB Integrity Reset"); }
     
-    // Migraciones de estructura seguras
+    // Migraciones
     if(!db.users || !db.users.length) db.users=DB_INIT.users;
     if(!db.kardex) db.kardex=[]; 
     if(!db.sales_history) db.sales_history=[];
-
-    // ===> AÑADE ESTA LÍNEA DE AQUÍ ABAJO PARA CORREGIR PROVEEDORES VIEJOS <===
-    // Si los proveedores no tienen ID, los actualizamos
-    db.proveedores = db.proveedores.map((p, i) => p.id ? p : { id: 'prov'+i, n: p.n, tel: '', fam: 'General' });
-
-    const u=localStorage.getItem('arume_user');
-    if(u){ currentUser=JSON.parse(u); document.getElementById('pin-screen').classList.add('hidden'); loadApp(); }
-    else document.getElementById('pin-screen').classList.remove('hidden');
     
-    if(CONFIG.GOOGLE_URL) sync();
-}
-    
-    // Migraciones de estructura seguras
-    if(!db.users || !db.users.length) db.users=DB_INIT.users;
-    if(!db.kardex) db.kardex=[]; 
-    if(!db.sales_history) db.sales_history=[];
+    // Migración de proveedores para V145
+    if(db.proveedores) {
+        db.proveedores = db.proveedores.map((p, i) => p.id ? p : { id: 'prov'+i, n: p.n, tel: '', fam: 'General' });
+    }
 
     const u=localStorage.getItem('arume_user');
     if(u){ currentUser=JSON.parse(u); document.getElementById('pin-screen').classList.add('hidden'); loadApp(); }
@@ -303,11 +266,10 @@ async function save(msg){
         if(CONFIG.GOOGLE_URL) { 
             const c=new AbortController(); 
             setTimeout(()=>c.abort(),4000); 
-            // no-cors es necesario para Google Apps Script simple
             await fetch(CONFIG.GOOGLE_URL,{method:'POST',mode:'no-cors',body:JSON.stringify(db),signal:c.signal}).catch(()=>{}); 
         }
         if(msg) toast(msg,'success'); 
-    } catch(e){ toast("Error guardando datos locales","error"); } 
+    } catch(e){ toast("Error guardando","error"); } 
     finally{ loading(false); }
 }
 
@@ -318,7 +280,6 @@ async function sync(){
         const c=await r.json(); 
         if(c&&c.lastSync>(db.lastSync||0)){ 
             db=c; localStorage.setItem('arume_v125',secure.enc(db)); 
-            // No recargar, repintar
             loadApp(); toast("Datos sincronizados");
         } 
     }catch(e){} 
@@ -339,6 +300,7 @@ function pin(n){
 }
 
 function logout(){ if(confirm("¿Cerrar sesión?")){ localStorage.removeItem('arume_user'); location.reload(); }}
+function triggerRestore() { document.getElementById('backup-input').click(); }
 
 /* ================= 4. LOGIC ENGINE ================= */
 const UnitConverter = {
@@ -373,7 +335,6 @@ function logStock(ingId, qty, type, reason, price=0) {
 function loadApp() { 
     document.getElementById('user-name').innerText=currentUser.n; 
     renderNav(); 
-    // Redirigir a vista segura si es staff
     render(currentUser.role==='admin' ? 'Admin' : 'Cocina'); 
 }
 
@@ -463,7 +424,7 @@ function commitSalesSession() {
     if(hasData) { db.sales_history.push(log); save("Ventas procesadas"); closeModal(); renderAdmin(document.getElementById('app')); } else toast("No has introducido cantidades", "error");
 }
 
-/* --- ALBARANES --- */
+/* --- ALBARANES MEJORADOS (V142) --- */
 function renderAlbaranes(c) {
     const periodAlbs = db.albaranes.filter(a => isInPeriod(a.date)).slice().reverse();
     const provOptions = db.proveedores.map(p => `<option value="${clean(p.n)}">`).join('');
@@ -714,7 +675,7 @@ function renderFacturas(c) { const pends = db.albaranes.filter(a=>!a.invoiced); 
 function invoice(p,ids){ const l=ids.split(','); l.forEach(id=>{ const a=db.albaranes.find(x=>x.id===id); if(a) a.invoiced=true; }); const t=l.reduce((ac,id)=>ac+(db.albaranes.find(x=>x.id===id)?.total||0),0); db.facturas.push({id:generateID(), date:getISO(), prov:p, total:t, paid:false}); save("Factura OK"); renderAdmin(document.getElementById('app')); }
 function togglePaid(id){ const f=db.facturas.find(x=>x.id===id); if(f){ f.paid=!f.paid; save(); renderAdmin(document.getElementById('app')); }}
 
-/* ================= 7. COCINA ================= */
+/* ================= 7. COCINA AVANZADA (V143) ================= */
 function renderCocina(app) {
     // Ordenar recetas alfabéticamente
     const sorted = db.recetas.sort((a,b) => a.n.localeCompare(b.n));
@@ -807,10 +768,6 @@ function calcRecipe(r, visited = new Set()) {
             if (subR) {
                 // Recursividad: calculamos el coste de la subreceta
                 const subC = calcRecipe(subR, new Set(visited));
-                // Asumimos que la subreceta se añade como "1 unidad" o "1 ración"
-                // Si quisieras ser preciso con Kilos, habría que definir el "Yield" de la subreceta.
-                // Aquí simplificamos: el coste de la subreceta entera se multiplica por la cantidad usada.
-                // (Ej: Usas 0.5 de la receta "Salsa Tomate")
                 t += (subC.t * it.q);
                 subC.all.forEach(k => all.add(k));
             }
@@ -885,7 +842,7 @@ function editRec(id) {
     </div>
     `);
     
-    toggleRecType('ing'); // Cargar ingredientes por defecto
+    toggleRecType('ing'); 
     renderRecItems(); 
 }
 
@@ -895,7 +852,6 @@ function toggleRecType(type) {
     const radioRec = document.querySelector('input[value="rec"]');
     const radioIng = document.querySelector('input[value="ing"]');
     
-    // Sincronizar UI si se llama programáticamente
     if(type === 'ing') radioIng.checked = true;
     else radioRec.checked = true;
 
@@ -905,16 +861,12 @@ function toggleRecType(type) {
         hint.innerText = "Añadiendo Materia Prima desde Almacén";
         document.getElementById('er-m').disabled = false;
     } else {
-        // Filtrar para no poder añadirse a sí misma (si estamos editando)
-        // Nota: `tempItems` no tiene el ID de la receta actual, es una variable global. 
-        // Para simplificar, mostramos todas. `calcRecipe` evita el bucle infinito.
         sel.innerHTML = db.recetas.sort((a,b)=>a.n.localeCompare(b.n))
             .map(r => `<option value="${r.id}">🥣 ${clean(r.n)}</option>`).join('');
         hint.innerText = "Añadiendo otra receta como ingrediente (Ej: Salsa Base)";
-        document.getElementById('er-m').disabled = true; // Subreceta no suele tener merma al añadirla, ya está elaborada
+        document.getElementById('er-m').disabled = true; 
         document.getElementById('er-m').value = 0;
     }
-    // Guardamos el tipo actual en el dataset del select para usarlo al añadir
     sel.dataset.type = type;
 }
 
@@ -967,7 +919,7 @@ function saveRec(id) {
         pvp: parseFloat(document.getElementById('er-pvp').value), 
         time: parseFloat(document.getElementById('er-time').value), 
         items: tempItems, 
-        inst: document.getElementById('er-inst').value, // Guardar instrucciones
+        inst: document.getElementById('er-inst').value, 
         sales: (db.recetas.find(x => x.id === id)?.sales || 0) 
     }; 
     
@@ -996,7 +948,6 @@ function viewRec(id) {
     
     // Cálculos de márgenes
     const pvp = r.pvp || 0;
-    const profit = pvp - c.t;
     const foodCost = pvp > 0 ? (c.t / pvp) * 100 : 0;
     
     // Colores semáforo
@@ -1056,6 +1007,7 @@ function viewRec(id) {
     <button class="btn-ghost w-full" onclick="editRec('${r.id}')">✏️ EDITAR FICHA TÉCNICA</button>
     `); 
 }
+
 /* ================= 8. STOCK PRO (V144) ================= */
 const FAMILIES = ['General', 'Carne', 'Pescado', 'Verdura', 'Secos', 'Lácteos', 'Congelado', 'Bebida', 'Alcohol', 'Limpieza', 'Packaging'];
 let activeFamily = 'Todos';
@@ -1156,20 +1108,46 @@ function renderStock(app) {
         </div>`;
 }
 
-function sendWhatsApp() { 
-    // Filtramos solo los que están por debajo del mínimo Y (opcional) de la categoría activa
+function sendWhatsApp() {
+    // 1. Filtrar productos bajo mínimos
     let listItems = db.ingredientes.filter(i => i.stock < (i.min || 0));
     
+    // 2. Si hay una familia seleccionada, filtramos por ella
     if(activeFamily !== 'Todos') {
         listItems = listItems.filter(i => (i.fam || 'General') === activeFamily);
     }
 
-    const list = listItems.map(i => `- ${i.n}: Pedir ${((i.min||0) - i.stock + (i.min*0.2)).toFixed(2)} ${i.unit}`).join('%0A'); 
+    // 3. Generar el mensaje de texto
+    const list = listItems.map(i => `- ${i.n}: Pedir ${((i.min||0) - i.stock + (i.min*0.2)).toFixed(2)} ${i.unit}`).join('%0A');
     
-    if(!list) return toast("Todo el Stock OK", "success"); 
+    if(!list) return toast("Stock OK: No hace falta pedir nada", "success");
+
+    // 4. Lógica Inteligente de Proveedores
+    let targetPhone = "";
     
+    if (activeFamily !== 'Todos') {
+        // Buscamos si ya hay un proveedor asignado a esta familia
+        let prov = db.proveedores.find(p => p.fam === activeFamily);
+        
+        if (prov) {
+            if (prov.tel) {
+                targetPhone = prov.tel;
+            } else {
+                const newTel = prompt(`El proveedor de ${activeFamily} (${prov.n}) no tiene teléfono.\nIndícalo (34...):`);
+                if (newTel) {
+                    prov.tel = newTel;
+                    targetPhone = newTel;
+                    save("Teléfono Guardado");
+                }
+            }
+        } else {
+            const assign = confirm(`No hay proveedor asignado a la familia "${activeFamily}".\n¿Quieres abrir el pedido genérico?`);
+            if (!assign) return; 
+        }
+    }
+
     const title = activeFamily !== 'Todos' ? `PEDIDO ${activeFamily.toUpperCase()}` : 'PEDIDO GENERAL';
-    window.open(`https://wa.me/?text=${encodeURIComponent(`🛒 *${title} ARUME*\n\n`)}${list}`, '_blank'); 
+    window.open(`https://wa.me/${targetPhone}?text=${encodeURIComponent(`🛒 *${title} ARUME*\n\n`)}${list}`, '_blank');
 }
 
 function toggleInventoryMode() { inventoryMode = !inventoryMode; render('Stock'); }
@@ -1286,7 +1264,7 @@ function editIng(id) {
         const divs = document.querySelectorAll('#m-body .flex div'); 
         i.aller.forEach(k => { 
             const idx = ALLERGENS.findIndex(a => a.k === k); 
-            if (divs[idx]) divs[idx].classList.add('active'); // Clase lógica para el guardado
+            if (divs[idx]) divs[idx].classList.add('active'); 
         }); 
     }, 50); 
 }
@@ -1302,7 +1280,7 @@ function saveIng(id) {
     const ing = { 
         id, 
         n: document.getElementById('ei-n').value, 
-        fam: document.getElementById('ei-fam').value, // Guardar familia
+        fam: document.getElementById('ei-fam').value, 
         cost: parseFloat(document.getElementById('ei-c').value), 
         stock: parseFloat(document.getElementById('ei-s').value), 
         min: parseFloat(document.getElementById('ei-m').value), 
@@ -1327,6 +1305,7 @@ function deleteIng(id) {
         render('Stock'); 
     } 
 }
+
 /* ================= 9. DIARIO & CAJA V141 ================= */
 function renderDiario(app){
     const r = db.diario.find(d => d.date === currentDiarioDate) || { cash:0, visa:0, tpv:0, amex:0, glovo:0, uber:0, apper:0, expenses:0 };
@@ -1347,26 +1326,6 @@ function renderDiario(app){
 function calcTotal() { const v = (id) => Num.parse(document.getElementById(id).value); const cash = v('z-cash'), exp = v('z-expenses'); const total = cash + v('z-visa') + v('z-tpv') + v('z-amex') + v('z-glovo') + v('z-uber') + v('z-apper'); document.getElementById('z-total-display').innerText = Num.fmt(total)+'€'; document.getElementById('z-real-cash').innerText = Num.fmt(cash - exp); }
 function saveZ(){ const v = (id) => Num.parse(document.getElementById(id).value); const data = { date: currentDiarioDate, cash: v('z-cash'), expenses: v('z-expenses'), visa: v('z-visa'), tpv: v('z-tpv'), amex: v('z-amex'), glovo: v('z-glovo'), uber: v('z-uber'), apper: v('z-apper'), total: v('z-cash') + v('z-visa') + v('z-tpv') + v('z-amex') + v('z-glovo') + v('z-uber') + v('z-apper') }; const idx = db.diario.findIndex(d => d.date === currentDiarioDate); if(idx>=0) db.diario[idx] = data; else db.diario.push(data); save("Cierre Guardado"); render('Diario'); }
 function exportDiarioCSV() { if(!db.diario.length) return toast("Vacío", "error"); const header = ['Fecha', 'Efectivo', 'Gastos', 'Visa', 'TPV', 'Amex', 'Glovo', 'Uber', 'Apper', 'Total']; const rows = db.diario.filter(d=>isInPeriod(d.date)).sort((a,b)=>b.date.localeCompare(a.date)).map(d => [d.date, Num.csv(d.cash), Num.csv(d.expenses), Num.csv(d.visa), Num.csv(d.tpv), Num.csv(d.amex), Num.csv(d.glovo), Num.csv(d.uber), Num.csv(d.apper), Num.csv(d.total)]); const csv = [header.join(';'), ...rows.map(r=>r.join(';'))].join('\n'); const blob = new Blob(["\uFEFF"+csv], {type:'text/csv;charset=utf-8'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`Cajas_${fiscalYear}_Q${fiscalQuarter}.csv`; a.click(); }
-
-/* ================= 10. UTILS & BACKUP ================= */
-function showModal(t,c){ document.getElementById('m-title').innerText=t; document.getElementById('m-body').innerHTML=c; document.getElementById('modal-overlay').classList.remove('hidden'); }
-function closeModal(){ document.getElementById('modal-overlay').classList.add('hidden'); }
-function downloadBackup(){ if(currentUser.role!=='admin') return toast("⛔ Solo Gerencia", "error"); const data = secure.enc(db); const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([data], {type: 'text/plain'})); a.download = `Arume_Backup_${getISO()}.arume`; a.click(); }
-function restoreBackup(input){ 
-    const r = new FileReader(); 
-    r.onload = e => { 
-        try { 
-            const d = secure.dec(e.target.result); 
-            if(d && d.users) { 
-                db=d; 
-                save("Restaurado correctamente"); 
-                // No usar reload, repintar
-                loadApp();
-            } else throw new Error(); 
-        } catch(err) { toast("Archivo corrupto", "error"); } 
-    }; 
-    r.readAsText(input.files[0]); 
-}
 
 /* ================= INIT ================= */
 init();
