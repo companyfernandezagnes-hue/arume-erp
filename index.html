@@ -769,105 +769,76 @@ function calcRecipe(r, visited = new Set()) {
     return { t, all: Array.from(all) }; 
 }
 
-function editRec(id) { 
-    const r = id ? db.recetas.find(x => x.id === id) : { id: generateID(), n: '', pvp: 0, time: 10, items: [], inst: '' }; 
-    if(!r) return; 
-
-    tempItems = r.items ? JSON.parse(JSON.stringify(r.items)) : []; 
+function editIng(id) { 
+    // Buscamos el ingrediente o creamos uno nuevo por defecto
+    const i = db.ingredientes.find(x => x.id === id) || { id: id, n: '', cost: 0, stock: 0, min: 0, unit: 'kg', fam: 'General', aller: [] }; 
     
-    showModal(id ? 'Editar Ficha' : 'Nueva Ficha Técnica', `
-    <div class="grid grid-cols-12 gap-3 mb-4">
-        <div class="col-span-8">
-            <label>Nombre del Plato</label>
-            <input id="er-n" value="${clean(r.n)}" class="input-premium font-bold text-lg" placeholder="Ej: Salsa Brava">
-        </div>
-        <div class="col-span-4">
-            <label>PVP (€)</label>
-            <input type="number" id="er-pvp" value="${r.pvp}" class="input-premium text-center">
-        </div>
-    </div>
-    
-    <div class="flex gap-4 mb-4">
-        <div class="flex-1">
-            <label>Tiempo (min)</label>
-            <input type="number" id="er-time" value="${r.time}" class="input-premium">
-        </div>
-    </div>
+    // Lista de familias (categorías)
+    const families = ['General', 'Carne', 'Pescado', 'Verdura', 'Secos', 'Lácteos', 'Congelado', 'Bebida', 'Alcohol', 'Limpieza', 'Packaging'];
+    const famOptions = families.map(f => `<option value="${f}" ${i.fam===f?'selected':''}>${f}</option>`).join('');
 
-    <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 mb-4">
-        <div class="flex gap-4 mb-2 text-xs font-bold text-slate-500 uppercase tracking-widest justify-center">
-            <label class="flex items-center gap-1 cursor-pointer hover:text-indigo-600">
-                <input type="radio" name="itemType" value="ing" checked onclick="toggleRecType('ing')"> 📦 Materia Prima
-            </label>
-            <label class="flex items-center gap-1 cursor-pointer hover:text-indigo-600">
-                <input type="radio" name="itemType" value="rec" onclick="toggleRecType('rec')"> 🥣 Sub-Receta
-            </label>
+    showModal('Ficha Almacén', `
+        <label>Nombre del Producto</label>
+        <input id="ei-n" value="${clean(i.n)}" class="input-premium" placeholder="Ej: Harina Trigo">
+        
+        <label>Categoría</label>
+        <select id="ei-fam" class="input-premium mb-4">${famOptions}</select>
+
+        <div class="grid grid-cols-3 gap-2">
+            <div><label>Coste/Ud (€)</label><input id="ei-c" type="number" value="${i.cost}" class="input-premium"></div>
+            <div><label>Stock</label><input id="ei-s" type="number" value="${i.stock}" class="input-premium"></div>
+            <div><label>Mínimo</label><input id="ei-m" type="number" value="${i.min || 0}" class="input-premium"></div>
         </div>
         
-        <div class="flex gap-2 items-center">
-            <div class="flex-1">
-                <select id="er-sel" class="input-premium mb-0 text-sm h-10"></select>
-            </div>
-            <div class="w-20">
-                <input id="er-q" type="number" class="input-premium mb-0 text-center h-10" placeholder="Cant">
-            </div>
-            <div class="w-16">
-                <input id="er-m" type="number" class="input-premium mb-0 text-center h-10" placeholder="Merma%">
-            </div>
-            <button class="bg-indigo-600 text-white rounded-lg w-10 h-10 flex items-center justify-center font-bold shadow-lg shadow-indigo-200 hover:scale-105 transition" onclick="addItemToRec()">+</button>
+        <label>Unidad</label>
+        <select id="ei-unit" class="input-premium">
+            <option ${i.unit === 'kg' ? 'selected' : ''} value="kg">kg (Kilos)</option>
+            <option ${i.unit === 'g' ? 'selected' : ''} value="g">g (Gramos)</option>
+            <option ${i.unit === 'l' ? 'selected' : ''} value="l">l (Litros)</option>
+            <option ${i.unit === 'ml' ? 'selected' : ''} value="ml">ml (Mililitros)</option>
+            <option ${i.unit === 'ud' ? 'selected' : ''} value="ud">ud (Unidad)</option>
+        </select>
+        
+        <div class="flex gap-3 mt-6">
+            <button class="btn-premium flex-1" onclick="saveIng('${i.id}')">GUARDAR</button>
+            ${db.ingredientes.find(x => x.id === id) ? `<button class="btn-icon btn-delete w-auto px-4" onclick="deleteIng('${id}')">🗑️</button>` : ''}
         </div>
-        <div class="text-[10px] text-slate-400 mt-1 text-center" id="type-hint">...</div>
-    </div>
-
-    <div class="bg-white border border-slate-100 rounded-xl mb-4 max-h-48 overflow-y-auto" id="er-list"></div>
-
-    <label class="font-bold text-slate-700 text-sm">Instrucciones</label>
-    <textarea id="er-inst" rows="4" class="input-premium mb-4 text-sm" placeholder="Pasos de la receta...">${clean(r.inst || '')}</textarea>
-
-    <div class="grid grid-cols-2 gap-3 mt-4">
-        <button class="btn-premium" onclick="saveRec('${r.id}')">💾 GUARDAR</button>
-        ${id ? `<button class="btn-ghost text-red-400" onclick="deleteRec('${id}')">🗑️ ELIMINAR</button>` : ''}
-    </div>
-    `);
-    
-    // CRÍTICO: Esperar a que el modal exista
-    setTimeout(() => {
-        toggleRecType('ing'); 
-        renderRecItems(); 
-    }, 100);
+    `); 
 }
 
-function toggleRecType(type) {
-    const sel = document.getElementById('er-sel');
-    const hint = document.getElementById('type-hint');
-    if(!sel) return; 
+function saveIng(id) { 
+    // Recogemos los datos del formulario
+    const n = document.getElementById('ei-n').value;
+    if(!n) return toast("Ponle nombre al producto", "error");
 
-    document.querySelectorAll(`input[name="itemType"][value="${type}"]`).forEach(el => el.checked = true);
+    const ing = { 
+        id: id, 
+        n: n, 
+        fam: document.getElementById('ei-fam').value, 
+        cost: parseFloat(document.getElementById('ei-c').value) || 0, 
+        stock: parseFloat(document.getElementById('ei-s').value) || 0, 
+        min: parseFloat(document.getElementById('ei-m').value) || 0, 
+        unit: document.getElementById('ei-unit').value || 'kg', 
+        aller: [] // Simplificado: si quieres alérgenos aquí, avísame, pero así funciona seguro.
+    }; 
+    
+    // Guardamos en la base de datos
+    const idx = db.ingredientes.findIndex(x => x.id === id); 
+    if (idx >= 0) db.ingredientes[idx] = ing; 
+    else db.ingredientes.push(ing); 
+    
+    save("Producto Guardado"); 
+    closeModal(); 
+    render('Stock'); // Refrescamos la pantalla para ver cambios
+}
 
-    if (type === 'ing') {
-        if(db.ingredientes.length === 0) {
-            sel.innerHTML = '<option value="">⚠️ No hay productos en Stock</option>';
-        } else {
-            sel.innerHTML = db.ingredientes.sort((a,b)=>a.n.localeCompare(b.n))
-                .map(i => `<option value="${i.id}">${clean(i.n)} (${i.unit})</option>`).join('');
-        }
-        hint.innerText = "Selecciona un producto del almacén";
-        document.getElementById('er-m').disabled = false;
-        document.getElementById('er-m').placeholder = "Merma%";
-    } else {
-        const subRecipes = db.recetas.filter(r => r.id !== (tempItems.currentRecId || '')); 
-        if(subRecipes.length === 0) {
-            sel.innerHTML = '<option value="">⚠️ No hay otras recetas creadas</option>';
-        } else {
-            sel.innerHTML = subRecipes.sort((a,b)=>a.n.localeCompare(b.n))
-                .map(r => `<option value="${r.id}">🥣 ${clean(r.n)}</option>`).join('');
-        }
-        hint.innerText = "Añade una elaboración previa (Salsa, Caldo...)";
-        document.getElementById('er-m').disabled = true;
-        document.getElementById('er-m').value = 0;
-        document.getElementById('er-m').placeholder = "-";
-    }
-    sel.dataset.type = type;
+function deleteIng(id) { 
+    if (confirm("¿Seguro que quieres borrar este producto?")) { 
+        db.ingredientes = db.ingredientes.filter(i => i.id !== id); 
+        save("Producto Borrado"); 
+        closeModal(); 
+        render('Stock'); 
+    } 
 }
 
 function addItemToRec() { 
