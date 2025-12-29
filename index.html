@@ -605,50 +605,275 @@ function viewRec(id) {
     showModal(clean(r.n), `<div class="grid grid-cols-3 gap-2 mb-6"><div class="bg-slate-50 p-3 rounded-xl text-center border border-slate-100"><div class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Coste</div><div class="text-xl font-black text-slate-800">${Num.fmt(c.t)}€</div></div><div class="bg-slate-50 p-3 rounded-xl text-center border border-slate-100"><div class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">PVP</div><div class="text-xl font-black text-slate-800">${Num.fmt(pvp)}€</div></div><div class="bg-slate-50 p-3 rounded-xl text-center border border-slate-100"><div class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Food Cost</div><div class="text-xl font-black ${semColor}">${foodCost.toFixed(1)}%</div></div></div><div class="mb-6"><h4 class="font-bold text-slate-800 text-xs uppercase mb-2 border-b pb-1 tracking-widest">Ingredientes</h4><ul class="text-sm space-y-2">${r.items.map(it => { let n="???",d=""; if(it.type==='ing'){ const i=db.ingredientes.find(x=>x.id===it.id); n=i?i.n:'Eliminado'; d=`${it.q} ${i?.unit||'ud'}`; }else{ const rc=db.recetas.find(x=>x.id===it.id); n=rc?`🥣 ${rc.n}`:'Borrada'; d=`${it.q} rac`; } return `<li class="flex justify-between text-slate-600 border-b border-slate-50 pb-1 last:border-0"><span>${n}</span> <span class="font-mono font-bold text-slate-400">${d}</span></li>`; }).join('')}</ul></div>${r.inst ? `<div class="mb-6 bg-yellow-50 p-4 rounded-xl border border-yellow-100 relative print:border-slate-200"><p class="text-sm text-slate-700 whitespace-pre-line leading-relaxed font-serif">${clean(r.inst)}</p></div>` : ''}<div class="flex gap-2"><button class="btn-ghost flex-1" onclick="window.print()">🖨️ IMPRIMIR</button><button class="btn-premium flex-1" onclick="editRec('${r.id}')">✏️ EDITAR</button></div>`); 
 }
 
-/* ================= 8. STOCK PRO & WHATSAPP (V144) ================= */
+/* ================= 8. STOCK & AUDITORÍA PRO (V147 FIXED) ================= */
 function renderStock(app) {
     const isAdmin = currentUser?.role === 'admin';
+    
+    // 1. Filtrado
     let filtered = db.ingredientes.filter(i => i.n.toLowerCase().includes(searchFilter.toLowerCase()));
     if (activeFamily !== 'Todos') filtered = filtered.filter(i => (i.fam || 'General') === activeFamily);
     filtered.sort((a,b) => a.n.localeCompare(b.n));
+
+    // 2. Valoración total
     const totalStockValue = filtered.reduce((acc, i) => acc + (i.stock * i.cost), 0);
-    const catChips = ['Todos', ...FAMILIES].map(cat => `<button class="px-3 py-1 rounded-full text-[10px] font-bold border transition whitespace-nowrap ${activeFamily===cat ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-100'}" onclick="activeFamily='${cat}';render('Stock')">${cat}</button>`).join('');
-    app.innerHTML = `<div class="glass-card"><div class="flex justify-between items-center mb-4"><h3 class="font-bold text-slate-800">ALMACÉN</h3><div class="flex gap-2"><button class="btn-whatsapp text-xs font-bold px-3 py-1 rounded-lg border-0" onclick="sendWhatsApp()">📞 PEDIDO</button><button class="bg-emerald-50 text-emerald-600 px-3 py-1 rounded-lg text-xs font-bold border border-emerald-200" onclick="toggleInventoryMode()">${inventoryMode ? '❌ SALIR' : '📋 AUDITORÍA'}</button></div></div><input placeholder="🔍 Buscar..." onkeyup="searchFilter=this.value;render('Stock')" value="${searchFilter}" class="input-premium mb-2"><div class="flex gap-2 overflow-x-auto pb-2 mb-2 no-scrollbar">${catChips}</div><div class="max-h-[55vh] overflow-y-auto pr-1 space-y-2">${filtered.map(i => { const lowStock = i.stock < (i.min||0); const famLabel = i.fam && i.fam !== 'General' ? `<span class="text-[8px] bg-slate-100 text-slate-500 px-1 rounded ml-1 uppercase tracking-wider">${i.fam}</span>` : ''; if(inventoryMode) return `<div class="bg-white p-3 rounded-xl border-2 ${lowStock?'border-red-100':'border-slate-100'} flex justify-between items-center"><div class="flex-1"><div class="font-bold text-slate-800 flex items-center">${clean(i.n)} ${famLabel}</div><div class="text-xs text-slate-400">Teórico: ${i.stock} ${i.unit}</div></div><div class="flex items-center gap-2"><input type="number" id="real-stock-${i.id}" placeholder="${i.stock}" class="w-20 bg-indigo-50 border border-indigo-200 rounded p-2 text-center font-bold text-indigo-700 outline-none"><span class="text-xs font-bold text-slate-500 w-6">${i.unit}</span><button class="btn-icon bg-emerald-100 text-emerald-600 hover:bg-emerald-200" onclick="adjustStock('${i.id}')">✔</button></div></div>`; else return `<div class="bg-white p-3 rounded-xl border ${lowStock?'border-red-300 bg-red-50/30':'border-slate-100'} flex justify-between items-center group relative"><div onclick="showKardex('${i.id}')" class="flex-1 cursor-pointer"><div class="font-bold text-slate-800 flex items-center">${clean(i.n)} ${famLabel}</div><div class="text-xs text-slate-500 flex items-center gap-1 mt-1">${(i.aller||[]).map(k=>`<span class="aller-tag">${ALLERGENS.find(a=>a.k==k)?.i}</span>`).join('')}<span class="font-mono font-bold ${lowStock?'text-red-600':''} bg-slate-50 px-1 rounded border border-slate-200">${parseFloat(i.stock).toFixed(2)} ${i.unit}</span> ${isAdmin ? `<span class="text-[10px] ml-1">x ${Num.fmt(i.cost)}€ = <b>${Num.fmt(i.stock*i.cost)}€</b></span>` : ''}</div></div><div class="flex gap-2"><button class="btn-icon btn-merma" onclick="regMerma('${i.id}')">📉</button>${isAdmin ? `<button class="btn-icon btn-log" onclick="showKardex('${i.id}')">📜</button>` : ''}<button class="btn-icon bg-slate-50 text-slate-400 hover:text-indigo-600" onclick="editIng('${i.id}')">✏️</button></div></div>`; }).join('')}</div>${isAdmin && !inventoryMode ? `<div class="mt-4 flex justify-between items-center bg-slate-900 text-white p-3 rounded-xl shadow-lg"><div class="text-xs font-bold text-slate-400 uppercase tracking-widest">Valor Inventario</div><div class="text-xl font-black">${Num.fmt(totalStockValue)}€</div></div><button class="btn-premium mt-4" onclick="editIng(generateID())">+ AÑADIR PRODUCTO</button>` : ''}</div>`;
+
+    // 3. Chips de Categorías
+    const catChips = ['Todos', ...FAMILIES].map(cat => 
+        `<button class="px-3 py-1 rounded-full text-[10px] font-bold border transition whitespace-nowrap ${activeFamily===cat ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-100'}" onclick="activeFamily='${cat}';render('Stock')">${cat}</button>`
+    ).join('');
+
+    app.innerHTML = `
+        <div class="glass-card ${inventoryMode ? 'border-l-4 border-orange-500 bg-orange-50/10' : ''}">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="font-bold text-slate-800 flex items-center gap-2">
+                    ${inventoryMode ? '📋 MODO AUDITORÍA' : '📦 ALMACÉN'}
+                </h3>
+                <div class="flex gap-2">
+                    ${!inventoryMode ? `<button class="btn-whatsapp text-xs font-bold px-3 py-2 rounded-lg border-0 shadow-sm" onclick="sendWhatsApp()">📞 PEDIDO</button>` : ''}
+                    <button class="${inventoryMode ? 'bg-slate-800 text-white shadow-lg' : 'bg-white text-slate-600 border border-slate-200'} px-4 py-2 rounded-lg text-xs font-bold transition" onclick="toggleInventoryMode()">
+                        ${inventoryMode ? '❌ SALIR' : '📋 AUDITAR'}
+                    </button>
+                </div>
+            </div>
+
+            <input placeholder="🔍 Buscar producto..." onkeyup="searchFilter=this.value;render('Stock')" value="${searchFilter}" class="input-premium mb-3">
+            <div class="flex gap-2 overflow-x-auto pb-2 mb-2 no-scrollbar">${catChips}</div>
+
+            <div class="max-h-[60vh] overflow-y-auto pr-1 space-y-2">
+                ${filtered.map(i => {
+                    const lowStock = i.stock < (i.min||0);
+                    const famLabel = i.fam && i.fam !== 'General' ? `<span class="text-[9px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded ml-1 uppercase tracking-wider font-bold">${i.fam}</span>` : '';
+
+                    if(inventoryMode) {
+                        // === VISTA AUDITORÍA (CON BOTÓN DE CHECK) ===
+                        return `
+                        <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex justify-between items-center animate-slide-up">
+                            <div class="flex-1">
+                                <div class="font-bold text-slate-800 text-sm flex items-center">${clean(i.n)} ${famLabel}</div>
+                                <div class="text-[10px] text-slate-400 font-mono">Teórico: <b>${i.stock}</b> ${i.unit}</div>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <input type="number" id="real-stock-${i.id}" placeholder="${i.stock}" class="w-24 bg-orange-50 border border-orange-200 rounded-lg p-2 text-center font-bold text-orange-800 outline-none focus:ring-2 focus:ring-orange-500 text-lg" onfocus="this.select()">
+                                <button class="w-12 h-10 rounded-lg bg-emerald-500 text-white flex items-center justify-center shadow-md hover:scale-105 transition active:scale-95" onclick="adjustStock('${i.id}')">✔</button>
+                            </div>
+                        </div>`;
+                    } else {
+                        // === VISTA NORMAL ===
+                        return `
+                        <div class="bg-white p-3 rounded-xl border ${lowStock ? 'border-red-300 bg-red-50/30' : 'border-slate-100'} shadow-sm flex justify-between items-center group relative">
+                            <div onclick="showKardex('${i.id}')" class="flex-1 cursor-pointer">
+                                <div class="font-bold text-slate-800 text-sm flex items-center">${clean(i.n)} ${famLabel}</div>
+                                <div class="text-xs text-slate-500 flex items-center gap-1 mt-1">
+                                    <span class="font-mono font-bold bg-slate-100 px-1.5 py-0.5 rounded text-slate-600 border border-slate-200 text-[10px]">${parseFloat(i.stock).toFixed(2)} ${i.unit}</span>
+                                    ${isAdmin ? `<span class="text-[10px] text-slate-400 ml-1">x ${Num.fmt(i.cost)}€ = <b>${Num.fmt(i.stock*i.cost)}€</b></span>` : ''}
+                                </div>
+                            </div>
+                            <div class="flex gap-2">
+                                <button class="w-8 h-8 flex items-center justify-center rounded-lg bg-orange-50 text-orange-500 hover:bg-orange-100 transition" onclick="regMerma('${i.id}')">📉</button>
+                                ${isAdmin ? `<button class="w-8 h-8 flex items-center justify-center rounded-lg bg-indigo-50 text-indigo-500 hover:bg-indigo-100 transition" onclick="showKardex('${i.id}')">📜</button>` : ''}
+                                <button class="w-8 h-8 flex items-center justify-center rounded-lg bg-slate-50 text-slate-400 hover:bg-slate-200 hover:text-slate-700 transition" onclick="editIng('${i.id}')">✏️</button>
+                            </div>
+                        </div>`;
+                    }
+                }).join('')}
+                
+                ${filtered.length === 0 ? '<div class="text-center p-8 text-slate-400 italic">No hay productos con este filtro</div>' : ''}
+            </div>
+
+            ${isAdmin && !inventoryMode ? `
+            <div class="mt-4 flex justify-between items-center bg-slate-900 text-white p-4 rounded-xl shadow-lg">
+                <div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Valor Inventario</div>
+                <div class="text-xl font-black">${Num.fmt(totalStockValue)}€</div>
+            </div>
+            <button class="btn-premium mt-4" onclick="editIng(generateID())">+ AÑADIR PRODUCTO</button>
+            ` : ''}
+        </div>`;
 }
+
+function toggleInventoryMode() {
+    inventoryMode = !inventoryMode;
+    render('Stock');
+    if(inventoryMode) toast("Modo Auditoría: Introduce el stock REAL");
+}
+
+function adjustStock(id) {
+    const input = document.getElementById(`real-stock-${id}`);
+    const realQty = Num.parse(input.value);
+    const i = db.ingredientes.find(x => x.id === id);
+
+    if (!isNaN(realQty) && i) {
+        const diff = realQty - i.stock;
+        
+        if (diff !== 0) {
+            // Registrar el ajuste en el Kardex
+            logStock(i.id, Math.abs(diff), 'ADJ', 'Auditoría', i.cost);
+            i.stock = realQty;
+            
+            // Guardar y feedback visual
+            save(`Stock actualizado: ${realQty} ${i.unit}`);
+            render('Stock'); // Refrescar para ver el cambio
+        } else {
+            toast("✅ El stock coincide, todo correcto", "success");
+        }
+    } else {
+        toast("Introduce un número válido", "error");
+    }
+}
+
 function sendWhatsApp() {
     let listItems = db.ingredientes.filter(i => i.stock < (i.min || 0));
     if(activeFamily !== 'Todos') listItems = listItems.filter(i => (i.fam || 'General') === activeFamily);
+    
     const list = listItems.map(i => `- ${i.n}: Pedir ${((i.min||0) - i.stock + (i.min*0.2)).toFixed(2)} ${i.unit}`).join('%0A');
-    if(!list) return toast("Stock OK", "success");
+    
+    if(!list) return toast("✅ Stock OK: No hace falta pedir nada", "success");
+    
     let targetPhone = "";
     if (activeFamily !== 'Todos') {
         let prov = db.proveedores.find(p => p.fam === activeFamily);
         if (prov) {
             if (prov.tel) targetPhone = prov.tel;
-            else { const newTel = prompt(`Teléfono para ${activeFamily} (${prov.n})? (34...)`); if (newTel) { prov.tel = newTel; targetPhone = newTel; save(); } }
-        } else if (!confirm(`Sin proveedor para "${activeFamily}". ¿Usar genérico?`)) return;
+            else { 
+                const newTel = prompt(`El proveedor de ${activeFamily} (${prov.n}) no tiene teléfono.\nIndícalo (34...):`);
+                if (newTel) { prov.tel = newTel; targetPhone = newTel; save("Teléfono guardado"); } 
+            }
+        } else if (!confirm(`No hay proveedor para "${activeFamily}". ¿Usar pedido genérico?`)) return;
     }
+    
     const title = activeFamily !== 'Todos' ? `PEDIDO ${activeFamily.toUpperCase()}` : 'PEDIDO GENERAL';
     window.open(`https://wa.me/${targetPhone}?text=${encodeURIComponent(`🛒 *${title} ARUME*\n\n`)}${list}`, '_blank');
 }
-function adjustStock(id) { const realQty = Num.parse(document.getElementById(`real-stock-${id}`).value); const i = db.ingredientes.find(x => x.id === id); if (!isNaN(realQty) && i && (realQty - i.stock !== 0)) { logStock(i.id, Math.abs(realQty - i.stock), 'ADJ', 'Inventario Real', i.cost); i.stock = realQty; save("Ajustado"); render('Stock'); } }
-function showKardex(id) { if (currentUser.role !== 'admin') return; const i = db.ingredientes.find(x => x.id === id); const logs = db.kardex.filter(k => k.ingId === id).reverse().slice(0, 50); showModal(`Kardex: ${clean(i.n)}`, `<div class="text-xs text-slate-400 mb-2 font-bold uppercase">Movimientos recientes</div><div class="max-h-60 overflow-y-auto bg-slate-50 rounded-xl p-2 border border-slate-100">${logs.map(l => `<div class="flex justify-between py-2 border-b border-slate-200 last:border-0"><div><div class="font-bold text-slate-700">${l.date}</div><div class="text-[10px] text-slate-500">${l.reason}</div></div><div class="text-right"><div class="${l.type==='IN'?'text-emerald-500':'text-red-500'} font-bold">${l.type==='IN'?'+':'-'} ${l.qty} ${l.unit}</div><div class="text-[10px] text-slate-400">${Num.fmt(l.price)}€/ud</div></div></div>`).join('')}</div>`); }
-function regMerma(id) { const i = db.ingredientes.find(x => x.id === id); showModal('Merma', `<p class="text-sm text-slate-500 mb-4">Producto: <b>${clean(i.n)}</b></p><label>Cantidad Perdida (${i.unit})</label><input type="number" id="m-q" class="input-premium"><label>Motivo</label><select id="m-r" class="input-premium"><option>Caducidad</option><option>Rotura</option><option>Error Cocina</option><option>Consumo Personal</option></select><button class="btn-premium btn-danger mt-4 border-0" onclick="saveMerma('${id}')">REGISTRAR PÉRDIDA</button>`); }
-function saveMerma(id) { const i = db.ingredientes.find(x => x.id === id); const q = parseFloat(document.getElementById('m-q').value); const r = document.getElementById('m-r').value; if (q > 0) { i.stock -= q; db.mermas.push({ date: getISO(), n: i.n, q, reason: r, loss: q * i.cost }); logStock(i.id, q, 'OUT', `Merma: ${r}`); save("Merma registrada"); closeModal(); render('Stock'); } }
+
+function showKardex(id) { 
+    if (currentUser.role !== 'admin') return; 
+    const i = db.ingredientes.find(x => x.id === id); 
+    const logs = db.kardex.filter(k => k.ingId === id).reverse().slice(0, 50); 
+    showModal(`Kardex: ${clean(i.n)}`, `
+        <div class="text-xs text-slate-400 mb-2 font-bold uppercase">Movimientos recientes</div>
+        <div class="max-h-60 overflow-y-auto bg-slate-50 rounded-xl p-2 border border-slate-100">
+            ${logs.map(l => `
+                <div class="flex justify-between py-2 border-b border-slate-200 last:border-0">
+                    <div>
+                        <div class="font-bold text-slate-700">${l.date}</div>
+                        <div class="text-[10px] text-slate-500">${l.reason}</div>
+                    </div>
+                    <div class="text-right">
+                        <div class="${l.type==='IN'?'text-emerald-500':'text-red-500'} font-bold">${l.type==='IN'?'+':'-'} ${l.qty} ${l.unit}</div>
+                        <div class="text-[10px] text-slate-400">${Num.fmt(l.price)}€/ud</div>
+                    </div>
+                </div>`).join('')}
+        </div>`); 
+}
+
+function regMerma(id) { 
+    const i = db.ingredientes.find(x => x.id === id); 
+    showModal('Merma', `
+        <p class="text-sm text-slate-500 mb-4">Producto: <b>${clean(i.n)}</b></p>
+        <label>Cantidad Perdida (${i.unit})</label>
+        <input type="number" id="m-q" class="input-premium text-center font-bold text-lg" placeholder="0">
+        <label>Motivo</label>
+        <select id="m-r" class="input-premium mb-4">
+            <option>Caducidad</option>
+            <option>Rotura</option>
+            <option>Error Cocina</option>
+            <option>Consumo Personal</option>
+        </select>
+        <button class="btn-premium btn-danger mt-4 border-0" onclick="saveMerma('${id}')">REGISTRAR PÉRDIDA</button>
+    `); 
+}
+
+function saveMerma(id) { 
+    const i = db.ingredientes.find(x => x.id === id); 
+    const q = parseFloat(document.getElementById('m-q').value); 
+    const r = document.getElementById('m-r').value; 
+    if (q > 0) { 
+        i.stock -= q; 
+        db.mermas.push({ date: getISO(), n: i.n, q, reason: r, loss: q * i.cost }); 
+        logStock(i.id, q, 'OUT', `Merma: ${r}`); 
+        save("Merma registrada"); 
+        closeModal(); 
+        render('Stock'); 
+    } else {
+        toast("Introduce cantidad", "error");
+    }
+}
 
 function editIng(id) { 
     const i = db.ingredientes.find(x => x.id === id) || { id, n: '', cost: 0, stock: 0, min: 0, unit: 'kg', fam: 'General', aller: [] }; 
     const famOptions = FAMILIES.map(f => `<option value="${f}" ${i.fam===f?'selected':''}>${f}</option>`).join('');
-    showModal('Ficha Almacén', `<label>Nombre</label><input id="ei-n" value="${clean(i.n)}" class="input-premium"><label>Categoría</label><select id="ei-fam" class="input-premium mb-4">${famOptions}</select><div class="grid grid-cols-3 gap-2"><div><label>Coste</label><input id="ei-c" type="number" value="${i.cost}" class="input-premium"></div><div><label>Stock</label><input id="ei-s" type="number" value="${i.stock}" class="input-premium"></div><div><label>Mínimo</label><input id="ei-m" type="number" value="${i.min || 0}" class="input-premium"></div></div><label>Unidad</label><select id="ei-unit" class="input-premium"><option ${i.unit==='kg'?'selected':''} value="kg">kg</option><option ${i.unit==='g'?'selected':''} value="g">g</option><option ${i.unit==='l'?'selected':''} value="l">l</option><option ${i.unit==='ml'?'selected':''} value="ml">ml</option><option ${i.unit==='ud'?'selected':''} value="ud">ud</option></select><label>Alérgenos</label><div class="flex flex-wrap gap-2 mt-2">${ALLERGENS.map(a => `<div class="p-2 border rounded-lg cursor-pointer ${i.aller.includes(a.k)?'bg-indigo-100 border-indigo-500 text-indigo-700':'bg-white border-slate-200'}" onclick="this.classList.toggle('bg-indigo-100');this.classList.toggle('border-indigo-500');this.classList.toggle('active')">${a.i}</div>`).join('')}</div><div class="flex gap-3 mt-6"><button class="btn-premium flex-1" onclick="saveIng('${i.id}')">GUARDAR</button>${db.ingredientes.find(x => x.id === id) ? `<button class="btn-icon btn-delete w-auto px-4" onclick="deleteIng('${id}')">🗑️</button>` : ''}</div>`); 
-    setTimeout(() => { const divs = document.querySelectorAll('#m-body .flex div'); i.aller.forEach(k => { const idx = ALLERGENS.findIndex(a => a.k === k); if (divs[idx]) divs[idx].classList.add('active'); }); }, 50); 
+    
+    showModal('Ficha Almacén', `
+        <label>Nombre</label>
+        <input id="ei-n" value="${clean(i.n)}" class="input-premium" placeholder="Ej: Harina">
+        <label>Categoría</label>
+        <select id="ei-fam" class="input-premium mb-4">${famOptions}</select>
+        <div class="grid grid-cols-3 gap-2">
+            <div><label>Coste (€)</label><input id="ei-c" type="number" value="${i.cost}" class="input-premium"></div>
+            <div><label>Stock</label><input id="ei-s" type="number" value="${i.stock}" class="input-premium"></div>
+            <div><label>Mínimo</label><input id="ei-m" type="number" value="${i.min || 0}" class="input-premium"></div>
+        </div>
+        <label>Unidad</label>
+        <select id="ei-unit" class="input-premium">
+            <option ${i.unit==='kg'?'selected':''} value="kg">kg</option>
+            <option ${i.unit==='g'?'selected':''} value="g">g</option>
+            <option ${i.unit==='l'?'selected':''} value="l">l</option>
+            <option ${i.unit==='ml'?'selected':''} value="ml">ml</option>
+            <option ${i.unit==='ud'?'selected':''} value="ud">ud</option>
+        </select>
+        <label>Alérgenos</label>
+        <div class="flex flex-wrap gap-2 mt-2">
+            ${ALLERGENS.map(a => `<div class="p-2 border rounded-lg cursor-pointer ${i.aller.includes(a.k)?'bg-indigo-100 border-indigo-500 text-indigo-700':'bg-white border-slate-200'}" onclick="this.classList.toggle('bg-indigo-100');this.classList.toggle('border-indigo-500');this.classList.toggle('active')">${a.i}</div>`).join('')}
+        </div>
+        <div class="flex gap-3 mt-6">
+            <button class="btn-premium flex-1" onclick="saveIng('${i.id}')">GUARDAR</button>
+            ${db.ingredientes.find(x => x.id === id) ? `<button class="btn-icon btn-delete w-auto px-4" onclick="deleteIng('${id}')">🗑️</button>` : ''}
+        </div>
+    `); 
+    
+    // Restaurar selección visual de alérgenos
+    setTimeout(() => { 
+        const divs = document.querySelectorAll('#m-body .flex div'); 
+        i.aller.forEach(k => { 
+            const idx = ALLERGENS.findIndex(a => a.k === k); 
+            if (divs[idx]) divs[idx].classList.add('active'); 
+        }); 
+    }, 50); 
 }
+
 function saveIng(id) { 
-    const divs = document.querySelectorAll('#m-body .flex div'); const aller = []; divs.forEach((d, i) => { if (d.classList.contains('active')) aller.push(ALLERGENS[i].k) }); 
-    const ing = { id, n: document.getElementById('ei-n').value, fam: document.getElementById('ei-fam').value, cost: parseFloat(document.getElementById('ei-c').value)||0, stock: parseFloat(document.getElementById('ei-s').value)||0, min: parseFloat(document.getElementById('ei-m').value)||0, unit: document.getElementById('ei-unit').value||'kg', aller }; 
-    const idx = db.ingredientes.findIndex(x => x.id === id); if (idx >= 0) db.ingredientes[idx] = ing; else db.ingredientes.push(ing); 
-    save(); closeModal(); render('Stock'); 
+    const divs = document.querySelectorAll('#m-body .flex div'); 
+    const aller = []; 
+    divs.forEach((d, i) => { if (d.classList.contains('active')) aller.push(ALLERGENS[i].k) }); 
+    
+    const n = document.getElementById('ei-n').value;
+    if(!n) return toast("Falta el nombre", "error");
+
+    const ing = { 
+        id, n, 
+        fam: document.getElementById('ei-fam').value, 
+        cost: parseFloat(document.getElementById('ei-c').value)||0, 
+        stock: parseFloat(document.getElementById('ei-s').value)||0, 
+        min: parseFloat(document.getElementById('ei-m').value)||0, 
+        unit: document.getElementById('ei-unit').value||'kg', 
+        aller 
+    }; 
+    
+    const idx = db.ingredientes.findIndex(x => x.id === id); 
+    if (idx >= 0) db.ingredientes[idx] = ing; else db.ingredientes.push(ing); 
+    
+    save("Producto Guardado"); 
+    closeModal(); 
+    render('Stock'); 
 }
-function deleteIng(id) { if (confirm("¿Borrar producto?")) { db.ingredientes = db.ingredientes.filter(i => i.id !== id); save("Borrado"); closeModal(); render('Stock'); } }
+
+function deleteIng(id) { 
+    if (confirm("¿Borrar producto permanentemente?")) { 
+        db.ingredientes = db.ingredientes.filter(i => i.id !== id); 
+        save("Borrado"); 
+        closeModal(); 
+        render('Stock'); 
+    } 
+}
 /* ================= 9. DIARIO & CIERRE DE CAJA ================= */
 function renderDiario(app){
     // 1. Buscamos los datos del día actual o iniciamos a 0
