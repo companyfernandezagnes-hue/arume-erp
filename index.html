@@ -205,7 +205,7 @@ const generateID = () => Math.random().toString(36).substr(2, 9);
 const getISO = () => new Date().toLocaleDateString('en-CA');
 const getTS = () => new Date().toLocaleString('es-ES');
 
-/* ================= 2. CONFIGURACIÓN & DB ================= */
+/* ================= 2. CONFIGURACIÓN & DB (MEJORADA V145) ================= */
 const CONFIG = { 
     GOOGLE_URL: "https://script.google.com/macros/s/AKfycbxL0hWPiYmQ_590bkFjd1B9xwsfrYQXQtEuUpP2Nraq973bDr2rpEgVnaJCpI3-DH8z/exec", 
     COST_HOUR: 15 
@@ -220,7 +220,14 @@ const ALLERGENS = [
 
 const DB_INIT = { 
     users: [{id:'u1', n:'Gerencia', pin:'0150', role:'admin'}, {id:'u2', n:'Equipo', pin:'1111', role:'staff'}], 
-    ingredientes: [], recetas: [], proveedores: [{n:'Makro'}], albaranes: [], facturas: [], diario: [], mermas: [], 
+    ingredientes: [], 
+    recetas: [], 
+    // CAMBIO IMPORTANTE: Ahora los proveedores tienen ID, Teléfono y Familia
+    proveedores: [
+        { id: 'p1', n: 'Makro', tel: '', fam: 'General' },
+        { id: 'p2', n: 'Frutas y Verduras', tel: '', fam: 'Verdura' }
+    ], 
+    albaranes: [], facturas: [], diario: [], mermas: [], 
     kardex: [], sales_history: [], lastSync: 0 
 };
 
@@ -236,7 +243,6 @@ let currentDiarioDate = new Date().toLocaleDateString('en-CA');
 let inventoryMode = false;
 let fiscalYear = new Date().getFullYear();
 let fiscalQuarter = Math.floor(new Date().getMonth() / 3) + 1;
-
 /* ================= 3. SYSTEM FUNCTIONS ================= */
 function loading(show) { document.getElementById('loading-overlay').classList.toggle('hidden', !show); }
 
@@ -260,6 +266,22 @@ function init() {
         const stored=localStorage.getItem('arume_v125'); 
         if(stored) db=secure.dec(stored); 
     } catch(e){ console.warn("DB Integrity Reset"); }
+    
+    // Migraciones de estructura seguras
+    if(!db.users || !db.users.length) db.users=DB_INIT.users;
+    if(!db.kardex) db.kardex=[]; 
+    if(!db.sales_history) db.sales_history=[];
+
+    // ===> AÑADE ESTA LÍNEA DE AQUÍ ABAJO PARA CORREGIR PROVEEDORES VIEJOS <===
+    // Si los proveedores no tienen ID, los actualizamos
+    db.proveedores = db.proveedores.map((p, i) => p.id ? p : { id: 'prov'+i, n: p.n, tel: '', fam: 'General' });
+
+    const u=localStorage.getItem('arume_user');
+    if(u){ currentUser=JSON.parse(u); document.getElementById('pin-screen').classList.add('hidden'); loadApp(); }
+    else document.getElementById('pin-screen').classList.remove('hidden');
+    
+    if(CONFIG.GOOGLE_URL) sync();
+}
     
     // Migraciones de estructura seguras
     if(!db.users || !db.users.length) db.users=DB_INIT.users;
