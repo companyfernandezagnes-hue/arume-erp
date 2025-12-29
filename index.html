@@ -91,6 +91,33 @@
         .omnes-dog  { border-color: #ef4444; background: #fef2f2; }
         .period-btn { font-size: 10px; padding: 6px 10px; border-radius: 20px; font-weight: bold; background: #f1f5f9; color: #64748b; transition:0.2s; }
         .period-btn.active { background: #0f172a; color: white; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+            /* === MODO IMPRESIÓN (COCINA) === */
+        @media print {
+            /* Ocultar todo lo que no sea contenido vital */
+            body { padding: 0; background: white; }
+            nav, header, .btn-premium, .btn-ghost, .btn-icon, .input-premium, button, input, select { display: none !important; }
+            
+            /* Mostrar solo el Modal si está abierto, o la App si no */
+            #modal-overlay { 
+                position: static; background: white; padding: 0; display: block !important; 
+            }
+            .modal { 
+                box-shadow: none; border: none; width: 100%; max-width: 100%; padding: 0; 
+                overflow: visible; 
+            }
+            
+            /* Si no hay modal, ocultar app base para no imprimir basura */
+            #modal-overlay.hidden + #app { display: none; }
+
+            /* Estilos específicos para papel */
+            body { font-size: 12pt; color: black; }
+            h1, h2, h3 { color: black !important; }
+            .text-slate-400 { color: #666 !important; }
+            .bg-slate-50, .bg-indigo-50 { background: none !important; border: 1px solid #ddd; }
+            
+            /* Asegurar que las instrucciones se lean bien */
+            p, li { page-break-inside: avoid; }
+        }
     </style>
 </head>
 <body>
