@@ -198,7 +198,31 @@ function clean(str) {
 const generateID = () => Math.random().toString(36).substr(2, 9);
 const getISO = () => new Date().toLocaleDateString('en-CA');
 const getTS = () => new Date().toLocaleString('es-ES');
-
+const UnitConverter = {
+    normalize: (u) => {
+        if(!u) return 'ud';
+        u = String(u).toLowerCase().trim().replace('.','');
+        if(['kg','kilo','kilos','k'].includes(u)) return 'kg';
+        if(['g','gr','gramos','grs'].includes(u)) return 'g';
+        if(['l','litro','litros','lt'].includes(u)) return 'l';
+        if(['ml','mili','cl'].includes(u)) return 'ml';
+        return 'ud';
+    },
+    convert: (q, from, to) => {
+        from = UnitConverter.normalize(from);
+        to = UnitConverter.normalize(to);
+        if(from === to) return q;
+        if(from === 'kg' && to === 'g') return q * 1000;
+        if(from === 'g' && to === 'kg') return q / 1000;
+        if(from === 'l' && to === 'ml') return q * 1000;
+        if(from === 'ml' && to === 'l') return q / 1000;
+        if(from === 'kg' && to === 'l') return q; 
+        if(from === 'l' && to === 'kg') return q;
+        if(from === 'g' && to === 'ml') return q;
+        if(from === 'ml' && to === 'g') return q;
+        return q;
+    }
+};
 /* CONFIGURACIÓN */
 const CONFIG = { GOOGLE_URL: "https://script.google.com/macros/s/AKfycbxL0hWPiYmQ_590bkFjd1B9xwsfrYQXQtEuUpP2Nraq973bDr2rpEgVnaJCpI3-DH8z/exec", COST_HOUR: 15 };
 const ALLERGENS = [{k:'glu',i:'🌾'},{k:'cru',i:'🦐'},{k:'hue',i:'🥚'},{k:'pes',i:'🐟'},{k:'cac',i:'🥜'},{k:'soj',i:'🫘'},{k:'lac',i:'🥛'},{k:'fru',i:'🌰'},{k:'api',i:'🥬'},{k:'mos',i:'🌭'},{k:'ses',i:'🌱'},{k:'sul',i:'🍷'},{k:'alt',i:'🫘'},{k:'mol',i:'🐙'}];
