@@ -172,10 +172,9 @@
             <button class="w-20 h-20 rounded-full bg-red-500/20 border border-red-500/50 text-red-400 font-bold active:scale-95 transition" onclick="pin('C')">C</button>
             <button class="w-20 h-20 rounded-full border border-white/10 text-2xl font-bold hover:bg-white/10 active:scale-95 transition" onclick="pin(0)">0</button>
             <button class="w-20 h-20 rounded-full bg-indigo-500 text-white font-bold shadow-lg shadow-indigo-500/50 active:scale-95 transition" onclick="pin('OK')">OK</button>
-        </div>
-        <p class="mt-10 text-slate-600 text-xs font-mono">PIN 0150 (Admin) | 1111 (Equipo)</p>
+       </div>
+        <p class="mt-10 text-slate-800/20 text-[8px] font-mono uppercase tracking-[0.3em]">Acceso Restringido · Diamond Audit</p>
     </div>
-
 <script>
 /* ================= 1. NÚCLEO DEL SISTEMA (V147 FINAL) ================= */
 const Num = {
@@ -228,18 +227,45 @@ const CONFIG = { GOOGLE_URL: "https://script.google.com/macros/s/AKfycbxL0hWPiYm
 const ALLERGENS = [{k:'glu',i:'🌾'},{k:'cru',i:'🦐'},{k:'hue',i:'🥚'},{k:'pes',i:'🐟'},{k:'cac',i:'🥜'},{k:'soj',i:'🫘'},{k:'lac',i:'🥛'},{k:'fru',i:'🌰'},{k:'api',i:'🥬'},{k:'mos',i:'🌭'},{k:'ses',i:'🌱'},{k:'sul',i:'🍷'},{k:'alt',i:'🫘'},{k:'mol',i:'🐙'}];
 const FAMILIES = ['General', 'Carne', 'Pescado', 'Verdura', 'Secos', 'Lácteos', 'Congelado', 'Bebida', 'Alcohol', 'Limpieza', 'Packaging'];
 
+/* CONFIGURACIÓN Y BASE DE DATOS */
 const DB_INIT = { 
-    users: [{id:'u1', n:'Gerencia', pin:'0150', role:'admin'}, {id:'u2', n:'Equipo', pin:'1111', role:'staff'}], 
-    ingredientes: [], recetas: [], 
+    // Los PINs ahora están "disfrazados". 
+    // 0150 se convierte en 'MDE1MA==' y 1111 en 'MTExMQ=='
+    users: [
+        {id:'u1', n:'Gerencia', pin:'MDE1MA==', role:'admin'}, 
+        {id:'u2', n:'Equipo', pin:'MTExMQ==', role:'staff'}
+    ], 
+    ingredientes: [], 
+    recetas: [], 
     proveedores: [{ id: 'p1', n: 'Makro', tel: '', fam: 'General' }], 
-    albaranes: [], facturas: [], diario: [], mermas: [], 
-    kardex: [], sales_history: [], lastSync: 0 
+    albaranes: [], 
+    facturas: [], 
+    diario: [], 
+    mermas: [], 
+    kardex: [], 
+    sales_history: [], 
+    lastSync: 0 
 };
 
-const secure = { enc: (d) => btoa(encodeURIComponent(JSON.stringify(d))), dec: (d) => JSON.parse(decodeURIComponent(atob(d))) };
-let db = DB_INIT, currentUser = null, currentPin = "", tempItems = [], activeAdminTab = 'dash', searchFilter = "";
-let currentDiarioDate = new Date().toLocaleDateString('en-CA'), inventoryMode = false, activeFamily = 'Todos';
-let fiscalYear = new Date().getFullYear(), fiscalQuarter = Math.floor(new Date().getMonth() / 3) + 1;
+const secure = { 
+    enc: (d) => btoa(encodeURIComponent(JSON.stringify(d))), 
+    dec: (d) => JSON.parse(decodeURIComponent(atob(d))) 
+};
+
+// Variables de estado
+let db = DB_INIT, 
+    currentUser = null, 
+    currentPin = "", 
+    tempItems = [], 
+    activeAdminTab = 'dash', 
+    searchFilter = "";
+
+let currentDiarioDate = new Date().toLocaleDateString('en-CA'), 
+    inventoryMode = false, 
+    activeFamily = 'Todos';
+
+let fiscalYear = new Date().getFullYear(), 
+    fiscalQuarter = Math.floor(new Date().getMonth() / 3) + 1;
 
 /* FUNCIONES DE SISTEMA */
 function loading(show) { document.getElementById('loading-overlay').classList.toggle('hidden', !show); }
@@ -278,7 +304,29 @@ function init() {
 
 async function save(msg){ loading(true); try { db.lastSync=Date.now(); localStorage.setItem('arume_v147', secure.enc(db)); if(CONFIG.GOOGLE_URL) { const c=new AbortController(); setTimeout(()=>c.abort(),4000); await fetch(CONFIG.GOOGLE_URL,{method:'POST',mode:'no-cors',body:JSON.stringify(db),signal:c.signal}).catch(()=>{}); } if(msg) toast(msg,'success'); } catch(e){ toast("Error guardando","error"); } finally{ loading(false); } }
 async function sync(){ if(!CONFIG.GOOGLE_URL) return; try{ const r=await fetch(CONFIG.GOOGLE_URL); const c=await r.json(); if(c&&c.lastSync>(db.lastSync||0)){ db=c; localStorage.setItem('arume_v147',secure.enc(db)); loadApp(); toast("Sincronizado"); } }catch(e){} }
-function pin(n){ if(n==='C') currentPin=""; else if(n==='OK'){ const u=db.users.find(x=>x.pin===currentPin); if(u){ currentUser=u; localStorage.setItem('arume_user',JSON.stringify(u)); document.getElementById('pin-screen').classList.add('hidden'); loadApp(); } else { toast("PIN Incorrecto","error"); currentPin=""; } } else if(currentPin.length<4) currentPin+=n; document.getElementById('pin-display').innerText=currentPin?'*'.repeat(currentPin.length):'****'; }
+function pin(n) { 
+    if (n === 'C') {
+        currentPin = ""; 
+    } else if (n === 'OK') { 
+        // Esta es la parte clave: btoa() convierte el número en el código oculto
+        const pinOculto = btoa(currentPin);
+        const u = db.users.find(x => x.pin === pinOculto); 
+        
+        if (u) { 
+            currentUser = u; 
+            localStorage.setItem('arume_user', JSON.stringify(u)); 
+            document.getElementById('pin-screen').classList.add('hidden'); 
+            currentPin = ""; 
+            loadApp(); 
+        } else { 
+            toast("PIN Incorrecto", "error"); 
+            currentPin = ""; 
+        } 
+    } else if (currentPin.length < 4) {
+        currentPin += n; 
+    }
+    document.getElementById('pin-display').innerText = currentPin ? '*'.repeat(currentPin.length) : '****'; 
+}
 function logout(){ if(confirm("¿Cerrar sesión?")){ localStorage.removeItem('arume_user'); location.reload(); }}
 function triggerRestore() { document.getElementById('backup-input').click(); }
 function restoreBackup(input){ const r=new FileReader(); r.onload=e=>{ try{ const d=secure.dec(e.target.result); if(d&&d.users){ db=d; save("Restaurado"); loadApp(); } else throw new Error(); }catch(err){ toast("Archivo corrupto","error"); } }; r.readAsText(input.files[0]); }
@@ -792,7 +840,6 @@ function regMerma(id) {
         <button class="btn-premium btn-danger mt-4 border-0" onclick="saveMerma('${id}')">REGISTRAR PÉRDIDA</button>
     `); 
 }
-
 function saveMerma(id) { 
     const i = db.ingredientes.find(x => x.id === id); 
     const q = parseFloat(document.getElementById('m-q').value); 
@@ -808,7 +855,6 @@ function saveMerma(id) {
         toast("Introduce cantidad", "error");
     }
 }
-
 function editIng(id) { 
     const i = db.ingredientes.find(x => x.id === id) || { id, n: '', cost: 0, stock: 0, min: 0, unit: 'kg', fam: 'General', aller: [] }; 
     const famOptions = FAMILIES.map(f => `<option value="${f}" ${i.fam===f?'selected':''}>${f}</option>`).join('');
