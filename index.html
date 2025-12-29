@@ -244,8 +244,21 @@ let fiscalYear = new Date().getFullYear(), fiscalQuarter = Math.floor(new Date()
 /* FUNCIONES DE SISTEMA */
 function loading(show) { document.getElementById('loading-overlay').classList.toggle('hidden', !show); }
 function toast(msg, type='info') { const c=document.getElementById('toast-container'); const el=document.createElement('div'); el.className=`${type==='error'?'bg-red-500':'bg-slate-800'} text-white px-6 py-3 rounded-full shadow-xl font-bold text-xs tracking-wide animate-bounce mb-2`; el.innerText=msg; c.appendChild(el); setTimeout(()=>el.remove(), 3000); }
-function isInPeriod(dateStr) { if(fiscalQuarter===0) return true; const d=new Date(dateStr); return d.getFullYear()===fiscalYear && (Math.floor(d.getMonth()/3)+1)===fiscalQuarter; }
-
+function isInPeriod(dateStr) {
+    if (!dateStr) return false;
+    const parts = dateStr.split('-');
+    const year = parseInt(parts[0]);
+    const month = parseInt(parts[1]); 
+    
+    // Si el año del dato no coincide con el año seleccionado, fuera.
+    if (year !== fiscalYear) return false;
+    
+    // Si el trimestre es 0 (AÑO), y el año coincide, dentro.
+    if (fiscalQuarter === 0) return true;
+    
+    // Cálculo matemático de trimestre
+    return Math.ceil(month / 3) === fiscalQuarter;
+}
 function init() {
     try { 
         const stored=localStorage.getItem('arume_v147'); 
@@ -281,18 +294,85 @@ function render(view) { if((view==='Diario'||view==='Admin') && currentUser.role
 
 /* GESTIÓN */
 function renderAdmin(app) {
-    const totalVentas=db.diario.filter(d=>isInPeriod(d.date)).reduce((acc,d)=>acc+(d.total||0),0);
-    const periodAlbs=db.albaranes.filter(a=>isInPeriod(a.date));
-    const periodCosts=periodAlbs.reduce((acc,a)=>acc+(a.total||0),0);
-    const periodTax=periodAlbs.reduce((acc,a)=>acc+(a.taxes||0),0);
-    const profit=totalVentas-periodCosts;
-    const qCtrl=`<div class="flex justify-between bg-white p-1 rounded-full shadow-sm mb-6"><button class="period-btn ${fiscalQuarter===1?'active':''}" onclick="fiscalQuarter=1;renderAdmin(document.getElementById('app'))">1T</button><button class="period-btn ${fiscalQuarter===2?'active':''}" onclick="fiscalQuarter=2;renderAdmin(document.getElementById('app'))">2T</button><button class="period-btn ${fiscalQuarter===3?'active':''}" onclick="fiscalQuarter=3;renderAdmin(document.getElementById('app'))">3T</button><button class="period-btn ${fiscalQuarter===4?'active':''}" onclick="fiscalQuarter=4;renderAdmin(document.getElementById('app'))">4T</button><button class="period-btn ${fiscalQuarter===0?'active':''}" onclick="fiscalQuarter=0;renderAdmin(document.getElementById('app'))">AÑO</button></div>`;
-    app.innerHTML=`<div class="text-center font-bold text-slate-400 mb-2 tracking-widest text-[10px]">EJERCICIO ${fiscalYear}</div>${qCtrl}
-        <div class="flex gap-2 mb-6 bg-white p-1 rounded-2xl shadow-sm border border-slate-100 overflow-x-auto no-scrollbar"><button class="flex-1 min-w-[80px] py-2.5 rounded-xl font-bold text-xs transition ${activeAdminTab==='dash'?'bg-slate-800 text-white shadow-md':'text-slate-500 hover:bg-slate-50'}" onclick="activeAdminTab='dash';renderAdmin(document.getElementById('app'))">DASHBOARD</button><button class="flex-1 min-w-[80px] py-2.5 rounded-xl font-bold text-xs transition ${activeAdminTab==='omnes'?'bg-slate-800 text-white shadow-md':'text-slate-500 hover:bg-slate-50'}" onclick="activeAdminTab='omnes';renderAdmin(document.getElementById('app'))">OMNES</button><button class="flex-1 min-w-[80px] py-2.5 rounded-xl font-bold text-xs transition ${activeAdminTab==='albaranes'?'bg-slate-800 text-white shadow-md':'text-slate-500 hover:bg-slate-50'}" onclick="activeAdminTab='albaranes';renderAdmin(document.getElementById('app'))">COMPRAS</button><button class="flex-1 min-w-[80px] py-2.5 rounded-xl font-bold text-xs transition ${activeAdminTab==='facturas'?'bg-slate-800 text-white shadow-md':'text-slate-500 hover:bg-slate-50'}" onclick="activeAdminTab='facturas';renderAdmin(document.getElementById('app'))">FACTURAS</button><button class="flex-1 min-w-[80px] py-2.5 rounded-xl font-bold text-xs transition ${activeAdminTab==='proveedores'?'bg-slate-800 text-white shadow-md':'text-slate-500 hover:bg-slate-50'}" onclick="activeAdminTab='proveedores';renderAdmin(document.getElementById('app'))">AGENDA</button></div>
-        ${activeAdminTab==='dash'?`<div class="glass-card bg-gradient-to-br from-slate-900 to-slate-800 text-white border-0"><div class="flex justify-between items-end mb-6"><div><div class="text-4xl font-black ${profit>=0?'text-emerald-400':'text-red-400'}">${Num.fmt(profit)}€</div><div class="text-[10px] opacity-60 uppercase tracking-wider font-bold">Beneficio Neto</div></div><div class="text-right"><div class="text-xl font-bold">${Num.fmt(totalVentas)}€</div><div class="text-[10px] opacity-60 uppercase tracking-wider font-bold">Ventas Totales</div></div></div><div class="h-2 bg-slate-700 rounded-full overflow-hidden flex"><div class="bg-emerald-500 h-full" style="width:${(totalVentas/(totalVentas+periodCosts)*100)||50}%"></div><div class="bg-red-500 h-full flex-1"></div></div><div class="flex justify-between text-[9px] mt-2 font-bold text-slate-400 uppercase tracking-wide"><span>Ingresos</span><span>Gastos (${Num.fmt(periodCosts)}€)</span></div></div><div class="glass-card"><div class="flex justify-between items-center"><span class="font-bold text-slate-600">IVA Soportado</span><span class="font-black text-xl text-indigo-600">${Num.fmt(periodTax)}€</span></div></div><div class="grid grid-cols-2 gap-3"><button class="btn-ghost mb-4" onclick="downloadBackup()">💾 COPIA SEGURIDAD</button><button class="btn-ghost mb-4 text-indigo-600" onclick="triggerRestore()">📤 RESTAURAR</button></div>`:''}
+    // 1. Filtrado de datos usando la nueva lógica
+    const totalVentas = db.diario.filter(d => isInPeriod(d.date)).reduce((acc, d) => acc + (d.total||0), 0);
+    const periodAlbs = db.albaranes.filter(a => isInPeriod(a.date));
+    const periodCosts = periodAlbs.reduce((acc, a) => acc + (a.total||0), 0);
+    const periodTax = periodAlbs.reduce((acc, a) => acc + (a.taxes||0), 0);
+    const profit = totalVentas - periodCosts;
+
+    // 2. HTML del Selector de Año y Trimestres (CON FLECHAS < >)
+    const qCtrl = `
+    <div class="flex items-center justify-between bg-white p-2 rounded-2xl shadow-sm mb-4 border border-slate-100">
+        <div class="flex items-center gap-2 bg-slate-100 rounded-lg px-2 py-1">
+            <button class="w-8 h-8 flex items-center justify-center hover:bg-white rounded-full transition font-bold" onclick="fiscalYear--;renderAdmin(document.getElementById('app'))">‹</button>
+            <span class="font-black text-slate-700 text-sm tracking-widest">${fiscalYear}</span>
+            <button class="w-8 h-8 flex items-center justify-center hover:bg-white rounded-full transition font-bold" onclick="fiscalYear++;renderAdmin(document.getElementById('app'))">›</button>
+        </div>
+        <div class="flex gap-1 overflow-x-auto no-scrollbar">
+            <button class="period-btn ${fiscalQuarter===1?'active':''}" onclick="fiscalQuarter=1;renderAdmin(document.getElementById('app'))">1T</button>
+            <button class="period-btn ${fiscalQuarter===2?'active':''}" onclick="fiscalQuarter=2;renderAdmin(document.getElementById('app'))">2T</button>
+            <button class="period-btn ${fiscalQuarter===3?'active':''}" onclick="fiscalQuarter=3;renderAdmin(document.getElementById('app'))">3T</button>
+            <button class="period-btn ${fiscalQuarter===4?'active':''}" onclick="fiscalQuarter=4;renderAdmin(document.getElementById('app'))">4T</button>
+            <button class="period-btn ${fiscalQuarter===0?'active':''}" onclick="fiscalQuarter=0;renderAdmin(document.getElementById('app'))">AÑO</button>
+        </div>
+    </div>`;
+
+    // 3. Renderizado del resto de la pantalla
+    app.innerHTML = `
+        ${qCtrl}
+        <div class="flex gap-2 mb-6 bg-white p-1 rounded-2xl shadow-sm border border-slate-100 overflow-x-auto no-scrollbar">
+            <button class="flex-1 min-w-[80px] py-2.5 rounded-xl font-bold text-xs transition ${activeAdminTab==='dash'?'bg-slate-800 text-white shadow-md':'text-slate-500 hover:bg-slate-50'}" onclick="activeAdminTab='dash';renderAdmin(document.getElementById('app'))">DASHBOARD</button>
+            <button class="flex-1 min-w-[80px] py-2.5 rounded-xl font-bold text-xs transition ${activeAdminTab==='omnes'?'bg-slate-800 text-white shadow-md':'text-slate-500 hover:bg-slate-50'}" onclick="activeAdminTab='omnes';renderAdmin(document.getElementById('app'))">OMNES</button>
+            <button class="flex-1 min-w-[80px] py-2.5 rounded-xl font-bold text-xs transition ${activeAdminTab==='albaranes'?'bg-slate-800 text-white shadow-md':'text-slate-500 hover:bg-slate-50'}" onclick="activeAdminTab='albaranes';renderAdmin(document.getElementById('app'))">COMPRAS</button>
+            <button class="flex-1 min-w-[80px] py-2.5 rounded-xl font-bold text-xs transition ${activeAdminTab==='facturas'?'bg-slate-800 text-white shadow-md':'text-slate-500 hover:bg-slate-50'}" onclick="activeAdminTab='facturas';renderAdmin(document.getElementById('app'))">FACTURAS</button>
+            <button class="flex-1 min-w-[80px] py-2.5 rounded-xl font-bold text-xs transition ${activeAdminTab==='proveedores'?'bg-slate-800 text-white shadow-md':'text-slate-500 hover:bg-slate-50'}" onclick="activeAdminTab='proveedores';renderAdmin(document.getElementById('app'))">AGENDA</button>
+        </div>
+
+        ${activeAdminTab === 'dash' ? `
+            <div class="glass-card bg-gradient-to-br from-slate-900 to-slate-800 text-white border-0 relative overflow-hidden">
+                <div class="absolute top-0 right-0 p-4 opacity-10 text-6xl">📊</div>
+                <h3 class="text-[10px] font-bold text-slate-400 uppercase mb-4 tracking-[0.2em]">Resultado ${fiscalQuarter===0?'ANUAL':fiscalQuarter+'T'} ${fiscalYear}</h3>
+                
+                <div class="flex justify-between items-end mb-6">
+                    <div>
+                        <div class="text-4xl font-black ${profit>=0?'text-emerald-400':'text-red-400'}">${Num.fmt(profit)}€</div>
+                        <div class="text-[10px] opacity-60 uppercase tracking-wider font-bold">Beneficio Neto</div>
+                    </div>
+                    <div class="text-right">
+                        <div class="text-xl font-bold">${Num.fmt(totalVentas)}€</div>
+                        <div class="text-[10px] opacity-60 uppercase tracking-wider font-bold">Ventas Totales</div>
+                    </div>
+                </div>
+                
+                <div class="h-2 bg-slate-700 rounded-full overflow-hidden flex w-full">
+                    <div class="bg-emerald-500 h-full" style="width:${totalVentas > 0 ? (totalVentas/(totalVentas+periodCosts)*100) : 0}%"></div>
+                    <div class="bg-red-500 h-full flex-1"></div>
+                </div>
+                <div class="flex justify-between text-[9px] mt-2 font-bold text-slate-400 uppercase tracking-wide">
+                    <span>Ingresos</span>
+                    <span>Gastos (${Num.fmt(periodCosts)}€)</span>
+                </div>
+            </div>
+            
+            <div class="glass-card flex justify-between items-center border-l-4 border-indigo-500">
+                <span class="font-bold text-slate-600 text-xs uppercase tracking-wide">IVA Soportado (Deducible)</span>
+                <span class="font-black text-xl text-indigo-600">${Num.fmt(periodTax)}€</span>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <button class="btn-ghost mb-4" onclick="downloadBackup()">💾 GUARDAR COPIA</button>
+                <button class="btn-ghost mb-4 text-indigo-600" onclick="triggerRestore()">📤 RESTAURAR</button>
+            </div>
+            ` : ''}
+        
         <div id="adm-c"></div>`;
-    const c=document.getElementById('adm-c');
-    if(activeAdminTab==='omnes') renderOmnes(c); if(activeAdminTab==='albaranes') renderAlbaranes(c); if(activeAdminTab==='facturas') renderFacturas(c); if(activeAdminTab==='proveedores') renderProveedores(c);
+    
+    const c = document.getElementById('adm-c');
+    if(activeAdminTab==='omnes') renderOmnes(c);
+    if(activeAdminTab==='albaranes') renderAlbaranes(c);
+    if(activeAdminTab==='facturas') renderFacturas(c);
+    if(activeAdminTab==='proveedores') renderProveedores(c);
 }
 
 function renderProveedores(c) {
