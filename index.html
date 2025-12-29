@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-    <title>ARUME V146 · Final</title>
+    <title>ARUME V146 · Diamond Audit</title>
     <meta name="description" content="Sistema de Gestión Integral para Hostelería">
     
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;800&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
 
     <style>
-        /* ESTÉTICA V141 DIAMOND */
+        /* ESTÉTICA GENERAL */
         body { font-family: 'Poppins', sans-serif; background: #f8fafc; padding-bottom: 110px; -webkit-tap-highlight-color: transparent; user-select: none; }
         
         .glass-card { 
@@ -22,6 +22,7 @@
             margin-bottom: 20px; 
         }
         
+        /* BOTONES */
         .btn-premium { 
             background: linear-gradient(135deg, #0f172a 0%, #334155 100%); 
             color: white; padding: 14px; border-radius: 12px; 
@@ -50,6 +51,7 @@
         }
         .input-premium:focus { border-color: #4f46e5; background: white; }
 
+        /* NAVEGACIÓN */
         nav { 
             position: fixed; bottom: 0; left: 0; width: 100%; 
             background: white; padding: 10px 0; 
@@ -64,14 +66,7 @@
         nav button svg { width: 24px; height: 24px; fill: #94a3b8; margin-bottom: 4px; }
         nav button.locked { opacity: 0.4; filter: grayscale(1); pointer-events: none; }
 
-        #loading-overlay { position: fixed; inset: 0; background: rgba(255,255,255,0.95); z-index: 9999; display: flex; justify-content: center; align-items: center; flex-direction: column; }
-        .spinner { width: 40px; height: 40px; border: 4px solid #e2e8f0; border-top: 4px solid #4f46e5; border-radius: 50%; animation: spin 1s linear infinite; }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-
-        .overlay { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.9); backdrop-filter: blur(2px); z-index: 100; display: flex; align-items: center; justify-content: center; }
-        .modal { background: white; width: 95%; max-width: 800px; max-height: 90vh; overflow-y: auto; border-radius: 24px; padding: 24px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); }
-        .hidden { display: none !important; }
-        
+        /* UTILIDADES VISUALES */
         .aller-tag { display: inline-block; width: 20px; height: 20px; text-align: center; line-height: 20px; background: #e0e7ff; border-radius: 50%; font-size: 0.7rem; margin-right: 2px; }
         .tax-pill { font-size: 10px; padding: 2px 6px; border-radius: 4px; background: #f1f5f9; color: #64748b; font-weight: 700; border: 1px solid #e2e8f0; }
         .omnes-card { border-left: 4px solid; }
@@ -81,7 +76,16 @@
         .omnes-dog  { border-color: #ef4444; background: #fef2f2; }
         .period-btn { font-size: 10px; padding: 6px 10px; border-radius: 20px; font-weight: bold; background: #f1f5f9; color: #64748b; transition:0.2s; }
         .period-btn.active { background: #0f172a; color: white; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+        
+        /* ELEMENTOS FLOTANTES */
+        #loading-overlay { position: fixed; inset: 0; background: rgba(255,255,255,0.95); z-index: 9999; display: flex; justify-content: center; align-items: center; flex-direction: column; }
+        .spinner { width: 40px; height: 40px; border: 4px solid #e2e8f0; border-top: 4px solid #4f46e5; border-radius: 50%; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .overlay { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.9); backdrop-filter: blur(2px); z-index: 100; display: flex; align-items: center; justify-content: center; }
+        .modal { background: white; width: 95%; max-width: 800px; max-height: 90vh; overflow-y: auto; border-radius: 24px; padding: 24px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); }
+        .hidden { display: none !important; }
 
+        /* === MODO IMPRESIÓN (PAPEL) === */
         @media print {
             body { padding: 0; background: white; }
             nav, header, .btn-premium, .btn-ghost, .btn-icon, .input-premium, button, input, select { display: none !important; }
@@ -153,7 +157,7 @@
     </div>
 
 <script>
-/* ================= 1. CORE UTILS & NUMERICS ================= */
+    /* ================= 1. CORE UTILS & NUMERICS ================= */
 const Num = {
     parse: (str) => {
         if (!str) return 0;
@@ -175,7 +179,7 @@ const generateID = () => Math.random().toString(36).substr(2, 9);
 const getISO = () => new Date().toLocaleDateString('en-CA');
 const getTS = () => new Date().toLocaleString('es-ES');
 
-/* ================= 2. CONFIGURACIÓN & DB (V145) ================= */
+/* ================= 2. CONFIGURACIÓN & DB (V146) ================= */
 const CONFIG = { 
     GOOGLE_URL: "https://script.google.com/macros/s/AKfycbxL0hWPiYmQ_590bkFjd1B9xwsfrYQXQtEuUpP2Nraq973bDr2rpEgVnaJCpI3-DH8z/exec", 
     COST_HOUR: 15 
@@ -196,7 +200,7 @@ const DB_INIT = {
     recetas: [], 
     proveedores: [
         { id: 'p1', n: 'Makro', tel: '', fam: 'General' },
-        { id: 'p2', n: 'Frutas y Verduras', tel: '', fam: 'Verdura' }
+        { id: 'p2', n: 'Frutería', tel: '', fam: 'Verdura' }
     ], 
     albaranes: [], facturas: [], diario: [], mermas: [], 
     kardex: [], sales_history: [], lastSync: 0 
@@ -239,14 +243,14 @@ function init() {
         if(stored) db=secure.dec(stored); 
     } catch(e){ console.warn("DB Integrity Reset"); }
     
+    // Migraciones de seguridad
     if(!db.users || !db.users.length) db.users=DB_INIT.users;
     if(!db.kardex) db.kardex=[]; 
     if(!db.sales_history) db.sales_history=[];
+    if(!db.proveedores) db.proveedores = DB_INIT.proveedores;
     
-    // Migración Proveedores
-    if(db.proveedores) {
-        db.proveedores = db.proveedores.map((p, i) => p.id ? p : { id: 'prov'+i, n: p.n, tel: '', fam: 'General' });
-    }
+    // Migración Proveedores V145
+    db.proveedores = db.proveedores.map((p, i) => p.id ? p : { id: 'prov'+i, n: p.n, tel: '', fam: 'General' });
 
     const u=localStorage.getItem('arume_user');
     if(u){ currentUser=JSON.parse(u); document.getElementById('pin-screen').classList.add('hidden'); loadApp(); }
@@ -298,6 +302,18 @@ function pin(n){
 
 function logout(){ if(confirm("¿Cerrar sesión?")){ localStorage.removeItem('arume_user'); location.reload(); }}
 function triggerRestore() { document.getElementById('backup-input').click(); }
+function restoreBackup(input){ 
+    const r = new FileReader(); 
+    r.onload = e => { 
+        try { 
+            const d = secure.dec(e.target.result); 
+            if(d && d.users) { 
+                db=d; save("Restaurado correctamente"); loadApp(); 
+            } else throw new Error(); 
+        } catch(err) { toast("Archivo corrupto", "error"); } 
+    }; 
+    r.readAsText(input.files[0]); 
+}
 
 /* ================= 4. LOGIC ENGINE ================= */
 const UnitConverter = {
@@ -416,7 +432,100 @@ function commitSalesSession() {
     if(hasData) { db.sales_history.push(log); save("Ventas procesadas"); closeModal(); renderAdmin(document.getElementById('app')); } else toast("No has introducido cantidades", "error");
 }
 
-/* ================= 7. COCINA PRO (V146) ================= */
+/* --- ALBARANES (V142) --- */
+function renderAlbaranes(c) {
+    const periodAlbs = db.albaranes.filter(a => isInPeriod(a.date)).slice().reverse();
+    const provOptions = db.proveedores.map(p => `<option value="${clean(p.n)}">`).join('');
+    const ingOptions = db.ingredientes.map(i => `<option value="${clean(i.n)}">`).join('');
+    c.innerHTML = `<div class="glass-card border-l-4 border-indigo-500"><div class="flex justify-between items-center mb-4"><h3 class="font-bold text-slate-700 text-sm uppercase">Nuevo Albarán</h3><label class="flex items-center gap-2 cursor-pointer bg-slate-50 px-3 py-1 rounded-lg border border-slate-200"><input type="checkbox" id="alb-socio" class="w-4 h-4 text-indigo-600 rounded"><span class="text-xs font-bold text-slate-600">Es Socio/Interno</span></label></div><div class="grid grid-cols-3 gap-3 mb-3"><div><label>Proveedor</label><input list="prov-list" id="alb-prov" class="input-premium" placeholder="..." onchange="checkDuplicate()"><datalist id="prov-list">${provOptions}</datalist></div><div><label>Productor</label><input id="alb-producer" class="input-premium"></div><div><label>Ref / Factura</label><input id="alb-num" class="input-premium font-mono" onkeyup="checkDuplicate()" value="A-${new Date().getFullYear().toString().slice(-2)}-${(db.albaranes.length+1).toString().padStart(4,'0')}"><div id="dup-alert" class="hidden text-[10px] text-red-500 font-bold mt-1 animate-pulse">⚠️ POSIBLE DUPLICADO</div></div></div><div class="grid grid-cols-2 gap-3 mb-3"><div><label>Fecha</label><input type="date" id="alb-date" value="${getISO()}" class="input-premium"></div><div><label>Nota</label><input id="alb-note" class="input-premium"></div></div><datalist id="ing-list">${ingOptions}</datalist><textarea id="alb-input" rows="2" class="input-premium font-mono text-xs mb-2" placeholder="Pegar: Producto TAB Cantidad TAB Precio..."></textarea><div class="flex gap-2 mb-4"><button class="btn-ghost" onclick="parseAlb()">🪄 Leer Texto</button><button class="btn-ghost text-red-400" onclick="tempItems=[];renderAlbGrid()">Limpiar</button></div><div class="grid grid-cols-12 gap-1 px-2 mb-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider text-center"><div class="col-span-4 text-left">Producto</div><div class="col-span-2">Cant/Ud</div><div class="col-span-2">Precio</div><div class="col-span-1 text-emerald-600">Dto%</div><div class="col-span-1">IVA</div><div class="col-span-2 text-right">Total</div></div><div id="alb-grid" class="space-y-2 mb-4"></div><div class="border-t border-slate-100 pt-3 text-right"><div class="text-xs text-slate-400 font-bold">TOTAL A PAGAR</div><div class="text-3xl font-black text-slate-800"><span id="alb-total">0.00€</span></div></div><div class="grid grid-cols-2 gap-3 mt-4"><button class="btn-premium btn-action" onclick="commitAlb()">CONFIRMAR</button><button class="btn-ghost" onclick="exportAlbCSV()">CSV</button></div></div><div class="glass-card"><h4 class="text-xs font-bold text-slate-400 uppercase mb-4">Historial (${fiscalQuarter===0?'AÑO':fiscalQuarter+'T'})</h4>${periodAlbs.length ? periodAlbs.map(a => `<div class="flex justify-between items-center py-3 border-b border-slate-50 hover:bg-slate-50 transition px-2 rounded-lg"><div class="text-sm font-bold text-slate-700">${a.isSocio ? '🤝 ' : ''}${clean(a.prov)}<div class="text-[10px] text-slate-400 font-normal flex gap-2"><span>${a.date}</span><span class="font-mono bg-slate-100 px-1 rounded text-slate-500">Ref: ${a.num}</span></div></div><div class="flex items-center gap-2"><span class="font-bold text-sm mr-2 ${a.isSocio ? 'text-indigo-600':''}">${Num.fmt(a.total)}€</span><button class="btn-icon btn-ghost" onclick="viewAlbDetails('${a.id}')">👁</button>${!a.invoiced ? `<button class="btn-icon btn-edit" onclick="editAlb('${a.id}')">✏️</button><button class="btn-icon btn-delete" onclick="deleteAlb('${a.id}')">🗑️</button>` : '<span class="text-[10px] bg-green-100 text-green-700 px-2 py-1 rounded font-bold">FACTURADO</span>'}</div></div>`).join('') : '<div class="text-center p-4 text-slate-400">Sin compras registradas</div>'}</div>`;
+    renderAlbGrid();
+}
+
+function checkDuplicate() {
+    const num = document.getElementById('alb-num').value.trim(); const prov = document.getElementById('alb-prov').value.trim();
+    const alert = document.getElementById('dup-alert'); const inputNum = document.getElementById('alb-num');
+    const exists = db.albaranes.some(a => a.num.toLowerCase() === num.toLowerCase() && a.prov.toLowerCase() === prov.toLowerCase());
+    if (exists && num.length > 2) { alert.classList.remove('hidden'); inputNum.classList.add('border-red-500', 'text-red-600'); } else { alert.classList.add('hidden'); inputNum.classList.remove('border-red-500', 'text-red-600'); }
+}
+
+function parseAlb() {
+    const txt = document.getElementById('alb-input').value.trim(); if (!txt) return toast("Texto vacío", "error");
+    txt.split(/\r?\n/).forEach(l => {
+        let parts = l.split(/\t/); if (parts.length < 2) parts = l.split(/,(?=\s*\d)/);
+        if (parts.length >= 2) {
+            const n = parts[0].trim(); const qS = parts[1].trim(); const pS = parts[2] ? parts[2].trim() : '0';
+            const qM = qS.match(/^([\d\.,]+)\s*([a-zA-Z]+)?$/); const qty = qM ? Num.parse(qM[1]) : Num.parse(qS); const unit = qM && qM[2] ? UnitConverter.normalize(qM[2]) : 'ud'; const price = Num.parse(pS);
+            if (n && price >= 0) tempItems.push({ n, q: qty, p: price, unit, d: 0, tax: 10 });
+        }
+    }); renderAlbGrid();
+}
+
+function renderAlbGrid() {
+    const el = document.getElementById('alb-grid'); if (!el) return;
+    el.innerHTML = tempItems.map((it, i) => {
+        const lineBase = (it.q * it.p) * (1 - (it.d || 0) / 100); const lineTotal = lineBase * (1 + it.tax / 100);
+        return `<div class="bg-white p-1 rounded-xl border border-slate-100 grid grid-cols-12 gap-1 items-center shadow-sm relative group"><div class="col-span-4"><input list="ing-list" value="${clean(it.n)}" class="w-full bg-transparent font-bold text-xs outline-none truncate" placeholder="Producto" onchange="tempItems[${i}].n=this.value"></div><div class="col-span-2 flex gap-1"><input type="number" value="${it.q}" class="w-full bg-slate-50 text-center text-xs p-1 rounded font-bold outline-none" onchange="tempItems[${i}].q=parseFloat(this.value);renderAlbGrid()"><select onchange="tempItems[${i}].unit=this.value" class="w-10 bg-slate-50 text-[10px] p-0 rounded border-0 text-slate-500"><option ${it.unit==='ud'?'selected':''} value="ud">ud</option><option ${it.unit==='kg'?'selected':''} value="kg">kg</option><option ${it.unit==='l'?'selected':''} value="l">l</option></select></div><div class="col-span-2"><input type="number" value="${it.p}" class="w-full bg-slate-50 text-center text-xs p-1 rounded outline-none" onchange="tempItems[${i}].p=parseFloat(this.value);renderAlbGrid()"></div><div class="col-span-1"><input type="number" value="${it.d||0}" class="w-full bg-emerald-50 text-emerald-700 text-center text-xs p-1 rounded font-bold outline-none" placeholder="%" onchange="tempItems[${i}].d=parseFloat(this.value);renderAlbGrid()"></div><div class="col-span-1"><select onchange="tempItems[${i}].tax=parseFloat(this.value);renderAlbGrid()" class="w-full bg-blue-50 text-blue-700 font-bold text-[10px] p-1 rounded border-0"><option ${it.tax===10?'selected':''} value="10">10</option><option ${it.tax===21?'selected':''} value="21">21</option><option ${it.tax===4?'selected':''} value="4">4</option><option ${it.tax===0?'selected':''} value="0">0</option></select></div><div class="col-span-2 text-right font-mono font-bold text-xs pr-2">${Num.fmt(lineTotal)}€</div><button class="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center text-[10px] opacity-0 group-hover:opacity-100 transition shadow-sm" onclick="tempItems.splice(${i},1);renderAlbGrid()">✕</button></div>`;
+    }).join('');
+    const total = tempItems.reduce((acc, it) => acc + (it.q * it.p * (1 - (it.d || 0) / 100)) * (1 + it.tax / 100), 0);
+    document.getElementById('alb-total').innerText = Num.fmt(total) + '€';
+}
+
+function commitAlb() {
+    if (!tempItems.length) return toast("Vacío", "error");
+    const prov = document.getElementById('alb-prov').value; const date = document.getElementById('alb-date').value; const num = document.getElementById('alb-num').value; const isSocio = document.getElementById('alb-socio').checked;
+    if (!prov || !date) return toast("Faltan datos", "error");
+    const exists = db.albaranes.some(a => a.num === num && a.prov === prov); if (exists && !confirm(`⚠️ DUPLICADO DETECTADO: ${num}\n¿Guardar de todas formas?`)) return;
+    if (!db.proveedores.find(p => p.n === prov)) db.proveedores.push({ id: generateID(), n: prov, tel: '', fam: 'General' });
+
+    tempItems.forEach(it => {
+        const cleanName = it.n.trim();
+        let ing = db.ingredientes.find(x => x.n.trim().toLowerCase() === cleanName.toLowerCase() && x.unit === it.unit);
+        if (!ing) { ing = { id: generateID(), n: cleanName, stock: 0, cost: 0, unit: it.unit, aller: [], fam: 'General' }; db.ingredientes.push(ing); }
+        const realUnitCost = it.p * (1 - (it.d || 0) / 100); const totalQty = Math.max(0, ing.stock) + it.q;
+        ing.cost = totalQty > 0 ? ((Math.max(0, ing.stock) * ing.cost) + (it.q * realUnitCost)) / totalQty : realUnitCost; ing.stock += it.q;
+        logStock(ing.id, it.q, 'IN', `Alb: ${prov} ${isSocio?'(Socio)':''}`, realUnitCost);
+    });
+
+    let totalBase = 0, totalTax = 0;
+    tempItems.forEach(it => { const base = (it.q * it.p) * (1 - (it.d || 0) / 100); totalBase += base; totalTax += base * (it.tax / 100); });
+    db.albaranes.push({ id: generateID(), num, prov, productor: document.getElementById('alb-producer').value, date, items: JSON.parse(JSON.stringify(tempItems)), total: totalBase + totalTax, taxes: totalTax, subtotal: totalBase, invoiced: false, isSocio, note: document.getElementById('alb-note').value });
+    save("Entrada OK"); tempItems = []; renderAdmin(document.getElementById('app'));
+}
+
+function editAlb(id) {
+    const alb = db.albaranes.find(a => a.id === id); if (!alb) return;
+    if (confirm("¿Editar? Se revertirá el stock.")) {
+        alb.items.forEach(it => { const ing = db.ingredientes.find(x => x.n.trim().toLowerCase() === it.n.trim().toLowerCase() && x.unit === it.unit); if (ing) { ing.stock -= it.q; logStock(ing.id, it.q, 'OUT', `Corrección Alb`); } });
+        tempItems = JSON.parse(JSON.stringify(alb.items)); document.getElementById('alb-prov').value = alb.prov; document.getElementById('alb-num').value = alb.num; document.getElementById('alb-date').value = alb.date; document.getElementById('alb-producer').value = alb.productor || ''; document.getElementById('alb-note').value = alb.note || ''; document.getElementById('alb-socio').checked = alb.isSocio || false;
+        db.albaranes = db.albaranes.filter(a => a.id !== id); renderAlbGrid(); window.scrollTo(0, 0); toast("Modo Edición");
+    }
+}
+
+function deleteAlb(id) {
+    const alb = db.albaranes.find(a => a.id === id); if (!alb) return;
+    if (confirm("¿Borrar?")) {
+        alb.items.forEach(it => { const ing = db.ingredientes.find(x => x.n.trim().toLowerCase() === it.n.trim().toLowerCase() && x.unit === it.unit); if (ing) { ing.stock -= it.q; logStock(ing.id, it.q, 'OUT', `Borrado Alb`); } });
+        db.albaranes = db.albaranes.filter(a => a.id !== id); save("Borrado"); renderAdmin(document.getElementById('app'));
+    }
+}
+
+function viewAlbDetails(id) {
+    const a = db.albaranes.find(x => x.id === id);
+    if (a) showModal(`Detalle ${a.num}`, `<div class="mb-2 text-xs">${a.isSocio ? '🤝 SOCIO | ':''}${a.prov}</div><table class="w-full text-xs"><thead><tr><th>Prod</th><th>Cant</th><th>Dto</th><th>€</th></tr></thead><tbody>${a.items.map(i => { const p = i.p * (1 - (i.d || 0) / 100); return `<tr><td>${i.n}</td><td class="text-center">${i.q}${i.unit}</td><td class="text-center text-red-400">${i.d||'-'}%</td><td class="text-right">${Num.fmt(i.q * p)}</td></tr>`; }).join('')}</tbody></table><div class="text-right font-black text-xl mt-4">${Num.fmt(a.total)}€</div>`);
+}
+
+function exportAlbCSV() {
+    if (!tempItems.length) return toast("Vacío", "error");
+    const rows = tempItems.map(it => [it.n, Num.csv(it.q), it.unit, Num.csv(it.p), Num.csv(it.d || 0), Num.csv((it.q * it.p * (1 - (it.d || 0) / 100)) * (1 + it.tax / 100))]);
+    const csv = ['Prod;Cant;Ud;Precio;Dto;Total', ...rows.map(r => r.join(';'))].join('\n');
+    const blob = new Blob(["\uFEFF" + csv], { type: 'text/csv;charset=utf-8' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'Albaran.csv'; a.click();
+}
+function renderFacturas(c) { const pends = db.albaranes.filter(a=>!a.invoiced); const groups={}; pends.forEach(a=>{ if(!groups[a.prov]) groups[a.prov]={c:0,t:0,ids:[]}; groups[a.prov].c++; groups[a.prov].t+=a.total; groups[a.prov].ids.push(a.id); }); const hist = db.facturas.filter(f => isInPeriod(f.date)).slice().reverse(); c.innerHTML = `${Object.keys(groups).length ? `<div class="glass-card"><h3 class="font-bold text-xs text-slate-400 mb-3 uppercase">Pendiente</h3>${Object.entries(groups).map(([p,d])=>`<div class="flex justify-between items-center py-2 border-b"><div><div class="font-bold text-slate-800">${clean(p)}</div><div class="text-xs text-slate-400">${d.c} albaranes</div></div><div class="flex items-center gap-3"><span class="font-bold">${Num.fmt(d.t)}€</span><button class="bg-indigo-600 text-white px-3 py-1 rounded-lg text-xs font-bold" onclick="invoice('${p}','${d.ids}')">GENERAR</button></div></div>`).join('')}</div>` : ''} <div class="glass-card"><h3 class="font-bold text-xs text-slate-400 mb-4 uppercase">Histórico (${fiscalQuarter===0?'AÑO':fiscalQuarter+'T'})</h3>${hist.length ? hist.map(f => `<div class="flex justify-between items-center py-3 border-b"><div class="text-sm font-bold text-slate-800">${clean(f.prov)}<div class="text-[10px] text-slate-400 font-normal">${f.date}</div></div><div class="text-right"><div class="font-mono font-bold">${Num.fmt(f.total)}€</div><div class="text-[10px] font-bold cursor-pointer ${f.paid?'text-emerald-500':'text-red-400'}" onclick="togglePaid('${f.id}')">${f.paid?'PAGADO':'PENDIENTE'}</div></div></div>`).join('') : '<div class="text-center p-4 text-slate-400">Sin facturas</div>'}</div>`; }
+function invoice(p,ids){ const l=ids.split(','); l.forEach(id=>{ const a=db.albaranes.find(x=>x.id===id); if(a) a.invoiced=true; }); const t=l.reduce((ac,id)=>ac+(db.albaranes.find(x=>x.id===id)?.total||0),0); db.facturas.push({id:generateID(), date:getISO(), prov:p, total:t, paid:false}); save("Factura OK"); renderAdmin(document.getElementById('app')); }
+function togglePaid(id){ const f=db.facturas.find(x=>x.id===id); if(f){ f.paid=!f.paid; save(); renderAdmin(document.getElementById('app')); }}
+
+/* ================= 7. COCINA PRO (V146 - CORREGIDO) ================= */
 function renderCocina(app) {
     const sorted = db.recetas.sort((a,b) => a.n.localeCompare(b.n));
     app.innerHTML = `<div class="glass-card"><div class="flex justify-between items-center mb-4"><div><h2 class="font-black text-xl text-slate-800 tracking-tight">ESCANDALLOS</h2><p class="text-[10px] text-slate-400 font-bold uppercase">Gestión de Fichas Técnicas</p></div><button class="btn-premium w-auto px-4 py-3 text-xs shadow-lg shadow-indigo-500/30 flex items-center gap-2" onclick="editRec()"><span class="text-lg">＋</span> NUEVA FICHA</button></div><input placeholder="🔍 Buscar plato o elaboración..." onkeyup="filterRec(this.value)" class="input-premium mb-4"><div id="rec-grid" class="space-y-3">${renderRecGrid(sorted)}</div></div>`;
@@ -567,98 +676,28 @@ function saveIng(id) {
 }
 function deleteIng(id) { if (confirm("¿Borrar producto?")) { db.ingredientes = db.ingredientes.filter(i => i.id !== id); save("Borrado"); closeModal(); render('Stock'); } }
 
-/* --- ALBARANES MEJORADOS (V142) --- */
-function renderAlbaranes(c) {
-    const periodAlbs = db.albaranes.filter(a => isInPeriod(a.date)).slice().reverse();
-    const provOptions = db.proveedores.map(p => `<option value="${clean(p.n)}">`).join('');
-    const ingOptions = db.ingredientes.map(i => `<option value="${clean(i.n)}">`).join('');
-    c.innerHTML = `<div class="glass-card border-l-4 border-indigo-500"><div class="flex justify-between items-center mb-4"><h3 class="font-bold text-slate-700 text-sm uppercase">Nuevo Albarán</h3><label class="flex items-center gap-2 cursor-pointer bg-slate-50 px-3 py-1 rounded-lg border border-slate-200"><input type="checkbox" id="alb-socio" class="w-4 h-4 text-indigo-600 rounded"><span class="text-xs font-bold text-slate-600">Es Socio/Interno</span></label></div><div class="grid grid-cols-3 gap-3 mb-3"><div><label>Proveedor</label><input list="prov-list" id="alb-prov" class="input-premium" placeholder="..." onchange="checkDuplicate()"><datalist id="prov-list">${provOptions}</datalist></div><div><label>Productor</label><input id="alb-producer" class="input-premium"></div><div><label>Ref / Factura</label><input id="alb-num" class="input-premium font-mono" onkeyup="checkDuplicate()" value="A-${new Date().getFullYear().toString().slice(-2)}-${(db.albaranes.length+1).toString().padStart(4,'0')}"><div id="dup-alert" class="hidden text-[10px] text-red-500 font-bold mt-1 animate-pulse">⚠️ POSIBLE DUPLICADO</div></div></div><div class="grid grid-cols-2 gap-3 mb-3"><div><label>Fecha</label><input type="date" id="alb-date" value="${getISO()}" class="input-premium"></div><div><label>Nota</label><input id="alb-note" class="input-premium"></div></div><datalist id="ing-list">${ingOptions}</datalist><textarea id="alb-input" rows="2" class="input-premium font-mono text-xs mb-2" placeholder="Pegar: Producto TAB Cantidad TAB Precio..."></textarea><div class="flex gap-2 mb-4"><button class="btn-ghost" onclick="parseAlb()">🪄 Leer Texto</button><button class="btn-ghost text-red-400" onclick="tempItems=[];renderAlbGrid()">Limpiar</button></div><div class="grid grid-cols-12 gap-1 px-2 mb-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider text-center"><div class="col-span-4 text-left">Producto</div><div class="col-span-2">Cant/Ud</div><div class="col-span-2">Precio</div><div class="col-span-1 text-emerald-600">Dto%</div><div class="col-span-1">IVA</div><div class="col-span-2 text-right">Total</div></div><div id="alb-grid" class="space-y-2 mb-4"></div><div class="border-t border-slate-100 pt-3 text-right"><div class="text-xs text-slate-400 font-bold">TOTAL A PAGAR</div><div class="text-3xl font-black text-slate-800"><span id="alb-total">0.00€</span></div></div><div class="grid grid-cols-2 gap-3 mt-4"><button class="btn-premium btn-action" onclick="commitAlb()">CONFIRMAR</button><button class="btn-ghost" onclick="exportAlbCSV()">CSV</button></div></div><div class="glass-card"><h4 class="text-xs font-bold text-slate-400 uppercase mb-4">Historial (${fiscalQuarter===0?'AÑO':fiscalQuarter+'T'})</h4>${periodAlbs.length ? periodAlbs.map(a => `<div class="flex justify-between items-center py-3 border-b border-slate-50 hover:bg-slate-50 transition px-2 rounded-lg"><div class="text-sm font-bold text-slate-700">${a.isSocio ? '🤝 ' : ''}${clean(a.prov)}<div class="text-[10px] text-slate-400 font-normal flex gap-2"><span>${a.date}</span><span class="font-mono bg-slate-100 px-1 rounded text-slate-500">Ref: ${a.num}</span></div></div><div class="flex items-center gap-2"><span class="font-bold text-sm mr-2 ${a.isSocio ? 'text-indigo-600':''}">${Num.fmt(a.total)}€</span><button class="btn-icon btn-ghost" onclick="viewAlbDetails('${a.id}')">👁</button>${!a.invoiced ? `<button class="btn-icon btn-edit" onclick="editAlb('${a.id}')">✏️</button><button class="btn-icon btn-delete" onclick="deleteAlb('${a.id}')">🗑️</button>` : '<span class="text-[10px] bg-green-100 text-green-700 px-2 py-1 rounded font-bold">FACTURADO</span>'}</div></div>`).join('') : '<div class="text-center p-4 text-slate-400">Sin compras registradas</div>'}</div>`;
-    renderAlbGrid();
+/* ================= 10. UTILS & BACKUP ================= */
+function showModal(t,c){ document.getElementById('m-title').innerText=t; document.getElementById('m-body').innerHTML=c; document.getElementById('modal-overlay').classList.remove('hidden'); }
+function closeModal(){ document.getElementById('modal-overlay').classList.add('hidden'); }
+function downloadBackup(){ if(currentUser.role!=='admin') return toast("⛔ Solo Gerencia", "error"); const data = secure.enc(db); const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([data], {type: 'text/plain'})); a.download = `Arume_Backup_${getISO()}.arume`; a.click(); }
+function restoreBackup(input){ 
+    const r = new FileReader(); 
+    r.onload = e => { 
+        try { 
+            const d = secure.dec(e.target.result); 
+            if(d && d.users) { 
+                db=d; 
+                save("Restaurado correctamente"); 
+                // No usar reload, repintar
+                loadApp();
+            } else throw new Error(); 
+        } catch(err) { toast("Archivo corrupto", "error"); } 
+    }; 
+    r.readAsText(input.files[0]); 
 }
 
-function checkDuplicate() {
-    const num = document.getElementById('alb-num').value.trim(); const prov = document.getElementById('alb-prov').value.trim();
-    const alert = document.getElementById('dup-alert'); const inputNum = document.getElementById('alb-num');
-    const exists = db.albaranes.some(a => a.num.toLowerCase() === num.toLowerCase() && a.prov.toLowerCase() === prov.toLowerCase());
-    if (exists && num.length > 2) { alert.classList.remove('hidden'); inputNum.classList.add('border-red-500', 'text-red-600'); } else { alert.classList.add('hidden'); inputNum.classList.remove('border-red-500', 'text-red-600'); }
-}
-
-function parseAlb() {
-    const txt = document.getElementById('alb-input').value.trim(); if (!txt) return toast("Texto vacío", "error");
-    txt.split(/\r?\n/).forEach(l => {
-        let parts = l.split(/\t/); if (parts.length < 2) parts = l.split(/,(?=\s*\d)/);
-        if (parts.length >= 2) {
-            const n = parts[0].trim(); const qS = parts[1].trim(); const pS = parts[2] ? parts[2].trim() : '0';
-            const qM = qS.match(/^([\d\.,]+)\s*([a-zA-Z]+)?$/); const qty = qM ? Num.parse(qM[1]) : Num.parse(qS); const unit = qM && qM[2] ? UnitConverter.normalize(qM[2]) : 'ud'; const price = Num.parse(pS);
-            if (n && price >= 0) tempItems.push({ n, q: qty, p: price, unit, d: 0, tax: 10 });
-        }
-    }); renderAlbGrid();
-}
-
-function renderAlbGrid() {
-    const el = document.getElementById('alb-grid'); if (!el) return;
-    el.innerHTML = tempItems.map((it, i) => {
-        const lineBase = (it.q * it.p) * (1 - (it.d || 0) / 100); const lineTotal = lineBase * (1 + it.tax / 100);
-        return `<div class="bg-white p-1 rounded-xl border border-slate-100 grid grid-cols-12 gap-1 items-center shadow-sm relative group"><div class="col-span-4"><input list="ing-list" value="${clean(it.n)}" class="w-full bg-transparent font-bold text-xs outline-none truncate" placeholder="Producto" onchange="tempItems[${i}].n=this.value"></div><div class="col-span-2 flex gap-1"><input type="number" value="${it.q}" class="w-full bg-slate-50 text-center text-xs p-1 rounded font-bold outline-none" onchange="tempItems[${i}].q=parseFloat(this.value);renderAlbGrid()"><select onchange="tempItems[${i}].unit=this.value" class="w-10 bg-slate-50 text-[10px] p-0 rounded border-0 text-slate-500"><option ${it.unit==='ud'?'selected':''} value="ud">ud</option><option ${it.unit==='kg'?'selected':''} value="kg">kg</option><option ${it.unit==='l'?'selected':''} value="l">l</option></select></div><div class="col-span-2"><input type="number" value="${it.p}" class="w-full bg-slate-50 text-center text-xs p-1 rounded outline-none" onchange="tempItems[${i}].p=parseFloat(this.value);renderAlbGrid()"></div><div class="col-span-1"><input type="number" value="${it.d||0}" class="w-full bg-emerald-50 text-emerald-700 text-center text-xs p-1 rounded font-bold outline-none" placeholder="%" onchange="tempItems[${i}].d=parseFloat(this.value);renderAlbGrid()"></div><div class="col-span-1"><select onchange="tempItems[${i}].tax=parseFloat(this.value);renderAlbGrid()" class="w-full bg-blue-50 text-blue-700 font-bold text-[10px] p-1 rounded border-0"><option ${it.tax===10?'selected':''} value="10">10</option><option ${it.tax===21?'selected':''} value="21">21</option><option ${it.tax===4?'selected':''} value="4">4</option><option ${it.tax===0?'selected':''} value="0">0</option></select></div><div class="col-span-2 text-right font-mono font-bold text-xs pr-2">${Num.fmt(lineTotal)}€</div><button class="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center text-[10px] opacity-0 group-hover:opacity-100 transition shadow-sm" onclick="tempItems.splice(${i},1);renderAlbGrid()">✕</button></div>`;
-    }).join('');
-    const total = tempItems.reduce((acc, it) => acc + (it.q * it.p * (1 - (it.d || 0) / 100)) * (1 + it.tax / 100), 0);
-    document.getElementById('alb-total').innerText = Num.fmt(total) + '€';
-}
-
-function commitAlb() {
-    if (!tempItems.length) return toast("Vacío", "error");
-    const prov = document.getElementById('alb-prov').value; const date = document.getElementById('alb-date').value; const num = document.getElementById('alb-num').value; const isSocio = document.getElementById('alb-socio').checked;
-    if (!prov || !date) return toast("Faltan datos", "error");
-    const exists = db.albaranes.some(a => a.num === num && a.prov === prov); if (exists && !confirm(`⚠️ DUPLICADO DETECTADO: ${num}\n¿Guardar de todas formas?`)) return;
-    if (!db.proveedores.find(p => p.n === prov)) db.proveedores.push({ id: generateID(), n: prov, tel: '', fam: 'General' });
-
-    tempItems.forEach(it => {
-        const cleanName = it.n.trim();
-        let ing = db.ingredientes.find(x => x.n.trim().toLowerCase() === cleanName.toLowerCase() && x.unit === it.unit);
-        if (!ing) { ing = { id: generateID(), n: cleanName, stock: 0, cost: 0, unit: it.unit, aller: [], fam: 'General' }; db.ingredientes.push(ing); }
-        const realUnitCost = it.p * (1 - (it.d || 0) / 100); const totalQty = Math.max(0, ing.stock) + it.q;
-        ing.cost = totalQty > 0 ? ((Math.max(0, ing.stock) * ing.cost) + (it.q * realUnitCost)) / totalQty : realUnitCost; ing.stock += it.q;
-        logStock(ing.id, it.q, 'IN', `Alb: ${prov} ${isSocio?'(Socio)':''}`, realUnitCost);
-    });
-
-    let totalBase = 0, totalTax = 0;
-    tempItems.forEach(it => { const base = (it.q * it.p) * (1 - (it.d || 0) / 100); totalBase += base; totalTax += base * (it.tax / 100); });
-    db.albaranes.push({ id: generateID(), num, prov, productor: document.getElementById('alb-producer').value, date, items: JSON.parse(JSON.stringify(tempItems)), total: totalBase + totalTax, taxes: totalTax, subtotal: totalBase, invoiced: false, isSocio, note: document.getElementById('alb-note').value });
-    save("Entrada OK"); tempItems = []; renderAdmin(document.getElementById('app'));
-}
-
-function editAlb(id) {
-    const alb = db.albaranes.find(a => a.id === id); if (!alb) return;
-    if (confirm("¿Editar? Se revertirá el stock.")) {
-        alb.items.forEach(it => { const ing = db.ingredientes.find(x => x.n.trim().toLowerCase() === it.n.trim().toLowerCase() && x.unit === it.unit); if (ing) { ing.stock -= it.q; logStock(ing.id, it.q, 'OUT', `Corrección Alb`); } });
-        tempItems = JSON.parse(JSON.stringify(alb.items)); document.getElementById('alb-prov').value = alb.prov; document.getElementById('alb-num').value = alb.num; document.getElementById('alb-date').value = alb.date; document.getElementById('alb-producer').value = alb.productor || ''; document.getElementById('alb-note').value = alb.note || ''; document.getElementById('alb-socio').checked = alb.isSocio || false;
-        db.albaranes = db.albaranes.filter(a => a.id !== id); renderAlbGrid(); window.scrollTo(0, 0); toast("Modo Edición");
-    }
-}
-
-function deleteAlb(id) {
-    const alb = db.albaranes.find(a => a.id === id); if (!alb) return;
-    if (confirm("¿Borrar?")) {
-        alb.items.forEach(it => { const ing = db.ingredientes.find(x => x.n.trim().toLowerCase() === it.n.trim().toLowerCase() && x.unit === it.unit); if (ing) { ing.stock -= it.q; logStock(ing.id, it.q, 'OUT', `Borrado Alb`); } });
-        db.albaranes = db.albaranes.filter(a => a.id !== id); save("Borrado"); renderAdmin(document.getElementById('app'));
-    }
-}
-
-function viewAlbDetails(id) {
-    const a = db.albaranes.find(x => x.id === id);
-    if (a) showModal(`Detalle ${a.num}`, `<div class="mb-2 text-xs">${a.isSocio ? '🤝 SOCIO | ':''}${a.prov}</div><table class="w-full text-xs"><thead><tr><th>Prod</th><th>Cant</th><th>Dto</th><th>€</th></tr></thead><tbody>${a.items.map(i => { const p = i.p * (1 - (i.d || 0) / 100); return `<tr><td>${i.n}</td><td class="text-center">${i.q}${i.unit}</td><td class="text-center text-red-400">${i.d||'-'}%</td><td class="text-right">${Num.fmt(i.q * p)}</td></tr>`; }).join('')}</tbody></table><div class="text-right font-black text-xl mt-4">${Num.fmt(a.total)}€</div>`);
-}
-
-function exportAlbCSV() {
-    if (!tempItems.length) return toast("Vacío", "error");
-    const rows = tempItems.map(it => [it.n, Num.csv(it.q), it.unit, Num.csv(it.p), Num.csv(it.d || 0), Num.csv((it.q * it.p * (1 - (it.d || 0) / 100)) * (1 + it.tax / 100))]);
-    const csv = ['Prod;Cant;Ud;Precio;Dto;Total', ...rows.map(r => r.join(';'))].join('\n');
-    const blob = new Blob(["\uFEFF" + csv], { type: 'text/csv;charset=utf-8' });
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'Albaran.csv'; a.click();
-}
-function renderFacturas(c) { const pends = db.albaranes.filter(a=>!a.invoiced); const groups={}; pends.forEach(a=>{ if(!groups[a.prov]) groups[a.prov]={c:0,t:0,ids:[]}; groups[a.prov].c++; groups[a.prov].t+=a.total; groups[a.prov].ids.push(a.id); }); const hist = db.facturas.filter(f => isInPeriod(f.date)).slice().reverse(); c.innerHTML = `${Object.keys(groups).length ? `<div class="glass-card"><h3 class="font-bold text-xs text-slate-400 mb-3 uppercase">Pendiente</h3>${Object.entries(groups).map(([p,d])=>`<div class="flex justify-between items-center py-2 border-b"><div><div class="font-bold text-slate-800">${clean(p)}</div><div class="text-xs text-slate-400">${d.c} albaranes</div></div><div class="flex items-center gap-3"><span class="font-bold">${Num.fmt(d.t)}€</span><button class="bg-indigo-600 text-white px-3 py-1 rounded-lg text-xs font-bold" onclick="invoice('${p}','${d.ids}')">GENERAR</button></div></div>`).join('')}</div>` : ''} <div class="glass-card"><h3 class="font-bold text-xs text-slate-400 mb-4 uppercase">Histórico (${fiscalQuarter===0?'AÑO':fiscalQuarter+'T'})</h3>${hist.length ? hist.map(f => `<div class="flex justify-between items-center py-3 border-b"><div class="text-sm font-bold text-slate-800">${clean(f.prov)}<div class="text-[10px] text-slate-400 font-normal">${f.date}</div></div><div class="text-right"><div class="font-mono font-bold">${Num.fmt(f.total)}€</div><div class="text-[10px] font-bold cursor-pointer ${f.paid?'text-emerald-500':'text-red-400'}" onclick="togglePaid('${f.id}')">${f.paid?'PAGADO':'PENDIENTE'}</div></div></div>`).join('') : '<div class="text-center p-4 text-slate-400">Sin facturas</div>'}</div>`; }
-function invoice(p,ids){ const l=ids.split(','); l.forEach(id=>{ const a=db.albaranes.find(x=>x.id===id); if(a) a.invoiced=true; }); const t=l.reduce((ac,id)=>ac+(db.albaranes.find(x=>x.id===id)?.total||0),0); db.facturas.push({id:generateID(), date:getISO(), prov:p, total:t, paid:false}); save("Factura OK"); renderAdmin(document.getElementById('app')); }
-function togglePaid(id){ const f=db.facturas.find(x=>x.id===id); if(f){ f.paid=!f.paid; save(); renderAdmin(document.getElementById('app')); }}
+/* ================= INIT ================= */
+init();
 </script>
 </body>
 </html>
