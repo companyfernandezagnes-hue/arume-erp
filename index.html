@@ -667,16 +667,346 @@ function togglePaid(id){ const f=db.facturas.find(x=>x.id===id); if(f){ f.paid=!
 
 /* ================= 7. COCINA ================= */
 function renderCocina(app) {
-    app.innerHTML = `<div class="glass-card"><div class="flex justify-between items-center mb-4"><h2 class="font-black text-xl text-slate-800">RECETARIO</h2><button class="btn-premium w-auto px-4 py-2 text-xs" onclick="editRec()">+ CREAR RECETA</button></div>${db.recetas.map(r => { const c = calcRecipe(r); return `<div class="bg-white p-4 rounded-xl border border-slate-100 shadow-sm mb-2 cursor-pointer hover:shadow-md transition" onclick="viewRec('${r.id}')"><div class="flex justify-between"><div class="font-bold text-slate-800">${clean(r.n)}</div><div class="font-black text-indigo-600">${Num.fmt(c.t)}€</div></div><div class="text-xs text-slate-400 mt-1">${c.all.map(k=>ALLERGENS.find(a=>a.k==k)?.i).join(' ')}</div></div>` }).join('')}</div>`;
-}
-function calcRecipe(r) { let t=0, all=new Set(); (r.items||[]).forEach(it => { if(it.type==='ing') { const i = db.ingredientes.find(x=>x.id===it.id); if(i) { const yieldFactor = (it.merma && it.merma > 0) ? (1 - (it.merma/100)) : 1; const costUnit = UnitConverter.convert(1, r.unit||'kg', i.unit); t += (it.q * costUnit * i.cost) / yieldFactor; (i.aller||[]).forEach(k=>all.add(k)); } } }); t += (r.time/60)*CONFIG.COST_HOUR; return {t, all:Array.from(all)}; }
-function editRec(id) { const r = id ? db.recetas.find(x=>x.id===id) : {id:generateID(), n:'', pvp:0, time:10, items:[], sales:0, unit:'ud'}; tempItems = JSON.parse(JSON.stringify(r.items)); showModal('Ficha Técnica', `<div class="grid grid-cols-2 gap-4 mb-4"><div class="col-span-2"><label>Nombre</label><input id="er-n" value="${clean(r.n)}" class="input-premium"></div><div><label>PVP (€)</label><input type="number" id="er-pvp" value="${r.pvp}" class="input-premium"></div><div><label>M. Obra (min)</label><input type="number" id="er-time" value="${r.time}" class="input-premium"></div></div><div class="bg-slate-50 p-4 rounded-xl mb-4 border border-slate-100"><div id="er-list" class="space-y-2"></div></div><div class="flex gap-2 items-end bg-white border border-slate-200 p-3 rounded-xl shadow-sm"><div class="flex-1"><label>Ingrediente</label><select id="er-sel" class="input-premium mb-0 bg-transparent border-0 p-0 text-sm font-bold"></select></div><div class="w-20"><label>Cant</label><input id="er-q" type="number" class="input-premium mb-0 p-1 text-center" placeholder="0"></div><div class="w-16"><label>Merma %</label><input id="er-m" type="number" class="input-premium mb-0 p-1 text-center" placeholder="0"></div><button class="bg-indigo-600 text-white rounded-lg w-8 h-8 flex items-center justify-center font-bold" onclick="addItemToRec()">+</button></div><button class="btn-premium mt-6" onclick="saveRec('${r.id}')">GUARDAR FICHA</button>${id ? `<button class="btn-ghost text-red-400 mt-2 w-full" onclick="deleteRec('${id}')">Eliminar</button>` : ''}`); document.getElementById('er-sel').innerHTML = db.ingredientes.sort((a,b)=>a.n.localeCompare(b.n)).map(i=>`<option value="${i.id}">${clean(i.n)} (${i.unit})</option>`).join(''); renderRecItems(); }
-function deleteRec(id) { if(confirm("¿Eliminar?")) { db.recetas=db.recetas.filter(x=>x.id!==id); save("Eliminada"); closeModal(); render('Cocina'); }}
-function addItemToRec() { const id = document.getElementById('er-sel').value; const q = parseFloat(document.getElementById('er-q').value); const m = parseFloat(document.getElementById('er-m').value) || 0; if(id && q>0) { tempItems.push({type:'ing', id, q, merma:m}); renderRecItems(); } }
-function renderRecItems() { document.getElementById('er-list').innerHTML = tempItems.map((it, i) => { const ing = db.ingredientes.find(x=>x.id===it.id); return `<div class="flex justify-between items-center text-sm border-b border-slate-200 pb-2"><div><div class="font-bold text-slate-700">${clean(ing?.n)}</div><div class="text-xs text-slate-400">Neto: ${it.q} | Merma: ${it.merma}%</div></div><button onclick="tempItems.splice(${i},1);renderRecItems()" class="text-red-400 text-xs">✕</button></div>`; }).join(''); }
-function saveRec(id) { const idx = db.recetas.findIndex(x=>x.id===id); const r = { id, n:document.getElementById('er-n').value, pvp:parseFloat(document.getElementById('er-pvp').value), time:parseFloat(document.getElementById('er-time').value), items:tempItems, sales:(db.recetas.find(x=>x.id===id)?.sales || 0) }; if(idx>=0) db.recetas[idx]=r; else db.recetas.push(r); save("Ficha Guardada"); closeModal(); render('Cocina'); }
-function viewRec(id) { const r = db.recetas.find(x=>x.id===id); const c = calcRecipe(r); showModal(clean(r.n), `<div class="flex justify-around mb-6 bg-slate-50 p-4 rounded-xl"><div class="text-center"><div class="text-xs text-slate-400 font-bold">COSTE</div><div class="text-2xl font-black text-slate-800">${Num.fmt(c.t)}€</div></div><div class="text-center"><div class="text-xs text-slate-400 font-bold">MARGEN</div><div class="text-2xl font-black text-indigo-600">${r.pvp > 0 ? ((1-(c.t/r.pvp))*100).toFixed(0) : 0}%</div></div></div><div class="flex flex-wrap gap-2 mb-6 justify-center">${c.all.map(k=>`<span class="bg-blue-50 text-blue-600 px-2 py-1 rounded text-xs border border-blue-100">${ALLERGENS.find(a=>a.k==k)?.i} ${ALLERGENS.find(a=>a.k==k)?.n}</span>`).join('')}</div><button class="btn-ghost w-full" onclick="editRec('${id}')">EDITAR DATOS TÉCNICOS</button>`); }
+    // Ordenar recetas alfabéticamente
+    const sorted = db.recetas.sort((a,b) => a.n.localeCompare(b.n));
 
+    app.innerHTML = `
+    <div class="glass-card">
+        <div class="flex justify-between items-center mb-4">
+            <h2 class="font-black text-xl text-slate-800 tracking-tight">ESCANDALLOS PRO</h2>
+            <button class="btn-premium w-auto px-4 py-2 text-xs shadow-lg shadow-indigo-500/30" onclick="editRec()">+ NUEVA FICHA</button>
+        </div>
+        
+        <input placeholder="🔍 Buscar plato o elaboración..." onkeyup="filterRec(this.value)" class="input-premium mb-4">
+
+        <div id="rec-grid" class="space-y-3">
+            ${renderRecGrid(sorted)}
+        </div>
+    </div>`;
+}
+
+function renderRecGrid(list) {
+    if(!list.length) return '<div class="text-center p-8 text-slate-400 italic">No hay recetas definidas</div>';
+    
+    return list.map(r => { 
+        const c = calcRecipe(r); 
+        const fc = r.pvp > 0 ? (c.t / r.pvp) * 100 : 0;
+        
+        // Lógica del Semáforo
+        let semColor = 'bg-slate-200';
+        let semText = 'N/A';
+        if(r.pvp > 0) {
+            if(fc < 30) { semColor = 'bg-emerald-500'; semText = '🟢 TOP'; }
+            else if(fc < 40) { semColor = 'bg-orange-400'; semText = '🟠 OK'; }
+            else { semColor = 'bg-red-500'; semText = '🔴 ALTO'; }
+        }
+
+        return `
+        <div class="bg-white p-4 rounded-xl border border-slate-100 shadow-sm cursor-pointer hover:shadow-md transition group relative overflow-hidden" onclick="viewRec('${r.id}')">
+            <div class="absolute left-0 top-0 bottom-0 w-1.5 ${semColor}"></div>
+            
+            <div class="flex justify-between items-start pl-2">
+                <div>
+                    <div class="font-bold text-slate-800 text-lg leading-tight">${clean(r.n)}</div>
+                    <div class="text-[10px] text-slate-400 mt-1 uppercase font-bold tracking-wider">
+                        ${r.items.length} Ingredientes · ${r.time} min
+                    </div>
+                </div>
+                <div class="text-right">
+                    <div class="font-black text-xl text-slate-700">${Num.fmt(c.t)}€</div>
+                    <div class="text-[10px] font-bold ${r.pvp > 0 && fc > 40 ? 'text-red-500' : 'text-slate-400'}">
+                        FC: ${fc.toFixed(1)}%
+                    </div>
+                </div>
+            </div>
+            
+            <div class="mt-3 pl-2 flex flex-wrap gap-1">
+                ${c.all.length ? c.all.map(k=>`<span class="text-[10px] bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded border border-indigo-100">${ALLERGENS.find(a=>a.k==k)?.i}</span>`).join('') : '<span class="text-[10px] text-slate-300">Sin alérgenos</span>'}
+            </div>
+        </div>`;
+    }).join('');
+}
+
+function filterRec(txt) {
+    const term = txt.toLowerCase();
+    const filtered = db.recetas.filter(r => r.n.toLowerCase().includes(term));
+    document.getElementById('rec-grid').innerHTML = renderRecGrid(filtered);
+}
+
+// Lógica Recursiva para Subrecetas
+function calcRecipe(r, visited = new Set()) { 
+    // Evitar bucles infinitos (Receta A usa Receta B usa Receta A)
+    if (visited.has(r.id)) return { t: 0, all: [] };
+    visited.add(r.id);
+
+    let t = 0, all = new Set(); 
+    
+    (r.items || []).forEach(it => { 
+        const yieldFactor = (it.merma && it.merma > 0) ? (1 - (it.merma/100)) : 1;
+        
+        if (it.type === 'ing') { 
+            // Es un Ingrediente normal
+            const i = db.ingredientes.find(x => x.id === it.id); 
+            if (i) { 
+                const costUnit = UnitConverter.convert(1, r.unit || 'kg', i.unit); 
+                t += (it.q * costUnit * i.cost) / yieldFactor; 
+                (i.aller || []).forEach(k => all.add(k)); 
+            } 
+        } else if (it.type === 'rec') {
+            // Es una Subreceta (Escandallo dentro de escandallo)
+            const subR = db.recetas.find(x => x.id === it.id);
+            if (subR) {
+                // Recursividad: calculamos el coste de la subreceta
+                const subC = calcRecipe(subR, new Set(visited));
+                // Asumimos que la subreceta se añade como "1 unidad" o "1 ración"
+                // Si quisieras ser preciso con Kilos, habría que definir el "Yield" de la subreceta.
+                // Aquí simplificamos: el coste de la subreceta entera se multiplica por la cantidad usada.
+                // (Ej: Usas 0.5 de la receta "Salsa Tomate")
+                t += (subC.t * it.q);
+                subC.all.forEach(k => all.add(k));
+            }
+        }
+    }); 
+    
+    // Mano de obra
+    t += (r.time / 60) * CONFIG.COST_HOUR; 
+    return { t, all: Array.from(all) }; 
+}
+
+function editRec(id) { 
+    const r = id ? db.recetas.find(x => x.id === id) : { id: generateID(), n: '', pvp: 0, time: 10, items: [], sales: 0, unit: 'ud', inst: '' }; 
+    tempItems = JSON.parse(JSON.stringify(r.items)); 
+    
+    showModal('Ficha Técnica 3.0', `
+    <div class="grid grid-cols-12 gap-3 mb-4">
+        <div class="col-span-8">
+            <label>Nombre del Plato / Elaboración</label>
+            <input id="er-n" value="${clean(r.n)}" class="input-premium font-bold text-lg" placeholder="Ej: Salsa Brava">
+        </div>
+        <div class="col-span-4">
+            <label>PVP (€)</label>
+            <input type="number" id="er-pvp" value="${r.pvp}" class="input-premium text-center">
+        </div>
+    </div>
+    
+    <div class="flex gap-4 mb-4">
+        <div class="flex-1">
+            <label>Tiempo Elaboración (min)</label>
+            <input type="number" id="er-time" value="${r.time}" class="input-premium">
+        </div>
+        <div class="flex-1">
+            <label>Raciones Resultantes</label>
+            <input type="number" id="er-yield" value="1" disabled class="input-premium bg-slate-100 text-slate-400" title="Próximamente">
+        </div>
+    </div>
+
+    <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 mb-4">
+        <div class="flex gap-2 mb-2 text-xs font-bold text-slate-500 uppercase tracking-widest">
+            <label class="flex items-center gap-1 cursor-pointer">
+                <input type="radio" name="itemType" value="ing" checked onclick="toggleRecType('ing')"> Ingrediente
+            </label>
+            <label class="flex items-center gap-1 cursor-pointer">
+                <input type="radio" name="itemType" value="rec" onclick="toggleRecType('rec')"> Sub-Receta
+            </label>
+        </div>
+        
+        <div class="flex gap-2 items-center">
+            <div class="flex-1">
+                <select id="er-sel" class="input-premium mb-0 text-sm"></select>
+            </div>
+            <div class="w-20">
+                <input id="er-q" type="number" class="input-premium mb-0 text-center" placeholder="Cant">
+            </div>
+            <div class="w-16">
+                <input id="er-m" type="number" class="input-premium mb-0 text-center" placeholder="Merma%">
+            </div>
+            <button class="bg-indigo-600 text-white rounded-lg w-10 h-10 flex items-center justify-center font-bold shadow-lg shadow-indigo-200" onclick="addItemToRec()">+</button>
+        </div>
+        <div class="text-[10px] text-slate-400 mt-1 pl-1" id="type-hint">Selecciona materia prima del almacén</div>
+    </div>
+
+    <div class="bg-white border border-slate-100 rounded-xl mb-4 max-h-48 overflow-y-auto" id="er-list"></div>
+
+    <label class="font-bold text-slate-700 text-sm">Instrucciones de Elaboración</label>
+    <textarea id="er-inst" rows="4" class="input-premium mb-4 text-sm" placeholder="1. Cortar la cebolla...">${clean(r.inst || '')}</textarea>
+
+    <div class="grid grid-cols-2 gap-3 mt-4">
+        <button class="btn-premium" onclick="saveRec('${r.id}')">GUARDAR FICHA</button>
+        ${id ? `<button class="btn-ghost text-red-400" onclick="deleteRec('${id}')">ELIMINAR</button>` : ''}
+    </div>
+    `);
+    
+    toggleRecType('ing'); // Cargar ingredientes por defecto
+    renderRecItems(); 
+}
+
+function toggleRecType(type) {
+    const sel = document.getElementById('er-sel');
+    const hint = document.getElementById('type-hint');
+    const radioRec = document.querySelector('input[value="rec"]');
+    const radioIng = document.querySelector('input[value="ing"]');
+    
+    // Sincronizar UI si se llama programáticamente
+    if(type === 'ing') radioIng.checked = true;
+    else radioRec.checked = true;
+
+    if (type === 'ing') {
+        sel.innerHTML = db.ingredientes.sort((a,b)=>a.n.localeCompare(b.n))
+            .map(i => `<option value="${i.id}">${clean(i.n)} (${i.unit})</option>`).join('');
+        hint.innerText = "Añadiendo Materia Prima desde Almacén";
+        document.getElementById('er-m').disabled = false;
+    } else {
+        // Filtrar para no poder añadirse a sí misma (si estamos editando)
+        // Nota: `tempItems` no tiene el ID de la receta actual, es una variable global. 
+        // Para simplificar, mostramos todas. `calcRecipe` evita el bucle infinito.
+        sel.innerHTML = db.recetas.sort((a,b)=>a.n.localeCompare(b.n))
+            .map(r => `<option value="${r.id}">🥣 ${clean(r.n)}</option>`).join('');
+        hint.innerText = "Añadiendo otra receta como ingrediente (Ej: Salsa Base)";
+        document.getElementById('er-m').disabled = true; // Subreceta no suele tener merma al añadirla, ya está elaborada
+        document.getElementById('er-m').value = 0;
+    }
+    // Guardamos el tipo actual en el dataset del select para usarlo al añadir
+    sel.dataset.type = type;
+}
+
+function addItemToRec() { 
+    const sel = document.getElementById('er-sel');
+    const id = sel.value; 
+    const type = sel.dataset.type || 'ing';
+    const q = parseFloat(document.getElementById('er-q').value); 
+    const m = parseFloat(document.getElementById('er-m').value) || 0; 
+    
+    if (id && q > 0) { 
+        tempItems.push({ type, id, q, merma: m }); 
+        renderRecItems(); 
+        document.getElementById('er-q').value = '';
+    } 
+}
+
+function renderRecItems() { 
+    document.getElementById('er-list').innerHTML = tempItems.map((it, i) => { 
+        let name = "???";
+        let icon = "📦";
+        if(it.type === 'ing') {
+            const ing = db.ingredientes.find(x => x.id === it.id);
+            name = ing ? ing.n : 'Borrado';
+        } else {
+            const rec = db.recetas.find(x => x.id === it.id);
+            name = rec ? rec.n : 'Borrado';
+            icon = "🥣";
+        }
+        
+        return `
+        <div class="flex justify-between items-center text-sm border-b border-slate-50 p-3 hover:bg-slate-50 transition">
+            <div class="flex items-center gap-2">
+                <span class="text-base">${icon}</span>
+                <div>
+                    <div class="font-bold text-slate-700">${clean(name)}</div>
+                    <div class="text-[10px] text-slate-400">Cant: ${it.q} · Merma: ${it.merma}%</div>
+                </div>
+            </div>
+            <button onclick="tempItems.splice(${i},1);renderRecItems()" class="text-red-400 hover:bg-red-50 p-1 rounded">✕</button>
+        </div>`; 
+    }).join(''); 
+}
+
+function saveRec(id) { 
+    const idx = db.recetas.findIndex(x => x.id === id); 
+    const r = { 
+        id, 
+        n: document.getElementById('er-n').value, 
+        pvp: parseFloat(document.getElementById('er-pvp').value), 
+        time: parseFloat(document.getElementById('er-time').value), 
+        items: tempItems, 
+        inst: document.getElementById('er-inst').value, // Guardar instrucciones
+        sales: (db.recetas.find(x => x.id === id)?.sales || 0) 
+    }; 
+    
+    if(!r.n) return toast("Falta el nombre", "error");
+
+    if (idx >= 0) db.recetas[idx] = r; 
+    else db.recetas.push(r); 
+    
+    save("Ficha Guardada"); 
+    closeModal(); 
+    render('Cocina'); 
+}
+
+function deleteRec(id) { 
+    if (confirm("¿Eliminar ficha? Esto podría afectar a otras recetas que la usen.")) { 
+        db.recetas = db.recetas.filter(x => x.id !== id); 
+        save("Eliminada"); 
+        closeModal(); 
+        render('Cocina'); 
+    } 
+}
+
+function viewRec(id) { 
+    const r = db.recetas.find(x => x.id === id); 
+    const c = calcRecipe(r); 
+    
+    // Cálculos de márgenes
+    const pvp = r.pvp || 0;
+    const profit = pvp - c.t;
+    const foodCost = pvp > 0 ? (c.t / pvp) * 100 : 0;
+    
+    // Colores semáforo
+    let semColor = 'text-slate-400';
+    if(pvp > 0) {
+        if(foodCost < 30) semColor = 'text-emerald-500';
+        else if(foodCost < 40) semColor = 'text-orange-500';
+        else semColor = 'text-red-500';
+    }
+
+    showModal(clean(r.n), `
+    <div class="grid grid-cols-3 gap-2 mb-6">
+        <div class="bg-slate-50 p-3 rounded-xl text-center border border-slate-100">
+            <div class="text-[10px] text-slate-400 font-bold uppercase">Coste</div>
+            <div class="text-xl font-black text-slate-800">${Num.fmt(c.t)}€</div>
+        </div>
+        <div class="bg-slate-50 p-3 rounded-xl text-center border border-slate-100">
+            <div class="text-[10px] text-slate-400 font-bold uppercase">PVP</div>
+            <div class="text-xl font-black text-slate-800">${Num.fmt(pvp)}€</div>
+        </div>
+        <div class="bg-slate-50 p-3 rounded-xl text-center border border-slate-100">
+            <div class="text-[10px] text-slate-400 font-bold uppercase">Food Cost</div>
+            <div class="text-xl font-black ${semColor}">${foodCost.toFixed(1)}%</div>
+        </div>
+    </div>
+
+    <div class="mb-6">
+        <h4 class="font-bold text-slate-800 text-xs uppercase mb-2 border-b pb-1">Ingredientes & Subrecetas</h4>
+        <ul class="text-sm space-y-2">
+            ${r.items.map(it => {
+                let n = "???", detail = "";
+                if(it.type === 'ing') {
+                    const i = db.ingredientes.find(x=>x.id===it.id);
+                    n = i ? i.n : 'Eliminado';
+                    detail = `${it.q} ${i?.unit || 'ud'}`;
+                } else {
+                    const rec = db.recetas.find(x=>x.id===it.id);
+                    n = rec ? `🥣 ${rec.n}` : 'Eliminado';
+                    detail = `${it.q} ud`;
+                }
+                return `<li class="flex justify-between text-slate-600"><span>${n}</span> <span class="font-mono font-bold text-slate-400">${detail}</span></li>`;
+            }).join('')}
+        </ul>
+        <div class="mt-2 text-right text-xs text-slate-400 italic">+ Mano de obra (${r.time} min)</div>
+    </div>
+
+    ${r.inst ? `
+    <div class="mb-6 bg-yellow-50 p-4 rounded-xl border border-yellow-100 relative">
+        <div class="absolute -top-2 left-4 bg-yellow-100 text-yellow-700 text-[10px] font-bold px-2 rounded">ELABORACIÓN</div>
+        <p class="text-sm text-slate-700 whitespace-pre-line leading-relaxed">${clean(r.inst)}</p>
+    </div>` : ''}
+
+    <div class="flex flex-wrap gap-2 mb-6 justify-center">
+        ${c.all.map(k=>`<span class="bg-blue-50 text-blue-600 px-2 py-1 rounded text-xs border border-blue-100 font-bold">${ALLERGENS.find(a=>a.k==k)?.i} ${ALLERGENS.find(a=>a.k==k)?.n}</span>`).join('')}
+    </div>
+    
+    <button class="btn-ghost w-full" onclick="editRec('${r.id}')">✏️ EDITAR FICHA TÉCNICA</button>
+    `); 
+}
 /* ================= 8. STOCK ================= */
 function renderStock(app) {
     const isAdmin = currentUser?.role === 'admin';
