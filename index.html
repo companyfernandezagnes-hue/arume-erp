@@ -675,16 +675,20 @@ function renderFacturas(c) { const pends = db.albaranes.filter(a=>!a.invoiced); 
 function invoice(p,ids){ const l=ids.split(','); l.forEach(id=>{ const a=db.albaranes.find(x=>x.id===id); if(a) a.invoiced=true; }); const t=l.reduce((ac,id)=>ac+(db.albaranes.find(x=>x.id===id)?.total||0),0); db.facturas.push({id:generateID(), date:getISO(), prov:p, total:t, paid:false}); save("Factura OK"); renderAdmin(document.getElementById('app')); }
 function togglePaid(id){ const f=db.facturas.find(x=>x.id===id); if(f){ f.paid=!f.paid; save(); renderAdmin(document.getElementById('app')); }}
 
-/* ================= 7. COCINA AVANZADA (V143) ================= */
+/* ================= 7. COCINA PRO (V146 - CORREGIDO) ================= */
 function renderCocina(app) {
-    // Ordenar recetas alfabéticamente
     const sorted = db.recetas.sort((a,b) => a.n.localeCompare(b.n));
 
     app.innerHTML = `
     <div class="glass-card">
         <div class="flex justify-between items-center mb-4">
-            <h2 class="font-black text-xl text-slate-800 tracking-tight">ESCANDALLOS PRO</h2>
-            <button class="btn-premium w-auto px-4 py-2 text-xs shadow-lg shadow-indigo-500/30" onclick="editRec()">+ NUEVA FICHA</button>
+            <div>
+                <h2 class="font-black text-xl text-slate-800 tracking-tight">ESCANDALLOS</h2>
+                <p class="text-[10px] text-slate-400 font-bold uppercase">Gestión de Fichas Técnicas</p>
+            </div>
+            <button class="btn-premium w-auto px-4 py-3 text-xs shadow-lg shadow-indigo-500/30 flex items-center gap-2" onclick="editRec()">
+                <span class="text-lg">＋</span> NUEVA FICHA
+            </button>
         </div>
         
         <input placeholder="🔍 Buscar plato o elaboración..." onkeyup="filterRec(this.value)" class="input-premium mb-4">
@@ -696,25 +700,23 @@ function renderCocina(app) {
 }
 
 function renderRecGrid(list) {
-    if(!list.length) return '<div class="text-center p-8 text-slate-400 italic">No hay recetas definidas</div>';
+    if(!list.length) return '<div class="text-center p-8 text-slate-400 italic border-2 border-dashed border-slate-200 rounded-xl">No hay recetas definidas.<br>Crea la primera arriba a la derecha.</div>';
     
     return list.map(r => { 
         const c = calcRecipe(r); 
         const fc = r.pvp > 0 ? (c.t / r.pvp) * 100 : 0;
         
-        // Lógica del Semáforo
+        // Semáforo
         let semColor = 'bg-slate-200';
-        let semText = 'N/A';
         if(r.pvp > 0) {
-            if(fc < 30) { semColor = 'bg-emerald-500'; semText = '🟢 TOP'; }
-            else if(fc < 40) { semColor = 'bg-orange-400'; semText = '🟠 OK'; }
-            else { semColor = 'bg-red-500'; semText = '🔴 ALTO'; }
+            if(fc < 30) semColor = 'bg-emerald-500';
+            else if(fc < 40) semColor = 'bg-orange-400';
+            else semColor = 'bg-red-500';
         }
 
         return `
         <div class="bg-white p-4 rounded-xl border border-slate-100 shadow-sm cursor-pointer hover:shadow-md transition group relative overflow-hidden" onclick="viewRec('${r.id}')">
             <div class="absolute left-0 top-0 bottom-0 w-1.5 ${semColor}"></div>
-            
             <div class="flex justify-between items-start pl-2">
                 <div>
                     <div class="font-bold text-slate-800 text-lg leading-tight">${clean(r.n)}</div>
@@ -729,10 +731,6 @@ function renderRecGrid(list) {
                     </div>
                 </div>
             </div>
-            
-            <div class="mt-3 pl-2 flex flex-wrap gap-1">
-                ${c.all.length ? c.all.map(k=>`<span class="text-[10px] bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded border border-indigo-100">${ALLERGENS.find(a=>a.k==k)?.i}</span>`).join('') : '<span class="text-[10px] text-slate-300">Sin alérgenos</span>'}
-            </div>
         </div>`;
     }).join('');
 }
@@ -743,19 +741,15 @@ function filterRec(txt) {
     document.getElementById('rec-grid').innerHTML = renderRecGrid(filtered);
 }
 
-// Lógica Recursiva para Subrecetas
+// Cálculo Recursivo Seguro
 function calcRecipe(r, visited = new Set()) { 
-    // Evitar bucles infinitos (Receta A usa Receta B usa Receta A)
-    if (visited.has(r.id)) return { t: 0, all: [] };
+    if (!r || visited.has(r.id)) return { t: 0, all: [] };
     visited.add(r.id);
 
     let t = 0, all = new Set(); 
-    
     (r.items || []).forEach(it => { 
         const yieldFactor = (it.merma && it.merma > 0) ? (1 - (it.merma/100)) : 1;
-        
         if (it.type === 'ing') { 
-            // Es un Ingrediente normal
             const i = db.ingredientes.find(x => x.id === it.id); 
             if (i) { 
                 const costUnit = UnitConverter.convert(1, r.unit || 'kg', i.unit); 
@@ -763,30 +757,28 @@ function calcRecipe(r, visited = new Set()) {
                 (i.aller || []).forEach(k => all.add(k)); 
             } 
         } else if (it.type === 'rec') {
-            // Es una Subreceta (Escandallo dentro de escandallo)
             const subR = db.recetas.find(x => x.id === it.id);
             if (subR) {
-                // Recursividad: calculamos el coste de la subreceta
                 const subC = calcRecipe(subR, new Set(visited));
                 t += (subC.t * it.q);
                 subC.all.forEach(k => all.add(k));
             }
         }
     }); 
-    
-    // Mano de obra
     t += (r.time / 60) * CONFIG.COST_HOUR; 
     return { t, all: Array.from(all) }; 
 }
 
 function editRec(id) { 
-    const r = id ? db.recetas.find(x => x.id === id) : { id: generateID(), n: '', pvp: 0, time: 10, items: [], sales: 0, unit: 'ud', inst: '' }; 
-    tempItems = JSON.parse(JSON.stringify(r.items)); 
+    const r = id ? db.recetas.find(x => x.id === id) : { id: generateID(), n: '', pvp: 0, time: 10, items: [], inst: '' }; 
+    if(!r) return; 
+
+    tempItems = r.items ? JSON.parse(JSON.stringify(r.items)) : []; 
     
-    showModal('Ficha Técnica 3.0', `
+    showModal(id ? 'Editar Ficha' : 'Nueva Ficha Técnica', `
     <div class="grid grid-cols-12 gap-3 mb-4">
         <div class="col-span-8">
-            <label>Nombre del Plato / Elaboración</label>
+            <label>Nombre del Plato</label>
             <input id="er-n" value="${clean(r.n)}" class="input-premium font-bold text-lg" placeholder="Ej: Salsa Brava">
         </div>
         <div class="col-span-4">
@@ -797,75 +789,83 @@ function editRec(id) {
     
     <div class="flex gap-4 mb-4">
         <div class="flex-1">
-            <label>Tiempo Elaboración (min)</label>
+            <label>Tiempo (min)</label>
             <input type="number" id="er-time" value="${r.time}" class="input-premium">
-        </div>
-        <div class="flex-1">
-            <label>Raciones Resultantes</label>
-            <input type="number" id="er-yield" value="1" disabled class="input-premium bg-slate-100 text-slate-400" title="Próximamente">
         </div>
     </div>
 
     <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 mb-4">
-        <div class="flex gap-2 mb-2 text-xs font-bold text-slate-500 uppercase tracking-widest">
-            <label class="flex items-center gap-1 cursor-pointer">
-                <input type="radio" name="itemType" value="ing" checked onclick="toggleRecType('ing')"> Ingrediente
+        <div class="flex gap-4 mb-2 text-xs font-bold text-slate-500 uppercase tracking-widest justify-center">
+            <label class="flex items-center gap-1 cursor-pointer hover:text-indigo-600">
+                <input type="radio" name="itemType" value="ing" checked onclick="toggleRecType('ing')"> 📦 Materia Prima
             </label>
-            <label class="flex items-center gap-1 cursor-pointer">
-                <input type="radio" name="itemType" value="rec" onclick="toggleRecType('rec')"> Sub-Receta
+            <label class="flex items-center gap-1 cursor-pointer hover:text-indigo-600">
+                <input type="radio" name="itemType" value="rec" onclick="toggleRecType('rec')"> 🥣 Sub-Receta
             </label>
         </div>
         
         <div class="flex gap-2 items-center">
             <div class="flex-1">
-                <select id="er-sel" class="input-premium mb-0 text-sm"></select>
+                <select id="er-sel" class="input-premium mb-0 text-sm h-10"></select>
             </div>
             <div class="w-20">
-                <input id="er-q" type="number" class="input-premium mb-0 text-center" placeholder="Cant">
+                <input id="er-q" type="number" class="input-premium mb-0 text-center h-10" placeholder="Cant">
             </div>
             <div class="w-16">
-                <input id="er-m" type="number" class="input-premium mb-0 text-center" placeholder="Merma%">
+                <input id="er-m" type="number" class="input-premium mb-0 text-center h-10" placeholder="Merma%">
             </div>
-            <button class="bg-indigo-600 text-white rounded-lg w-10 h-10 flex items-center justify-center font-bold shadow-lg shadow-indigo-200" onclick="addItemToRec()">+</button>
+            <button class="bg-indigo-600 text-white rounded-lg w-10 h-10 flex items-center justify-center font-bold shadow-lg shadow-indigo-200 hover:scale-105 transition" onclick="addItemToRec()">+</button>
         </div>
-        <div class="text-[10px] text-slate-400 mt-1 pl-1" id="type-hint">Selecciona materia prima del almacén</div>
+        <div class="text-[10px] text-slate-400 mt-1 text-center" id="type-hint">...</div>
     </div>
 
     <div class="bg-white border border-slate-100 rounded-xl mb-4 max-h-48 overflow-y-auto" id="er-list"></div>
 
-    <label class="font-bold text-slate-700 text-sm">Instrucciones de Elaboración</label>
-    <textarea id="er-inst" rows="4" class="input-premium mb-4 text-sm" placeholder="1. Cortar la cebolla...">${clean(r.inst || '')}</textarea>
+    <label class="font-bold text-slate-700 text-sm">Instrucciones</label>
+    <textarea id="er-inst" rows="4" class="input-premium mb-4 text-sm" placeholder="Pasos de la receta...">${clean(r.inst || '')}</textarea>
 
     <div class="grid grid-cols-2 gap-3 mt-4">
-        <button class="btn-premium" onclick="saveRec('${r.id}')">GUARDAR FICHA</button>
-        ${id ? `<button class="btn-ghost text-red-400" onclick="deleteRec('${id}')">ELIMINAR</button>` : ''}
+        <button class="btn-premium" onclick="saveRec('${r.id}')">💾 GUARDAR</button>
+        ${id ? `<button class="btn-ghost text-red-400" onclick="deleteRec('${id}')">🗑️ ELIMINAR</button>` : ''}
     </div>
     `);
     
-    toggleRecType('ing'); 
-    renderRecItems(); 
+    // CRÍTICO: Esperar a que el modal exista
+    setTimeout(() => {
+        toggleRecType('ing'); 
+        renderRecItems(); 
+    }, 100);
 }
 
 function toggleRecType(type) {
     const sel = document.getElementById('er-sel');
     const hint = document.getElementById('type-hint');
-    const radioRec = document.querySelector('input[value="rec"]');
-    const radioIng = document.querySelector('input[value="ing"]');
-    
-    if(type === 'ing') radioIng.checked = true;
-    else radioRec.checked = true;
+    if(!sel) return; 
+
+    document.querySelectorAll(`input[name="itemType"][value="${type}"]`).forEach(el => el.checked = true);
 
     if (type === 'ing') {
-        sel.innerHTML = db.ingredientes.sort((a,b)=>a.n.localeCompare(b.n))
-            .map(i => `<option value="${i.id}">${clean(i.n)} (${i.unit})</option>`).join('');
-        hint.innerText = "Añadiendo Materia Prima desde Almacén";
+        if(db.ingredientes.length === 0) {
+            sel.innerHTML = '<option value="">⚠️ No hay productos en Stock</option>';
+        } else {
+            sel.innerHTML = db.ingredientes.sort((a,b)=>a.n.localeCompare(b.n))
+                .map(i => `<option value="${i.id}">${clean(i.n)} (${i.unit})</option>`).join('');
+        }
+        hint.innerText = "Selecciona un producto del almacén";
         document.getElementById('er-m').disabled = false;
+        document.getElementById('er-m').placeholder = "Merma%";
     } else {
-        sel.innerHTML = db.recetas.sort((a,b)=>a.n.localeCompare(b.n))
-            .map(r => `<option value="${r.id}">🥣 ${clean(r.n)}</option>`).join('');
-        hint.innerText = "Añadiendo otra receta como ingrediente (Ej: Salsa Base)";
-        document.getElementById('er-m').disabled = true; 
+        const subRecipes = db.recetas.filter(r => r.id !== (tempItems.currentRecId || '')); 
+        if(subRecipes.length === 0) {
+            sel.innerHTML = '<option value="">⚠️ No hay otras recetas creadas</option>';
+        } else {
+            sel.innerHTML = subRecipes.sort((a,b)=>a.n.localeCompare(b.n))
+                .map(r => `<option value="${r.id}">🥣 ${clean(r.n)}</option>`).join('');
+        }
+        hint.innerText = "Añade una elaboración previa (Salsa, Caldo...)";
+        document.getElementById('er-m').disabled = true;
         document.getElementById('er-m').value = 0;
+        document.getElementById('er-m').placeholder = "-";
     }
     sel.dataset.type = type;
 }
@@ -881,49 +881,57 @@ function addItemToRec() {
         tempItems.push({ type, id, q, merma: m }); 
         renderRecItems(); 
         document.getElementById('er-q').value = '';
-    } 
+        document.getElementById('er-q').focus(); 
+    } else {
+        toast("Introduce una cantidad válida", "error");
+    }
 }
 
 function renderRecItems() { 
-    document.getElementById('er-list').innerHTML = tempItems.map((it, i) => { 
-        let name = "???";
-        let icon = "📦";
+    const el = document.getElementById('er-list');
+    if(!el) return;
+
+    el.innerHTML = tempItems.map((it, i) => { 
+        let name = "???", icon = "📦", details = "";
         if(it.type === 'ing') {
             const ing = db.ingredientes.find(x => x.id === it.id);
-            name = ing ? ing.n : 'Borrado';
+            name = ing ? ing.n : 'Producto Eliminado';
+            details = `${it.q} ${ing?.unit || 'ud'}`;
         } else {
             const rec = db.recetas.find(x => x.id === it.id);
-            name = rec ? rec.n : 'Borrado';
+            name = rec ? rec.n : 'Receta Eliminada';
             icon = "🥣";
+            details = `${it.q} raciones`;
         }
         
         return `
-        <div class="flex justify-between items-center text-sm border-b border-slate-50 p-3 hover:bg-slate-50 transition">
-            <div class="flex items-center gap-2">
-                <span class="text-base">${icon}</span>
+        <div class="flex justify-between items-center text-sm border-b border-slate-50 p-3 hover:bg-slate-50 transition animate-fade-in">
+            <div class="flex items-center gap-3">
+                <span class="text-lg bg-slate-100 w-8 h-8 flex items-center justify-center rounded-full">${icon}</span>
                 <div>
-                    <div class="font-bold text-slate-700">${clean(name)}</div>
-                    <div class="text-[10px] text-slate-400">Cant: ${it.q} · Merma: ${it.merma}%</div>
+                    <div class="font-bold text-slate-700 leading-tight">${clean(name)}</div>
+                    <div class="text-[10px] text-slate-400 font-mono">Cant: ${details} ${it.merma > 0 ? `<span class="text-red-400">(-${it.merma}%)</span>` : ''}</div>
                 </div>
             </div>
-            <button onclick="tempItems.splice(${i},1);renderRecItems()" class="text-red-400 hover:bg-red-50 p-1 rounded">✕</button>
+            <button onclick="tempItems.splice(${i},1);renderRecItems()" class="text-slate-300 hover:text-red-500 hover:bg-red-50 w-8 h-8 rounded-full transition">✕</button>
         </div>`; 
     }).join(''); 
 }
 
 function saveRec(id) { 
+    const n = document.getElementById('er-n').value;
+    if(!n) return toast("¡El plato necesita un nombre!", "error");
+
     const idx = db.recetas.findIndex(x => x.id === id); 
     const r = { 
         id, 
-        n: document.getElementById('er-n').value, 
-        pvp: parseFloat(document.getElementById('er-pvp').value), 
-        time: parseFloat(document.getElementById('er-time').value), 
+        n: n, 
+        pvp: parseFloat(document.getElementById('er-pvp').value) || 0, 
+        time: parseFloat(document.getElementById('er-time').value) || 0, 
         items: tempItems, 
         inst: document.getElementById('er-inst').value, 
         sales: (db.recetas.find(x => x.id === id)?.sales || 0) 
     }; 
-    
-    if(!r.n) return toast("Falta el nombre", "error");
 
     if (idx >= 0) db.recetas[idx] = r; 
     else db.recetas.push(r); 
@@ -934,9 +942,9 @@ function saveRec(id) {
 }
 
 function deleteRec(id) { 
-    if (confirm("¿Eliminar ficha? Esto podría afectar a otras recetas que la usen.")) { 
+    if (confirm("¿Estás seguro de borrar esta receta?")) { 
         db.recetas = db.recetas.filter(x => x.id !== id); 
-        save("Eliminada"); 
+        save("Receta Eliminada"); 
         closeModal(); 
         render('Cocina'); 
     } 
@@ -944,13 +952,11 @@ function deleteRec(id) {
 
 function viewRec(id) { 
     const r = db.recetas.find(x => x.id === id); 
+    if(!r) return;
     const c = calcRecipe(r); 
-    
-    // Cálculos de márgenes
     const pvp = r.pvp || 0;
     const foodCost = pvp > 0 ? (c.t / pvp) * 100 : 0;
     
-    // Colores semáforo
     let semColor = 'text-slate-400';
     if(pvp > 0) {
         if(foodCost < 30) semColor = 'text-emerald-500';
@@ -961,21 +967,21 @@ function viewRec(id) {
     showModal(clean(r.n), `
     <div class="grid grid-cols-3 gap-2 mb-6">
         <div class="bg-slate-50 p-3 rounded-xl text-center border border-slate-100">
-            <div class="text-[10px] text-slate-400 font-bold uppercase">Coste</div>
+            <div class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Coste Plato</div>
             <div class="text-xl font-black text-slate-800">${Num.fmt(c.t)}€</div>
         </div>
         <div class="bg-slate-50 p-3 rounded-xl text-center border border-slate-100">
-            <div class="text-[10px] text-slate-400 font-bold uppercase">PVP</div>
+            <div class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">PVP Venta</div>
             <div class="text-xl font-black text-slate-800">${Num.fmt(pvp)}€</div>
         </div>
         <div class="bg-slate-50 p-3 rounded-xl text-center border border-slate-100">
-            <div class="text-[10px] text-slate-400 font-bold uppercase">Food Cost</div>
+            <div class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Rentabilidad</div>
             <div class="text-xl font-black ${semColor}">${foodCost.toFixed(1)}%</div>
         </div>
     </div>
 
     <div class="mb-6">
-        <h4 class="font-bold text-slate-800 text-xs uppercase mb-2 border-b pb-1">Ingredientes & Subrecetas</h4>
+        <h4 class="font-bold text-slate-800 text-xs uppercase mb-2 border-b pb-1 tracking-widest">Ingredientes</h4>
         <ul class="text-sm space-y-2">
             ${r.items.map(it => {
                 let n = "???", detail = "";
@@ -985,29 +991,34 @@ function viewRec(id) {
                     detail = `${it.q} ${i?.unit || 'ud'}`;
                 } else {
                     const rec = db.recetas.find(x=>x.id===it.id);
-                    n = rec ? `🥣 ${rec.n}` : 'Eliminado';
-                    detail = `${it.q} ud`;
+                    n = rec ? `🥣 ${rec.n}` : 'Sub-Receta Borrada';
+                    detail = `${it.q} raciones`;
                 }
-                return `<li class="flex justify-between text-slate-600"><span>${n}</span> <span class="font-mono font-bold text-slate-400">${detail}</span></li>`;
+                return `<li class="flex justify-between text-slate-600 border-b border-slate-50 pb-1 last:border-0">
+                    <span>${n}</span> 
+                    <span class="font-mono font-bold text-slate-400">${detail}</span>
+                </li>`;
             }).join('')}
         </ul>
-        <div class="mt-2 text-right text-xs text-slate-400 italic">+ Mano de obra (${r.time} min)</div>
+        <div class="mt-2 text-right text-[10px] text-slate-400 italic">Mano de obra estimada: ${r.time} min</div>
     </div>
 
     ${r.inst ? `
-    <div class="mb-6 bg-yellow-50 p-4 rounded-xl border border-yellow-100 relative">
-        <div class="absolute -top-2 left-4 bg-yellow-100 text-yellow-700 text-[10px] font-bold px-2 rounded">ELABORACIÓN</div>
-        <p class="text-sm text-slate-700 whitespace-pre-line leading-relaxed">${clean(r.inst)}</p>
+    <div class="mb-6 bg-yellow-50 p-4 rounded-xl border border-yellow-100 relative print:border-slate-200">
+        <div class="absolute -top-2 left-4 bg-yellow-100 text-yellow-700 text-[10px] font-bold px-2 rounded tracking-widest uppercase">Elaboración</div>
+        <p class="text-sm text-slate-700 whitespace-pre-line leading-relaxed font-serif">${clean(r.inst)}</p>
     </div>` : ''}
 
     <div class="flex flex-wrap gap-2 mb-6 justify-center">
-        ${c.all.map(k=>`<span class="bg-blue-50 text-blue-600 px-2 py-1 rounded text-xs border border-blue-100 font-bold">${ALLERGENS.find(a=>a.k==k)?.i} ${ALLERGENS.find(a=>a.k==k)?.n}</span>`).join('')}
+        ${c.all.map(k=>`<span class="bg-blue-50 text-blue-600 px-2 py-1 rounded text-xs border border-blue-100 font-bold flex items-center gap-1">${ALLERGENS.find(a=>a.k==k)?.i} ${ALLERGENS.find(a=>a.k==k)?.n}</span>`).join('')}
     </div>
     
-    <button class="btn-ghost w-full" onclick="editRec('${r.id}')">✏️ EDITAR FICHA TÉCNICA</button>
+    <div class="flex gap-2">
+        <button class="btn-ghost flex-1" onclick="window.print()">🖨️ IMPRIMIR</button>
+        <button class="btn-premium flex-1" onclick="editRec('${r.id}')">✏️ EDITAR</button>
+    </div>
     `); 
 }
-
 /* ================= 8. STOCK PRO (V144) ================= */
 const FAMILIES = ['General', 'Carne', 'Pescado', 'Verdura', 'Secos', 'Lácteos', 'Congelado', 'Bebida', 'Alcohol', 'Limpieza', 'Packaging'];
 let activeFamily = 'Todos';
