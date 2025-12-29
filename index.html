@@ -321,15 +321,57 @@ function checkDuplicate() {
     if (exists && num.length > 2) { alert.classList.remove('hidden'); inputNum.classList.add('border-red-500', 'text-red-600'); } else { alert.classList.add('hidden'); inputNum.classList.remove('border-red-500', 'text-red-600'); }
 }
 function parseAlb() {
-    const txt = document.getElementById('alb-input').value.trim(); if (!txt) return toast("Texto vacío", "error");
-    txt.split(/\r?\n/).forEach(l => {
-        let parts = l.split(/\t/); if (parts.length < 2) parts = l.split(/,(?=\s*\d)/);
-        if (parts.length >= 2) {
-            const n = parts[0].trim(); const qS = parts[1].trim(); const pS = parts[2] ? parts[2].trim() : '0';
-            const qM = qS.match(/^([\d\.,]+)\s*([a-zA-Z]+)?$/); const qty = qM ? Num.parse(qM[1]) : Num.parse(qS); const unit = qM && qM[2] ? UnitConverter.normalize(qM[2]) : 'ud'; const price = Num.parse(pS);
-            if (n && price >= 0) tempItems.push({ n, q: qty, p: price, unit, d: 0, tax: 10 });
+    const txt = document.getElementById('alb-input').value;
+    if (!txt) return toast("Pega el texto del albarán primero", "error");
+
+    // Limpiamos líneas vacías y símbolos de moneda molestos
+    const lines = txt.split(/\r?\n/).filter(line => line.trim() !== '');
+    let found = 0;
+
+    lines.forEach(l => {
+        // 1. Limpieza agresiva de la línea (quita € y $)
+        let cleanLine = l.replace(/[€$]/g, '').trim(); 
+        
+        // 2. Intentamos detectar el separador (Tabulador, Punto y Coma, o Doble Espacio)
+        let parts = cleanLine.split(/[\t;]|\s{2,}/);
+
+        // 3. Si el split ha fallado (solo detecta 1 trozo), intentamos buscar patrón numérico al final
+        if (parts.length < 2) {
+            // Busca: (Texto) espacio (Numero+Letras opcionales) espacio (Numero)
+            const match = cleanLine.match(/^(.*?)\s+([\d\.,]+[a-zA-Z]*)\s+([\d\.,]+)$/);
+            if (match) {
+                parts = [match[1], match[2], match[3]];
+            }
         }
-    }); renderAlbGrid();
+
+        // 4. Procesar los datos si tenemos al menos Nombre y Cantidad
+        if (parts.length >= 2) {
+            const n = parts[0].trim(); // Nombre
+            const qStr = parts[1].trim().replace(/\s/g, ''); // Cantidad (quitamos espacios internos "5 kg" -> "5kg")
+            const pStr = parts[2] ? parts[2].trim().replace(',','.') : '0'; // Precio (si no hay, es 0)
+
+            // Separar número de unidad en la cantidad (ej: "5kg")
+            const qMatch = qStr.match(/^([\d\.,]+)([a-zA-Z]+)?$/);
+            
+            const qty = qMatch ? Num.parse(qMatch[1]) : Num.parse(qStr);
+            const unit = qMatch && qMatch[2] ? UnitConverter.normalize(qMatch[2]) : 'ud';
+            const price = Num.parse(pStr);
+
+            if (n && qty > 0) {
+                // Añadimos a la lista temporal (IVA por defecto 10%)
+                tempItems.push({ n, q: qty, p: price, unit, d: 0, tax: 10 });
+                found++;
+            }
+        }
+    });
+
+    if (found > 0) {
+        renderAlbGrid();
+        document.getElementById('alb-input').value = ''; // Limpiar caja
+        toast(`✅ ${found} líneas detectadas`);
+    } else {
+        toast("⚠️ Formato no reconocido. Prueba: Nombre ; Cantidad ; Precio", "error");
+    }
 }
 function renderAlbGrid() {
     const el = document.getElementById('alb-grid'); if (!el) return;
