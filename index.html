@@ -503,7 +503,128 @@ function saveIng(id) {
     save(); closeModal(); render('Stock'); 
 }
 function deleteIng(id) { if (confirm("¿Borrar producto?")) { db.ingredientes = db.ingredientes.filter(i => i.id !== id); save("Borrado"); closeModal(); render('Stock'); } }
+/* ================= 9. DIARIO & CIERRE DE CAJA ================= */
+function renderDiario(app){
+    // 1. Buscamos los datos del día actual o iniciamos a 0
+    const r = db.diario.find(d => d.date === currentDiarioDate) || { cash:0, visa:0, tpv:0, amex:0, glovo:0, uber:0, apper:0, expenses:0 };
+    
+    // 2. Cálculos
+    const totalVenta = (r.cash||0) + (r.visa||0) + (r.tpv||0) + (r.amex||0) + (r.glovo||0) + (r.uber||0) + (r.apper||0);
+    const realCash = (r.cash||0) - (r.expenses||0);
+    
+    // 3. Generar historial visual
+    const historyRows = db.diario.filter(d => isInPeriod(d.date)).sort((a,b) => b.date.localeCompare(a.date)).map(d => `
+        <div class="flex justify-between items-center py-3 border-b border-slate-50 last:border-0 hover:bg-slate-50 transition px-2 rounded-lg"> 
+            <div class="font-bold text-slate-700 cursor-pointer" onclick="currentDiarioDate='${d.date}';render('Diario')">
+                📅 ${d.date}
+            </div> 
+            <div class="font-mono font-bold text-indigo-600">${Num.fmt(d.total)}€</div> 
+        </div>
+    `).join('');
 
+    app.innerHTML = `
+    <div class="glass-card">
+        <div class="flex justify-between items-center mb-6">
+            <h3 class="font-bold text-slate-800">CIERRE DE CAJA</h3>
+            <input type="date" value="${currentDiarioDate}" class="bg-slate-100 border-0 rounded-lg p-2 font-bold text-indigo-600 outline-none" onchange="currentDiarioDate=this.value;render('Diario')">
+        </div>
+        
+        <div class="space-y-4">
+            <div class="bg-emerald-50/50 p-4 rounded-xl border border-emerald-100">
+                <div class="text-[10px] font-bold text-emerald-600 mb-2 uppercase tracking-wider">💵 Efectivo</div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label>Venta Efectivo</label>
+                        <input type="number" id="z-cash" value="${r.cash||0}" class="input-premium text-center font-bold text-lg" oninput="calcTotal()" onclick="this.select()">
+                    </div>
+                    <div>
+                        <label class="text-red-400">Gastos / Pagos</label>
+                        <input type="number" id="z-expenses" value="${r.expenses||0}" class="input-premium text-center text-red-500 font-bold text-lg" oninput="calcTotal()" onclick="this.select()">
+                    </div>
+                </div>
+                <div class="text-right mt-3 text-xs font-bold text-emerald-700 bg-emerald-100/50 p-2 rounded-lg">
+                    En Cajón: <span id="z-real-cash" class="text-lg ml-1">${Num.fmt(realCash)}</span>€
+                </div>
+            </div>
+
+            <div class="bg-blue-50/50 p-4 rounded-xl border border-blue-100">
+                <div class="text-[10px] font-bold text-blue-600 mb-2 uppercase tracking-wider">💳 Tarjetas</div>
+                <div class="grid grid-cols-3 gap-2">
+                    <div><label>Visa</label><input type="number" id="z-visa" value="${r.visa||0}" class="input-premium text-center" oninput="calcTotal()" onclick="this.select()"></div>
+                    <div><label>TPV</label><input type="number" id="z-tpv" value="${r.tpv||0}" class="input-premium text-center" oninput="calcTotal()" onclick="this.select()"></div>
+                    <div><label>Amex</label><input type="number" id="z-amex" value="${r.amex||0}" class="input-premium text-center" oninput="calcTotal()" onclick="this.select()"></div>
+                </div>
+            </div>
+
+            <div class="bg-orange-50/50 p-4 rounded-xl border border-orange-100">
+                <div class="text-[10px] font-bold text-orange-600 mb-2 uppercase tracking-wider">🛵 Delivery</div>
+                <div class="grid grid-cols-3 gap-2">
+                    <div><label>Glovo</label><input type="number" id="z-glovo" value="${r.glovo||0}" class="input-premium text-center" oninput="calcTotal()" onclick="this.select()"></div>
+                    <div><label>Uber</label><input type="number" id="z-uber" value="${r.uber||0}" class="input-premium text-center" oninput="calcTotal()" onclick="this.select()"></div>
+                    <div><label>Apper</label><input type="number" id="z-apper" value="${r.apper||0}" class="input-premium text-center" oninput="calcTotal()" onclick="this.select()"></div>
+                </div>
+            </div>
+
+            <div class="flex justify-between items-center pt-4 border-t border-slate-100 mt-2">
+                <span class="font-bold text-slate-400 text-xs tracking-widest uppercase">Venta Total Día</span>
+                <span id="z-total-display" class="text-4xl font-black text-slate-800">${Num.fmt(totalVenta)}€</span>
+            </div>
+        </div>
+        
+        <button class="btn-premium mt-6 shadow-xl shadow-indigo-200" onclick="saveZ()">💾 GUARDAR CIERRE</button>
+    </div>
+
+    <div class="glass-card">
+        <h3 class="font-bold text-xs text-slate-400 mb-4 uppercase tracking-wider">Historial Trimestre ${fiscalQuarter}</h3>
+        <div class="max-h-60 overflow-y-auto mb-4 custom-scrollbar">
+            ${historyRows}
+        </div>
+        <button class="btn-ghost w-full flex justify-center items-center gap-2" onclick="exportDiarioCSV()">
+            📊 DESCARGAR EXCEL CAJAS
+        </button>
+    </div>`;
+}
+
+function calcTotal() { 
+    const v = (id) => Num.parse(document.getElementById(id).value); 
+    const cash = v('z-cash'), exp = v('z-expenses'); 
+    const total = cash + v('z-visa') + v('z-tpv') + v('z-amex') + v('z-glovo') + v('z-uber') + v('z-apper'); 
+    
+    document.getElementById('z-total-display').innerText = Num.fmt(total)+'€'; 
+    document.getElementById('z-real-cash').innerText = Num.fmt(cash - exp); 
+}
+
+function saveZ(){ 
+    const v = (id) => Num.parse(document.getElementById(id).value); 
+    const data = { 
+        date: currentDiarioDate, 
+        cash: v('z-cash'), expenses: v('z-expenses'), 
+        visa: v('z-visa'), tpv: v('z-tpv'), amex: v('z-amex'), 
+        glovo: v('z-glovo'), uber: v('z-uber'), apper: v('z-apper'), 
+        total: v('z-cash') + v('z-visa') + v('z-tpv') + v('z-amex') + v('z-glovo') + v('z-uber') + v('z-apper') 
+    }; 
+    
+    const idx = db.diario.findIndex(d => d.date === currentDiarioDate); 
+    if(idx >= 0) db.diario[idx] = data; 
+    else db.diario.push(data); 
+    
+    save("Cierre Guardado Correctamente"); 
+    render('Diario'); 
+}
+
+function exportDiarioCSV() { 
+    if(!db.diario.length) return toast("No hay datos para exportar", "error"); 
+    const header = ['Fecha', 'Efectivo', 'Gastos', 'Visa', 'TPV', 'Amex', 'Glovo', 'Uber', 'Apper', 'Total']; 
+    const rows = db.diario.filter(d => isInPeriod(d.date)).sort((a,b) => b.date.localeCompare(a.date))
+        .map(d => [d.date, Num.csv(d.cash), Num.csv(d.expenses), Num.csv(d.visa), Num.csv(d.tpv), Num.csv(d.amex), Num.csv(d.glovo), Num.csv(d.uber), Num.csv(d.apper), Num.csv(d.total)]); 
+    
+    const csv = [header.join(';'), ...rows.map(r => r.join(';'))].join('\n'); 
+    const blob = new Blob(["\uFEFF"+csv], {type:'text/csv;charset=utf-8'}); 
+    const a = document.createElement('a'); 
+    a.href = URL.createObjectURL(blob); 
+    a.download = `Cajas_${fiscalYear}_Q${fiscalQuarter}.csv`; 
+    a.click(); 
+}
 /* ================= 10. UTILS & BACKUP ================= */
 function showModal(t,c){ document.getElementById('m-title').innerText=t; document.getElementById('m-body').innerHTML=c; document.getElementById('modal-overlay').classList.remove('hidden'); }
 function closeModal(){ document.getElementById('modal-overlay').classList.add('hidden'); }
