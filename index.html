@@ -550,38 +550,106 @@ function renderAlbGrid() {
     const total = tempItems.reduce((acc, it) => acc + (it.q * it.p * (1 - (it.d || 0) / 100)) * (1 + it.tax / 100), 0);
     document.getElementById('alb-total').innerText = Num.fmt(total) + '€';
 }
-
 function commitAlb() {
-    if (!tempItems.length) return toast("Vacío", "error");
-    const prov = document.getElementById('alb-prov').value; const date = document.getElementById('alb-date').value; const num = document.getElementById('alb-num').value; const isSocio = document.getElementById('alb-socio').checked;
-    if (!prov || !date) return toast("Faltan datos", "error");
-    const exists = db.albaranes.some(a => a.num === num && a.prov === prov); if (exists && !confirm(`⚠️ DUPLICADO DETECTADO: ${num}\n¿Guardar de todas formas?`)) return;
-    if (!db.proveedores.find(p => p.n === prov)) db.proveedores.push({ id: generateID(), n: prov, tel: '', fam: 'General' });
+    // 1. Validaciones básicas
+    if (!tempItems.length) return toast("El albarán está vacío", "error");
+    
+    const prov = document.getElementById('alb-prov').value.trim();
+    const date = document.getElementById('alb-date').value;
+    const num = document.getElementById('alb-num').value.trim();
+    const isSocio = document.getElementById('alb-socio').checked;
+    const note = document.getElementById('alb-note').value.trim();
+    const productor = document.getElementById('alb-producer').value.trim();
 
+    if (!prov || !date) return toast("Faltan datos obligatorios (Proveedor/Fecha)", "error");
+
+    // 2. Comprobar si el Albarán ya existe (por número y proveedor) para no duplicar stock
+    const exists = db.albaranes.some(a => a.num.toLowerCase() === num.toLowerCase() && a.prov.toLowerCase() === prov.toLowerCase());
+    if (exists && !confirm(`⚠️ EL ALBARÁN ${num} YA EXISTE.\n¿Quieres guardarlo de todas formas? (Se duplicará el stock)`)) return;
+
+    // 3. Crear proveedor en la agenda si es nuevo
+    if (!db.proveedores.find(p => p.n.toLowerCase() === prov.toLowerCase())) {
+        db.proveedores.push({ id: generateID(), n: prov, tel: '', fam: 'General' });
+    }
+
+    // 4. BUCLE PRINCIPAL: Procesar líneas y actualizar Stock
     tempItems.forEach(it => {
         const cleanName = it.n.trim();
-        let ing = db.ingredientes.find(x => x.n.trim().toLowerCase() === cleanName.toLowerCase() && x.unit === it.unit);
-        if (!ing) { ing = { id: generateID(), n: cleanName, stock: 0, cost: 0, unit: it.unit, aller: [], fam: 'General' }; db.ingredientes.push(ing); }
+        // Normalizamos la unidad (usamos tu conversor UnitConverter si está disponible)
+        const normalizedUnit = typeof UnitConverter !== 'undefined' ? UnitConverter.normalize(it.unit) : it.unit;
+
+        // A) BÚSQUEDA ROBUSTA: Buscamos por Nombre Y Unidad para evitar duplicados
+        let ing = db.ingredientes.find(x => 
+            x.n.trim().toLowerCase() === cleanName.toLowerCase() && 
+            (typeof UnitConverter !== 'undefined' ? UnitConverter.normalize(x.unit) : x.unit) === normalizedUnit
+        );
+
+        // B) SI NO EXISTE, LO CREAMOS
+        if (!ing) {
+            ing = { 
+                id: generateID(), 
+                n: cleanName, 
+                stock: 0, 
+                cost: 0, 
+                unit: normalizedUnit, 
+                aller: [], 
+                fam: 'General' 
+            };
+            db.ingredientes.push(ing);
+        }
+
+        // C) CÁLCULO DE COSTES (PMP - Precio Medio Ponderado)
+        // Calculamos el precio neto unitario (aplicando el descuento de la línea si existe)
+        const realUnitCost = it.p * (1 - (it.d || 0) / 100);
         
-        const realUnitCost = it.p * (1 - (it.d || 0) / 100); 
-        const totalQty = Math.max(0, ing.stock) + it.q;
-        
-        if (totalQty > 0) {
-            ing.cost = ((Math.max(0, ing.stock) * ing.cost) + (it.q * realUnitCost)) / totalQty;
+        // Matemáticas financieras: (Valor Stock Actual + Valor Compra Nueva) / Cantidad Total
+        const currentStock = Math.max(0, ing.stock); // Ignoramos stock negativo para el cálculo de valor
+        const currentTotalValue = currentStock * ing.cost;
+        const newEntryValue = it.q * realUnitCost;
+        const newTotalQty = currentStock + it.q;
+
+        if (newTotalQty > 0) {
+            ing.cost = (currentTotalValue + newEntryValue) / newTotalQty;
         } else {
+            // Si es la primera entrada o seguimos en negativo, el coste es el actual
             ing.cost = realUnitCost;
         }
-        
+
+        // D) ACTUALIZAR STOCK FÍSICO
         ing.stock += it.q;
-        logStock(ing.id, it.q, 'IN', `Alb: ${prov} ${isSocio?'(Socio)':''}`, realUnitCost);
+
+        // E) GUARDAR EN EL HISTORIAL DE MOVIMIENTOS (KARDEX)
+        logStock(ing.id, it.q, 'IN', `Compra: ${prov} (${num})`, realUnitCost);
     });
 
+    // 5. Calcular Totales del Albarán para el registro contable
     let totalBase = 0, totalTax = 0;
-    tempItems.forEach(it => { const base = (it.q * it.p) * (1 - (it.d || 0) / 100); totalBase += base; totalTax += base * (it.tax / 100); });
-    
-    db.albaranes.push({ id: generateID(), num, prov, productor: document.getElementById('alb-producer').value, date, items: JSON.parse(JSON.stringify(tempItems)), total: totalBase + totalTax, taxes: totalTax, subtotal: totalBase, invoiced: false, isSocio, note: document.getElementById('alb-note').value });
-    
-    save("Entrada OK"); tempItems = []; renderAdmin(document.getElementById('app'));
+    tempItems.forEach(it => {
+        const base = (it.q * it.p) * (1 - (it.d || 0) / 100);
+        totalBase += base;
+        totalTax += base * (it.tax / 100);
+    });
+
+    // 6. Guardar el documento en la base de datos de Albaranes
+    db.albaranes.push({ 
+        id: generateID(), 
+        num, 
+        prov, 
+        productor, 
+        date, 
+        items: JSON.parse(JSON.stringify(tempItems)), // Copia profunda para seguridad
+        total: totalBase + totalTax, 
+        taxes: totalTax, 
+        subtotal: totalBase, 
+        invoiced: false, 
+        isSocio, 
+        note 
+    });
+
+    // 7. Finalizar
+    save(`✅ Albarán ${num} guardado y Stock actualizado`);
+    tempItems = []; // Limpiamos la lista temporal
+    renderAdmin(document.getElementById('app')); // Recargamos la pantalla
 }
 function editAlb(id) {
     const alb = db.albaranes.find(a => a.id === id); if (!alb) return;
