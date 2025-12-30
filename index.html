@@ -773,12 +773,84 @@ function saveRec(id) {
 function deleteRec(id) { if (confirm("¿Borrar?")) { db.recetas = db.recetas.filter(x => x.id !== id); save("Eliminada"); closeModal(); render('Cocina'); } }
 function viewRec(id) { 
     const r = db.recetas.find(x => x.id === id); if(!r) return;
-    const c = calcRecipe(r); const pvp = r.pvp || 0; const foodCost = pvp > 0 ? (c.t / pvp) * 100 : 0;
+    
+    // Función interna para generar la lista de ingredientes según la cantidad
+    // Se guarda en 'window' para que el HTML pueda llamarla al escribir en el input
+    window.renderIngsForCalc = (factor) => {
+        return r.items.map(it => { 
+            let n="???", d="", baseQ=it.q; 
+            let finalQ = baseQ * factor; // Multiplicamos por el factor que ponga el cocinero
+            
+            if(it.type==='ing'){ 
+                const i=db.ingredientes.find(x=>x.id===it.id); 
+                n=i?i.n:'Eliminado'; 
+                // Formateamos bonito: si es 0.5kg pone 0,50, si es 100g pone 100
+                d=`${Num.fmt(finalQ)} ${i?.unit||'ud'}`; 
+            } else { 
+                const rc=db.recetas.find(x=>x.id===it.id); 
+                n=rc?`🥣 ${rc.n}`:'Borrada'; 
+                d=`${Num.fmt(finalQ)} rac`; 
+            } 
+            return `<li class="flex justify-between text-slate-600 border-b border-slate-50 pb-1 last:border-0">
+                <span>${n}</span> 
+                <span class="font-mono font-bold text-indigo-600">${d}</span>
+            </li>`; 
+        }).join('');
+    };
+
+    // Cálculos económicos (Unitarios)
+    const c = calcRecipe(r); 
+    const pvp = r.pvp || 0; 
+    const foodCost = pvp > 0 ? (c.t / pvp) * 100 : 0;
     let semColor = 'text-slate-400';
     if(pvp > 0) { if(foodCost < 30) semColor = 'text-emerald-500'; else if(foodCost < 40) semColor = 'text-orange-500'; else semColor = 'text-red-500'; }
-    showModal(clean(r.n), `<div class="grid grid-cols-3 gap-2 mb-6"><div class="bg-slate-50 p-3 rounded-xl text-center border border-slate-100"><div class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Coste</div><div class="text-xl font-black text-slate-800">${Num.fmt(c.t)}€</div></div><div class="bg-slate-50 p-3 rounded-xl text-center border border-slate-100"><div class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">PVP</div><div class="text-xl font-black text-slate-800">${Num.fmt(pvp)}€</div></div><div class="bg-slate-50 p-3 rounded-xl text-center border border-slate-100"><div class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Food Cost</div><div class="text-xl font-black ${semColor}">${foodCost.toFixed(1)}%</div></div></div><div class="mb-6"><h4 class="font-bold text-slate-800 text-xs uppercase mb-2 border-b pb-1 tracking-widest">Ingredientes</h4><ul class="text-sm space-y-2">${r.items.map(it => { let n="???",d=""; if(it.type==='ing'){ const i=db.ingredientes.find(x=>x.id===it.id); n=i?i.n:'Eliminado'; d=`${it.q} ${i?.unit||'ud'}`; }else{ const rc=db.recetas.find(x=>x.id===it.id); n=rc?`🥣 ${rc.n}`:'Borrada'; d=`${it.q} rac`; } return `<li class="flex justify-between text-slate-600 border-b border-slate-50 pb-1 last:border-0"><span>${n}</span> <span class="font-mono font-bold text-slate-400">${d}</span></li>`; }).join('')}</ul></div>${r.inst ? `<div class="mb-6 bg-yellow-50 p-4 rounded-xl border border-yellow-100 relative print:border-slate-200"><p class="text-sm text-slate-700 whitespace-pre-line leading-relaxed font-serif">${clean(r.inst)}</p></div>` : ''}<div class="flex gap-2"><button class="btn-ghost flex-1" onclick="window.print()">🖨️ IMPRIMIR</button><button class="btn-premium flex-1" onclick="editRec('${r.id}')">✏️ EDITAR</button></div>`); 
-}
 
+    // Renderizamos el Modal con la Calculadora Azul
+    showModal(clean(r.n), `
+        <div class="grid grid-cols-3 gap-2 mb-4">
+            <div class="bg-slate-50 p-2 rounded-xl text-center border border-slate-100">
+                <div class="text-[9px] text-slate-400 font-bold uppercase">Coste Ud</div>
+                <div class="text-lg font-black text-slate-800">${Num.fmt(c.t)}€</div>
+            </div>
+            <div class="bg-slate-50 p-2 rounded-xl text-center border border-slate-100">
+                <div class="text-[9px] text-slate-400 font-bold uppercase">PVP</div>
+                <div class="text-lg font-black text-slate-800">${Num.fmt(pvp)}€</div>
+            </div>
+            <div class="bg-slate-50 p-2 rounded-xl text-center border border-slate-100">
+                <div class="text-[9px] text-slate-400 font-bold uppercase">Food Cost</div>
+                <div class="text-lg font-black ${semColor}">${foodCost.toFixed(1)}%</div>
+            </div>
+        </div>
+
+        <div class="bg-indigo-50 p-3 rounded-xl border border-indigo-100 mb-4 flex items-center justify-between shadow-sm">
+            <div>
+                <div class="text-xs font-bold text-indigo-800 uppercase flex items-center gap-1">🥣 A Cocinar</div>
+                <div class="text-[10px] text-indigo-500">Multiplicador de cantidades</div>
+            </div>
+            <div class="flex items-center gap-2 bg-white rounded-lg p-1 border border-indigo-200">
+                <span class="text-xs font-bold text-indigo-400 pl-2">x</span>
+                <input type="number" id="calc-qty" value="1" min="0.1" step="0.5" class="w-16 text-center font-black text-xl text-indigo-700 outline-none" 
+                oninput="document.getElementById('ing-list-view').innerHTML = window.renderIngsForCalc(this.value)">
+            </div>
+        </div>
+
+        <div class="mb-6">
+            <h4 class="font-bold text-slate-800 text-xs uppercase mb-2 border-b pb-1 tracking-widest">Ingredientes necesarios</h4>
+            <ul class="text-sm space-y-2" id="ing-list-view">
+                ${window.renderIngsForCalc(1)}
+            </ul>
+        </div>
+
+        ${r.inst ? `<div class="mb-6 bg-yellow-50 p-4 rounded-xl border border-yellow-100 relative print:border-slate-200">
+            <p class="text-sm text-slate-700 whitespace-pre-line leading-relaxed font-serif">${clean(r.inst)}</p>
+        </div>` : ''}
+
+        <div class="flex gap-2">
+            <button class="btn-ghost flex-1" onclick="window.print()">🖨️ IMPRIMIR</button>
+            <button class="btn-premium flex-1" onclick="editRec('${r.id}')">✏️ EDITAR</button>
+        </div>
+    `); 
+}
 /* ================= 8. STOCK & AUDITORÍA PRO (V147 FIXED) ================= */
 function renderStock(app) {
     const isAdmin = currentUser?.role === 'admin';
