@@ -568,7 +568,7 @@ function saveProv(id) {
 function delProv(id) { 
     if (confirm("¿Borrar?")) { db.proveedores = db.proveedores.filter(x => x.id !== id); save("Borrado"); closeModal(); renderAdmin(document.getElementById('app')); } 
 }
-/* === SUB-MÓDULO: ALBARANES PRO (CON LECTOR INTELIGENTE) === */
+/* === SUB-MÓDULO: ALBARANES PRO (CON EDICIÓN) === */
 
 function renderAlbaranes(c) {
     const list = db.albaranes.filter(a => isInPeriod(a.date)).slice().reverse();
@@ -576,8 +576,8 @@ function renderAlbaranes(c) {
     const ingOptions = db.ingredientes.map(i => `<option value="${clean(i.n)}">`).join('');
 
     c.innerHTML = `
-    <div class="glass-card border-l-4 border-indigo-500">
-        <h3 class="font-bold text-slate-700 text-sm mb-4 uppercase">Nuevo Albarán Detallado</h3>
+    <div class="glass-card border-l-4 border-indigo-500" id="alb-form-anchor">
+        <h3 class="font-bold text-slate-700 text-sm mb-4 uppercase">Nuevo / Editar Albarán</h3>
         
         <div class="grid grid-cols-3 gap-3 mb-3">
             <div><label>Proveedor</label><input list="prov-list" id="alb-prov" class="input-premium" placeholder="..." onchange="checkDuplicate()"><datalist id="prov-list">${provOptions}</datalist></div>
@@ -622,7 +622,10 @@ function renderAlbaranes(c) {
                 <div class="flex items-center gap-2">
                     <span class="font-bold text-sm mr-2">${Num.fmt(a.total)}€</span>
                     <button class="btn-icon btn-ghost" onclick="viewAlbDetails('${a.id}')">👁</button>
-                    ${!a.invoiced ? `<button class="btn-icon btn-delete" onclick="deleteAlb('${a.id}')">🗑️</button>` : '<span class="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-1 rounded font-bold">FACTURADO</span>'}
+                    ${!a.invoiced ? `
+                        <button class="btn-icon btn-edit" onclick="editAlb('${a.id}')">✏️</button>
+                        <button class="btn-icon btn-delete" onclick="deleteAlb('${a.id}')">🗑️</button>
+                    ` : '<span class="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-1 rounded font-bold">FACTURADO</span>'}
                 </div>
             </div>`).join('') : '<div class="text-center p-4 text-slate-400">Sin registros</div>'}
     </div>`;
@@ -720,6 +723,49 @@ function deleteAlb(id) {
         }
     }
 }
+
+// Función para editar Albaranes
+function editAlb(id) {
+    const alb = db.albaranes.find(a => a.id === id);
+    if (!alb) return;
+    
+    // Seguridad: No editar si ya está en una factura cerrada
+    if (alb.invoiced) return toast("⛔ No se puede editar: Ya está facturado", "error");
+
+    if(confirm("¿Modificar albarán? \nSe cargará arriba para editar y se recalculará el stock.")) {
+        // 1. Revertir el Stock (Restamos lo que se había sumado)
+        alb.items.forEach(it => {
+            const ing = db.ingredientes.find(x => x.n === it.n && x.unit === it.unit);
+            if(ing) {
+                ing.stock -= it.q;
+                // Dejamos un rastro técnico en el Kardex por si acaso
+                logStock(ing.id, it.q, 'OUT', `Edición Alb: ${alb.num}`, ing.cost);
+            }
+        });
+
+        // 2. Cargar los datos en el formulario de arriba
+        document.getElementById('alb-prov').value = alb.prov;
+        document.getElementById('alb-num').value = alb.num;
+        document.getElementById('alb-date').value = alb.date;
+
+        // 3. Pasar los items a la memoria temporal (tempItems)
+        // Usamos JSON parse/stringify para romper la referencia y que sea una copia limpia
+        tempItems = JSON.parse(JSON.stringify(alb.items));
+
+        // 4. Borrar el albarán antiguo de la base de datos
+        db.albaranes = db.albaranes.filter(a => a.id !== id);
+
+        // 5. Refrescar la pantalla
+        renderAdmin(document.getElementById('app')); // Recarga todo para ver los cambios
+        
+        // Un pequeño truco para hacer scroll hacia arriba y que veas el formulario
+        setTimeout(() => {
+            document.getElementById('alb-form-anchor').scrollIntoView({ behavior: 'smooth' });
+            toast("✏️ Datos cargados. Modifica y pulsa GUARDAR.", "info");
+        }, 100);
+    }
+}
+
 function exportAlbCSV() { 
     if (!tempItems.length) return toast("Tabla vacía", "error"); 
     const rows = tempItems.map(it => [it.n, Num.csv(it.q), it.unit, Num.csv(it.p), Num.csv(it.d || 0), Num.csv((it.q * it.p) * (1 + it.tax / 100))]); 
