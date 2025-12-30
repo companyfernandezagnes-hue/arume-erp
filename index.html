@@ -1338,9 +1338,58 @@ function restoreBackup(input){ 
     }; 
     r.readAsText(input.files[0]); 
 }
+/* ================= AUTO-SYNC (Sincronía en Segundo Plano) ================= */
+function startAutoSync() {
+    // Ejecutar cada 15 segundos
+    setInterval(async () => {
+        if (!CONFIG.GOOGLE_URL) return;
+        
+        try {
+            // 1. Consultamos la nube en silencio
+            const r = await fetch(CONFIG.GOOGLE_URL);
+            const cloudDB = await r.json();
+            
+            // 2. Comparamos fechas: ¿La nube es más nueva que lo que tengo aquí?
+            if (cloudDB && cloudDB.lastSync > (db.lastSync || 0)) {
+                
+                // SEGURIDAD: Si el usuario tiene una ventana abierta, NO molestamos
+                if (!document.getElementById('modal-overlay').classList.contains('hidden')) {
+                    console.log("Sincronización pendiente (Usuario ocupado)");
+                    return; 
+                }
 
+                // 3. Actualizamos
+                db = cloudDB;
+                localStorage.setItem('arume_v147', secure.enc(db));
+                
+                // 4. Refrescamos la pantalla
+                const activeView = document.querySelector('nav button.active')?.id.replace('btn-', '') || 'Cocina';
+                render(activeView);
+                
+                // 5. Aviso discreto
+                toast("☁️ Datos actualizados remotamente", "success");
+            }
+        } catch (e) {
+            console.log("Verificando nube..."); 
+        }
+    }, 15000); 
+}
+
+/* === MEMORIA DE SESIÓN (Opcional pero recomendado) === */
+window.onbeforeunload = function() {
+    const uiState = {
+        tab: activeAdminTab,
+        fam: activeFamily,
+        inv: inventoryMode,
+        year: fiscalYear,
+        q: fiscalQuarter,
+        lastView: document.querySelector('nav button.active')?.id.replace('btn-', '') || 'Cocina'
+    };
+    localStorage.setItem('arume_ui_memory', JSON.stringify(uiState));
+};
 /* ================= INIT ================= */
 init();
+startAutoSync(); // <--- ¡Asegúrate de que esta línea esté aquí!
 </script>
 </body>
 </html>
