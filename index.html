@@ -532,7 +532,11 @@ function renderAdmin(app) {
             <div class="flex justify-between items-center mb-2"><span class="text-xs font-bold text-slate-600">Salidas (IVA inc)</span><span class="font-bold text-red-500">-${Num.fmt(compras + taxes)}€</span></div>
             <div class="border-t border-slate-100 pt-2 mt-2 flex justify-between items-center"><span class="text-xs font-black text-slate-800 uppercase">Saldo</span><span class="font-black text-lg ${cashFlow >= 0 ? 'text-slate-800' : 'text-red-600'}">${Num.fmt(cashFlow)}€</span></div>
         </div>
-        <div class="grid grid-cols-2 gap-3"><button class="btn-ghost" onclick="downloadBackup()">💾 BACKUP</button><button class="btn-ghost text-indigo-600" onclick="document.getElementById('backup-input').click()">📤 RESTAURAR</button></div>
+       <div class="grid grid-cols-3 gap-2">
+            <button class="btn-ghost" onclick="downloadBackup()">💾 BACKUP</button>
+            <button class="btn-ghost text-indigo-600" onclick="document.getElementById('backup-input').click()">📤 RESTAURAR</button>
+            <button class="btn-ghost text-emerald-600 font-black border-emerald-200 bg-emerald-50" onclick="forceCloudDownload()">☁️ BAJAR</button>
+        </div>
     ` : ''}
     <div id="adm-c"></div>`;
 
@@ -1375,7 +1379,30 @@ function closeModal() {
    🚀 ARRANQUE DE LA APLICACIÓN 🚀
    ============================================================= */
 init();
-
+// Función para forzar la descarga de la nube (Solución para el móvil)
+async function forceCloudDownload() {
+    if(confirm("⚠️ ¿ESTÁS SEGURO?\n\nEsto borrará los datos de ESTE dispositivo y bajará la última copia de la nube.\n\nÚsalo solo si no ves los datos actualizados.")) {
+        loading(true);
+        try {
+            const { data, error } = await sb.from('arume_data').select('data').eq('id', 1).single();
+            if (error) throw error;
+            
+            if (data && data.data) {
+                db = data.data;
+                localStorage.setItem('arume_v152', secure.enc(db));
+                toast("✅ Datos sincronizados", "success");
+                setTimeout(() => location.reload(), 500); 
+            } else {
+                toast("❌ No hay datos en la nube", "error");
+            }
+        } catch (e) {
+            console.error(e);
+            toast("Error de conexión", "error");
+        } finally {
+            loading(false);
+        }
+    }
+}
 </script>
 </body>
 </html>
