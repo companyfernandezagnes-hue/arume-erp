@@ -538,7 +538,7 @@ function renderAdmin(app) {
 
     const c = document.getElementById('adm-c');
     if (activeAdminTab === 'omnes') renderOmnes(c);
-    if (activeAdminTab === 'albaranes') renderAlbaranes(c);
+    if (activeAdminTab === 'albs') renderAlbaranes(c);
     if (activeAdminTab === 'facturas') renderFacturas(c);
     if (activeAdminTab === 'prov') renderProvs(c);
 }
@@ -727,101 +727,7 @@ function exportAlbCSV() {
     const blob = new Blob(["\uFEFF" + csv], { type: 'text/csv;charset=utf-8' }); 
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'Albaran_Import.csv'; a.click(); 
 }
-    // 1. Guardar o actualizar proveedor
-    if (!db.proveedores.find(p => p.n.toLowerCase() === prov.toLowerCase())) {
-        db.proveedores.push({ id: generateID(), n: prov, tel: '', fam: 'General' });
-    }
 
-    // 2. Procesar Stock y Precio Medio
-    tempItems.forEach(it => {
-        // Buscar producto por nombre y unidad (para evitar duplicados tontos)
-        let ing = db.ingredientes.find(x => x.n.toLowerCase() === it.n.toLowerCase() && x.unit === it.unit);
-        
-        // Precio unitario neto (sin IVA, con descuento)
-        const netPrice = it.p * (1 - (it.d || 0) / 100);
-
-        if (!ing) {
-            // Nuevo ingrediente
-            ing = { id: generateID(), n: it.n, stock: 0, cost: 0, unit: it.unit, fam: 'General', min: 0 };
-            db.ingredientes.push(ing);
-        }
-
-        // Cálculo Precio Medio Ponderado (PMP)
-        const totalVal = (ing.stock * ing.cost) + (it.q * netPrice);
-        const totalQty = ing.stock + it.q;
-        if (totalQty > 0) ing.cost = totalVal / totalQty;
-        
-        // Sumar Stock
-        ing.stock += it.q;
-        
-        // Log en Kardex
-        logStock(ing.id, it.q, 'IN', `Alb: ${num}`, netPrice);
-    });
-
-    // 3. Totales
-    let subtotal = 0, taxes = 0;
-    tempItems.forEach(it => {
-        const base = it.q * it.p * (1 - (it.d || 0) / 100);
-        subtotal += base;
-        taxes += base * (it.tax / 100);
-    });
-
-    // 4. Guardar Albarán
-    db.albaranes.push({
-        id: generateID(), num, prov, date, 
-        items: [...tempItems], 
-        total: subtotal + taxes, 
-        subtotal, taxes, 
-        invoiced: false,
-        isSocio: document.getElementById('alb-socio').checked
-    });
-
-    save(`✅ Albarán ${num} guardado`);
-    tempItems = []; // Limpiar
-    renderAdmin(document.getElementById('app'));
-}
-
-function viewAlbDetails(id) { 
-    const a = db.albaranes.find(x => x.id === id); 
-    if (a) showModal(`Detalle ${a.num || ''}`, `
-        <div class="mb-2 text-xs font-bold text-slate-500">${a.prov} - ${a.date}</div>
-        <table class="w-full text-xs">
-            <thead><tr class="text-left text-slate-400 border-b"><th>Prod</th><th>Cant</th><th>€/ud</th><th>Total</th></tr></thead>
-            <tbody>${a.items.map(i => { 
-                const net = i.p * (1-(i.d||0)/100);
-                return `<tr><td class="py-1">${i.n}</td><td>${i.q}${i.unit}</td><td>${Num.fmt(net)}</td><td class="text-right">${Num.fmt(i.q * net * (1+(i.tax||10)/100))}</td></tr>`; 
-            }).join('')}</tbody>
-        </table>
-        <div class="text-right font-black text-xl mt-4">${Num.fmt(a.total)}€</div>
-    `); 
-}
-
-function deleteAlb(id) {
-    if (confirm("¿Borrar Albarán? (Se descontará el stock añadido)")) {
-        const alb = db.albaranes.find(a => a.id === id);
-        if(alb) {
-            // Revertir stock
-            alb.items.forEach(it => {
-                const ing = db.ingredientes.find(x => x.n === it.n && x.unit === it.unit);
-                if(ing) {
-                    ing.stock -= it.q;
-                    logStock(ing.id, it.q, 'OUT', `Anular Alb ${alb.num}`, ing.cost);
-                }
-            });
-            db.albaranes = db.albaranes.filter(a => a.id !== id);
-            save("Albarán Eliminado");
-            renderAdmin(document.getElementById('app'));
-        }
-    }
-}
-
-function exportAlbCSV() { 
-    if (!tempItems.length) return toast("Tabla vacía", "error"); 
-    const rows = tempItems.map(it => [it.n, Num.csv(it.q), it.unit, Num.csv(it.p), Num.csv(it.d || 0), Num.csv((it.q * it.p) * (1 + it.tax / 100))]); 
-    const csv = ['Producto;Cantidad;Unidad;Precio;Dto;Total', ...rows.map(r => r.join(';'))].join('\n'); 
-    const blob = new Blob(["\uFEFF" + csv], { type: 'text/csv;charset=utf-8' }); 
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'Albaran_Import.csv'; a.click(); 
-}
 // --- SUB-MÓDULO: FACTURAS ---
 function renderFacturas(c) {
     const pends = db.albaranes.filter(a => !a.invoiced);
