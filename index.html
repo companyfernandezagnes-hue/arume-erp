@@ -3,14 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-    <title>ARUME V147 · Diamond Audit</title>
-    <meta name="description" content="Sistema Integral de Gestión Hostelería">
+    <title>ARUME V150 · SUPABASE</title>
+    <meta name="description" content="Sistema Integral de Gestión Hostelería - Cloud Edition">
     <meta name="theme-color" content="#0f172a">
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;800&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
     <style>
         /* === BASE === */
@@ -18,13 +19,13 @@
         body { 
             font-family: 'Plus Jakarta Sans', sans-serif; 
             background: #f1f5f9; 
-            padding-bottom: 120px; /* Espacio para el menú inferior */
+            padding-bottom: 120px; 
             -webkit-tap-highlight-color: transparent; 
             user-select: none; 
-            overscroll-behavior-y: none; /* Evita rebote en móvil */
+            overscroll-behavior-y: none;
         }
 
-        /* === ESTÉTICA DIAMOND (CRISTAL) === */
+        /* === ESTÉTICA DIAMOND === */
         .glass-card { 
             background: rgba(255, 255, 255, 0.95); 
             backdrop-filter: blur(10px); 
@@ -44,73 +45,43 @@
             font-weight: 700; font-size: 0.9rem;
             box-shadow: 0 8px 20px -5px rgba(15, 23, 42, 0.3); 
             width: 100%; display: flex; justify-content: center; align-items: center; gap: 8px; cursor: pointer;
-            transition: transform 0.1s, box-shadow 0.2s; border: none;
-            letter-spacing: 0.5px;
+            transition: transform 0.1s, box-shadow 0.2s; border: none; letter-spacing: 0.5px;
         }
         .btn-premium:active { transform: scale(0.98); box-shadow: 0 4px 10px rgba(15, 23, 42, 0.2); }
-
         .btn-action { background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%); box-shadow: 0 8px 20px -5px rgba(79, 70, 229, 0.4); } 
         .btn-whatsapp { background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%); color: white; box-shadow: 0 8px 20px -5px rgba(34, 197, 94, 0.4); }
-        
         .btn-ghost { background: #f8fafc; color: #64748b; font-weight: 700; padding: 12px; border-radius: 12px; width: 100%; cursor: pointer; border: 1px solid #e2e8f0; transition: 0.2s; }
         .btn-ghost:active { background: #e2e8f0; }
-        
         .btn-icon { width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border-radius: 12px; font-size: 1.1rem; cursor: pointer; border: none; transition: 0.2s; }
         .btn-icon:active { transform: scale(0.9); }
         .btn-edit { background: #eff6ff; color: #3b82f6; } 
         .btn-delete { background: #fef2f2; color: #ef4444; } 
         .btn-merma { background: #fff7ed; color: #f97316; } 
-        .btn-log { background: #f0fdf4; color: #16a34a; }
-
-        /* === INPUTS MEJORADOS === */
-        .input-premium { 
-            width: 100%; padding: 14px; background: #f8fafc; 
-            border: 2px solid #e2e8f0; border-radius: 14px; 
-            outline: none; font-size: 14px; font-weight: 600; color: #334155;
-            transition: 0.2s;
-        }
+        .input-premium { width: 100%; padding: 14px; background: #f8fafc; border: 2px solid #e2e8f0; border-radius: 14px; outline: none; font-size: 14px; font-weight: 600; color: #334155; transition: 0.2s; }
         .input-premium:focus { border-color: #4f46e5; background: white; box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.1); }
         label { display: block; font-size: 0.7rem; font-weight: 800; color: #94a3b8; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
 
-        /* === BARRA DE NAVEGACIÓN === */
-        nav { 
-            position: fixed; bottom: 0; left: 0; width: 100%; 
-            background: rgba(255,255,255,0.9); backdrop-filter: blur(20px);
-            padding: 12px 0; display: flex; justify-content: space-around; 
-            box-shadow: 0 -10px 40px rgba(0,0,0,0.05); 
-            z-index: 50; border-top: 1px solid rgba(255,255,255,0.5);
-            padding-bottom: max(12px, env(safe-area-inset-bottom));
-        }
+        /* === NAV === */
+        nav { position: fixed; bottom: 0; left: 0; width: 100%; background: rgba(255,255,255,0.9); backdrop-filter: blur(20px); padding: 12px 0; display: flex; justify-content: space-around; box-shadow: 0 -10px 40px rgba(0,0,0,0.05); z-index: 50; border-top: 1px solid rgba(255,255,255,0.5); padding-bottom: max(12px, env(safe-area-inset-bottom)); }
         nav button { flex: 1; background: none; border: none; color: #cbd5e1; display: flex; flex-direction: column; align-items: center; font-size: 0.65rem; font-weight: 700; transition: 0.3s; cursor: pointer; -webkit-tap-highlight-color: transparent; }
         nav button.active { color: #0f172a; transform: translateY(-4px); }
         nav button.active svg { fill: #0f172a; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.2)); }
         nav button svg { width: 26px; height: 26px; fill: #cbd5e1; margin-bottom: 6px; transition: 0.3s; }
         nav button.locked { opacity: 0.3; pointer-events: none; filter: grayscale(1); }
 
-        /* === UI ELEMENTS === */
+        /* === MODAL === */
         .modal { background: white; width: 95%; max-width: 600px; max-height: 90vh; overflow-y: auto; border-radius: 32px; padding: 24px; box-shadow: 0 40px 60px -20px rgba(0,0,0,0.3); animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
         @keyframes slideUp { from { transform: translateY(50px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-        
         .overlay { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(4px); z-index: 100; display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: 0.2s; }
         .overlay:not(.hidden) { opacity: 1; pointer-events: auto; }
         .hidden { display: none !important; }
 
-        .tag { font-size: 0.65rem; font-weight: 800; padding: 4px 8px; border-radius: 6px; text-transform: uppercase; }
-        .tag-green { background: #dcfce7; color: #166534; }
-        .tag-red { background: #fee2e2; color: #991b1b; }
-
-        /* === MODO IMPRESIÓN (PAPEL) === */
         @media print {
             body { padding: 0; background: white; }
             nav, header, .btn-premium, .btn-ghost, .btn-icon, .input-premium, button, input, select, .overlay { display: none !important; }
-            
-            /* Forzar visualización del Modal si está abierto */
             .overlay:not(.hidden) { position: static; background: none; display: block !important; opacity: 1; }
             .modal { box-shadow: none; border: none; width: 100%; max-width: 100%; padding: 0; overflow: visible; height: auto; }
-            
-            /* Si hay modal abierto, ocultar el fondo (la app principal) */
             .overlay:not(.hidden) ~ main { display: none; }
-
             body, h1, h2, h3, div, span, p { color: black !important; -webkit-print-color-adjust: exact; }
             .glass-card, .modal { border: 1px solid #000; box-shadow: none; border-radius: 0; }
             p, li { page-break-inside: avoid; }
@@ -121,26 +92,24 @@
 
     <div id="loading-overlay" class="hidden fixed inset-0 bg-white/90 z-[300] flex justify-center items-center flex-col backdrop-blur-sm">
         <div class="w-12 h-12 border-4 border-slate-200 border-t-indigo-600 rounded-full animate-spin mb-4"></div>
-        <div class="font-black text-slate-400 tracking-[0.3em] text-xs animate-pulse">PROCESANDO</div>
+        <div class="font-black text-slate-400 tracking-[0.3em] text-xs animate-pulse">GUARDANDO EN NUBE...</div>
     </div>
 
     <div id="toast-container" class="fixed top-6 left-1/2 -translate-x-1/2 z-[400] w-max pointer-events-none space-y-2"></div>
-    
     <input type="file" id="backup-input" class="hidden" onchange="restoreBackup(this)">
 
     <header class="sticky top-0 z-40 px-6 py-4 flex justify-between items-center bg-white/80 backdrop-blur-xl border-b border-white/50 shadow-sm">
         <div>
-            <h1 class="text-2xl font-black text-slate-900 tracking-tighter">ARUME <span class="text-red-500">PRUEBA 99</span></h1>
-            <p class="text-[9px] text-slate-400 font-bold tracking-widest uppercase">Diamond Audit System</p>
+            <h1 class="text-2xl font-black text-slate-900 tracking-tighter">ARUME <span class="text-emerald-500">PRO</span></h1>
+            <p class="text-[9px] text-slate-400 font-bold tracking-widest uppercase">Sistema Cloud Supabase</p>
         </div>
         <div class="bg-slate-100 px-3 py-1.5 rounded-full text-xs font-bold text-slate-600 flex items-center gap-2 cursor-pointer hover:bg-slate-200 transition border border-slate-200" onclick="logout()">
-            <div id="sync-dot" class="w-2 h-2 rounded-full bg-slate-400"></div> 
+            <div id="sync-dot" class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div> 
             <span id="user-name">Login</span>
         </div>
     </header>
 
     <main id="app" class="px-4 py-6 max-w-2xl mx-auto"></main>
-    
     <nav id="navbar"></nav>
 
     <div id="modal-overlay" class="overlay hidden">
@@ -160,1295 +129,301 @@
         </div>
         <div id="pin-display" class="text-5xl font-mono mb-12 tracking-[0.5em] h-12 text-center opacity-80 font-bold">****</div>
         <div class="grid grid-cols-3 gap-4 w-72">
-            <button class="w-20 h-20 rounded-full border border-white/10 text-2xl font-bold hover:bg-white/10 active:scale-95 transition" onclick="pin(1)">1</button>
-            <button class="w-20 h-20 rounded-full border border-white/10 text-2xl font-bold hover:bg-white/10 active:scale-95 transition" onclick="pin(2)">2</button>
-            <button class="w-20 h-20 rounded-full border border-white/10 text-2xl font-bold hover:bg-white/10 active:scale-95 transition" onclick="pin(3)">3</button>
-            <button class="w-20 h-20 rounded-full border border-white/10 text-2xl font-bold hover:bg-white/10 active:scale-95 transition" onclick="pin(4)">4</button>
-            <button class="w-20 h-20 rounded-full border border-white/10 text-2xl font-bold hover:bg-white/10 active:scale-95 transition" onclick="pin(5)">5</button>
-            <button class="w-20 h-20 rounded-full border border-white/10 text-2xl font-bold hover:bg-white/10 active:scale-95 transition" onclick="pin(6)">6</button>
-            <button class="w-20 h-20 rounded-full border border-white/10 text-2xl font-bold hover:bg-white/10 active:scale-95 transition" onclick="pin(7)">7</button>
-            <button class="w-20 h-20 rounded-full border border-white/10 text-2xl font-bold hover:bg-white/10 active:scale-95 transition" onclick="pin(8)">8</button>
-            <button class="w-20 h-20 rounded-full border border-white/10 text-2xl font-bold hover:bg-white/10 active:scale-95 transition" onclick="pin(9)">9</button>
-            <button class="w-20 h-20 rounded-full bg-red-500/20 border border-red-500/50 text-red-400 font-bold active:scale-95 transition" onclick="pin('C')">C</button>
-            <button class="w-20 h-20 rounded-full border border-white/10 text-2xl font-bold hover:bg-white/10 active:scale-95 transition" onclick="pin(0)">0</button>
-            <button class="w-20 h-20 rounded-full bg-indigo-500 text-white font-bold shadow-lg shadow-indigo-500/50 active:scale-95 transition" onclick="pin('OK')">OK</button>
-       </div>
-        <p class="mt-10 text-slate-800/20 text-[8px] font-mono uppercase tracking-[0.3em]">Acceso Restringido · Diamond Audit</p>
+            <button class="w-20 h-20 rounded-full border border-white/10 text-2xl font-bold active:scale-95 transition" onclick="pin(1)">1</button>
+            <button class="w-20 h-20 rounded-full border border-white/10 text-2xl font-bold active:scale-95 transition" onclick="pin(2)">2</button>
+            <button class="w-20 h-20 rounded-full border border-white/10 text-2xl font-bold active:scale-95 transition" onclick="pin(3)">3</button>
+            <button class="w-20 h-20 rounded-full border border-white/10 text-2xl font-bold active:scale-95 transition" onclick="pin(4)">4</button>
+            <button class="w-20 h-20 rounded-full border border-white/10 text-2xl font-bold active:scale-95 transition" onclick="pin(5)">5</button>
+            <button class="w-20 h-20 rounded-full border border-white/10 text-2xl font-bold active:scale-95 transition" onclick="pin(6)">6</button>
+            <button class="w-20 h-20 rounded-full border border-white/10 text-2xl font-bold active:scale-95 transition" onclick="pin(7)">7</button>
+            <button class="w-20 h-20 rounded-full border border-white/10 text-2xl font-bold active:scale-95 transition" onclick="pin(8)">8</button>
+            <button class="w-20 h-20 rounded-full border border-white/10 text-2xl font-bold active:scale-95 transition" onclick="pin(9)">9</button>
+            <button class="w-20 h-20 rounded-full bg-red-500/20 text-red-400 font-bold active:scale-95 transition" onclick="pin('C')">C</button>
+            <button class="w-20 h-20 rounded-full border border-white/10 text-2xl font-bold active:scale-95 transition" onclick="pin(0)">0</button>
+            <button class="w-20 h-20 rounded-full bg-emerald-500 text-white font-bold active:scale-95 transition" onclick="pin('OK')">OK</button>
+        </div>
     </div>
+
 <script>
-/* ================= 1. NÚCLEO DEL SISTEMA (V147 FINAL) ================= */
+/* =============================================================
+   ⚠️ CONFIGURACIÓN SUPABASE (TUS CLAVES REALES) ⚠️
+   ============================================================= */
+const SUPABASE_URL = "https://awbgboucnbsuzojocbuy.supabase.co"; 
+const SUPABASE_KEY = "sb_publishable_drOQ5PsFA8eox_aRTXNATQ_5kibM6ST";
+
+// Inicializamos el cliente Supabase
+const { createClient } = supabase;
+const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+/* === 2. UTILIDADES Y MOTORES === */
 const Num = {
-    parse: (str) => {
-        if (!str) return 0;
-        if (typeof str === 'number') return str;
-        let clean = String(str).replace(/[^0-9.,-]/g, '').replace(/\./g, '').replace(',', '.');
-        let val = parseFloat(clean);
-        return isNaN(val) ? 0 : val;
-    },
-    fmt: (n) => (n||0).toLocaleString('es-ES', {minimumFractionDigits: 2, maximumFractionDigits: 2}),
-    csv: (n) => String(n||0).replace('.', ',')
+    parse: (str) => { if(!str)return 0; if(typeof str==='number')return str; let clean=String(str).replace(/[^0-9.,-]/g,'').replace(',','.'); return parseFloat(clean)||0; },
+    fmt: (n) => (n||0).toLocaleString('es-ES',{minimumFractionDigits:2,maximumFractionDigits:2}),
+    csv: (n) => String(n||0).replace('.',',')
 };
-
-function clean(str) { 
-    if(!str) return ''; 
-    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); 
-}
-
-const generateID = () => Math.random().toString(36).substr(2, 9);
+function clean(str) { return String(str||'').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+const generateID = () => Math.random().toString(36).substr(2,9);
 const getISO = () => new Date().toLocaleDateString('en-CA');
 const getTS = () => new Date().toLocaleString('es-ES');
+
+// CONVERSOR DE UNIDADES
 const UnitConverter = {
     normalize: (u) => {
         if(!u) return 'ud';
         u = String(u).toLowerCase().trim().replace('.','');
-        if(['kg','kilo','kilos','k'].includes(u)) return 'kg';
-        if(['g','gr','gramos','grs'].includes(u)) return 'g';
-        if(['l','litro','litros','lt'].includes(u)) return 'l';
-        if(['ml','mili','cl'].includes(u)) return 'ml';
+        if(['kg','kilo','k'].includes(u)) return 'kg';
+        if(['g','gr'].includes(u)) return 'g';
+        if(['l','litro'].includes(u)) return 'l';
+        if(['ml','mili'].includes(u)) return 'ml';
         return 'ud';
     },
     convert: (q, from, to) => {
-        from = UnitConverter.normalize(from);
-        to = UnitConverter.normalize(to);
-        if(from === to) return q;
-        if(from === 'kg' && to === 'g') return q * 1000;
-        if(from === 'g' && to === 'kg') return q / 1000;
-        if(from === 'l' && to === 'ml') return q * 1000;
-        if(from === 'ml' && to === 'l') return q / 1000;
-        if(from === 'kg' && to === 'l') return q; 
-        if(from === 'l' && to === 'kg') return q;
-        if(from === 'g' && to === 'ml') return q;
-        if(from === 'ml' && to === 'g') return q;
+        from = UnitConverter.normalize(from); to = UnitConverter.normalize(to);
+        if(from===to) return q;
+        if(from==='kg' && to==='g') return q*1000;
+        if(from==='g' && to==='kg') return q/1000;
+        if(from==='l' && to==='ml') return q*1000;
+        if(from==='ml' && to==='l') return q/1000;
         return q;
     }
 };
-/* CONFIGURACIÓN */
-const CONFIG = { 
-    GOOGLE_URL: "https://script.google.com/macros/s/AKfycbwvav4SWT7Ey8JirILSum7al_OF_NXlWY2MvFINeYhVEbLY0LF4lTprJElEMSxGFnXt-A/exec", 
-    COST_HOUR: 15 
-};
-const ALLERGENS = [{k:'glu',i:'🌾'},{k:'cru',i:'🦐'},{k:'hue',i:'🥚'},{k:'pes',i:'🐟'},{k:'cac',i:'🥜'},{k:'soj',i:'🫘'},{k:'lac',i:'🥛'},{k:'fru',i:'🌰'},{k:'api',i:'🥬'},{k:'mos',i:'🌭'},{k:'ses',i:'🌱'},{k:'sul',i:'🍷'},{k:'alt',i:'🫘'},{k:'mol',i:'🐙'}];
-const FAMILIES = ['General', 'Carne', 'Pescado', 'Verdura', 'Secos', 'Lácteos', 'Congelado', 'Bebida', 'Alcohol', 'Limpieza', 'Packaging'];
 
-/* CONFIGURACIÓN Y BASE DE DATOS */
+/* === 3. BASE DE DATOS INICIAL === */
 const DB_INIT = { 
-    // Los PINs ahora están "disfrazados". 
-    // 0150 se convierte en 'MDE1MA==' y 1111 en 'MTExMQ=='
-    users: [
-        {id:'u1', n:'Gerencia', pin:'MDE1MA==', role:'admin'}, 
-        {id:'u2', n:'Equipo', pin:'MTExMQ==', role:'staff'}
-    ], 
-    ingredientes: [], 
-    recetas: [], 
-    proveedores: [{ id: 'p1', n: 'Makro', tel: '', fam: 'General' }], 
-    albaranes: [], 
-    facturas: [], 
-    diario: [], 
-    mermas: [], 
-    kardex: [], 
-    sales_history: [], 
-    lastSync: 0 
+    users: [{id:'u1', n:'Gerencia', pin:'MDE1MA==', role:'admin'}, {id:'u2', n:'Equipo', pin:'MTExMQ==', role:'staff'}], 
+    ingredientes: [], recetas: [], proveedores: [{id:'p1', n:'Makro', tel:'', fam:'General'}], 
+    albaranes: [], facturas: [], diario: [], mermas: [], kardex: [], sales_history: [], lastSync: 0 
 };
+const secure = { enc: d => btoa(encodeURIComponent(JSON.stringify(d))), dec: d => JSON.parse(decodeURIComponent(atob(d))) };
 
-const secure = { 
-    enc: (d) => btoa(encodeURIComponent(JSON.stringify(d))), 
-    dec: (d) => JSON.parse(decodeURIComponent(atob(d))) 
-};
+// Variables
+let db = DB_INIT, currentUser = null, currentPin = "", tempItems = [], activeAdminTab = 'dash', searchFilter = "";
+let currentDiarioDate = getISO(), inventoryMode = false, activeFamily = 'Todos';
+let fiscalYear = new Date().getFullYear(), fiscalQuarter = Math.floor(new Date().getMonth()/3)+1;
+const ALLERGENS = [{k:'glu',i:'🌾'},{k:'cru',i:'🦐'},{k:'hue',i:'🥚'},{k:'pes',i:'🐟'},{k:'cac',i:'🥜'},{k:'soj',i:'🫘'},{k:'lac',i:'🥛'},{k:'fru',i:'🌰'},{k:'api',i:'🥬'},{k:'mos',i:'🌭'},{k:'ses',i:'🌱'},{k:'sul',i:'🍷'},{k:'alt',i:'🫘'},{k:'mol',i:'🐙'}];
+const FAMILIES = ['General','Carne','Pescado','Verdura','Secos','Lácteos','Congelado','Bebida','Alcohol','Limpieza','Packaging'];
 
-// Variables de estado
-let db = DB_INIT, 
-    currentUser = null, 
-    currentPin = "", 
-    tempItems = [], 
-    activeAdminTab = 'dash', 
-    searchFilter = "";
-
-let currentDiarioDate = new Date().toLocaleDateString('en-CA'), 
-    inventoryMode = false, 
-    activeFamily = 'Todos';
-
-let fiscalYear = new Date().getFullYear(), 
-    fiscalQuarter = Math.floor(new Date().getMonth() / 3) + 1;
-
-/* FUNCIONES DE SISTEMA */
-function loading(show) { document.getElementById('loading-overlay').classList.toggle('hidden', !show); }
-function toast(msg, type='info') { const c=document.getElementById('toast-container'); const el=document.createElement('div'); el.className=`${type==='error'?'bg-red-500':'bg-slate-800'} text-white px-6 py-3 rounded-full shadow-xl font-bold text-xs tracking-wide animate-bounce mb-2`; el.innerText=msg; c.appendChild(el); setTimeout(()=>el.remove(), 3000); }
-function isInPeriod(dateStr) {
-    if (!dateStr) return false;
-    const parts = dateStr.split('-');
-    const year = parseInt(parts[0]);
-    const month = parseInt(parts[1]); 
-    
-    // Si el año del dato no coincide con el año seleccionado, fuera.
-    if (year !== fiscalYear) return false;
-    
-    // Si el trimestre es 0 (AÑO), y el año coincide, dentro.
-    if (fiscalQuarter === 0) return true;
-    
-    // Cálculo matemático de trimestre
-    return Math.ceil(month / 3) === fiscalQuarter;
+/* === 4. SISTEMA CLOUD SUPABASE (SINCRONIZACIÓN REAL) === */
+async function syncDown() {
+    try {
+        // Leemos la fila 1 de la tabla 'arume_data'
+        const { data, error } = await sb.from('arume_data').select('data').eq('id', 1).single();
+        
+        if (data && data.data) {
+            const cloudDB = data.data;
+            if (cloudDB.lastSync > (db.lastSync || 0)) {
+                // Si la nube es más nueva, descargamos
+                if (!document.getElementById('modal-overlay').classList.contains('hidden')) return; // No interrumpir si hay modal
+                db = cloudDB;
+                localStorage.setItem('arume_v150', secure.enc(db));
+                refreshCurrentView();
+                toast("☁️ Datos actualizados", "success");
+            }
+        } else if (error && error.code === 'PGRST116') {
+            // Si la fila no existe, la creamos con los datos locales (Primera subida)
+            console.log("Creando base de datos inicial...");
+            await sb.from('arume_data').insert([{ id: 1, data: db }]);
+        }
+    } catch (e) { console.error("Error Sync:", e); }
 }
+
+async function save(msg) {
+    loading(true);
+    try {
+        db.lastSync = Date.now();
+        localStorage.setItem('arume_v150', secure.enc(db));
+        
+        // Guardamos en Supabase
+        const { error } = await sb.from('arume_data').upsert({ id: 1, data: db });
+        if (error) throw error;
+        
+        if (msg) toast(msg, 'success');
+    } catch (e) {
+        toast("Error red. Guardado local OK.", "info");
+        console.error(e);
+    } finally { loading(false); }
+}
+
+function refreshCurrentView() {
+    const activeBtn = document.querySelector('nav button.active');
+    const view = activeBtn ? activeBtn.id.replace('btn-', '') : 'Cocina';
+    render(view);
+}
+
+/* === 5. UI & LÓGICA === */
+function loading(s) { document.getElementById('loading-overlay').classList.toggle('hidden', !s); }
+function toast(m, t='info') { const c=document.getElementById('toast-container'); const el=document.createElement('div'); el.className=`${t==='error'?'bg-red-500':'bg-slate-800'} text-white px-6 py-3 rounded-full shadow-xl font-bold text-xs animate-bounce mb-2`; el.innerText=m; c.appendChild(el); setTimeout(()=>el.remove(),3000); }
+function isInPeriod(d) { if(!d)return false; const [y,m]=d.split('-'); if(parseInt(y)!==fiscalYear)return false; if(fiscalQuarter===0)return true; return Math.ceil(parseInt(m)/3)===fiscalQuarter; }
+
 function init() {
-    try { 
-        const stored = localStorage.getItem('arume_v147'); 
-        if(stored) db = secure.dec(stored); 
-        else { const old = localStorage.getItem('arume_v125'); if(old) db = secure.dec(old); }
-    } catch(e){ console.warn("DB Reset"); }
+    try { const s = localStorage.getItem('arume_v150'); if(s) db = secure.dec(s); } catch(e){}
+    if(!db.users) db = DB_INIT;
     
-    // === ESTO ES LO QUE ARREGLA TU PIN ===
-    db.users = DB_INIT.users; 
-    // =====================================
-    
-    if(!db.proveedores) db.proveedores = DB_INIT.proveedores;
-    db.proveedores = db.proveedores.map((p, i) => (!p.id || typeof p === 'string') ? { id: 'prov'+i, n: (p.n||p), tel: '', fam: 'General' } : p);
-
+    // Login check
     const u = localStorage.getItem('arume_user');
-    
-    // Verificamos si el usuario guardado sigue siendo válido
-    let validUser = null;
-    if(u) {
-        try {
-            const parsed = JSON.parse(u);
-            validUser = db.users.find(x => x.id === parsed.id);
-        } catch(e) {}
-    }
+    if(u) { try { currentUser = db.users.find(x=>x.id===JSON.parse(u).id); } catch(e){} }
 
-    if(validUser){ 
-        currentUser = validUser; 
-        document.getElementById('pin-screen').classList.add('hidden'); 
-        
-        // RECUPERAR MEMORIA
-        try {
-            const mem = JSON.parse(localStorage.getItem('arume_ui_memory'));
-            if(mem) {
-                activeAdminTab = mem.tab || 'dash';
-                activeFamily = mem.fam || 'Todos';
-                inventoryMode = mem.inv || false;
-                fiscalYear = mem.year || new Date().getFullYear();
-                fiscalQuarter = mem.q || (Math.floor(new Date().getMonth() / 3) + 1);
-                // Cargamos la última vista en la que estuvo
-                loadApp();
-                render(mem.lastView); 
-                return;
-            }
-        } catch(e) {}
-
-        loadApp(); 
-    } else { 
-        document.getElementById('pin-screen').classList.remove('hidden'); 
-    }
-    
-    if(CONFIG.GOOGLE_URL) sync();
-}
-async function save(msg){ loading(true); try { db.lastSync=Date.now(); localStorage.setItem('arume_v147', secure.enc(db)); if(CONFIG.GOOGLE_URL) { const c=new AbortController(); setTimeout(()=>c.abort(),4000); await fetch(CONFIG.GOOGLE_URL,{method:'POST',mode:'no-cors',body:JSON.stringify(db),signal:c.signal}).catch(()=>{}); } if(msg) toast(msg,'success'); } catch(e){ toast("Error guardando","error"); } finally{ loading(false); } }
-async function sync(){ if(!CONFIG.GOOGLE_URL) return; try{ const r=await fetch(CONFIG.GOOGLE_URL); const c=await r.json(); if(c&&c.lastSync>(db.lastSync||0)){ db=c; localStorage.setItem('arume_v147',secure.enc(db)); loadApp(); toast("Sincronizado"); } }catch(e){} }
-function pin(n) { 
-    if (n === 'C') {
-        currentPin = ""; 
-    } else if (n === 'OK') { 
-        // Esta es la parte clave: btoa() convierte el número en el código oculto
-        const pinOculto = btoa(currentPin);
-        const u = db.users.find(x => x.pin === pinOculto); 
-        
-        if (u) { 
-            currentUser = u; 
-            localStorage.setItem('arume_user', JSON.stringify(u)); 
-            document.getElementById('pin-screen').classList.add('hidden'); 
-            currentPin = ""; 
-            loadApp(); 
-        } else { 
-            toast("PIN Incorrecto", "error"); 
-            currentPin = ""; 
-        } 
-    } else if (currentPin.length < 4) {
-        currentPin += n; 
-    }
-    document.getElementById('pin-display').innerText = currentPin ? '*'.repeat(currentPin.length) : '****'; 
-}
-function logout(){ if(confirm("¿Cerrar sesión?")){ localStorage.removeItem('arume_user'); location.reload(); }}
-function triggerRestore() { document.getElementById('backup-input').click(); }
-function restoreBackup(input){ const r=new FileReader(); r.onload=e=>{ try{ const d=secure.dec(e.target.result); if(d&&d.users){ db=d; save("Restaurado"); loadApp(); } else throw new Error(); }catch(err){ toast("Archivo corrupto","error"); } }; r.readAsText(input.files[0]); }
-function downloadBackup(){ if(currentUser.role!=='admin') return toast("⛔ Solo Gerencia", "error"); const data=secure.enc(db); const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([data], {type:'text/plain'})); a.download=`Arume_Backup_${getISO()}.arume`; a.click(); }
-function logStock(ingId, qty, type, reason, price=0) { const ing=db.ingredientes.find(x=>x.id===ingId); if(ing) db.kardex.push({ id:generateID(), ts:Date.now(), date:getTS(), ingId, n:ing.n, type, qty, unit:ing.unit, price, reason, user:currentUser.n }); }
-function showModal(t,c){ document.getElementById('m-title').innerText=t; document.getElementById('m-body').innerHTML=c; document.getElementById('modal-overlay').classList.remove('hidden'); }
-function closeModal(){ document.getElementById('modal-overlay').classList.add('hidden'); }
-
-/* UI RENDER */
-function loadApp() { document.getElementById('user-name').innerText=currentUser.n; renderNav(); render(currentUser.role==='admin'?'Admin':'Cocina'); }
-function renderNav() { const isAdmin=currentUser?.role==='admin'; const views=[{id:'Diario',l:'Caja',i:'<path d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"/>',r:!isAdmin},{id:'Admin',l:'Gestión',i:'<path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>',r:!isAdmin},{id:'Cocina',l:'Cocina',i:'<path d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>',r:false},{id:'Stock',l:'Stock',i:'<path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>',r:false}]; document.getElementById('navbar').innerHTML=views.map(v=>`<button type="button" id="btn-${v.id}" class="${v.r?'locked':''}" onclick="render('${v.id}')"><svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">${v.i}</svg><span>${v.l}</span></button>`).join(''); }
-function render(view) { if((view==='Diario'||view==='Admin') && currentUser.role!=='admin') return toast("⛔ Solo Gerencia","error"); document.querySelectorAll('nav button').forEach(b=>b.classList.remove('active')); document.getElementById(`btn-${view}`)?.classList.add('active'); const app=document.getElementById('app'); if(view==='Diario') renderDiario(app); if(view==='Admin') renderAdmin(app); if(view==='Cocina') renderCocina(app); if(view==='Stock') renderStock(app); }
-
-/* GESTIÓN */
-function renderAdmin(app) {
-    // 1. Filtrado de datos (Igual que antes)
-    const totalVentas = db.diario.filter(d => isInPeriod(d.date)).reduce((acc, d) => acc + (d.total||0), 0);
-    const periodAlbs = db.albaranes.filter(a => isInPeriod(a.date));
-    const periodPurchases = periodAlbs.reduce((acc, a) => acc + (a.subtotal||0), 0); // Usamos subtotal (sin IVA) para coste real
-    const periodTax = periodAlbs.reduce((acc, a) => acc + (a.taxes||0), 0);
-    
-    // 2. NUEVO: CÁLCULO DE CONSUMO TEÓRICO (FOOD COST) BASADO EN RECETAS
-    // Esto nos dice cuánto "deberíamos" haber gastado según lo vendido
-    let theoreticalCost = 0;
-    db.sales_history.filter(log => isInPeriod(log.date)).forEach(log => {
-        log.items.forEach(soldItem => {
-            const rec = db.recetas.find(r => r.id === soldItem.rid);
-            if(rec) {
-                // Calculamos el coste de esa receta en el momento actual
-                const costData = calcRecipe(rec); 
-                theoreticalCost += (costData.t * soldItem.q);
-            }
-        });
-    });
-
-    // Rentabilidad Teórica (Ventas - Coste de lo vendido)
-    const theoreticalMargin = totalVentas - theoreticalCost;
-    const foodCostPercent = totalVentas > 0 ? (theoreticalCost / totalVentas) * 100 : 0;
-
-    // Cashflow (Dinero en banco: Ventas - Compras Reales)
-    const cashFlow = totalVentas - (periodPurchases + periodTax);
-
-    // 3. HTML del Selector (Igual)
-    const qCtrl = `
-    <div class="flex items-center justify-between bg-white p-2 rounded-2xl shadow-sm mb-4 border border-slate-100">
-        <div class="flex items-center gap-2 bg-slate-100 rounded-lg px-2 py-1">
-            <button class="w-8 h-8 flex items-center justify-center hover:bg-white rounded-full transition font-bold" onclick="fiscalYear--;renderAdmin(document.getElementById('app'))">‹</button>
-            <span class="font-black text-slate-700 text-sm tracking-widest">${fiscalYear}</span>
-            <button class="w-8 h-8 flex items-center justify-center hover:bg-white rounded-full transition font-bold" onclick="fiscalYear++;renderAdmin(document.getElementById('app'))">›</button>
-        </div>
-        <div class="flex gap-1 overflow-x-auto no-scrollbar">
-            <button class="period-btn ${fiscalQuarter===1?'active':''}" onclick="fiscalQuarter=1;renderAdmin(document.getElementById('app'))">1T</button>
-            <button class="period-btn ${fiscalQuarter===2?'active':''}" onclick="fiscalQuarter=2;renderAdmin(document.getElementById('app'))">2T</button>
-            <button class="period-btn ${fiscalQuarter===3?'active':''}" onclick="fiscalQuarter=3;renderAdmin(document.getElementById('app'))">3T</button>
-            <button class="period-btn ${fiscalQuarter===4?'active':''}" onclick="fiscalQuarter=4;renderAdmin(document.getElementById('app'))">4T</button>
-            <button class="period-btn ${fiscalQuarter===0?'active':''}" onclick="fiscalQuarter=0;renderAdmin(document.getElementById('app'))">AÑO</button>
-        </div>
-    </div>`;
-
-    // 4. Renderizado del Dashboard Mejorado
-    app.innerHTML = `
-        ${qCtrl}
-        <div class="flex gap-2 mb-6 bg-white p-1 rounded-2xl shadow-sm border border-slate-100 overflow-x-auto no-scrollbar">
-            <button class="flex-1 min-w-[80px] py-2.5 rounded-xl font-bold text-xs transition ${activeAdminTab==='dash'?'bg-slate-800 text-white shadow-md':'text-slate-500 hover:bg-slate-50'}" onclick="activeAdminTab='dash';renderAdmin(document.getElementById('app'))">DASHBOARD</button>
-            <button class="flex-1 min-w-[80px] py-2.5 rounded-xl font-bold text-xs transition ${activeAdminTab==='omnes'?'bg-slate-800 text-white shadow-md':'text-slate-500 hover:bg-slate-50'}" onclick="activeAdminTab='omnes';renderAdmin(document.getElementById('app'))">OMNES</button>
-            <button class="flex-1 min-w-[80px] py-2.5 rounded-xl font-bold text-xs transition ${activeAdminTab==='albaranes'?'bg-slate-800 text-white shadow-md':'text-slate-500 hover:bg-slate-50'}" onclick="activeAdminTab='albaranes';renderAdmin(document.getElementById('app'))">COMPRAS</button>
-            <button class="flex-1 min-w-[80px] py-2.5 rounded-xl font-bold text-xs transition ${activeAdminTab==='facturas'?'bg-slate-800 text-white shadow-md':'text-slate-500 hover:bg-slate-50'}" onclick="activeAdminTab='facturas';renderAdmin(document.getElementById('app'))">FACTURAS</button>
-            <button class="flex-1 min-w-[80px] py-2.5 rounded-xl font-bold text-xs transition ${activeAdminTab==='proveedores'?'bg-slate-800 text-white shadow-md':'text-slate-500 hover:bg-slate-50'}" onclick="activeAdminTab='proveedores';renderAdmin(document.getElementById('app'))">AGENDA</button>
-        </div>
-
-        ${activeAdminTab === 'dash' ? `
-            <div class="glass-card bg-gradient-to-br from-indigo-900 to-slate-900 text-white border-0 relative overflow-hidden mb-4">
-                <div class="absolute top-0 right-0 p-4 opacity-10 text-6xl">👨‍🍳</div>
-                <h3 class="text-[10px] font-bold text-indigo-200 uppercase mb-4 tracking-[0.2em]">Eficiencia Operativa (Teórica)</h3>
-                
-                <div class="flex justify-between items-end mb-4">
-                    <div>
-                        <div class="text-3xl font-black text-white">${Num.fmt(theoreticalMargin)}€</div>
-                        <div class="text-[10px] opacity-60 uppercase tracking-wider font-bold">Margen Bruto</div>
-                    </div>
-                    <div class="text-right">
-                        <div class="text-xl font-bold ${foodCostPercent > 35 ? 'text-red-400' : 'text-emerald-400'}">${Num.fmt(foodCostPercent)}%</div>
-                        <div class="text-[10px] opacity-60 uppercase tracking-wider font-bold">Food Cost %</div>
-                    </div>
-                </div>
-                
-                <div class="flex text-[10px] gap-4 font-bold text-indigo-200/50 uppercase tracking-wide border-t border-white/10 pt-2">
-                    <span>Ventas: ${Num.fmt(totalVentas)}€</span>
-                    <span>Consumo: ${Num.fmt(theoreticalCost)}€</span>
-                </div>
-            </div>
-
-            <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm mb-6">
-                <h3 class="text-[10px] font-bold text-slate-400 uppercase mb-3 tracking-[0.2em]">Flujo de Caja (Cashflow)</h3>
-                <div class="flex justify-between items-center mb-2">
-                    <span class="text-xs font-bold text-slate-600">Entradas (Ventas)</span>
-                    <span class="font-bold text-emerald-600">+${Num.fmt(totalVentas)}€</span>
-                </div>
-                <div class="flex justify-between items-center mb-2">
-                    <span class="text-xs font-bold text-slate-600">Salidas (Compras+IVA)</span>
-                    <span class="font-bold text-red-500">-${Num.fmt(periodPurchases + periodTax)}€</span>
-                </div>
-                <div class="border-t border-slate-100 pt-2 mt-2 flex justify-between items-center">
-                    <span class="text-xs font-black text-slate-800 uppercase">Saldo Periodo</span>
-                    <span class="font-black text-lg ${cashFlow>=0?'text-slate-800':'text-red-600'}">${Num.fmt(cashFlow)}€</span>
-                </div>
-            </div>
-
-            <div class="grid grid-cols-2 gap-3">
-                <button class="btn-ghost mb-4" onclick="downloadBackup()">💾 GUARDAR COPIA</button>
-                <button class="btn-ghost mb-4 text-indigo-600" onclick="triggerRestore()">📤 RESTAURAR</button>
-            </div>
-            ` : ''}
-        
-        <div id="adm-c"></div>`;
-    
-    const c = document.getElementById('adm-c');
-    if(activeAdminTab==='omnes') renderOmnes(c);
-    if(activeAdminTab==='albaranes') renderAlbaranes(c);
-    if(activeAdminTab==='facturas') renderFacturas(c);
-    if(activeAdminTab==='proveedores') renderProveedores(c);
-}
-function renderProveedores(c) {
-    const spendMap={}; db.albaranes.forEach(a=>{if(isInPeriod(a.date))spendMap[a.prov]=(spendMap[a.prov]||0)+a.total;});
-    c.innerHTML=`<div class="glass-card border-l-4 border-orange-400"><div class="flex justify-between items-center mb-4"><h3 class="font-bold text-slate-700 text-sm uppercase">Mis Proveedores</h3><button class="btn-premium w-auto px-4 py-2 text-xs" onclick="editProv()">+ NUEVO</button></div><div class="space-y-3">${db.proveedores.map(p=>{const gasto=spendMap[p.n]||0;return `<div class="bg-white p-4 rounded-xl border border-slate-100 shadow-sm flex justify-between items-center group"><div class="flex items-center gap-3"><div class="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-xl shadow-sm">📞</div><div><div class="font-bold text-slate-800 text-sm">${clean(p.n)}</div><div class="text-[10px] text-slate-400 font-bold uppercase tracking-wider bg-slate-50 inline-block px-1 rounded">${p.fam||'General'}</div>${p.tel?`<div class="text-xs text-indigo-600 font-mono mt-1">📱 ${p.tel}</div>`:''}</div></div><div class="text-right"><div class="font-black text-slate-700 text-sm">${Num.fmt(gasto)}€</div><div class="text-[8px] text-slate-400 font-bold uppercase mb-1">Gasto Trimestre</div><button class="text-[10px] bg-slate-100 hover:bg-indigo-100 text-slate-500 hover:text-indigo-600 px-3 py-1 rounded-full font-bold transition" onclick="editProv('${p.id}')">EDITAR</button></div></div>`;}).join('')}</div></div>`;
-}
-function editProv(id) {
-    const p=id?db.proveedores.find(x=>x.id===id):{id:generateID(),n:'',tel:'',fam:'General'};
-    const famOptions=FAMILIES.map(f=>`<option value="${f}" ${p.fam===f?'selected':''}>${f}</option>`).join('');
-    showModal(id?'Editar Proveedor':'Nuevo Proveedor',`<label>Nombre Comercial</label><input id="ep-n" value="${clean(p.n)}" class="input-premium mb-4" placeholder="Ej: Frutas Manolo"><label>Teléfono (WhatsApp)</label><input id="ep-tel" value="${clean(p.tel)}" class="input-premium font-mono mb-1" placeholder="34600000000"><p class="text-[10px] text-slate-400 mb-4">Código país (34) + número.</p><label>Familia</label><select id="ep-fam" class="input-premium mb-6">${famOptions}</select><div class="flex gap-3"><button class="btn-premium flex-1" onclick="saveProv('${p.id}')">GUARDAR</button>${id?`<button class="btn-icon btn-delete w-auto px-4" onclick="deleteProv('${p.id}')">🗑️</button>`:''}</div>`);
-}
-function saveProv(id) { const n=document.getElementById('ep-n').value; if(!n) return toast("Pon un nombre","error"); const p={id, n, tel:document.getElementById('ep-tel').value.replace(/\D/g,''), fam:document.getElementById('ep-fam').value}; const idx=db.proveedores.findIndex(x=>x.id===id); if(idx>=0)db.proveedores[idx]=p; else db.proveedores.push(p); save("Guardado"); closeModal(); renderAdmin(document.getElementById('app')); }
-function deleteProv(id) { if(confirm("¿Borrar?")) { db.proveedores=db.proveedores.filter(x=>x.id!==id); save("Borrado"); closeModal(); renderAdmin(document.getElementById('app')); } }
-
-function renderOmnes(c) {
-    if (!db.recetas || db.recetas.length === 0) { c.innerHTML = `<div class="glass-card text-center"><h3 class="font-bold text-slate-800">No hay recetas</h3><button class="btn-premium w-full" onclick="render('Cocina')">IR A COCINA</button></div>`; return; }
-    let totalSold=0, totalRev=0, totalCost=0;
-    const periodSalesMap = {}; 
-    db.sales_history.filter(log => isInPeriod(log.date)).forEach(log => { log.items.forEach(it => { const rid = it.rid || db.recetas.find(r=>r.n===it.n)?.id; if(rid) periodSalesMap[rid] = (periodSalesMap[rid] || 0) + it.q; }); });
-    const useHistory = db.sales_history.length > 0;
-    const recipesData = (db.recetas||[]).map(r => { const costData = calcRecipe(r); const sales = useHistory ? (periodSalesMap[r.id] || 0) : (r.sales || 0); totalSold += sales; totalRev += (sales * r.pvp); totalCost += (sales * costData.t); return { r, sales, margin: r.pvp - costData.t, cost: costData.t }; });
-    const avgMargin = totalSold > 0 ? ((totalRev - totalCost) / totalSold) : 0; const popLimit = (totalSold > 0 ? (100 / recipesData.length) : 0) * 0.7;
-    let html = ''; recipesData.sort((a,b) => b.sales - a.sales).forEach(d => { if(d.sales > 0) { const isPop = (totalSold > 0 ? (d.sales/totalSold)*100 : 0) >= popLimit; const isRich = d.margin >= avgMargin; let type = isPop ? (isRich ? 'ESTRELLA' : 'CABALLO') : (isRich ? 'PUZZLE' : 'PERRO'); let css = isPop ? (isRich ? 'omnes-star' : 'omnes-plow') : (isRich ? 'omnes-puzz' : 'omnes-dog'); html += `<div class="bg-white p-3 rounded-xl omnes-card mb-2 shadow-sm flex justify-between items-center ${css}"><div class="flex-1"><div class="font-bold text-slate-700">${clean(d.r.n)}</div><div class="text-[10px] font-bold opacity-70">${type}</div></div><div class="text-right"><div class="font-black text-lg">${d.sales}</div><div class="text-[10px]">VENDIDOS</div></div></div>`; } });
-    c.innerHTML = `<div class="flex justify-between items-center mb-4"><h3 class="font-bold text-slate-800">Análisis ${fiscalQuarter===0?'ANUAL':fiscalQuarter+'T'}</h3><button class="btn-premium btn-action w-auto px-4 py-2 text-xs" onclick="editSales()">📝 REGISTRAR SERVICIO</button></div>${html || '<div class="text-center p-8 text-slate-400 border-2 border-dashed rounded-xl">Sin ventas en este periodo</div>'}`;
-}
-
-function editSales() {
-    if (!db.recetas || db.recetas.length === 0) return toast("No hay recetas creadas", "error");
-    const html = db.recetas.map(r => `<div class="flex justify-between items-center py-2 border-b border-slate-50"><span class="text-sm font-medium text-slate-700 w-1/2">${clean(r.n)}</span><div class="flex items-center gap-2"><input type="number" min="0" placeholder="0" id="sale-add-${r.id}" onfocus="this.select()" class="bg-white border-2 border-slate-200 rounded-xl w-20 text-center py-2 font-bold text-indigo-600 focus:border-indigo-500 outline-none shadow-sm transition"></div></div>`).join('');
-    showModal('Cierre de Ventas', `<div class="bg-blue-50 p-3 rounded-lg text-blue-800 text-xs mb-4">Introduce <b>ventas del día</b>.</div><div class="max-h-[50vh] overflow-y-auto pr-2 mb-4">${html}</div><div class="flex gap-2"><button class="btn-premium btn-action w-full" onclick="commitSalesSession()">PROCESAR Y DESCONTAR STOCK</button></div>`);
-}
-
-function commitSalesSession() {
-    let log = { id: generateID(), date: getTS(), items: [] }; let hasData = false;
-    db.recetas.forEach(r => { 
-        const qty = Num.parse(document.getElementById(`sale-add-${r.id}`).value); 
-        if(qty > 0) { 
-            hasData = true; 
-            r.items.forEach(it => { 
-                if(it.type === 'ing') { 
-                    const ing = db.ingredientes.find(x => x.id === it.id); 
-                    if(ing) { 
-                        // CONVERSIÓN: De unidad receta a unidad stock
-                        let unitFactor = UnitConverter.convert(1, it.unit || ing.unit, ing.unit);
-                        let needed = (it.q * unitFactor) * qty; 
-                        
-                        if(it.merma) needed = needed / (1 - (it.merma/100)); 
-                        
-                        ing.stock -= needed; 
-                        logStock(ing.id, needed, 'OUT', `Venta: ${r.n} (${qty})`); 
-                    } 
-                } 
-            }); 
-            r.sales = (r.sales || 0) + qty; 
-            log.items.push({ rid: r.id, n: r.n, q: qty }); 
-        } 
-    });
-    if(hasData) { db.sales_history.push(log); save("Ventas procesadas"); closeModal(); renderAdmin(document.getElementById('app')); } else toast("No has introducido cantidades", "error");
-}
-
-function renderAlbaranes(c) {
-    const periodAlbs = db.albaranes.filter(a => isInPeriod(a.date)).slice().reverse();
-    const provOptions = db.proveedores.map(p => `<option value="${clean(p.n)}">`).join('');
-    const ingOptions = db.ingredientes.map(i => `<option value="${clean(i.n)}">`).join('');
-    c.innerHTML = `<div class="glass-card border-l-4 border-indigo-500"><div class="flex justify-between items-center mb-4"><h3 class="font-bold text-slate-700 text-sm uppercase">Nuevo Albarán</h3><label class="flex items-center gap-2 cursor-pointer bg-slate-50 px-3 py-1 rounded-lg border border-slate-200"><input type="checkbox" id="alb-socio" class="w-4 h-4 text-indigo-600 rounded"><span class="text-xs font-bold text-slate-600">Es Socio/Interno</span></label></div><div class="grid grid-cols-3 gap-3 mb-3"><div><label>Proveedor</label><input list="prov-list" id="alb-prov" class="input-premium" placeholder="..." onchange="checkDuplicate()"><datalist id="prov-list">${provOptions}</datalist></div><div><label>Productor</label><input id="alb-producer" class="input-premium"></div><div><label>Ref / Factura</label><input id="alb-num" class="input-premium font-mono" onkeyup="checkDuplicate()" value="A-${new Date().getFullYear().toString().slice(-2)}-${(db.albaranes.length+1).toString().padStart(4,'0')}"><div id="dup-alert" class="hidden text-[10px] text-red-500 font-bold mt-1 animate-pulse">⚠️ POSIBLE DUPLICADO</div></div></div><div class="grid grid-cols-2 gap-3 mb-3"><div><label>Fecha</label><input type="date" id="alb-date" value="${getISO()}" class="input-premium"></div><div><label>Nota</label><input id="alb-note" class="input-premium"></div></div><datalist id="ing-list">${ingOptions}</datalist><textarea id="alb-input" rows="2" class="input-premium font-mono text-xs mb-2" placeholder="Pegar: Producto TAB Cantidad TAB Precio..."></textarea><div class="flex gap-2 mb-4"><button class="btn-ghost" onclick="parseAlb()">🪄 Leer Texto</button><button class="btn-ghost text-red-400" onclick="tempItems=[];renderAlbGrid()">Limpiar</button></div><div class="grid grid-cols-12 gap-1 px-2 mb-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider text-center"><div class="col-span-4 text-left">Producto</div><div class="col-span-2">Cant/Ud</div><div class="col-span-2">Precio</div><div class="col-span-1 text-emerald-600">Dto%</div><div class="col-span-1">IVA</div><div class="col-span-2 text-right">Total</div></div><div id="alb-grid" class="space-y-2 mb-4"></div><div class="border-t border-slate-100 pt-3 text-right"><div class="text-xs text-slate-400 font-bold">TOTAL A PAGAR</div><div class="text-3xl font-black text-slate-800"><span id="alb-total">0.00€</span></div></div><div class="grid grid-cols-2 gap-3 mt-4"><button class="btn-premium btn-action" onclick="commitAlb()">CONFIRMAR</button><button class="btn-ghost" onclick="exportAlbCSV()">CSV</button></div></div><div class="glass-card"><h4 class="text-xs font-bold text-slate-400 uppercase mb-4">Historial (${fiscalQuarter===0?'AÑO':fiscalQuarter+'T'})</h4>${periodAlbs.length ? periodAlbs.map(a => `<div class="flex justify-between items-center py-3 border-b border-slate-50 hover:bg-slate-50 transition px-2 rounded-lg"><div class="text-sm font-bold text-slate-700">${a.isSocio ? '🤝 ' : ''}${clean(a.prov)}<div class="text-[10px] text-slate-400 font-normal flex gap-2"><span>${a.date}</span><span class="font-mono bg-slate-100 px-1 rounded text-slate-500">Ref: ${a.num}</span></div></div><div class="flex items-center gap-2"><span class="font-bold text-sm mr-2 ${a.isSocio ? 'text-indigo-600':''}">${Num.fmt(a.total)}€</span><button class="btn-icon btn-ghost" onclick="viewAlbDetails('${a.id}')">👁</button>${!a.invoiced ? `<button class="btn-icon btn-edit" onclick="editAlb('${a.id}')">✏️</button><button class="btn-icon btn-delete" onclick="deleteAlb('${a.id}')">🗑️</button>` : '<span class="text-[10px] bg-green-100 text-green-700 px-2 py-1 rounded font-bold">FACTURADO</span>'}</div></div>`).join('') : '<div class="text-center p-4 text-slate-400">Sin compras registradas</div>'}</div>`;
-    renderAlbGrid();
-}
-function checkDuplicate() {
-    const num = document.getElementById('alb-num').value.trim(); const prov = document.getElementById('alb-prov').value.trim();
-    const alert = document.getElementById('dup-alert'); const inputNum = document.getElementById('alb-num');
-    const exists = db.albaranes.some(a => a.num.toLowerCase() === num.toLowerCase() && a.prov.toLowerCase() === prov.toLowerCase());
-    if (exists && num.length > 2) { alert.classList.remove('hidden'); inputNum.classList.add('border-red-500', 'text-red-600'); } else { alert.classList.add('hidden'); inputNum.classList.remove('border-red-500', 'text-red-600'); }
-}
-function parseAlb() {
-    const txt = document.getElementById('alb-input').value;
-    if (!txt) return toast("Pega el texto del albarán primero", "error");
-
-    const lines = txt.split(/\r?\n/).filter(line => line.trim() !== '');
-    let found = 0;
-
-    lines.forEach(l => {
-        let cleanLine = l.replace(/[€$]/g, '').trim(); 
-        // Detectamos separadores (TAB, punto y coma o espacios dobles)
-        let parts = cleanLine.split(/[\t;]|\s{2,}/);
-
-        if (parts.length >= 2) {
-            const n = parts[0].trim();
-            const qStr = parts[1].trim().replace(/\s/g, ''); 
-            const pStr = parts[2] ? parts[2].trim() : '0';
-            
-            // NUEVAS COLUMNAS: Descuento (3) e IVA (4)
-            const dStr = parts[3] ? parts[3].trim() : '0';
-            const taxStr = parts[4] ? parts[4].trim() : '10';
-
-            const qMatch = qStr.match(/^([\d\.,]+)([a-zA-Z]+)?$/);
-            
-            const qty = qMatch ? Num.parse(qMatch[1]) : Num.parse(qStr);
-            const unit = qMatch && qMatch[2] && typeof UnitConverter !== 'undefined' ? UnitConverter.normalize(qMatch[2]) : 'ud';
-            const price = Num.parse(pStr);
-            const discount = Num.parse(dStr);
-            const tax = Num.parse(taxStr);
-
-            if (n && qty > 0) {
-                tempItems.push({ 
-                    n, 
-                    q: qty, 
-                    p: price, 
-                    unit, 
-                    d: discount, 
-                    tax: tax 
-                });
-                found++;
-            }
-        }
-    });
-
-    if (found > 0) {
-        renderAlbGrid();
-        document.getElementById('alb-input').value = ''; 
-        toast(`✅ ${found} líneas con IVA/Dto detectadas`);
+    if(currentUser) {
+        document.getElementById('pin-screen').classList.add('hidden');
+        loadApp();
+        syncDown(); // Sincronizar al arrancar
     } else {
-        toast("⚠️ Error de formato", "error");
+        document.getElementById('pin-screen').classList.remove('hidden');
     }
-}
-function renderAlbGrid() {
-    const el = document.getElementById('alb-grid'); if (!el) return;
-    el.innerHTML = tempItems.map((it, i) => {
-        const lineBase = (it.q * it.p) * (1 - (it.d || 0) / 100); const lineTotal = lineBase * (1 + it.tax / 100);
-        return `<div class="bg-white p-1 rounded-xl border border-slate-100 grid grid-cols-12 gap-1 items-center shadow-sm relative group"><div class="col-span-4"><input list="ing-list" value="${clean(it.n)}" class="w-full bg-transparent font-bold text-xs outline-none truncate" placeholder="Producto" onchange="tempItems[${i}].n=this.value"></div><div class="col-span-2 flex gap-1"><input type="number" value="${it.q}" class="w-full bg-slate-50 text-center text-xs p-1 rounded font-bold outline-none" onchange="tempItems[${i}].q=parseFloat(this.value);renderAlbGrid()"><select onchange="tempItems[${i}].unit=this.value" class="w-10 bg-slate-50 text-[10px] p-0 rounded border-0 text-slate-500"><option ${it.unit==='ud'?'selected':''} value="ud">ud</option><option ${it.unit==='kg'?'selected':''} value="kg">kg</option><option ${it.unit==='l'?'selected':''} value="l">l</option></select></div><div class="col-span-2"><input type="number" value="${it.p}" class="w-full bg-slate-50 text-center text-xs p-1 rounded outline-none" onchange="tempItems[${i}].p=parseFloat(this.value);renderAlbGrid()"></div><div class="col-span-1"><input type="number" value="${it.d||0}" class="w-full bg-emerald-50 text-emerald-700 text-center text-xs p-1 rounded font-bold outline-none" placeholder="%" onchange="tempItems[${i}].d=parseFloat(this.value);renderAlbGrid()"></div><div class="col-span-1"><select onchange="tempItems[${i}].tax=parseFloat(this.value);renderAlbGrid()" class="w-full bg-blue-50 text-blue-700 font-bold text-[10px] p-1 rounded border-0"><option ${it.tax===10?'selected':''} value="10">10</option><option ${it.tax===21?'selected':''} value="21">21</option><option ${it.tax===4?'selected':''} value="4">4</option><option ${it.tax===0?'selected':''} value="0">0</option></select></div><div class="col-span-2 text-right font-mono font-bold text-xs pr-2">${Num.fmt(lineTotal)}€</div><button class="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center text-[10px] opacity-0 group-hover:opacity-100 transition shadow-sm" onclick="tempItems.splice(${i},1);renderAlbGrid()">✕</button></div>`;
-    }).join('');
-    const total = tempItems.reduce((acc, it) => acc + (it.q * it.p * (1 - (it.d || 0) / 100)) * (1 + it.tax / 100), 0);
-    document.getElementById('alb-total').innerText = Num.fmt(total) + '€';
-}
-function commitAlb() {
-    // 1. Validaciones básicas
-    if (!tempItems.length) return toast("El albarán está vacío", "error");
     
-    const prov = document.getElementById('alb-prov').value.trim();
-    const date = document.getElementById('alb-date').value;
-    const num = document.getElementById('alb-num').value.trim();
-    const isSocio = document.getElementById('alb-socio').checked;
-    const note = document.getElementById('alb-note').value.trim();
-    const productor = document.getElementById('alb-producer').value.trim();
-
-    if (!prov || !date) return toast("Faltan datos obligatorios (Proveedor/Fecha)", "error");
-
-    // 2. Comprobar si el Albarán ya existe (por número y proveedor) para no duplicar stock
-    const exists = db.albaranes.some(a => a.num.toLowerCase() === num.toLowerCase() && a.prov.toLowerCase() === prov.toLowerCase());
-    if (exists && !confirm(`⚠️ EL ALBARÁN ${num} YA EXISTE.\n¿Quieres guardarlo de todas formas? (Se duplicará el stock)`)) return;
-
-    // 3. Crear proveedor en la agenda si es nuevo
-    if (!db.proveedores.find(p => p.n.toLowerCase() === prov.toLowerCase())) {
-        db.proveedores.push({ id: generateID(), n: prov, tel: '', fam: 'General' });
-    }
-
-    // 4. BUCLE PRINCIPAL: Procesar líneas y actualizar Stock
-    tempItems.forEach(it => {
-        const cleanName = it.n.trim();
-        // Normalizamos la unidad (usamos tu conversor UnitConverter si está disponible)
-        const normalizedUnit = typeof UnitConverter !== 'undefined' ? UnitConverter.normalize(it.unit) : it.unit;
-
-        // A) BÚSQUEDA ROBUSTA: Buscamos por Nombre Y Unidad para evitar duplicados
-        let ing = db.ingredientes.find(x => 
-            x.n.trim().toLowerCase() === cleanName.toLowerCase() && 
-            (typeof UnitConverter !== 'undefined' ? UnitConverter.normalize(x.unit) : x.unit) === normalizedUnit
-        );
-
-        // B) SI NO EXISTE, LO CREAMOS
-        if (!ing) {
-            ing = { 
-                id: generateID(), 
-                n: cleanName, 
-                stock: 0, 
-                cost: 0, 
-                unit: normalizedUnit, 
-                aller: [], 
-                fam: 'General' 
-            };
-            db.ingredientes.push(ing);
-        }
-
-        // C) CÁLCULO DE COSTES (PMP - Precio Medio Ponderado)
-        // Calculamos el precio neto unitario (aplicando el descuento de la línea si existe)
-        const realUnitCost = it.p * (1 - (it.d || 0) / 100);
-        
-        // Matemáticas financieras: (Valor Stock Actual + Valor Compra Nueva) / Cantidad Total
-        const currentStock = Math.max(0, ing.stock); // Ignoramos stock negativo para el cálculo de valor
-        const currentTotalValue = currentStock * ing.cost;
-        const newEntryValue = it.q * realUnitCost;
-        const newTotalQty = currentStock + it.q;
-
-        if (newTotalQty > 0) {
-            ing.cost = (currentTotalValue + newEntryValue) / newTotalQty;
-        } else {
-            // Si es la primera entrada o seguimos en negativo, el coste es el actual
-            ing.cost = realUnitCost;
-        }
-
-        // D) ACTUALIZAR STOCK FÍSICO
-        ing.stock += it.q;
-
-        // E) GUARDAR EN EL HISTORIAL DE MOVIMIENTOS (KARDEX)
-        logStock(ing.id, it.q, 'IN', `Compra: ${prov} (${num})`, realUnitCost);
-    });
-
-    // 5. Calcular Totales del Albarán para el registro contable
-    let totalBase = 0, totalTax = 0;
-    tempItems.forEach(it => {
-        const base = (it.q * it.p) * (1 - (it.d || 0) / 100);
-        totalBase += base;
-        totalTax += base * (it.tax / 100);
-    });
-
-    // 6. Guardar el documento en la base de datos de Albaranes
-    db.albaranes.push({ 
-        id: generateID(), 
-        num, 
-        prov, 
-        productor, 
-        date, 
-        items: JSON.parse(JSON.stringify(tempItems)), // Copia profunda para seguridad
-        total: totalBase + totalTax, 
-        taxes: totalTax, 
-        subtotal: totalBase, 
-        invoiced: false, 
-        isSocio, 
-        note 
-    });
-
-    // 7. Finalizar
-    save(`✅ Albarán ${num} guardado y Stock actualizado`);
-    tempItems = []; // Limpiamos la lista temporal
-    renderAdmin(document.getElementById('app')); // Recargamos la pantalla
+    // Auto-Sync cada 3 segundos (Super rápido)
+    setInterval(syncDown, 3000);
 }
-function editAlb(id) {
-    const alb = db.albaranes.find(a => a.id === id); if (!alb) return;
-    if (confirm("¿Editar? Se revertirá el stock.")) {
-        alb.items.forEach(it => { const ing = db.ingredientes.find(x => x.n.trim().toLowerCase() === it.n.trim().toLowerCase() && x.unit === it.unit); if (ing) { ing.stock -= it.q; logStock(ing.id, it.q, 'OUT', `Corrección Alb`); } });
-        tempItems = JSON.parse(JSON.stringify(alb.items)); document.getElementById('alb-prov').value = alb.prov; document.getElementById('alb-num').value = alb.num; document.getElementById('alb-date').value = alb.date; document.getElementById('alb-producer').value = alb.productor || ''; document.getElementById('alb-note').value = alb.note || ''; document.getElementById('alb-socio').checked = alb.isSocio || false;
-        db.albaranes = db.albaranes.filter(a => a.id !== id); renderAlbGrid(); window.scrollTo(0, 0); toast("Modo Edición");
-    }
-}
-function deleteAlb(id) {
-    const alb = db.albaranes.find(a => a.id === id); if (!alb) return;
-    if (confirm("¿Borrar?")) {
-        alb.items.forEach(it => { const ing = db.ingredientes.find(x => x.n.trim().toLowerCase() === it.n.trim().toLowerCase() && x.unit === it.unit); if (ing) { ing.stock -= it.q; logStock(ing.id, it.q, 'OUT', `Borrado Alb`); } });
-        db.albaranes = db.albaranes.filter(a => a.id !== id); save("Borrado"); renderAdmin(document.getElementById('app'));
-    }
-}
-function viewAlbDetails(id) { const a = db.albaranes.find(x => x.id === id); if (a) showModal(`Detalle ${a.num}`, `<div class="mb-2 text-xs">${a.isSocio ? '🤝 SOCIO | ':''}${a.prov}</div><table class="w-full text-xs"><thead><tr><th>Prod</th><th>Cant</th><th>Dto</th><th>€</th></tr></thead><tbody>${a.items.map(i => { const p = i.p * (1 - (i.d || 0) / 100); return `<tr><td>${i.n}</td><td class="text-center">${i.q}${i.unit}</td><td class="text-center text-red-400">${i.d||'-'}%</td><td class="text-right">${Num.fmt(i.q * p)}</td></tr>`; }).join('')}</tbody></table><div class="text-right font-black text-xl mt-4">${Num.fmt(a.total)}€</div>`); }
-function exportAlbCSV() { if (!tempItems.length) return toast("Vacío", "error"); const rows = tempItems.map(it => [it.n, Num.csv(it.q), it.unit, Num.csv(it.p), Num.csv(it.d || 0), Num.csv((it.q * it.p * (1 - (it.d || 0) / 100)) * (1 + it.tax / 100))]); const csv = ['Prod;Cant;Ud;Precio;Dto;Total', ...rows.map(r => r.join(';'))].join('\n'); const blob = new Blob(["\uFEFF" + csv], { type: 'text/csv;charset=utf-8' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'Albaran.csv'; a.click(); }
-function renderFacturas(c) { const pends = db.albaranes.filter(a=>!a.invoiced); const groups={}; pends.forEach(a=>{ if(!groups[a.prov]) groups[a.prov]={c:0,t:0,ids:[]}; groups[a.prov].c++; groups[a.prov].t+=a.total; groups[a.prov].ids.push(a.id); }); const hist = db.facturas.filter(f => isInPeriod(f.date)).slice().reverse(); c.innerHTML = `${Object.keys(groups).length ? `<div class="glass-card"><h3 class="font-bold text-xs text-slate-400 mb-3 uppercase">Pendiente</h3>${Object.entries(groups).map(([p,d])=>`<div class="flex justify-between items-center py-2 border-b"><div><div class="font-bold text-slate-800">${clean(p)}</div><div class="text-xs text-slate-400">${d.c} albaranes</div></div><div class="flex items-center gap-3"><span class="font-bold">${Num.fmt(d.t)}€</span><button class="bg-indigo-600 text-white px-3 py-1 rounded-lg text-xs font-bold" onclick="invoice('${p}','${d.ids}')">GENERAR</button></div></div>`).join('')}</div>` : ''} <div class="glass-card"><h3 class="font-bold text-xs text-slate-400 mb-4 uppercase">Histórico (${fiscalQuarter===0?'AÑO':fiscalQuarter+'T'})</h3>${hist.length ? hist.map(f => `<div class="flex justify-between items-center py-3 border-b"><div class="text-sm font-bold text-slate-800">${clean(f.prov)}<div class="text-[10px] text-slate-400 font-normal">${f.date}</div></div><div class="text-right"><div class="font-mono font-bold">${Num.fmt(f.total)}€</div><div class="text-[10px] font-bold cursor-pointer ${f.paid?'text-emerald-500':'text-red-400'}" onclick="togglePaid('${f.id}')">${f.paid?'PAGADO':'PENDIENTE'}</div></div></div>`).join('') : '<div class="text-center p-4 text-slate-400">Sin facturas</div>'}</div>`; }
-function invoice(p,ids){ const l=ids.split(','); l.forEach(id=>{ const a=db.albaranes.find(x=>x.id===id); if(a) a.invoiced=true; }); const t=l.reduce((ac,id)=>ac+(db.albaranes.find(x=>x.id===id)?.total||0),0); db.facturas.push({id:generateID(), date:getISO(), prov:p, total:t, paid:false}); save("Factura OK"); renderAdmin(document.getElementById('app')); }
-function togglePaid(id){ const f=db.facturas.find(x=>x.id===id); if(f){ f.paid=!f.paid; save(); renderAdmin(document.getElementById('app')); }}
 
-/* ================= 7. COCINA PRO (V147 - UNIDADES INTELIGENTES) ================= */
+function pin(n) {
+    if(n==='C') currentPin="";
+    else if(n==='OK') {
+        const u = db.users.find(x=>x.pin === btoa(currentPin));
+        if(u) { currentUser=u; localStorage.setItem('arume_user', JSON.stringify(u)); document.getElementById('pin-screen').classList.add('hidden'); loadApp(); syncDown(); }
+        else { toast("PIN Incorrecto","error"); currentPin=""; }
+    } else if(currentPin.length<4) currentPin+=n;
+    document.getElementById('pin-display').innerText = currentPin ? '*'.repeat(currentPin.length) : '****';
+}
+
+function logout(){ if(confirm("Cerrar sesión?")){ localStorage.removeItem('arume_user'); location.reload(); }}
+function loadApp() { document.getElementById('user-name').innerText=currentUser.n; renderNav(); render(currentUser.role==='admin'?'Admin':'Cocina'); }
+
+function renderNav() {
+    const adm = currentUser?.role==='admin';
+    const b = (id,l,i,lk) => `<button id="btn-${id}" class="${lk?'locked':''}" onclick="render('${id}')"><svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none">${i}</svg><span>${l}</span></button>`;
+    document.getElementById('navbar').innerHTML = 
+        b('Diario','Caja','<path d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"/>',!adm) +
+        b('Admin','Gestión','<path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>',!adm) +
+        b('Cocina','Cocina','<path d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>',false) +
+        b('Stock','Stock','<path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>',false);
+}
+function render(v) {
+    if((v==='Diario'||v==='Admin') && currentUser.role!=='admin') return toast("⛔ Acceso denegado","error");
+    document.querySelectorAll('nav button').forEach(b=>b.classList.remove('active'));
+    document.getElementById(`btn-${v}`)?.classList.add('active');
+    const app = document.getElementById('app');
+    if(v==='Diario') renderDiario(app);
+    if(v==='Admin') renderAdmin(app);
+    if(v==='Cocina') renderCocina(app);
+    if(v==='Stock') renderStock(app);
+}
+
+/* === COCINA (UNIDADES) === */
 function renderCocina(app) {
-    const sorted = db.recetas.sort((a,b) => a.n.localeCompare(b.n));
-    app.innerHTML = `<div class="glass-card"><div class="flex justify-between items-center mb-4"><div><h2 class="font-black text-xl text-slate-800 tracking-tight">ESCANDALLOS</h2><p class="text-[10px] text-slate-400 font-bold uppercase">Gestión de Fichas Técnicas</p></div><button class="btn-premium w-auto px-4 py-3 text-xs shadow-lg shadow-indigo-500/30 flex items-center gap-2" onclick="editRec()"><span class="text-lg">＋</span> NUEVA FICHA</button></div><input placeholder="🔍 Buscar plato o elaboración..." onkeyup="filterRec(this.value)" class="input-premium mb-4"><div id="rec-grid" class="space-y-3">${renderRecGrid(sorted)}</div></div>`;
+    const list = db.recetas.sort((a,b)=>a.n.localeCompare(b.n));
+    app.innerHTML = `<div class="glass-card"><div class="flex justify-between items-center mb-4"><h2 class="font-black text-xl text-slate-800">ESCANDALLOS</h2><button class="btn-premium w-auto px-4 py-3 text-xs" onclick="editRec()">＋ NUEVA</button></div><div id="rec-grid" class="space-y-3">${renderRecGrid(list)}</div></div>`;
 }
 function renderRecGrid(list) {
-    if(!list.length) return '<div class="text-center p-8 text-slate-400 italic border-2 border-dashed border-slate-200 rounded-xl">No hay recetas definidas.<br>Crea la primera arriba a la derecha.</div>';
-    return list.map(r => { 
-        const c = calcRecipe(r); const fc = r.pvp > 0 ? (c.t / r.pvp) * 100 : 0;
-        let semColor = 'bg-slate-200';
-        if(r.pvp > 0) { if(fc < 30) semColor = 'bg-emerald-500'; else if(fc < 40) semColor = 'bg-orange-400'; else semColor = 'bg-red-500'; }
-        return `<div class="bg-white p-4 rounded-xl border border-slate-100 shadow-sm cursor-pointer hover:shadow-md transition group relative overflow-hidden" onclick="viewRec('${r.id}')"><div class="absolute left-0 top-0 bottom-0 w-1.5 ${semColor}"></div><div class="flex justify-between items-start pl-2"><div><div class="font-bold text-slate-800 text-lg leading-tight">${clean(r.n)}</div><div class="text-[10px] text-slate-400 mt-1 uppercase font-bold tracking-wider">${r.items.length} Ingredientes · ${r.time} min</div></div><div class="text-right"><div class="font-black text-xl text-slate-700">${Num.fmt(c.t)}€</div><div class="text-[10px] font-bold ${r.pvp > 0 && fc > 40 ? 'text-red-500' : 'text-slate-400'}">FC: ${fc.toFixed(1)}%</div></div></div></div>`;
+    return list.map(r => {
+        const c = calcRecipe(r); const fc = r.pvp>0 ? (c.t/r.pvp)*100 : 0;
+        return `<div class="bg-white p-4 rounded-xl border border-slate-100 shadow-sm flex justify-between items-center" onclick="viewRec('${r.id}')"><div><div class="font-bold text-slate-800">${clean(r.n)}</div><div class="text-xs text-slate-400">${r.items.length} Ingredientes</div></div><div class="text-right"><div class="font-black text-slate-700">${Num.fmt(c.t)}€</div><div class="text-[10px] font-bold ${fc>35?'text-red-500':'text-emerald-500'}">FC: ${fc.toFixed(1)}%</div></div></div>`;
     }).join('');
 }
-function filterRec(txt) {
-    const term = txt.toLowerCase(); const filtered = db.recetas.filter(r => r.n.toLowerCase().includes(term));
-    document.getElementById('rec-grid').innerHTML = renderRecGrid(filtered);
-}
-function calcRecipe(r, visited = new Set()) { 
-    if (!r || visited.has(r.id)) return { t: 0, all: [] }; visited.add(r.id);
-    let t = 0, all = new Set(); 
-    (r.items || []).forEach(it => { 
-        const yieldFactor = (it.merma && it.merma > 0) ? (1 - (it.merma/100)) : 1;
-        if (it.type === 'ing') { 
-            const i = db.ingredientes.find(x => x.id === it.id); 
-            if (i) { 
-                // CONVERSIÓN: Cantidad Receta -> Cantidad Stock
-                const qtyInStockUnit = UnitConverter.convert(it.q, it.unit || i.unit, i.unit);
-                t += (qtyInStockUnit * i.cost) / yieldFactor; 
-                (i.aller || []).forEach(k => all.add(k)); 
-            } 
-        } 
-        else if (it.type === 'rec') { const subR = db.recetas.find(x => x.id === it.id); if (subR) { const subC = calcRecipe(subR, new Set(visited)); t += (subC.t * it.q); subC.all.forEach(k => all.add(k)); } }
-    }); 
-    t += (r.time / 60) * CONFIG.COST_HOUR; return { t, all: Array.from(all) }; 
-}
-function editRec(id) { 
-    const r = id ? db.recetas.find(x => x.id === id) : { id: generateID(), n: '', pvp: 0, time: 10, items: [], inst: '' }; 
-    if(!r) return; 
-    tempItems = r.items ? JSON.parse(JSON.stringify(r.items)) : []; 
-    showModal(id ? 'Editar Ficha' : 'Nueva Ficha Técnica', `<div class="grid grid-cols-12 gap-3 mb-4"><div class="col-span-8"><label>Nombre del Plato</label><input id="er-n" value="${clean(r.n)}" class="input-premium font-bold text-lg" placeholder="Ej: Salsa Brava"></div><div class="col-span-4"><label>PVP (€)</label><input type="number" id="er-pvp" value="${r.pvp}" class="input-premium text-center"></div></div><div class="flex gap-4 mb-4"><div class="flex-1"><label>Tiempo (min)</label><input type="number" id="er-time" value="${r.time}" class="input-premium"></div></div><div class="bg-slate-50 p-3 rounded-xl border border-slate-200 mb-4"><div class="flex gap-4 mb-2 text-xs font-bold text-slate-500 uppercase tracking-widest justify-center"><label class="flex items-center gap-1 cursor-pointer hover:text-indigo-600"><input type="radio" name="itemType" value="ing" checked onclick="toggleRecType('ing')"> 📦 Materia Prima</label><label class="flex items-center gap-1 cursor-pointer hover:text-indigo-600"><input type="radio" name="itemType" value="rec" onclick="toggleRecType('rec')"> 🥣 Sub-Receta</label></div><div class="flex gap-2 items-center"><div class="flex-1"><select id="er-sel" class="input-premium mb-0 text-sm h-10" onchange="updateUnitSelector()"></select></div><div class="w-20"><input id="er-q" type="number" class="input-premium mb-0 text-center h-10" placeholder="Cant"></div><div class="w-16"><select id="er-u" class="input-premium mb-0 text-xs h-10 pl-1 pr-0 bg-slate-200 border-0"></select></div><div class="w-14"><input id="er-m" type="number" class="input-premium mb-0 text-center h-10 text-xs px-0" placeholder="M%"></div><button class="bg-indigo-600 text-white rounded-lg w-10 h-10 flex items-center justify-center font-bold shadow-lg shadow-indigo-200 hover:scale-105 transition" onclick="addItemToRec()">+</button></div><div class="text-[10px] text-slate-400 mt-1 text-center" id="type-hint">...</div></div><div class="bg-white border border-slate-100 rounded-xl mb-4 max-h-48 overflow-y-auto" id="er-list"></div><label class="font-bold text-slate-700 text-sm">Instrucciones</label><textarea id="er-inst" rows="4" class="input-premium mb-4 text-sm" placeholder="Pasos de la receta...">${clean(r.inst || '')}</textarea><div class="grid grid-cols-2 gap-3 mt-4"><button class="btn-premium" onclick="saveRec('${r.id}')">💾 GUARDAR</button>${id ? `<button class="btn-ghost text-red-400" onclick="deleteRec('${id}')">🗑️ ELIMINAR</button>` : ''}</div>`); 
-    setTimeout(() => { toggleRecType('ing'); renderRecItems(); }, 150);
-}
-function updateUnitSelector() {
-    const sel = document.getElementById('er-sel');
-    const uSel = document.getElementById('er-u');
-    const id = sel.value;
-    const type = sel.dataset.type;
-    
-    let opts = ['ud'];
-    if(type === 'ing') {
-        const i = db.ingredientes.find(x => x.id === id);
-        if(i) {
-            const u = UnitConverter.normalize(i.unit);
-            if(['kg','g'].includes(u)) opts = ['g', 'kg'];
-            else if(['l','ml','cl'].includes(u)) opts = ['ml', 'cl', 'l'];
-            else opts = [u];
-        }
-    } else { opts = ['rac']; }
-    
-    uSel.innerHTML = opts.map(u => `<option value="${u}">${u}</option>`).join('');
-}
-function toggleRecType(type) {
-    const sel = document.getElementById('er-sel'); const hint = document.getElementById('type-hint'); if(!sel) return; 
-    document.querySelectorAll(`input[name="itemType"][value="${type}"]`).forEach(el => el.checked = true);
-    sel.dataset.type = type;
-    if (type === 'ing') {
-        sel.innerHTML = db.ingredientes.length === 0 ? '<option value="">⚠️ No hay stock</option>' : db.ingredientes.sort((a,b)=>a.n.localeCompare(b.n)).map(i => `<option value="${i.id}">${clean(i.n)}</option>`).join('');
-        hint.innerText = "Selecciona un producto"; document.getElementById('er-m').disabled = false;
-    } else {
-        const subRecipes = db.recetas.filter(r => r.id !== (tempItems.currentRecId || '')); 
-        sel.innerHTML = subRecipes.length === 0 ? '<option value="">⚠️ Sin recetas</option>' : subRecipes.sort((a,b)=>a.n.localeCompare(b.n)).map(r => `<option value="${r.id}">🥣 ${clean(r.n)}</option>`).join('');
-        hint.innerText = "Añade una elaboración previa"; document.getElementById('er-m').disabled = true;
-    }
-    updateUnitSelector();
-}
-function addItemToRec() { 
-    const sel = document.getElementById('er-sel'); const id = sel.value; const type = sel.dataset.type || 'ing';
-    const q = parseFloat(document.getElementById('er-q').value); const m = parseFloat(document.getElementById('er-m').value) || 0; 
-    const u = document.getElementById('er-u').value;
-    if (id && q > 0) { tempItems.push({ type, id, q, unit: u, merma: m }); renderRecItems(); document.getElementById('er-q').value = ''; document.getElementById('er-q').focus(); } else { toast("Cantidad incorrecta", "error"); }
-}
-function renderRecItems() { 
-    const el = document.getElementById('er-list'); if(!el) return;
-    el.innerHTML = tempItems.map((it, i) => { 
-        let name = "???", icon = "📦", details = "";
-        if(it.type === 'ing') { const ing = db.ingredientes.find(x => x.id === it.id); name = ing ? ing.n : 'Borrado'; details = `${it.q} ${it.unit}`; } 
-        else { const rec = db.recetas.find(x => x.id === it.id); name = rec ? rec.n : 'Borrado'; icon = "🥣"; details = `${it.q} rac`; }
-        return `<div class="flex justify-between items-center text-sm border-b border-slate-50 p-3 hover:bg-slate-50 transition animate-fade-in"><div class="flex items-center gap-3"><span class="text-lg bg-slate-100 w-8 h-8 flex items-center justify-center rounded-full">${icon}</span><div><div class="font-bold text-slate-700 leading-tight">${clean(name)}</div><div class="text-[10px] text-slate-400 font-mono">Cant: ${details} ${it.merma > 0 ? `<span class="text-red-400">(-${it.merma}%)</span>` : ''}</div></div></div><button onclick="tempItems.splice(${i},1);renderRecItems()" class="text-slate-300 hover:text-red-500 hover:bg-red-50 w-8 h-8 rounded-full transition">✕</button></div>`; 
-    }).join(''); 
-}
-function saveRec(id) { 
-    const n = document.getElementById('er-n').value; if(!n) return toast("Falta nombre", "error");
-    const idx = db.recetas.findIndex(x => x.id === id); 
-    const r = { id, n, pvp: parseFloat(document.getElementById('er-pvp').value)||0, time: parseFloat(document.getElementById('er-time').value)||0, items: tempItems, inst: document.getElementById('er-inst').value, sales: (db.recetas.find(x => x.id === id)?.sales || 0) }; 
-    if (idx >= 0) db.recetas[idx] = r; else db.recetas.push(r); 
-    save("Ficha Guardada"); closeModal(); render('Cocina'); 
-}
-function deleteRec(id) { if (confirm("¿Borrar?")) { db.recetas = db.recetas.filter(x => x.id !== id); save("Eliminada"); closeModal(); render('Cocina'); } }
-function viewRec(id) { 
-    const r = db.recetas.find(x => x.id === id); if(!r) return;
-    
-    // Función interna para generar la lista de ingredientes según la cantidad
-    window.renderIngsForCalc = (factor) => {
-        return r.items.map(it => { 
-            let n="???", d="", baseQ=it.q; 
-            let finalQ = baseQ * factor; 
-            
-            if(it.type==='ing'){ 
-                const i=db.ingredientes.find(x=>x.id===it.id); 
-                n=i?i.n:'Eliminado'; 
-                // Usamos la unidad que se guardó en la receta (ej: g o ml)
-                d=`${Num.fmt(finalQ)} ${it.unit || i?.unit || 'ud'}`; 
-            } else { 
-                const rc=db.recetas.find(x=>x.id===it.id); 
-                n=rc?`🥣 ${rc.n}`:'Borrada'; 
-                d=`${Num.fmt(finalQ)} rac`; 
-            } 
-            return `<li class="flex justify-between text-slate-600 border-b border-slate-50 pb-1 last:border-0">
-                <span>${n}</span> 
-                <span class="font-mono font-bold text-indigo-600">${d}</span>
-            </li>`; 
-        }).join('');
-    };
-
-    const c = calcRecipe(r); 
-    const pvp = r.pvp || 0; 
-    const foodCost = pvp > 0 ? (c.t / pvp) * 100 : 0;
-    let semColor = 'text-slate-400';
-    if(pvp > 0) { if(foodCost < 30) semColor = 'text-emerald-500'; else if(foodCost < 40) semColor = 'text-orange-500'; else semColor = 'text-red-500'; }
-
-    showModal(clean(r.n), `
-        <div class="grid grid-cols-3 gap-2 mb-4">
-            <div class="bg-slate-50 p-2 rounded-xl text-center border border-slate-100">
-                <div class="text-[9px] text-slate-400 font-bold uppercase">Coste Ud</div>
-                <div class="text-lg font-black text-slate-800">${Num.fmt(c.t)}€</div>
-            </div>
-            <div class="bg-slate-50 p-2 rounded-xl text-center border border-slate-100">
-                <div class="text-[9px] text-slate-400 font-bold uppercase">PVP</div>
-                <div class="text-lg font-black text-slate-800">${Num.fmt(pvp)}€</div>
-            </div>
-            <div class="bg-slate-50 p-2 rounded-xl text-center border border-slate-100">
-                <div class="text-[9px] text-slate-400 font-bold uppercase">Food Cost</div>
-                <div class="text-lg font-black ${semColor}">${foodCost.toFixed(1)}%</div>
-            </div>
-        </div>
-        <div class="bg-indigo-50 p-3 rounded-xl border border-indigo-100 mb-4 flex items-center justify-between shadow-sm">
-            <div>
-                <div class="text-xs font-bold text-indigo-800 uppercase flex items-center gap-1">🥣 A Cocinar</div>
-                <div class="text-[10px] text-indigo-500">Multiplicador de cantidades</div>
-            </div>
-            <div class="flex items-center gap-2 bg-white rounded-lg p-1 border border-indigo-200">
-                <span class="text-xs font-bold text-indigo-400 pl-2">x</span>
-                <input type="number" id="calc-qty" value="1" min="0.1" step="0.5" class="w-16 text-center font-black text-xl text-indigo-700 outline-none" 
-                oninput="document.getElementById('ing-list-view').innerHTML = window.renderIngsForCalc(this.value)">
-            </div>
-        </div>
-        <div class="mb-6">
-            <h4 class="font-bold text-slate-800 text-xs uppercase mb-2 border-b pb-1 tracking-widest">Ingredientes necesarios</h4>
-            <ul class="text-sm space-y-2" id="ing-list-view">${window.renderIngsForCalc(1)}</ul>
-        </div>
-        ${r.inst ? `<div class="mb-6 bg-yellow-50 p-4 rounded-xl border border-yellow-100 relative print:border-slate-200"><p class="text-sm text-slate-700 whitespace-pre-line leading-relaxed font-serif">${clean(r.inst)}</p></div>` : ''}
-        <div class="flex gap-2">
-            <button class="btn-ghost flex-1" onclick="window.print()">🖨️ IMPRIMIR</button>
-            <button class="btn-premium flex-1" onclick="editRec('${r.id}')">✏️ EDITAR</button>
-        </div>
-    `); 
-}
-/* ================= 8. STOCK & AUDITORÍA PRO (V147 FIXED) ================= */
-function renderStock(app) {
-    const isAdmin = currentUser?.role === 'admin';
-    
-    // 1. Filtrado
-    let filtered = db.ingredientes.filter(i => i.n.toLowerCase().includes(searchFilter.toLowerCase()));
-    if (activeFamily !== 'Todos') filtered = filtered.filter(i => (i.fam || 'General') === activeFamily);
-    filtered.sort((a,b) => a.n.localeCompare(b.n));
-
-    // 2. Valoración total
-    const totalStockValue = filtered.reduce((acc, i) => acc + (i.stock * i.cost), 0);
-
-    // 3. Chips de Categorías
-    const catChips = ['Todos', ...FAMILIES].map(cat => 
-        `<button class="px-3 py-1 rounded-full text-[10px] font-bold border transition whitespace-nowrap ${activeFamily===cat ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-100'}" onclick="activeFamily='${cat}';render('Stock')">${cat}</button>`
-    ).join('');
-
-    app.innerHTML = `
-        <div class="glass-card ${inventoryMode ? 'border-l-4 border-orange-500 bg-orange-50/10' : ''}">
-            <div class="flex justify-between items-center mb-4">
-                <h3 class="font-bold text-slate-800 flex items-center gap-2">
-                    ${inventoryMode ? '📋 MODO AUDITORÍA' : '📦 ALMACÉN'}
-                </h3>
-                <div class="flex gap-2">
-                    ${!inventoryMode ? `<button class="btn-whatsapp text-xs font-bold px-3 py-2 rounded-lg border-0 shadow-sm" onclick="sendWhatsApp()">📞 PEDIDO</button>` : ''}
-                    <button class="${inventoryMode ? 'bg-slate-800 text-white shadow-lg' : 'bg-white text-slate-600 border border-slate-200'} px-4 py-2 rounded-lg text-xs font-bold transition" onclick="toggleInventoryMode()">
-                        ${inventoryMode ? '❌ SALIR' : '📋 AUDITAR'}
-                    </button>
-                </div>
-            </div>
-
-            <input placeholder="🔍 Buscar producto..." onkeyup="searchFilter=this.value;render('Stock')" value="${searchFilter}" class="input-premium mb-3">
-            <div class="flex gap-2 overflow-x-auto pb-2 mb-2 no-scrollbar">${catChips}</div>
-
-            <div class="max-h-[60vh] overflow-y-auto pr-1 space-y-2">
-                ${filtered.map(i => {
-                    const lowStock = i.stock < (i.min||0);
-                    const famLabel = i.fam && i.fam !== 'General' ? `<span class="text-[9px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded ml-1 uppercase tracking-wider font-bold">${i.fam}</span>` : '';
-
-                    if(inventoryMode) {
-                        // === VISTA AUDITORÍA (CON BOTÓN DE CHECK) ===
-                        return `
-                        <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex justify-between items-center animate-slide-up">
-                            <div class="flex-1">
-                                <div class="font-bold text-slate-800 text-sm flex items-center">${clean(i.n)} ${famLabel}</div>
-                                <div class="text-[10px] text-slate-400 font-mono">Teórico: <b>${i.stock}</b> ${i.unit}</div>
-                            </div>
-                            <div class="flex items-center gap-2">
-                                <input type="number" id="real-stock-${i.id}" placeholder="${i.stock}" class="w-24 bg-orange-50 border border-orange-200 rounded-lg p-2 text-center font-bold text-orange-800 outline-none focus:ring-2 focus:ring-orange-500 text-lg" onfocus="this.select()">
-                                <button class="w-12 h-10 rounded-lg bg-emerald-500 text-white flex items-center justify-center shadow-md hover:scale-105 transition active:scale-95" onclick="adjustStock('${i.id}')">✔</button>
-                            </div>
-                        </div>`;
-                    } else {
-                        // === VISTA NORMAL ===
-                        return `
-                        <div class="bg-white p-3 rounded-xl border ${lowStock ? 'border-red-300 bg-red-50/30' : 'border-slate-100'} shadow-sm flex justify-between items-center group relative">
-                            <div onclick="showKardex('${i.id}')" class="flex-1 cursor-pointer">
-                                <div class="font-bold text-slate-800 text-sm flex items-center">${clean(i.n)} ${famLabel}</div>
-                                <div class="text-xs text-slate-500 flex items-center gap-1 mt-1">
-                                    <span class="font-mono font-bold bg-slate-100 px-1.5 py-0.5 rounded text-slate-600 border border-slate-200 text-[10px]">${parseFloat(i.stock).toFixed(2)} ${i.unit}</span>
-                                    ${isAdmin ? `<span class="text-[10px] text-slate-400 ml-1">x ${Num.fmt(i.cost)}€ = <b>${Num.fmt(i.stock*i.cost)}€</b></span>` : ''}
-                                </div>
-                            </div>
-                            <div class="flex gap-2">
-                                <button class="w-8 h-8 flex items-center justify-center rounded-lg bg-orange-50 text-orange-500 hover:bg-orange-100 transition" onclick="regMerma('${i.id}')">📉</button>
-                                ${isAdmin ? `<button class="w-8 h-8 flex items-center justify-center rounded-lg bg-indigo-50 text-indigo-500 hover:bg-indigo-100 transition" onclick="showKardex('${i.id}')">📜</button>` : ''}
-                                <button class="w-8 h-8 flex items-center justify-center rounded-lg bg-slate-50 text-slate-400 hover:bg-slate-200 hover:text-slate-700 transition" onclick="editIng('${i.id}')">✏️</button>
-                            </div>
-                        </div>`;
-                    }
-                }).join('')}
-                
-                ${filtered.length === 0 ? '<div class="text-center p-8 text-slate-400 italic">No hay productos con este filtro</div>' : ''}
-            </div>
-
-            ${isAdmin && !inventoryMode ? `
-            <div class="mt-4 flex justify-between items-center bg-slate-900 text-white p-4 rounded-xl shadow-lg">
-                <div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Valor Inventario</div>
-                <div class="text-xl font-black">${Num.fmt(totalStockValue)}€</div>
-            </div>
-            <button class="btn-premium mt-4" onclick="editIng(generateID())">+ AÑADIR PRODUCTO</button>
-            ` : ''}
-        </div>`;
-}
-
-function toggleInventoryMode() {
-    inventoryMode = !inventoryMode;
-    render('Stock');
-    if(inventoryMode) toast("Modo Auditoría: Introduce el stock REAL");
-}
-
-function adjustStock(id) {
-    const input = document.getElementById(`real-stock-${id}`);
-    const realQty = Num.parse(input.value);
-    const i = db.ingredientes.find(x => x.id === id);
-
-    if (!isNaN(realQty) && i) {
-        const diff = realQty - i.stock;
-        
-        if (diff !== 0) {
-            // Registrar el ajuste en el Kardex
-            logStock(i.id, Math.abs(diff), 'ADJ', 'Auditoría', i.cost);
-            i.stock = realQty;
-            
-            // Guardar y feedback visual
-            save(`Stock actualizado: ${realQty} ${i.unit}`);
-            render('Stock'); // Refrescar para ver el cambio
-        } else {
-            toast("✅ El stock coincide, todo correcto", "success");
-        }
-    } else {
-        toast("Introduce un número válido", "error");
-    }
-}
-/* === NUEVO SISTEMA DE PEDIDOS INTELIGENTES (V147 PRO) === */
-
-// 1. Abre el panel de revisión
-function sendWhatsApp() {
-    let listItems = db.ingredientes.filter(i => i.stock < (i.min || 0));
-    
-    // Filtrar por familia si hay una seleccionada
-    if(activeFamily !== 'Todos') {
-        listItems = listItems.filter(i => (i.fam || 'General') === activeFamily);
-    }
-
-    if(listItems.length === 0) return toast("✅ Todo el stock está correcto", "success");
-
-    // Generamos el HTML de la lista editable
-    const htmlList = listItems.map(i => {
-        // Fórmula: (Mínimo - Stock Actual) + 20% de seguridad
-        const suggested = ((i.min||0) - i.stock + ((i.min||0)*0.2)); 
-        const qty = suggested > 0 ? suggested : 0;
-        
-        return `
-        <div class="flex justify-between items-center bg-slate-50 p-2 rounded-lg border border-slate-200 mb-2">
-            <div class="flex-1">
-                <div class="font-bold text-slate-700 text-sm">${clean(i.n)}</div>
-                <div class="text-[9px] text-slate-400">Stock: ${parseFloat(i.stock).toFixed(2)} / Min: ${i.min}</div>
-            </div>
-            <div class="flex items-center gap-1">
-                <input type="number" id="ord-${i.id}" value="${Math.ceil(qty)}" class="w-16 text-center font-bold bg-white border border-indigo-200 rounded text-indigo-600 outline-none p-1">
-                <span class="text-[10px] font-bold text-slate-400 w-6">${i.unit}</span>
-            </div>
-        </div>`;
-    }).join('');
-
-    // Recuperamos datos del proveedor para la cabecera
-    let provName = "General";
-    let provTel = "";
-    
-    if (activeFamily !== 'Todos') {
-        const p = db.proveedores.find(x => x.fam === activeFamily);
-        if(p) { provName = p.n; provTel = p.tel; }
-    }
-
-    // Mostramos el Modal de Revisión
-    showModal(`🛒 Pedido: ${activeFamily}`, `
-        <div class="bg-orange-50 p-3 rounded-lg text-orange-800 text-xs mb-4 flex items-center gap-2">
-            <span>⚠️</span> Revisa las cantidades antes de enviar.
-        </div>
-        
-        <div class="flex gap-2 mb-4">
-            <div class="flex-1">
-                <label>Proveedor</label>
-                <input value="${provName}" id="order-prov-name" class="input-premium bg-slate-100" readonly>
-            </div>
-            <div class="w-1/3">
-                <label>Teléfono</label>
-                <input value="${provTel}" id="order-prov-tel" class="input-premium font-mono" placeholder="34...">
-            </div>
-        </div>
-
-        <div class="max-h-60 overflow-y-auto mb-4 custom-scrollbar pr-1">
-            ${htmlList}
-        </div>
-
-        <div class="grid grid-cols-2 gap-3">
-            <button class="btn-ghost" onclick="copyOrderText()">📋 COPIAR TEXTO</button>
-            <button class="btn-whatsapp shadow-lg border-0" onclick="launchWhatsApp()">🚀 ENVIAR WHATSAPP</button>
-        </div>
-    `);
-}
-
-// 2. Genera el texto y lanza la app
-function launchWhatsApp() {
-    const tel = document.getElementById('order-prov-tel').value.replace(/\D/g,'');
-    if(!tel) return toast("Falta el teléfono del proveedor", "error");
-    
-    const text = buildOrderText();
-    window.open(`https://wa.me/${tel}?text=${encodeURIComponent(text)}`, '_blank');
-    closeModal();
-}
-
-// 3. Copia al portapapeles (para Email o proveedores web)
-function copyOrderText() {
-    const text = buildOrderText();
-    navigator.clipboard.writeText(text).then(() => toast("📋 Pedido copiado al portapapeles"));
-}
-
-// 4. Auxiliar para construir el mensaje
-function buildOrderText() {
-    const inputs = document.querySelectorAll('input[id^="ord-"]');
-    let lines = [`🛒 *PEDIDO ARUME - ${getTS()}*`, ""]; // Encabezado
-    
-    inputs.forEach(inp => {
-        const qty = parseFloat(inp.value);
-        if(qty > 0) {
-            const id = inp.id.replace('ord-', '');
-            const ing = db.ingredientes.find(x => x.id === id);
-            if(ing) {
-                lines.push(`- ${qty} ${ing.unit} ${ing.n}`);
-            }
+function calcRecipe(r, visited=new Set()) {
+    if(!r || visited.has(r.id)) return {t:0}; visited.add(r.id);
+    let t=0;
+    (r.items||[]).forEach(it => {
+        const yieldF = it.merma ? (1-(it.merma/100)) : 1;
+        if(it.type==='ing'){
+            const i = db.ingredientes.find(x=>x.id===it.id);
+            if(i) t += (UnitConverter.convert(it.q, it.unit||i.unit, i.unit) * i.cost) / yieldF;
+        } else if(it.type==='rec'){
+            const sub = db.recetas.find(x=>x.id===it.id);
+            if(sub) t += calcRecipe(sub, new Set(visited)).t * it.q;
         }
     });
-    
-    lines.push("", "Gracias! 👋");
-    return lines.join('\n');
+    return {t};
 }
-function showKardex(id) { 
-    if (currentUser.role !== 'admin') return; 
-    const i = db.ingredientes.find(x => x.id === id); 
-    const logs = db.kardex.filter(k => k.ingId === id).reverse().slice(0, 50); 
-    showModal(`Kardex: ${clean(i.n)}`, `
-        <div class="text-xs text-slate-400 mb-2 font-bold uppercase">Movimientos recientes</div>
-        <div class="max-h-60 overflow-y-auto bg-slate-50 rounded-xl p-2 border border-slate-100">
-            ${logs.map(l => `
-                <div class="flex justify-between py-2 border-b border-slate-200 last:border-0">
-                    <div>
-                        <div class="font-bold text-slate-700">${l.date}</div>
-                        <div class="text-[10px] text-slate-500">${l.reason}</div>
-                    </div>
-                    <div class="text-right">
-                        <div class="${l.type==='IN'?'text-emerald-500':'text-red-500'} font-bold">${l.type==='IN'?'+':'-'} ${l.qty} ${l.unit}</div>
-                        <div class="text-[10px] text-slate-400">${Num.fmt(l.price)}€/ud</div>
-                    </div>
-                </div>`).join('')}
-        </div>`); 
+function editRec(id) {
+    const r = id ? db.recetas.find(x=>x.id===id) : {id:generateID(), n:'', pvp:0, items:[]};
+    tempItems = JSON.parse(JSON.stringify(r.items||[]));
+    showModal('Receta', `<input id="er-n" value="${clean(r.n)}" class="input-premium mb-2" placeholder="Nombre"><input id="er-pvp" type="number" value="${r.pvp}" class="input-premium mb-4" placeholder="PVP">
+    <div class="flex gap-2 mb-2"><select id="er-sel" class="input-premium" onchange="updUnit()"></select><input id="er-q" type="number" class="input-premium w-20" placeholder="Cant"><select id="er-u" class="input-premium w-20"></select><button class="btn-premium w-12" onclick="addItem()">+</button></div><div id="er-list"></div><button class="btn-premium mt-4" onclick="saveRec('${r.id}')">GUARDAR</button>`);
+    renderRecTypes(); renderRecItems();
 }
-
-function regMerma(id) { 
-    const i = db.ingredientes.find(x => x.id === id); 
-    showModal('Merma', `
-        <p class="text-sm text-slate-500 mb-4">Producto: <b>${clean(i.n)}</b></p>
-        <label>Cantidad Perdida (${i.unit})</label>
-        <input type="number" id="m-q" class="input-premium text-center font-bold text-lg" placeholder="0">
-        <label>Motivo</label>
-        <select id="m-r" class="input-premium mb-4">
-            <option>Caducidad</option>
-            <option>Rotura</option>
-            <option>Error Cocina</option>
-            <option>Consumo Personal</option>
-        </select>
-        <button class="btn-premium btn-danger mt-4 border-0" onclick="saveMerma('${id}')">REGISTRAR PÉRDIDA</button>
-    `); 
+function renderRecTypes() {
+    const sel = document.getElementById('er-sel');
+    sel.innerHTML = db.ingredientes.map(i=>`<option value="${i.id}" data-t="ing">${clean(i.n)}</option>`).join('') + db.recetas.map(r=>`<option value="${r.id}" data-t="rec">🥣 ${clean(r.n)}</option>`).join('');
+    updUnit();
 }
-function saveMerma(id) { 
-    const i = db.ingredientes.find(x => x.id === id); 
-    const q = parseFloat(document.getElementById('m-q').value); 
-    const r = document.getElementById('m-r').value; 
-    if (q > 0) { 
-        i.stock -= q; 
-        db.mermas.push({ date: getISO(), n: i.n, q, reason: r, loss: q * i.cost }); 
-        logStock(i.id, q, 'OUT', `Merma: ${r}`); 
-        save("Merma registrada"); 
-        closeModal(); 
-        render('Stock'); 
-    } else {
-        toast("Introduce cantidad", "error");
-    }
+function updUnit() {
+    const sel = document.getElementById('er-sel'); const uSel = document.getElementById('er-u');
+    const type = sel.options[sel.selectedIndex]?.dataset.t;
+    const id = sel.value;
+    let opts = ['ud'];
+    if(type==='ing') {
+        const i = db.ingredientes.find(x=>x.id===id);
+        if(i) {
+            const u = UnitConverter.normalize(i.unit);
+            if(['kg','g'].includes(u)) opts=['g','kg'];
+            else if(['l','ml'].includes(u)) opts=['ml','l','cl'];
+            else opts=[u];
+        }
+    } else opts=['rac'];
+    uSel.innerHTML = opts.map(u=>`<option>${u}</option>`).join('');
 }
-function editIng(id) { 
-    const i = db.ingredientes.find(x => x.id === id) || { id, n: '', cost: 0, stock: 0, min: 0, unit: 'kg', fam: 'General', aller: [] }; 
-    const famOptions = FAMILIES.map(f => `<option value="${f}" ${i.fam===f?'selected':''}>${f}</option>`).join('');
-    
-    showModal('Ficha Almacén', `
-        <label>Nombre</label>
-        <input id="ei-n" value="${clean(i.n)}" class="input-premium" placeholder="Ej: Harina">
-        <label>Categoría</label>
-        <select id="ei-fam" class="input-premium mb-4">${famOptions}</select>
-        <div class="grid grid-cols-3 gap-2">
-            <div><label>Coste (€)</label><input id="ei-c" type="number" value="${i.cost}" class="input-premium"></div>
-            <div><label>Stock</label><input id="ei-s" type="number" value="${i.stock}" class="input-premium"></div>
-            <div><label>Mínimo</label><input id="ei-m" type="number" value="${i.min || 0}" class="input-premium"></div>
-        </div>
-        <label>Unidad</label>
-        <select id="ei-unit" class="input-premium">
-            <option ${i.unit==='kg'?'selected':''} value="kg">kg</option>
-            <option ${i.unit==='g'?'selected':''} value="g">g</option>
-            <option ${i.unit==='l'?'selected':''} value="l">l</option>
-            <option ${i.unit==='ml'?'selected':''} value="ml">ml</option>
-            <option ${i.unit==='ud'?'selected':''} value="ud">ud</option>
-        </select>
-        <label>Alérgenos</label>
-        <div class="flex flex-wrap gap-2 mt-2">
-            ${ALLERGENS.map(a => `<div class="p-2 border rounded-lg cursor-pointer ${i.aller.includes(a.k)?'bg-indigo-100 border-indigo-500 text-indigo-700':'bg-white border-slate-200'}" onclick="this.classList.toggle('bg-indigo-100');this.classList.toggle('border-indigo-500');this.classList.toggle('active')">${a.i}</div>`).join('')}
-        </div>
-        <div class="flex gap-3 mt-6">
-            <button class="btn-premium flex-1" onclick="saveIng('${i.id}')">GUARDAR</button>
-            ${db.ingredientes.find(x => x.id === id) ? `<button class="btn-icon btn-delete w-auto px-4" onclick="deleteIng('${id}')">🗑️</button>` : ''}
-        </div>
-    `); 
-    
-    // Restaurar selección visual de alérgenos
-    setTimeout(() => { 
-        const divs = document.querySelectorAll('#m-body .flex div'); 
-        i.aller.forEach(k => { 
-            const idx = ALLERGENS.findIndex(a => a.k === k); 
-            if (divs[idx]) divs[idx].classList.add('active'); 
-        }); 
-    }, 50); 
+function addItem() {
+    const sel = document.getElementById('er-sel');
+    const type = sel.options[sel.selectedIndex].dataset.t;
+    const q = parseFloat(document.getElementById('er-q').value);
+    if(q>0) { tempItems.push({type, id:sel.value, q, unit:document.getElementById('er-u').value}); renderRecItems(); }
+}
+function renderRecItems() {
+    document.getElementById('er-list').innerHTML = tempItems.map((it,i) => {
+        let n = "Borrado";
+        if(it.type==='ing') { const x=db.ingredientes.find(z=>z.id===it.id); if(x) n=x.n; }
+        else { const x=db.recetas.find(z=>z.id===it.id); if(x) n=x.n; }
+        return `<div class="flex justify-between py-2 border-b"><span>${n}</span><span>${it.q} ${it.unit}</span><button onclick="tempItems.splice(${i},1);renderRecItems()">✕</button></div>`;
+    }).join('');
+}
+function saveRec(id) {
+    const n = document.getElementById('er-n').value; if(!n) return;
+    const r = { id, n, pvp: parseFloat(document.getElementById('er-pvp').value)||0, items: tempItems };
+    const idx = db.recetas.findIndex(x=>x.id===id);
+    if(idx>=0) db.recetas[idx]=r; else db.recetas.push(r);
+    save("Receta guardada"); closeModal(); render('Cocina');
+}
+function viewRec(id) {
+    const r = db.recetas.find(x=>x.id===id);
+    if(r) showModal(r.n, `<div class="p-4"><h3 class="font-bold mb-2">Ingredientes</h3><ul>${r.items.map(it=>{
+        let n="?"; if(it.type==='ing'){const i=db.ingredientes.find(x=>x.id===it.id); if(i)n=i.n;} else {const s=db.recetas.find(x=>x.id===it.id); if(s)n=s.n;}
+        return `<li>${it.q} ${it.unit} ${n}</li>`;
+    }).join('')}</ul><div class="mt-4 flex gap-2"><button class="btn-premium" onclick="editRec('${id}')">Editar</button></div></div>`);
 }
 
-function saveIng(id) { 
-    const divs = document.querySelectorAll('#m-body .flex div'); 
-    const aller = []; 
-    divs.forEach((d, i) => { if (d.classList.contains('active')) aller.push(ALLERGENS[i].k) }); 
-    
-    const n = document.getElementById('ei-n').value;
-    if(!n) return toast("Falta el nombre", "error");
-
-    const ing = { 
-        id, n, 
-        fam: document.getElementById('ei-fam').value, 
-        cost: parseFloat(document.getElementById('ei-c').value)||0, 
-        stock: parseFloat(document.getElementById('ei-s').value)||0, 
-        min: parseFloat(document.getElementById('ei-m').value)||0, 
-        unit: document.getElementById('ei-unit').value||'kg', 
-        aller 
-    }; 
-    
-    const idx = db.ingredientes.findIndex(x => x.id === id); 
-    if (idx >= 0) db.ingredientes[idx] = ing; else db.ingredientes.push(ing); 
-    
-    save("Producto Guardado"); 
-    closeModal(); 
-    render('Stock'); 
+/* === STOCK === */
+function renderStock(app) {
+    const list = db.ingredientes.filter(i=>i.n.toLowerCase().includes(searchFilter.toLowerCase())).sort((a,b)=>a.n.localeCompare(b.n));
+    app.innerHTML = `<div class="glass-card"><h3 class="font-bold text-slate-800 mb-4">ALMACÉN</h3><input class="input-premium mb-4" placeholder="Buscar..." onkeyup="searchFilter=this.value;render('Stock')" value="${searchFilter}"><div class="space-y-2">${list.map(i=>`<div class="bg-white p-3 rounded-xl border border-slate-100 flex justify-between items-center" onclick="editIng('${i.id}')"><div><div class="font-bold">${clean(i.n)}</div><div class="text-xs text-slate-400">${i.stock} ${i.unit}</div></div><div class="font-bold">${Num.fmt(i.cost)}€</div></div>`).join('')}</div><button class="btn-premium mt-4" onclick="editIng(generateID())">+ PRODUCTO</button></div>`;
+}
+function editIng(id) {
+    const i = db.ingredientes.find(x=>x.id===id) || {id, n:'', cost:0, stock:0, unit:'kg', fam:'General'};
+    const fams = FAMILIES.map(f=>`<option ${i.fam===f?'selected':''}>${f}</option>`).join('');
+    showModal('Producto', `<label>Nombre</label><input id="ei-n" value="${clean(i.n)}" class="input-premium mb-2"><label>Familia</label><select id="ei-f" class="input-premium mb-2">${fams}</select><div class="grid grid-cols-3 gap-2"><div><label>Coste</label><input id="ei-c" type="number" value="${i.cost}" class="input-premium"></div><div><label>Stock</label><input id="ei-s" type="number" value="${i.stock}" class="input-premium"></div><div><label>Ud</label><select id="ei-u" class="input-premium"><option ${i.unit==='kg'?'selected':''}>kg</option><option ${i.unit==='g'?'selected':''}>g</option><option ${i.unit==='l'?'selected':''}>l</option><option ${i.unit==='ud'?'selected':''}>ud</option></select></div></div><button class="btn-premium mt-4" onclick="saveIng('${id}')">GUARDAR</button>`);
+}
+function saveIng(id) {
+    const n = document.getElementById('ei-n').value; if(!n) return;
+    const item = { id, n, fam: document.getElementById('ei-f').value, cost: parseFloat(document.getElementById('ei-c').value)||0, stock: parseFloat(document.getElementById('ei-s').value)||0, unit: document.getElementById('ei-u').value };
+    const idx = db.ingredientes.findIndex(x=>x.id===id);
+    if(idx>=0) db.ingredientes[idx]=item; else db.ingredientes.push(item);
+    save("Guardado"); closeModal(); render('Stock');
 }
 
-function deleteIng(id) { 
-    if (confirm("¿Borrar producto permanentemente?")) { 
-        db.ingredientes = db.ingredientes.filter(i => i.id !== id); 
-        save("Borrado"); 
-        closeModal(); 
-        render('Stock'); 
-    } 
+/* === ADMIN / RESTORE === */
+function restoreBackup(input) {
+    const r = new FileReader();
+    r.onload = e => { try { db=secure.dec(e.target.result); save("Restaurado y subido a Supabase"); loadApp(); } catch(err){ toast("Error archivo","error"); } };
+    r.readAsText(input.files[0]);
 }
-/* ================= 9. DIARIO & CIERRE DE CAJA ================= */
-function renderDiario(app){
-    // 1. Buscamos los datos del día actual o iniciamos a 0
-    const r = db.diario.find(d => d.date === currentDiarioDate) || { cash:0, visa:0, tpv:0, amex:0, glovo:0, uber:0, apper:0, expenses:0 };
-    
-    // 2. Cálculos
-    const totalVenta = (r.cash||0) + (r.visa||0) + (r.tpv||0) + (r.amex||0) + (r.glovo||0) + (r.uber||0) + (r.apper||0);
-    const realCash = (r.cash||0) - (r.expenses||0);
-    
-    // 3. Generar historial visual
-    const historyRows = db.diario.filter(d => isInPeriod(d.date)).sort((a,b) => b.date.localeCompare(a.date)).map(d => `
-        <div class="flex justify-between items-center py-3 border-b border-slate-50 last:border-0 hover:bg-slate-50 transition px-2 rounded-lg"> 
-            <div class="font-bold text-slate-700 cursor-pointer" onclick="currentDiarioDate='${d.date}';render('Diario')">
-                📅 ${d.date}
-            </div> 
-            <div class="font-mono font-bold text-indigo-600">${Num.fmt(d.total)}€</div> 
-        </div>
-    `).join('');
-
-    app.innerHTML = `
-    <div class="glass-card">
-        <div class="flex justify-between items-center mb-6">
-            <h3 class="font-bold text-slate-800">CIERRE DE CAJA</h3>
-            <input type="date" value="${currentDiarioDate}" class="bg-slate-100 border-0 rounded-lg p-2 font-bold text-indigo-600 outline-none" onchange="currentDiarioDate=this.value;render('Diario')">
-        </div>
-        
-        <div class="space-y-4">
-            <div class="bg-emerald-50/50 p-4 rounded-xl border border-emerald-100">
-                <div class="text-[10px] font-bold text-emerald-600 mb-2 uppercase tracking-wider">💵 Efectivo</div>
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label>Venta Efectivo</label>
-                        <input type="number" id="z-cash" value="${r.cash||0}" class="input-premium text-center font-bold text-lg" oninput="calcTotal()" onclick="this.select()">
-                    </div>
-                    <div>
-                        <label class="text-red-400">Gastos / Pagos</label>
-                        <input type="number" id="z-expenses" value="${r.expenses||0}" class="input-premium text-center text-red-500 font-bold text-lg" oninput="calcTotal()" onclick="this.select()">
-                    </div>
-                </div>
-                <div class="text-right mt-3 text-xs font-bold text-emerald-700 bg-emerald-100/50 p-2 rounded-lg">
-                    En Cajón: <span id="z-real-cash" class="text-lg ml-1">${Num.fmt(realCash)}</span>€
-                </div>
-            </div>
-
-            <div class="bg-blue-50/50 p-4 rounded-xl border border-blue-100">
-                <div class="text-[10px] font-bold text-blue-600 mb-2 uppercase tracking-wider">💳 Tarjetas</div>
-                <div class="grid grid-cols-3 gap-2">
-                    <div><label>Visa</label><input type="number" id="z-visa" value="${r.visa||0}" class="input-premium text-center" oninput="calcTotal()" onclick="this.select()"></div>
-                    <div><label>TPV</label><input type="number" id="z-tpv" value="${r.tpv||0}" class="input-premium text-center" oninput="calcTotal()" onclick="this.select()"></div>
-                    <div><label>Amex</label><input type="number" id="z-amex" value="${r.amex||0}" class="input-premium text-center" oninput="calcTotal()" onclick="this.select()"></div>
-                </div>
-            </div>
-
-            <div class="bg-orange-50/50 p-4 rounded-xl border border-orange-100">
-                <div class="text-[10px] font-bold text-orange-600 mb-2 uppercase tracking-wider">🛵 Delivery</div>
-                <div class="grid grid-cols-3 gap-2">
-                    <div><label>Glovo</label><input type="number" id="z-glovo" value="${r.glovo||0}" class="input-premium text-center" oninput="calcTotal()" onclick="this.select()"></div>
-                    <div><label>Uber</label><input type="number" id="z-uber" value="${r.uber||0}" class="input-premium text-center" oninput="calcTotal()" onclick="this.select()"></div>
-                    <div><label>Apper</label><input type="number" id="z-apper" value="${r.apper||0}" class="input-premium text-center" oninput="calcTotal()" onclick="this.select()"></div>
-                </div>
-            </div>
-
-            <div class="flex justify-between items-center pt-4 border-t border-slate-100 mt-2">
-                <span class="font-bold text-slate-400 text-xs tracking-widest uppercase">Venta Total Día</span>
-                <span id="z-total-display" class="text-4xl font-black text-slate-800">${Num.fmt(totalVenta)}€</span>
-            </div>
-        </div>
-        
-        <button class="btn-premium mt-6 shadow-xl shadow-indigo-200" onclick="saveZ()">💾 GUARDAR CIERRE</button>
-    </div>
-
-    <div class="glass-card">
-        <h3 class="font-bold text-xs text-slate-400 mb-4 uppercase tracking-wider">Historial Trimestre ${fiscalQuarter}</h3>
-        <div class="max-h-60 overflow-y-auto mb-4 custom-scrollbar">
-            ${historyRows}
-        </div>
-        <button class="btn-ghost w-full flex justify-center items-center gap-2" onclick="exportDiarioCSV()">
-            📊 DESCARGAR EXCEL CAJAS
-        </button>
-    </div>`;
+function renderAdmin(app) {
+    app.innerHTML = `<div class="glass-card"><h3>Administración</h3><p class="text-xs text-slate-400 mb-4">Conectado a Supabase</p><button class="btn-premium mb-2" onclick="document.getElementById('backup-input').click()">📤 RESTAURAR COPIA SEGURIDAD</button><button class="btn-ghost" onclick="downloadBackup()">💾 DESCARGAR COPIA</button></div>`;
 }
-
-function calcTotal() { 
-    const v = (id) => Num.parse(document.getElementById(id).value); 
-    const cash = v('z-cash'), exp = v('z-expenses'); 
-    const total = cash + v('z-visa') + v('z-tpv') + v('z-amex') + v('z-glovo') + v('z-uber') + v('z-apper'); 
-    
-    document.getElementById('z-total-display').innerText = Num.fmt(total)+'€'; 
-    document.getElementById('z-real-cash').innerText = Num.fmt(cash - exp); 
-}
-
-function saveZ(){ 
-    const v = (id) => Num.parse(document.getElementById(id).value); 
-    const data = { 
-        date: currentDiarioDate, 
-        cash: v('z-cash'), expenses: v('z-expenses'), 
-        visa: v('z-visa'), tpv: v('z-tpv'), amex: v('z-amex'), 
-        glovo: v('z-glovo'), uber: v('z-uber'), apper: v('z-apper'), 
-        total: v('z-cash') + v('z-visa') + v('z-tpv') + v('z-amex') + v('z-glovo') + v('z-uber') + v('z-apper') 
-    }; 
-    
-    const idx = db.diario.findIndex(d => d.date === currentDiarioDate); 
-    if(idx >= 0) db.diario[idx] = data; 
-    else db.diario.push(data); 
-    
-    save("Cierre Guardado Correctamente"); 
-    render('Diario'); 
-}
-
-function exportDiarioCSV() { 
-    if(!db.diario.length) return toast("No hay datos para exportar", "error"); 
-    const header = ['Fecha', 'Efectivo', 'Gastos', 'Visa', 'TPV', 'Amex', 'Glovo', 'Uber', 'Apper', 'Total']; 
-    const rows = db.diario.filter(d => isInPeriod(d.date)).sort((a,b) => b.date.localeCompare(a.date))
-        .map(d => [d.date, Num.csv(d.cash), Num.csv(d.expenses), Num.csv(d.visa), Num.csv(d.tpv), Num.csv(d.amex), Num.csv(d.glovo), Num.csv(d.uber), Num.csv(d.apper), Num.csv(d.total)]); 
-    
-    const csv = [header.join(';'), ...rows.map(r => r.join(';'))].join('\n'); 
-    const blob = new Blob(["\uFEFF"+csv], {type:'text/csv;charset=utf-8'}); 
-    const a = document.createElement('a'); 
-    a.href = URL.createObjectURL(blob); 
-    a.download = `Cajas_${fiscalYear}_Q${fiscalQuarter}.csv`; 
-    a.click(); 
-}
-/* ================= 10. UTILS & BACKUP ================= */
+function downloadBackup(){ const d=secure.enc(db); const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([d],{type:'text/plain'})); a.download=`Arume_Backup_${getISO()}.arume`; a.click(); }
 function showModal(t,c){ document.getElementById('m-title').innerText=t; document.getElementById('m-body').innerHTML=c; document.getElementById('modal-overlay').classList.remove('hidden'); }
 function closeModal(){ document.getElementById('modal-overlay').classList.add('hidden'); }
-function downloadBackup(){ if(currentUser.role!=='admin') return toast("⛔ Solo Gerencia", "error"); const data = secure.enc(db); const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([data], {type: 'text/plain'})); a.download = `Arume_Backup_${getISO()}.arume`; a.click(); }
-function restoreBackup(input){ 
-    const r = new FileReader(); 
-    r.onload = e => { 
-        try { 
-            const d = secure.dec(e.target.result); 
-            if(d && d.users) { 
-                db=d; 
-                save("Restaurado correctamente"); 
-                // No usar reload, repintar
-                loadApp();
-            } else throw new Error(); 
-        } catch(err) { toast("Archivo corrupto", "error"); } 
-    }; 
-    r.readAsText(input.files[0]); 
-}
 
-/* ================= AUTO-SYNC (Sincronía en Segundo Plano) ================= */
-function startAutoSync() {
-    // Ejecutar cada 15 segundos
-    setInterval(async () => {
-        if (!CONFIG.GOOGLE_URL) return;
-        
-        try {
-            // 1. Consultamos la nube en silencio
-            const r = await fetch(CONFIG.GOOGLE_URL);
-            const cloudDB = await r.json();
-            
-            // 2. Comparamos fechas: ¿La nube es más nueva que lo que tengo aquí?
-            if (cloudDB && cloudDB.lastSync > (db.lastSync || 0)) {
-                
-                // SEGURIDAD: Si el usuario tiene una ventana abierta, NO molestamos
-                if (!document.getElementById('modal-overlay').classList.contains('hidden')) {
-                    console.log("Sincronización pendiente (Usuario ocupado)");
-                    return; 
-                }
-
-                // 3. Actualizamos
-                db = cloudDB;
-                localStorage.setItem('arume_v147', secure.enc(db));
-                
-                // 4. Refrescamos la pantalla
-                const activeView = document.querySelector('nav button.active')?.id.replace('btn-', '') || 'Cocina';
-                render(activeView);
-                
-                // 5. Aviso discreto
-                toast("☁️ Datos actualizados remotamente", "success");
-            }
-        } catch (e) {
-            console.log("Verificando nube..."); 
-        }
-    }, 15000); 
-}
-
-/* === MEMORIA DE SESIÓN (Opcional pero recomendado) === */
-window.onbeforeunload = function() {
-    const uiState = {
-        tab: activeAdminTab,
-        fam: activeFamily,
-        inv: inventoryMode,
-        year: fiscalYear,
-        q: fiscalQuarter,
-        lastView: document.querySelector('nav button.active')?.id.replace('btn-', '') || 'Cocina'
-    };
-    localStorage.setItem('arume_ui_memory', JSON.stringify(uiState));
-};
-
-/* ================= INIT ================= */
+// Init
 init();
-startAutoSync(); 
 </script>
 </body>
 </html>
