@@ -965,31 +965,110 @@ function adjustStock(id) {
         toast("Introduce un número válido", "error");
     }
 }
+/* === NUEVO SISTEMA DE PEDIDOS INTELIGENTES (V147 PRO) === */
 
+// 1. Abre el panel de revisión
 function sendWhatsApp() {
     let listItems = db.ingredientes.filter(i => i.stock < (i.min || 0));
-    if(activeFamily !== 'Todos') listItems = listItems.filter(i => (i.fam || 'General') === activeFamily);
     
-    const list = listItems.map(i => `- ${i.n}: Pedir ${((i.min||0) - i.stock + (i.min*0.2)).toFixed(2)} ${i.unit}`).join('%0A');
-    
-    if(!list) return toast("✅ Stock OK: No hace falta pedir nada", "success");
-    
-    let targetPhone = "";
-    if (activeFamily !== 'Todos') {
-        let prov = db.proveedores.find(p => p.fam === activeFamily);
-        if (prov) {
-            if (prov.tel) targetPhone = prov.tel;
-            else { 
-                const newTel = prompt(`El proveedor de ${activeFamily} (${prov.n}) no tiene teléfono.\nIndícalo (34...):`);
-                if (newTel) { prov.tel = newTel; targetPhone = newTel; save("Teléfono guardado"); } 
-            }
-        } else if (!confirm(`No hay proveedor para "${activeFamily}". ¿Usar pedido genérico?`)) return;
+    // Filtrar por familia si hay una seleccionada
+    if(activeFamily !== 'Todos') {
+        listItems = listItems.filter(i => (i.fam || 'General') === activeFamily);
     }
+
+    if(listItems.length === 0) return toast("✅ Todo el stock está correcto", "success");
+
+    // Generamos el HTML de la lista editable
+    const htmlList = listItems.map(i => {
+        // Fórmula: (Mínimo - Stock Actual) + 20% de seguridad
+        const suggested = ((i.min||0) - i.stock + ((i.min||0)*0.2)); 
+        const qty = suggested > 0 ? suggested : 0;
+        
+        return `
+        <div class="flex justify-between items-center bg-slate-50 p-2 rounded-lg border border-slate-200 mb-2">
+            <div class="flex-1">
+                <div class="font-bold text-slate-700 text-sm">${clean(i.n)}</div>
+                <div class="text-[9px] text-slate-400">Stock: ${parseFloat(i.stock).toFixed(2)} / Min: ${i.min}</div>
+            </div>
+            <div class="flex items-center gap-1">
+                <input type="number" id="ord-${i.id}" value="${Math.ceil(qty)}" class="w-16 text-center font-bold bg-white border border-indigo-200 rounded text-indigo-600 outline-none p-1">
+                <span class="text-[10px] font-bold text-slate-400 w-6">${i.unit}</span>
+            </div>
+        </div>`;
+    }).join('');
+
+    // Recuperamos datos del proveedor para la cabecera
+    let provName = "General";
+    let provTel = "";
     
-    const title = activeFamily !== 'Todos' ? `PEDIDO ${activeFamily.toUpperCase()}` : 'PEDIDO GENERAL';
-    window.open(`https://wa.me/${targetPhone}?text=${encodeURIComponent(`🛒 *${title} ARUME*\n\n`)}${list}`, '_blank');
+    if (activeFamily !== 'Todos') {
+        const p = db.proveedores.find(x => x.fam === activeFamily);
+        if(p) { provName = p.n; provTel = p.tel; }
+    }
+
+    // Mostramos el Modal de Revisión
+    showModal(`🛒 Pedido: ${activeFamily}`, `
+        <div class="bg-orange-50 p-3 rounded-lg text-orange-800 text-xs mb-4 flex items-center gap-2">
+            <span>⚠️</span> Revisa las cantidades antes de enviar.
+        </div>
+        
+        <div class="flex gap-2 mb-4">
+            <div class="flex-1">
+                <label>Proveedor</label>
+                <input value="${provName}" id="order-prov-name" class="input-premium bg-slate-100" readonly>
+            </div>
+            <div class="w-1/3">
+                <label>Teléfono</label>
+                <input value="${provTel}" id="order-prov-tel" class="input-premium font-mono" placeholder="34...">
+            </div>
+        </div>
+
+        <div class="max-h-60 overflow-y-auto mb-4 custom-scrollbar pr-1">
+            ${htmlList}
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+            <button class="btn-ghost" onclick="copyOrderText()">📋 COPIAR TEXTO</button>
+            <button class="btn-whatsapp shadow-lg border-0" onclick="launchWhatsApp()">🚀 ENVIAR WHATSAPP</button>
+        </div>
+    `);
 }
 
+// 2. Genera el texto y lanza la app
+function launchWhatsApp() {
+    const tel = document.getElementById('order-prov-tel').value.replace(/\D/g,'');
+    if(!tel) return toast("Falta el teléfono del proveedor", "error");
+    
+    const text = buildOrderText();
+    window.open(`https://wa.me/${tel}?text=${encodeURIComponent(text)}`, '_blank');
+    closeModal();
+}
+
+// 3. Copia al portapapeles (para Email o proveedores web)
+function copyOrderText() {
+    const text = buildOrderText();
+    navigator.clipboard.writeText(text).then(() => toast("📋 Pedido copiado al portapapeles"));
+}
+
+// 4. Auxiliar para construir el mensaje
+function buildOrderText() {
+    const inputs = document.querySelectorAll('input[id^="ord-"]');
+    let lines = [`🛒 *PEDIDO ARUME - ${getTS()}*`, ""]; // Encabezado
+    
+    inputs.forEach(inp => {
+        const qty = parseFloat(inp.value);
+        if(qty > 0) {
+            const id = inp.id.replace('ord-', '');
+            const ing = db.ingredientes.find(x => x.id === id);
+            if(ing) {
+                lines.push(`- ${qty} ${ing.unit} ${ing.n}`);
+            }
+        }
+    });
+    
+    lines.push("", "Gracias! 👋");
+    return lines.join('\n');
+}
 function showKardex(id) { 
     if (currentUser.role !== 'admin') return; 
     const i = db.ingredientes.find(x => x.id === id); 
