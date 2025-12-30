@@ -130,7 +130,7 @@
 
     <header class="sticky top-0 z-40 px-6 py-4 flex justify-between items-center bg-white/80 backdrop-blur-xl border-b border-white/50 shadow-sm">
         <div>
-            <h1 class="text-2xl font-black text-slate-900 tracking-tighter">ARUME <span class="text-indigo-600">V147</span></h1>
+            <h1 class="text-2xl font-black text-slate-900 tracking-tighter">ARUME <span class="text-red-500">PRUEBA 99</span></h1>
             <p class="text-[9px] text-slate-400 font-bold tracking-widest uppercase">Diamond Audit System</p>
         </div>
         <div class="bg-slate-100 px-3 py-1.5 rounded-full text-xs font-bold text-slate-600 flex items-center gap-2 cursor-pointer hover:bg-slate-200 transition border border-slate-200" onclick="logout()">
@@ -316,6 +316,23 @@ function init() {
     if(validUser){ 
         currentUser = validUser; 
         document.getElementById('pin-screen').classList.add('hidden'); 
+        
+        // RECUPERAR MEMORIA
+        try {
+            const mem = JSON.parse(localStorage.getItem('arume_ui_memory'));
+            if(mem) {
+                activeAdminTab = mem.tab || 'dash';
+                activeFamily = mem.fam || 'Todos';
+                inventoryMode = mem.inv || false;
+                fiscalYear = mem.year || new Date().getFullYear();
+                fiscalQuarter = mem.q || (Math.floor(new Date().getMonth() / 3) + 1);
+                // Cargamos la última vista en la que estuvo
+                loadApp();
+                render(mem.lastView); 
+                return;
+            }
+        } catch(e) {}
+
         loadApp(); 
     } else { 
         document.getElementById('pin-screen').classList.remove('hidden'); 
@@ -502,7 +519,29 @@ function editSales() {
 
 function commitSalesSession() {
     let log = { id: generateID(), date: getTS(), items: [] }; let hasData = false;
-    db.recetas.forEach(r => { const qty = Num.parse(document.getElementById(`sale-add-${r.id}`).value); if(qty > 0) { hasData = true; r.items.forEach(it => { if(it.type === 'ing') { const ing = db.ingredientes.find(x => x.id === it.id); if(ing) { let needed = it.q * qty; if(it.merma) needed = needed / (1 - (it.merma/100)); const finalQty = UnitConverter.convert(needed, r.unit || 'kg', ing.unit); ing.stock -= finalQty; logStock(ing.id, finalQty, 'OUT', `Venta: ${r.n} (${qty})`); } } }); r.sales = (r.sales || 0) + qty; log.items.push({ rid: r.id, n: r.n, q: qty }); } });
+    db.recetas.forEach(r => { 
+        const qty = Num.parse(document.getElementById(`sale-add-${r.id}`).value); 
+        if(qty > 0) { 
+            hasData = true; 
+            r.items.forEach(it => { 
+                if(it.type === 'ing') { 
+                    const ing = db.ingredientes.find(x => x.id === it.id); 
+                    if(ing) { 
+                        // CONVERSIÓN: De unidad receta a unidad stock
+                        let unitFactor = UnitConverter.convert(1, it.unit || ing.unit, ing.unit);
+                        let needed = (it.q * unitFactor) * qty; 
+                        
+                        if(it.merma) needed = needed / (1 - (it.merma/100)); 
+                        
+                        ing.stock -= needed; 
+                        logStock(ing.id, needed, 'OUT', `Venta: ${r.n} (${qty})`); 
+                    } 
+                } 
+            }); 
+            r.sales = (r.sales || 0) + qty; 
+            log.items.push({ rid: r.id, n: r.n, q: qty }); 
+        } 
+    });
     if(hasData) { db.sales_history.push(log); save("Ventas procesadas"); closeModal(); renderAdmin(document.getElementById('app')); } else toast("No has introducido cantidades", "error");
 }
 
@@ -701,7 +740,7 @@ function renderFacturas(c) { const pends = db.albaranes.filter(a=>!a.invoiced); 
 function invoice(p,ids){ const l=ids.split(','); l.forEach(id=>{ const a=db.albaranes.find(x=>x.id===id); if(a) a.invoiced=true; }); const t=l.reduce((ac,id)=>ac+(db.albaranes.find(x=>x.id===id)?.total||0),0); db.facturas.push({id:generateID(), date:getISO(), prov:p, total:t, paid:false}); save("Factura OK"); renderAdmin(document.getElementById('app')); }
 function togglePaid(id){ const f=db.facturas.find(x=>x.id===id); if(f){ f.paid=!f.paid; save(); renderAdmin(document.getElementById('app')); }}
 
-/* ================= 7. COCINA PRO (V146 - CORREGIDO) ================= */
+/* ================= 7. COCINA PRO (V147 - UNIDADES INTELIGENTES) ================= */
 function renderCocina(app) {
     const sorted = db.recetas.sort((a,b) => a.n.localeCompare(b.n));
     app.innerHTML = `<div class="glass-card"><div class="flex justify-between items-center mb-4"><div><h2 class="font-black text-xl text-slate-800 tracking-tight">ESCANDALLOS</h2><p class="text-[10px] text-slate-400 font-bold uppercase">Gestión de Fichas Técnicas</p></div><button class="btn-premium w-auto px-4 py-3 text-xs shadow-lg shadow-indigo-500/30 flex items-center gap-2" onclick="editRec()"><span class="text-lg">＋</span> NUEVA FICHA</button></div><input placeholder="🔍 Buscar plato o elaboración..." onkeyup="filterRec(this.value)" class="input-premium mb-4"><div id="rec-grid" class="space-y-3">${renderRecGrid(sorted)}</div></div>`;
@@ -724,7 +763,15 @@ function calcRecipe(r, visited = new Set()) {
     let t = 0, all = new Set(); 
     (r.items || []).forEach(it => { 
         const yieldFactor = (it.merma && it.merma > 0) ? (1 - (it.merma/100)) : 1;
-        if (it.type === 'ing') { const i = db.ingredientes.find(x => x.id === it.id); if (i) { const costUnit = UnitConverter.convert(1, r.unit || 'kg', i.unit); t += (it.q * costUnit * i.cost) / yieldFactor; (i.aller || []).forEach(k => all.add(k)); } } 
+        if (it.type === 'ing') { 
+            const i = db.ingredientes.find(x => x.id === it.id); 
+            if (i) { 
+                // CONVERSIÓN: Cantidad Receta -> Cantidad Stock
+                const qtyInStockUnit = UnitConverter.convert(it.q, it.unit || i.unit, i.unit);
+                t += (qtyInStockUnit * i.cost) / yieldFactor; 
+                (i.aller || []).forEach(k => all.add(k)); 
+            } 
+        } 
         else if (it.type === 'rec') { const subR = db.recetas.find(x => x.id === it.id); if (subR) { const subC = calcRecipe(subR, new Set(visited)); t += (subC.t * it.q); subC.all.forEach(k => all.add(k)); } }
     }); 
     t += (r.time / 60) * CONFIG.COST_HOUR; return { t, all: Array.from(all) }; 
@@ -733,33 +780,54 @@ function editRec(id) {
     const r = id ? db.recetas.find(x => x.id === id) : { id: generateID(), n: '', pvp: 0, time: 10, items: [], inst: '' }; 
     if(!r) return; 
     tempItems = r.items ? JSON.parse(JSON.stringify(r.items)) : []; 
-    showModal(id ? 'Editar Ficha' : 'Nueva Ficha Técnica', `<div class="grid grid-cols-12 gap-3 mb-4"><div class="col-span-8"><label>Nombre del Plato</label><input id="er-n" value="${clean(r.n)}" class="input-premium font-bold text-lg" placeholder="Ej: Salsa Brava"></div><div class="col-span-4"><label>PVP (€)</label><input type="number" id="er-pvp" value="${r.pvp}" class="input-premium text-center"></div></div><div class="flex gap-4 mb-4"><div class="flex-1"><label>Tiempo (min)</label><input type="number" id="er-time" value="${r.time}" class="input-premium"></div></div><div class="bg-slate-50 p-3 rounded-xl border border-slate-200 mb-4"><div class="flex gap-4 mb-2 text-xs font-bold text-slate-500 uppercase tracking-widest justify-center"><label class="flex items-center gap-1 cursor-pointer hover:text-indigo-600"><input type="radio" name="itemType" value="ing" checked onclick="toggleRecType('ing')"> 📦 Materia Prima</label><label class="flex items-center gap-1 cursor-pointer hover:text-indigo-600"><input type="radio" name="itemType" value="rec" onclick="toggleRecType('rec')"> 🥣 Sub-Receta</label></div><div class="flex gap-2 items-center"><div class="flex-1"><select id="er-sel" class="input-premium mb-0 text-sm h-10"></select></div><div class="w-20"><input id="er-q" type="number" class="input-premium mb-0 text-center h-10" placeholder="Cant"></div><div class="w-16"><input id="er-m" type="number" class="input-premium mb-0 text-center h-10" placeholder="Merma%"></div><button class="bg-indigo-600 text-white rounded-lg w-10 h-10 flex items-center justify-center font-bold shadow-lg shadow-indigo-200 hover:scale-105 transition" onclick="addItemToRec()">+</button></div><div class="text-[10px] text-slate-400 mt-1 text-center" id="type-hint">...</div></div><div class="bg-white border border-slate-100 rounded-xl mb-4 max-h-48 overflow-y-auto" id="er-list"></div><label class="font-bold text-slate-700 text-sm">Instrucciones</label><textarea id="er-inst" rows="4" class="input-premium mb-4 text-sm" placeholder="Pasos de la receta...">${clean(r.inst || '')}</textarea><div class="grid grid-cols-2 gap-3 mt-4"><button class="btn-premium" onclick="saveRec('${r.id}')">💾 GUARDAR</button>${id ? `<button class="btn-ghost text-red-400" onclick="deleteRec('${id}')">🗑️ ELIMINAR</button>` : ''}</div>`);
+    showModal(id ? 'Editar Ficha' : 'Nueva Ficha Técnica', `<div class="grid grid-cols-12 gap-3 mb-4"><div class="col-span-8"><label>Nombre del Plato</label><input id="er-n" value="${clean(r.n)}" class="input-premium font-bold text-lg" placeholder="Ej: Salsa Brava"></div><div class="col-span-4"><label>PVP (€)</label><input type="number" id="er-pvp" value="${r.pvp}" class="input-premium text-center"></div></div><div class="flex gap-4 mb-4"><div class="flex-1"><label>Tiempo (min)</label><input type="number" id="er-time" value="${r.time}" class="input-premium"></div></div><div class="bg-slate-50 p-3 rounded-xl border border-slate-200 mb-4"><div class="flex gap-4 mb-2 text-xs font-bold text-slate-500 uppercase tracking-widest justify-center"><label class="flex items-center gap-1 cursor-pointer hover:text-indigo-600"><input type="radio" name="itemType" value="ing" checked onclick="toggleRecType('ing')"> 📦 Materia Prima</label><label class="flex items-center gap-1 cursor-pointer hover:text-indigo-600"><input type="radio" name="itemType" value="rec" onclick="toggleRecType('rec')"> 🥣 Sub-Receta</label></div><div class="flex gap-2 items-center"><div class="flex-1"><select id="er-sel" class="input-premium mb-0 text-sm h-10" onchange="updateUnitSelector()"></select></div><div class="w-20"><input id="er-q" type="number" class="input-premium mb-0 text-center h-10" placeholder="Cant"></div><div class="w-16"><select id="er-u" class="input-premium mb-0 text-xs h-10 pl-1 pr-0 bg-slate-200 border-0"></select></div><div class="w-14"><input id="er-m" type="number" class="input-premium mb-0 text-center h-10 text-xs px-0" placeholder="M%"></div><button class="bg-indigo-600 text-white rounded-lg w-10 h-10 flex items-center justify-center font-bold shadow-lg shadow-indigo-200 hover:scale-105 transition" onclick="addItemToRec()">+</button></div><div class="text-[10px] text-slate-400 mt-1 text-center" id="type-hint">...</div></div><div class="bg-white border border-slate-100 rounded-xl mb-4 max-h-48 overflow-y-auto" id="er-list"></div><label class="font-bold text-slate-700 text-sm">Instrucciones</label><textarea id="er-inst" rows="4" class="input-premium mb-4 text-sm" placeholder="Pasos de la receta...">${clean(r.inst || '')}</textarea><div class="grid grid-cols-2 gap-3 mt-4"><button class="btn-premium" onclick="saveRec('${r.id}')">💾 GUARDAR</button>${id ? `<button class="btn-ghost text-red-400" onclick="deleteRec('${id}')">🗑️ ELIMINAR</button>` : ''}</div>`); 
     setTimeout(() => { toggleRecType('ing'); renderRecItems(); }, 150);
+}
+function updateUnitSelector() {
+    const sel = document.getElementById('er-sel');
+    const uSel = document.getElementById('er-u');
+    const id = sel.value;
+    const type = sel.dataset.type;
+    
+    let opts = ['ud'];
+    if(type === 'ing') {
+        const i = db.ingredientes.find(x => x.id === id);
+        if(i) {
+            const u = UnitConverter.normalize(i.unit);
+            if(['kg','g'].includes(u)) opts = ['g', 'kg'];
+            else if(['l','ml','cl'].includes(u)) opts = ['ml', 'cl', 'l'];
+            else opts = [u];
+        }
+    } else { opts = ['rac']; }
+    
+    uSel.innerHTML = opts.map(u => `<option value="${u}">${u}</option>`).join('');
 }
 function toggleRecType(type) {
     const sel = document.getElementById('er-sel'); const hint = document.getElementById('type-hint'); if(!sel) return; 
     document.querySelectorAll(`input[name="itemType"][value="${type}"]`).forEach(el => el.checked = true);
+    sel.dataset.type = type;
     if (type === 'ing') {
-        sel.innerHTML = db.ingredientes.length === 0 ? '<option value="">⚠️ No hay productos en Stock</option>' : db.ingredientes.sort((a,b)=>a.n.localeCompare(b.n)).map(i => `<option value="${i.id}">${clean(i.n)} (${i.unit})</option>`).join('');
-        hint.innerText = "Selecciona un producto del almacén"; document.getElementById('er-m').disabled = false; document.getElementById('er-m').placeholder = "Merma%";
+        sel.innerHTML = db.ingredientes.length === 0 ? '<option value="">⚠️ No hay stock</option>' : db.ingredientes.sort((a,b)=>a.n.localeCompare(b.n)).map(i => `<option value="${i.id}">${clean(i.n)}</option>`).join('');
+        hint.innerText = "Selecciona un producto"; document.getElementById('er-m').disabled = false;
     } else {
         const subRecipes = db.recetas.filter(r => r.id !== (tempItems.currentRecId || '')); 
-        sel.innerHTML = subRecipes.length === 0 ? '<option value="">⚠️ No hay otras recetas creadas</option>' : subRecipes.sort((a,b)=>a.n.localeCompare(b.n)).map(r => `<option value="${r.id}">🥣 ${clean(r.n)}</option>`).join('');
-        hint.innerText = "Añade una elaboración previa"; document.getElementById('er-m').disabled = true; document.getElementById('er-m').value = 0; document.getElementById('er-m').placeholder = "-";
+        sel.innerHTML = subRecipes.length === 0 ? '<option value="">⚠️ Sin recetas</option>' : subRecipes.sort((a,b)=>a.n.localeCompare(b.n)).map(r => `<option value="${r.id}">🥣 ${clean(r.n)}</option>`).join('');
+        hint.innerText = "Añade una elaboración previa"; document.getElementById('er-m').disabled = true;
     }
-    sel.dataset.type = type;
+    updateUnitSelector();
 }
 function addItemToRec() { 
     const sel = document.getElementById('er-sel'); const id = sel.value; const type = sel.dataset.type || 'ing';
     const q = parseFloat(document.getElementById('er-q').value); const m = parseFloat(document.getElementById('er-m').value) || 0; 
-    if (id && q > 0) { tempItems.push({ type, id, q, merma: m }); renderRecItems(); document.getElementById('er-q').value = ''; document.getElementById('er-q').focus(); } else { toast("Introduce una cantidad válida", "error"); }
+    const u = document.getElementById('er-u').value;
+    if (id && q > 0) { tempItems.push({ type, id, q, unit: u, merma: m }); renderRecItems(); document.getElementById('er-q').value = ''; document.getElementById('er-q').focus(); } else { toast("Cantidad incorrecta", "error"); }
 }
 function renderRecItems() { 
     const el = document.getElementById('er-list'); if(!el) return;
     el.innerHTML = tempItems.map((it, i) => { 
         let name = "???", icon = "📦", details = "";
-        if(it.type === 'ing') { const ing = db.ingredientes.find(x => x.id === it.id); name = ing ? ing.n : 'Producto Eliminado'; details = `${it.q} ${ing?.unit || 'ud'}`; } 
-        else { const rec = db.recetas.find(x => x.id === it.id); name = rec ? rec.n : 'Receta Eliminada'; icon = "🥣"; details = `${it.q} raciones`; }
+        if(it.type === 'ing') { const ing = db.ingredientes.find(x => x.id === it.id); name = ing ? ing.n : 'Borrado'; details = `${it.q} ${it.unit}`; } 
+        else { const rec = db.recetas.find(x => x.id === it.id); name = rec ? rec.n : 'Borrado'; icon = "🥣"; details = `${it.q} rac`; }
         return `<div class="flex justify-between items-center text-sm border-b border-slate-50 p-3 hover:bg-slate-50 transition animate-fade-in"><div class="flex items-center gap-3"><span class="text-lg bg-slate-100 w-8 h-8 flex items-center justify-center rounded-full">${icon}</span><div><div class="font-bold text-slate-700 leading-tight">${clean(name)}</div><div class="text-[10px] text-slate-400 font-mono">Cant: ${details} ${it.merma > 0 ? `<span class="text-red-400">(-${it.merma}%)</span>` : ''}</div></div></div><button onclick="tempItems.splice(${i},1);renderRecItems()" class="text-slate-300 hover:text-red-500 hover:bg-red-50 w-8 h-8 rounded-full transition">✕</button></div>`; 
     }).join(''); 
 }
@@ -775,17 +843,16 @@ function viewRec(id) {
     const r = db.recetas.find(x => x.id === id); if(!r) return;
     
     // Función interna para generar la lista de ingredientes según la cantidad
-    // Se guarda en 'window' para que el HTML pueda llamarla al escribir en el input
     window.renderIngsForCalc = (factor) => {
         return r.items.map(it => { 
             let n="???", d="", baseQ=it.q; 
-            let finalQ = baseQ * factor; // Multiplicamos por el factor que ponga el cocinero
+            let finalQ = baseQ * factor; 
             
             if(it.type==='ing'){ 
                 const i=db.ingredientes.find(x=>x.id===it.id); 
                 n=i?i.n:'Eliminado'; 
-                // Formateamos bonito: si es 0.5kg pone 0,50, si es 100g pone 100
-                d=`${Num.fmt(finalQ)} ${i?.unit||'ud'}`; 
+                // Usamos la unidad que se guardó en la receta (ej: g o ml)
+                d=`${Num.fmt(finalQ)} ${it.unit || i?.unit || 'ud'}`; 
             } else { 
                 const rc=db.recetas.find(x=>x.id===it.id); 
                 n=rc?`🥣 ${rc.n}`:'Borrada'; 
@@ -798,14 +865,12 @@ function viewRec(id) {
         }).join('');
     };
 
-    // Cálculos económicos (Unitarios)
     const c = calcRecipe(r); 
     const pvp = r.pvp || 0; 
     const foodCost = pvp > 0 ? (c.t / pvp) * 100 : 0;
     let semColor = 'text-slate-400';
     if(pvp > 0) { if(foodCost < 30) semColor = 'text-emerald-500'; else if(foodCost < 40) semColor = 'text-orange-500'; else semColor = 'text-red-500'; }
 
-    // Renderizamos el Modal con la Calculadora Azul
     showModal(clean(r.n), `
         <div class="grid grid-cols-3 gap-2 mb-4">
             <div class="bg-slate-50 p-2 rounded-xl text-center border border-slate-100">
@@ -821,7 +886,6 @@ function viewRec(id) {
                 <div class="text-lg font-black ${semColor}">${foodCost.toFixed(1)}%</div>
             </div>
         </div>
-
         <div class="bg-indigo-50 p-3 rounded-xl border border-indigo-100 mb-4 flex items-center justify-between shadow-sm">
             <div>
                 <div class="text-xs font-bold text-indigo-800 uppercase flex items-center gap-1">🥣 A Cocinar</div>
@@ -833,18 +897,11 @@ function viewRec(id) {
                 oninput="document.getElementById('ing-list-view').innerHTML = window.renderIngsForCalc(this.value)">
             </div>
         </div>
-
         <div class="mb-6">
             <h4 class="font-bold text-slate-800 text-xs uppercase mb-2 border-b pb-1 tracking-widest">Ingredientes necesarios</h4>
-            <ul class="text-sm space-y-2" id="ing-list-view">
-                ${window.renderIngsForCalc(1)}
-            </ul>
+            <ul class="text-sm space-y-2" id="ing-list-view">${window.renderIngsForCalc(1)}</ul>
         </div>
-
-        ${r.inst ? `<div class="mb-6 bg-yellow-50 p-4 rounded-xl border border-yellow-100 relative print:border-slate-200">
-            <p class="text-sm text-slate-700 whitespace-pre-line leading-relaxed font-serif">${clean(r.inst)}</p>
-        </div>` : ''}
-
+        ${r.inst ? `<div class="mb-6 bg-yellow-50 p-4 rounded-xl border border-yellow-100 relative print:border-slate-200"><p class="text-sm text-slate-700 whitespace-pre-line leading-relaxed font-serif">${clean(r.inst)}</p></div>` : ''}
         <div class="flex gap-2">
             <button class="btn-ghost flex-1" onclick="window.print()">🖨️ IMPRIMIR</button>
             <button class="btn-premium flex-1" onclick="editRec('${r.id}')">✏️ EDITAR</button>
@@ -1323,21 +1380,22 @@ function exportDiarioCSV() {
 function showModal(t,c){ document.getElementById('m-title').innerText=t; document.getElementById('m-body').innerHTML=c; document.getElementById('modal-overlay').classList.remove('hidden'); }
 function closeModal(){ document.getElementById('modal-overlay').classList.add('hidden'); }
 function downloadBackup(){ if(currentUser.role!=='admin') return toast("⛔ Solo Gerencia", "error"); const data = secure.enc(db); const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([data], {type: 'text/plain'})); a.download = `Arume_Backup_${getISO()}.arume`; a.click(); }
-function restoreBackup(input){ 
-    const r = new FileReader(); 
-    r.onload = e => { 
-        try { 
-            const d = secure.dec(e.target.result); 
-            if(d && d.users) { 
-                db=d; 
-                save("Restaurado correctamente"); 
-                // No usar reload, repintar
-                loadApp();
-            } else throw new Error(); 
-        } catch(err) { toast("Archivo corrupto", "error"); } 
-    }; 
-    r.readAsText(input.files[0]); 
+function restoreBackup(input){ 
+    const r = new FileReader(); 
+    r.onload = e => { 
+        try { 
+            const d = secure.dec(e.target.result); 
+            if(d && d.users) { 
+                db=d; 
+                save("Restaurado correctamente"); 
+                // No usar reload, repintar
+                loadApp();
+            } else throw new Error(); 
+        } catch(err) { toast("Archivo corrupto", "error"); } 
+    }; 
+    r.readAsText(input.files[0]); 
 }
+
 /* ================= AUTO-SYNC (Sincronía en Segundo Plano) ================= */
 function startAutoSync() {
     // Ejecutar cada 15 segundos
@@ -1387,9 +1445,10 @@ window.onbeforeunload = function() {
     };
     localStorage.setItem('arume_ui_memory', JSON.stringify(uiState));
 };
+
 /* ================= INIT ================= */
 init();
-startAutoSync(); // <--- ¡Asegúrate de que esta línea esté aquí!
+startAutoSync(); 
 </script>
 </body>
 </html>
