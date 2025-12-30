@@ -1191,11 +1191,15 @@ function delIng(id) {
 }
 
 /* =============================================================
-   ⚠️ 14. DIARIO (CIERRE DE CAJA Z) ⚠️
+   ⚠️ 14. DIARIO (CIERRE DE CAJA Z) - VERSIÓN CON DELIVERY ⚠️
    ============================================================= */
 
 function renderDiario(app) {
-    const r = db.diario.find(d => d.date === currentDiarioDate) || { cash: 0, visa: 0, total: 0, expenses: 0 };
+    // 1. Inicializamos los datos incluyendo los nuevos campos de delivery
+    const r = db.diario.find(d => d.date === currentDiarioDate) || { 
+        cash: 0, visa: 0, uber: 0, glovo: 0, app: 0, total: 0, expenses: 0 
+    };
+
     const hist = db.diario.filter(d => isInPeriod(d.date))
         .sort((a, b) => b.date.localeCompare(a.date))
         .map(d => `<div class="flex justify-between py-2 border-b last:border-0 hover:bg-slate-50 cursor-pointer p-2 rounded" onclick="currentDiarioDate='${d.date}';render('Diario')"><span class="font-bold text-slate-700">📅 ${d.date}</span><b class="font-mono text-indigo-600">${Num.fmt(d.total)}€</b></div>`)
@@ -1208,8 +1212,8 @@ function renderDiario(app) {
             <input type="date" value="${currentDiarioDate}" class="bg-slate-100 border-0 rounded-lg p-2 font-bold text-indigo-600 outline-none" onchange="currentDiarioDate=this.value;render('Diario')">
         </div>
         
-        <div class="space-y-4">
-            <div class="bg-emerald-50 p-4 rounded-xl border border-emerald-100 shadow-sm">
+        <div class="space-y-3">
+            <div class="bg-emerald-50 p-3 rounded-xl border border-emerald-100 shadow-sm">
                 <h6 class="text-[10px] font-bold text-emerald-600 uppercase mb-2">💵 Efectivo</h6>
                 <div class="flex gap-2">
                     <div class="flex-1"><label>Venta</label><input type="number" id="z-c" value="${r.cash}" class="input-premium text-center font-bold text-lg" onchange="calcZ()"></div>
@@ -1217,9 +1221,18 @@ function renderDiario(app) {
                 </div>
             </div>
             
-            <div class="bg-blue-50 p-4 rounded-xl border border-blue-100 shadow-sm">
-                <h6 class="text-[10px] font-bold text-blue-600 uppercase mb-2">💳 Tarjetas</h6>
+            <div class="bg-blue-50 p-3 rounded-xl border border-blue-100 shadow-sm">
+                <h6 class="text-[10px] font-bold text-blue-600 uppercase mb-2">💳 TPV / Tarjeta</h6>
                 <input type="number" id="z-v" value="${r.visa}" class="input-premium text-center font-bold text-lg" onchange="calcZ()">
+            </div>
+
+            <div class="bg-orange-50 p-3 rounded-xl border border-orange-100 shadow-sm">
+                <h6 class="text-[10px] font-bold text-orange-600 uppercase mb-2">🛵 Plataformas</h6>
+                <div class="grid grid-cols-3 gap-2">
+                    <div><label>Uber</label><input type="number" id="z-uber" value="${r.uber || 0}" class="input-premium text-center font-bold" onchange="calcZ()"></div>
+                    <div><label>Glovo</label><input type="number" id="z-glovo" value="${r.glovo || 0}" class="input-premium text-center font-bold" onchange="calcZ()"></div>
+                    <div><label>App/Otros</label><input type="number" id="z-app" value="${r.app || 0}" class="input-premium text-center font-bold" onchange="calcZ()"></div>
+                </div>
             </div>
             
             <div class="flex justify-between pt-4 border-t border-slate-200 mt-2">
@@ -1239,7 +1252,12 @@ function renderDiario(app) {
 function calcZ() {
     const c = parseFloat(document.getElementById('z-c').value) || 0;
     const v = parseFloat(document.getElementById('z-v').value) || 0;
-    document.getElementById('z-t').innerText = Num.fmt(c + v) + '€';
+    // Sumamos los nuevos campos
+    const uber = parseFloat(document.getElementById('z-uber').value) || 0;
+    const glovo = parseFloat(document.getElementById('z-glovo').value) || 0;
+    const app = parseFloat(document.getElementById('z-app').value) || 0;
+    
+    document.getElementById('z-t').innerText = Num.fmt(c + v + uber + glovo + app) + '€';
 }
 
 function saveZ() {
@@ -1247,21 +1265,30 @@ function saveZ() {
     const v = parseFloat(document.getElementById('z-v').value) || 0;
     const e = parseFloat(document.getElementById('z-e').value) || 0;
     
+    // Capturamos los valores de delivery
+    const uber = parseFloat(document.getElementById('z-uber').value) || 0;
+    const glovo = parseFloat(document.getElementById('z-glovo').value) || 0;
+    const app = parseFloat(document.getElementById('z-app').value) || 0;
+
+    const total = c + v + uber + glovo + app;
+
     const data = { 
         date: currentDiarioDate, 
         cash: c, 
         visa: v, 
+        uber: uber,   // Guardamos Uber
+        glovo: glovo, // Guardamos Glovo
+        app: app,     // Guardamos Apperestret/Otros
         expenses: e, 
-        total: c + v 
+        total: total 
     };
     
     const idx = db.diario.findIndex(d => d.date === currentDiarioDate);
     if (idx >= 0) db.diario[idx] = data; else db.diario.push(data);
     
-    save("Cierre Guardado"); 
+    save("Cierre Guardado con Delivery ✅"); 
     render('Diario');
 }
-
 /* =============================================================
    ⚠️ 15. SISTEMA Y UTILIDADES FINALES ⚠️
    ============================================================= */
