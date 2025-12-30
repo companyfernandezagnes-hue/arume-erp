@@ -571,27 +571,20 @@ function delProv(id) {
 /* === SUB-MÓDULO: ALBARANES PRO (CON LECTOR INTELIGENTE) === */
 
 function renderAlbaranes(c) {
-    const periodAlbs = db.albaranes.filter(a => isInPeriod(a.date)).slice().reverse();
-    // Preparamos opciones para el datalist
+    const list = db.albaranes.filter(a => isInPeriod(a.date)).slice().reverse();
     const provOptions = db.proveedores.map(p => `<option value="${clean(p.n)}">`).join('');
     const ingOptions = db.ingredientes.map(i => `<option value="${clean(i.n)}">`).join('');
 
     c.innerHTML = `
     <div class="glass-card border-l-4 border-indigo-500">
-        <div class="flex justify-between items-center mb-4">
-            <h3 class="font-bold text-slate-700 text-sm uppercase">Nuevo Albarán Detallado</h3>
-            <label class="flex items-center gap-2 cursor-pointer bg-slate-50 px-3 py-1 rounded-lg border border-slate-200">
-                <input type="checkbox" id="alb-socio" class="w-4 h-4 text-indigo-600 rounded">
-                <span class="text-xs font-bold text-slate-600">Es Socio/Interno</span>
-            </label>
-        </div>
+        <h3 class="font-bold text-slate-700 text-sm mb-4 uppercase">Nuevo Albarán Detallado</h3>
         
         <div class="grid grid-cols-3 gap-3 mb-3">
             <div><label>Proveedor</label><input list="prov-list" id="alb-prov" class="input-premium" placeholder="..." onchange="checkDuplicate()"><datalist id="prov-list">${provOptions}</datalist></div>
-            <div><label>Ref / Factura</label><input id="alb-num" class="input-premium font-mono" onkeyup="checkDuplicate()" placeholder="A-${new Date().getFullYear()}-000"></div>
+            <div><label>Ref / Factura</label><input id="alb-num" class="input-premium font-mono" onkeyup="checkDuplicate()" placeholder="Ref..."></div>
             <div><label>Fecha</label><input type="date" id="alb-date" value="${getISO()}" class="input-premium"></div>
         </div>
-        <div id="dup-alert" class="hidden text-[10px] text-red-500 font-bold mb-2 text-center bg-red-50 p-1 rounded">⚠️ ESTE NÚMERO DE FACTURA YA EXISTE</div>
+        <div id="dup-alert" class="hidden text-[10px] text-red-500 font-bold mb-2 text-center bg-red-50 p-1 rounded">⚠️ FACTURA DUPLICADA</div>
 
         <datalist id="ing-list">${ingOptions}</datalist>
         <textarea id="alb-input" rows="2" class="input-premium font-mono text-xs mb-2" placeholder="Pegar aquí: Producto TAB Cantidad TAB Precio..."></textarea>
@@ -602,12 +595,7 @@ function renderAlbaranes(c) {
         </div>
 
         <div class="grid grid-cols-12 gap-1 px-2 mb-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider text-center">
-            <div class="col-span-4 text-left">Producto</div>
-            <div class="col-span-2">Cant/Ud</div>
-            <div class="col-span-2">Precio</div>
-            <div class="col-span-1 text-emerald-600">Dto%</div>
-            <div class="col-span-1">IVA</div>
-            <div class="col-span-2 text-right">Total</div>
+            <div class="col-span-4 text-left">Producto</div><div class="col-span-2">Cant</div><div class="col-span-2">Precio</div><div class="col-span-1">Dto</div><div class="col-span-1">IVA</div><div class="col-span-2 text-right">Total</div>
         </div>
         
         <div id="alb-grid" class="space-y-2 mb-4 max-h-60 overflow-y-auto"></div>
@@ -618,28 +606,25 @@ function renderAlbaranes(c) {
         </div>
         
         <div class="grid grid-cols-2 gap-3 mt-4">
-            <button class="btn-premium btn-action" onclick="commitAlb()">GUARDAR Y ACTUALIZAR STOCK</button>
-            <button class="btn-ghost" onclick="exportAlbCSV()">DESCARGAR CSV</button>
+            <button class="btn-premium btn-action" onclick="commitAlb()">GUARDAR Y STOCK</button>
+            <button class="btn-ghost" onclick="exportAlbCSV()">CSV</button>
         </div>
     </div>
 
     <div class="glass-card">
-        <h4 class="text-xs font-bold text-slate-400 uppercase mb-4">Historial (${fiscalQuarter===0?'AÑO':fiscalQuarter+'T'})</h4>
-        ${periodAlbs.length ? periodAlbs.map(a => `
-            <div class="flex justify-between items-center py-3 border-b border-slate-50 hover:bg-slate-50 transition px-2 rounded-lg">
+        <h4 class="text-xs font-bold text-slate-400 uppercase mb-4">Historial</h4>
+        ${list.length ? list.map(a => `
+            <div class="flex justify-between items-center py-3 border-b hover:bg-slate-50 transition px-2 rounded-lg">
                 <div class="text-sm font-bold text-slate-700">
-                    ${a.isSocio ? '🤝 ' : ''}${clean(a.prov)}
-                    <div class="text-[10px] text-slate-400 font-normal flex gap-2">
-                        <span>${a.date}</span>
-                        <span class="font-mono bg-slate-100 px-1 rounded text-slate-500">Ref: ${a.num || '-'}</span>
-                    </div>
+                    ${clean(a.prov)} <span class="text-[10px] text-slate-400 font-normal">(${a.date})</span>
+                    <div class="text-[10px] text-slate-400 font-mono">Ref: ${a.num || '-'}</div>
                 </div>
                 <div class="flex items-center gap-2">
-                    <span class="font-bold text-sm mr-2 ${a.isSocio ? 'text-indigo-600':''}">${Num.fmt(a.total)}€</span>
+                    <span class="font-bold text-sm mr-2">${Num.fmt(a.total)}€</span>
                     <button class="btn-icon btn-ghost" onclick="viewAlbDetails('${a.id}')">👁</button>
                     ${!a.invoiced ? `<button class="btn-icon btn-delete" onclick="deleteAlb('${a.id}')">🗑️</button>` : '<span class="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-1 rounded font-bold">FACTURADO</span>'}
                 </div>
-            </div>`).join('') : '<div class="text-center p-4 text-slate-400">Sin compras registradas</div>'}
+            </div>`).join('') : '<div class="text-center p-4 text-slate-400">Sin registros</div>'}
     </div>`;
     renderAlbGrid();
 }
@@ -648,11 +633,8 @@ function checkDuplicate() {
     const num = document.getElementById('alb-num').value.trim();
     const prov = document.getElementById('alb-prov').value.trim();
     const alert = document.getElementById('dup-alert');
-    if(num && prov && db.albaranes.some(a => a.num === num && a.prov === prov)) {
-        alert.classList.remove('hidden');
-    } else {
-        alert.classList.add('hidden');
-    }
+    if(num && prov && db.albaranes.some(a => a.num === num && a.prov === prov)) alert.classList.remove('hidden');
+    else alert.classList.add('hidden');
 }
 
 function parseAlb() {
@@ -660,68 +642,91 @@ function parseAlb() {
     if (!txt) return toast("Pega texto primero", "error");
     const lines = txt.split(/\r?\n/).filter(l => l.trim() !== '');
     let count = 0;
-
     lines.forEach(l => {
-        let parts = l.replace(/[€$]/g, '').trim().split(/[\t;]|\s{2,}/); // Separar por Tab, punto y coma o doble espacio
+        let parts = l.replace(/[€$]/g, '').trim().split(/[\t;]|\s{2,}/);
         if (parts.length >= 2) {
             const n = parts[0].trim();
             const q = Num.parse(parts[1]);
             const p = parts[2] ? Num.parse(parts[2]) : 0;
-            // Detección automática de unidad si está en la cantidad (ej: "5kg")
-            let u = 'ud';
-            const unitMatch = parts[1].match(/[a-zA-Z]+/);
-            if(unitMatch) u = UnitConverter.normalize(unitMatch[0]);
-
-            if (n && q > 0) {
-                tempItems.push({ n, q, p, unit: u, d: 0, tax: 10 }); // Por defecto IVA 10%
-                count++;
-            }
+            let u = 'ud'; const unitMatch = parts[1].match(/[a-zA-Z]+/); if(unitMatch) u = UnitConverter.normalize(unitMatch[0]);
+            if (n && q > 0) { tempItems.push({ n, q, p, unit: u, d: 0, tax: 10 }); count++; }
         }
     });
-    
-    if (count > 0) {
-        document.getElementById('alb-input').value = '';
-        renderAlbGrid();
-        toast(`✅ ${count} líneas detectadas`);
-    } else {
-        toast("⚠️ No se detectaron líneas válidas", "error");
-    }
+    if (count > 0) { document.getElementById('alb-input').value = ''; renderAlbGrid(); toast(`✅ ${count} líneas`); } 
+    else toast("⚠️ Formato no reconocido", "error");
 }
 
 function renderAlbGrid() {
-    const el = document.getElementById('alb-grid'); 
-    if (!el) return;
-    
+    const el = document.getElementById('alb-grid'); if (!el) return;
     el.innerHTML = tempItems.map((it, i) => {
         const totalLine = (it.q * it.p * (1 - (it.d||0)/100)) * (1 + (it.tax||10)/100);
-        return `
-        <div class="bg-white p-1 rounded-xl border border-slate-100 grid grid-cols-12 gap-1 items-center shadow-sm relative group">
-            <div class="col-span-4"><input value="${clean(it.n)}" class="w-full bg-transparent font-bold text-xs outline-none" onchange="tempItems[${i}].n=this.value"></div>
-            <div class="col-span-2 flex gap-1">
-                <input type="number" value="${it.q}" class="w-full bg-slate-50 text-center text-xs p-1 rounded font-bold" onchange="tempItems[${i}].q=parseFloat(this.value);renderAlbGrid()">
-                <select onchange="tempItems[${i}].unit=this.value" class="w-10 bg-slate-50 text-[9px] p-0 rounded border-0"><option ${it.unit==='kg'?'selected':''}>kg</option><option ${it.unit==='ud'?'selected':''}>ud</option><option ${it.unit==='l'?'selected':''}>l</option></select>
-            </div>
-            <div class="col-span-2"><input type="number" value="${it.p}" class="w-full bg-slate-50 text-center text-xs p-1 rounded" onchange="tempItems[${i}].p=parseFloat(this.value);renderAlbGrid()"></div>
-            <div class="col-span-1"><input type="number" value="${it.d||0}" class="w-full bg-emerald-50 text-center text-xs p-1 rounded text-emerald-700" onchange="tempItems[${i}].d=parseFloat(this.value);renderAlbGrid()"></div>
-            <div class="col-span-1"><select onchange="tempItems[${i}].tax=parseFloat(this.value);renderAlbGrid()" class="w-full bg-blue-50 text-[9px] p-0 rounded text-blue-700"><option ${it.tax===10?'selected':''} value="10">10</option><option ${it.tax===21?'selected':''} value="21">21</option><option ${it.tax===4?'selected':''} value="4">4</option></select></div>
-            <div class="col-span-2 text-right font-mono font-bold text-xs pr-2">${Num.fmt(totalLine)}€</div>
-            <button class="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center text-[10px] opacity-0 group-hover:opacity-100 transition shadow-sm" onclick="tempItems.splice(${i},1);renderAlbGrid()">✕</button>
-        </div>`;
+        return `<div class="bg-white p-1 rounded-xl border border-slate-100 grid grid-cols-12 gap-1 items-center shadow-sm text-xs">
+            <div class="col-span-4"><input value="${clean(it.n)}" class="w-full bg-transparent font-bold outline-none" onchange="tempItems[${i}].n=this.value"></div>
+            <div class="col-span-2 flex gap-1"><input type="number" value="${it.q}" class="w-full bg-slate-50 text-center rounded" onchange="tempItems[${i}].q=parseFloat(this.value);renderAlbGrid()"><select onchange="tempItems[${i}].unit=this.value" class="w-10 bg-slate-50 rounded border-0"><option ${it.unit==='kg'?'selected':''}>kg</option><option ${it.unit==='ud'?'selected':''}>ud</option><option ${it.unit==='l'?'selected':''}>l</option></select></div>
+            <div class="col-span-2"><input type="number" value="${it.p}" class="w-full bg-slate-50 text-center rounded" onchange="tempItems[${i}].p=parseFloat(this.value);renderAlbGrid()"></div>
+            <div class="col-span-1"><input type="number" value="${it.d||0}" class="w-full bg-emerald-50 text-center rounded text-emerald-700" onchange="tempItems[${i}].d=parseFloat(this.value);renderAlbGrid()"></div>
+            <div class="col-span-1"><select onchange="tempItems[${i}].tax=parseFloat(this.value);renderAlbGrid()" class="w-full bg-blue-50 rounded text-blue-700"><option ${it.tax===10?'selected':''} value="10">10</option><option ${it.tax===21?'selected':''} value="21">21</option><option ${it.tax===4?'selected':''} value="4">4</option></select></div>
+            <div class="col-span-2 text-right font-mono font-bold pr-2">${Num.fmt(totalLine)}€</div>
+            <button class="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center opacity-0 hover:opacity-100 transition" onclick="tempItems.splice(${i},1);renderAlbGrid()">✕</button></div>`;
     }).join('');
-
     const total = tempItems.reduce((acc, it) => acc + (it.q * it.p * (1 - (it.d||0)/100)) * (1 + (it.tax||10)/100), 0);
     document.getElementById('alb-total').innerText = Num.fmt(total) + '€';
 }
 
 function commitAlb() {
     if (!tempItems.length) return toast("Albarán vacío", "error");
-    
     const prov = document.getElementById('alb-prov').value.trim();
     const date = document.getElementById('alb-date').value;
     const num = document.getElementById('alb-num').value.trim() || `A-${Date.now().toString().slice(-6)}`;
-    
-    if (!prov || !date) return toast("Faltan datos (Proveedor/Fecha)", "error");
+    if (!prov || !date) return toast("Faltan datos", "error");
 
+    if (!db.proveedores.find(p => p.n.toLowerCase() === prov.toLowerCase())) db.proveedores.push({ id: generateID(), n: prov, tel: '', fam: 'General' });
+
+    let subtotal = 0, taxes = 0;
+    tempItems.forEach(it => {
+        let ing = db.ingredientes.find(x => x.n.toLowerCase() === it.n.toLowerCase() && x.unit === it.unit);
+        const netPrice = it.p * (1 - (it.d || 0) / 100);
+        if (!ing) { ing = { id: generateID(), n: it.n, stock: 0, cost: 0, unit: it.unit, fam: 'General', min: 0 }; db.ingredientes.push(ing); }
+        
+        const totalVal = (ing.stock * ing.cost) + (it.q * netPrice);
+        const totalQty = ing.stock + it.q;
+        if (totalQty > 0) ing.cost = totalVal / totalQty;
+        ing.stock += it.q;
+        logStock(ing.id, it.q, 'IN', `Alb: ${num}`, netPrice);
+        
+        const base = it.q * it.p * (1 - (it.d || 0) / 100);
+        subtotal += base; taxes += base * (it.tax / 100);
+    });
+
+    db.albaranes.push({ id: generateID(), num, prov, date, items: [...tempItems], total: subtotal + taxes, subtotal, taxes, invoiced: false });
+    save(`✅ Albarán ${num} guardado`); tempItems = []; renderAdmin(document.getElementById('app'));
+}
+
+function viewAlbDetails(id) { 
+    const a = db.albaranes.find(x => x.id === id); 
+    if (a) showModal(`Detalle ${a.num || ''}`, `<div class="mb-2 text-xs font-bold text-slate-500">${a.prov} - ${a.date}</div><table class="w-full text-xs"><thead><tr class="text-left text-slate-400 border-b"><th>Prod</th><th>Cant</th><th>€/ud</th><th>Total</th></tr></thead><tbody>${a.items.map(i => { const net = i.p * (1-(i.d||0)/100); return `<tr><td class="py-1">${i.n}</td><td>${i.q}${i.unit}</td><td>${Num.fmt(net)}</td><td class="text-right">${Num.fmt(i.q * net * (1+(i.tax||10)/100))}</td></tr>`; }).join('')}</tbody></table><div class="text-right font-black text-xl mt-4">${Num.fmt(a.total)}€</div>`); 
+}
+
+function deleteAlb(id) {
+    if (confirm("¿Borrar Albarán? (Se descontará el stock añadido)")) {
+        const alb = db.albaranes.find(a => a.id === id);
+        if(alb) {
+            alb.items.forEach(it => {
+                const ing = db.ingredientes.find(x => x.n === it.n && x.unit === it.unit);
+                if(ing) { ing.stock -= it.q; logStock(ing.id, it.q, 'OUT', `Anular Alb ${alb.num}`, ing.cost); }
+            });
+            db.albaranes = db.albaranes.filter(a => a.id !== id);
+            save("Albarán Eliminado"); renderAdmin(document.getElementById('app'));
+        }
+    }
+}
+function exportAlbCSV() { 
+    if (!tempItems.length) return toast("Tabla vacía", "error"); 
+    const rows = tempItems.map(it => [it.n, Num.csv(it.q), it.unit, Num.csv(it.p), Num.csv(it.d || 0), Num.csv((it.q * it.p) * (1 + it.tax / 100))]); 
+    const csv = ['Producto;Cantidad;Unidad;Precio;Dto;Total', ...rows.map(r => r.join(';'))].join('\n'); 
+    const blob = new Blob(["\uFEFF" + csv], { type: 'text/csv;charset=utf-8' }); 
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'Albaran_Import.csv'; a.click(); 
+}
     // 1. Guardar o actualizar proveedor
     if (!db.proveedores.find(p => p.n.toLowerCase() === prov.toLowerCase())) {
         db.proveedores.push({ id: generateID(), n: prov, tel: '', fam: 'General' });
