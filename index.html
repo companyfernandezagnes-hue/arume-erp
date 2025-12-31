@@ -1019,38 +1019,141 @@ function renderRecGrid(list) {
 }
 
 function filterRec(txt) { document.getElementById('rec-grid').innerHTML = renderRecGrid(db.recetas.filter(r=>r.n.toLowerCase().includes(txt.toLowerCase()))); }
+        
+// La función Recursiva Maestra (Calcula costes anidados con Rendimiento)
+function calcRecipe(r, visited = new Set()) {
+    if (!r) return { t: 0 };
+    
+    // Protección contra bucles infinitos
+    if (visited.has(r.id)) {
+        console.warn("Bucle detectado en receta:", r.n);
+        return { t: 0 }; 
+    }
+    visited.add(r.id);
 
-// La función Recursiva Maestra (Calcula costes anidados)
-function calcRecipe(r, visited=new Set()) {
-    if(!r || visited.has(r.id)) return {t:0}; visited.add(r.id);
-    let t=0;
-    (r.items||[]).forEach(it => {
-        const yieldF = it.merma ? (1-(it.merma/100)) : 1; // Factor merma
-        if(it.type==='ing'){
-            const i = db.ingredientes.find(x=>x.id===it.id);
-            if(i) t += (UnitConverter.convert(it.q, it.unit||i.unit, i.unit) * i.cost) / yieldF;
-        } else if(it.type==='rec'){
-            // Sub-receta (ej: Salsa dentro de un plato)
-            const sub = db.recetas.find(x=>x.id===it.id);
-            if(sub) t += calcRecipe(sub, new Set(visited)).t * it.q;
+    let totalCost = 0;
+
+    (r.items || []).forEach(it => {
+        const yieldFactor = it.merma ? (1 - (it.merma / 100)) : 1;
+        
+        if (it.type === 'ing') {
+            // Es un ingrediente normal
+            const i = db.ingredientes.find(x => x.id === it.id);
+            if (i) {
+                // Convertimos la unidad usada a la unidad del almacén
+                const qtyInBaseUnit = UnitConverter.convert(it.q, it.unit || i.unit, i.unit);
+                totalCost += (qtyInBaseUnit * i.cost) / yieldFactor;
+            }
+
+        } else if (it.type === 'rec') {
+            // ¡ES UNA SUB-RECETA!
+            const sub = db.recetas.find(x => x.id === it.id);
+            if (sub) {
+                // 1. Coste del lote entero
+                const subFullCost = calcRecipe(sub, new Set(visited)).t;
+                
+                // 2. Coste unitario (Coste Lote / Rendimiento)
+                const subYield = sub.yield || 1; 
+                const costPerUnit = subFullCost / subYield;
+
+                // 3. Conversión de unidades inteligente
+                const qtyNormalized = UnitConverter.convert(it.q, it.unit, sub.unit || 'rac');
+
+                totalCost += qtyNormalized * costPerUnit;
+            }
         }
     });
-    return {t: t + (r.time/60)*CONFIG.COST_HOUR}; // Añadir coste de personal
-}
 
+    // Añadimos mano de obra directa de ESTA receta
+    const laborCost = (r.time / 60) * CONFIG.COST_HOUR;
+    
+    return { t: totalCost + laborCost };
+}
 function editRec(id) {
-    const r = id ? db.recetas.find(x=>x.id===id) : {id:generateID(), n:'', pvp:0, time:10, items:[], inst:''};
-    tempItems = JSON.parse(JSON.stringify(r.items||[]));
-    showModal('Receta', `<div class="grid grid-cols-12 gap-3 mb-2"><div class="col-span-8"><label>Nombre</label><input id="er-n" value="${clean(r.n)}" class="input-premium font-bold"></div><div class="col-span-4"><label>PVP</label><input id="er-pvp" type="number" value="${r.pvp}" class="input-premium text-center"></div></div><label>Tiempo (min)</label><input id="er-time" type="number" value="${r.time}" class="input-premium mb-4"><div class="bg-slate-50 p-3 rounded-xl border mb-4"><div class="flex gap-2 mb-2"><select id="er-sel" class="input-premium text-sm" onchange="updUnit()"></select><input id="er-q" type="number" class="input-premium w-20 text-center" placeholder="Cant"><select id="er-u" class="input-premium w-20 text-xs bg-slate-200"></select><button class="bg-indigo-600 text-white rounded-lg w-10 font-bold" onclick="addItem()">+</button></div><div id="er-list" class="max-h-40 overflow-y-auto"></div></div><label>Instrucciones</label><textarea id="er-inst" class="input-premium mb-4" rows="3">${clean(r.inst)}</textarea><div class="flex gap-2"><button class="btn-premium flex-1" onclick="saveRec('${r.id}')">GUARDAR</button>${id?`<button class="btn-ghost w-auto text-red-500" onclick="delRec('${id}')">🗑️</button>`:''}</div>`);
-    renderRecTypes(); renderRecItems();
-}
+    const r = id ? db.recetas.find(x => x.id === id) : { id: generateID(), n: '', pvp: 0, time: 10, items: [], inst: '', yield: 1, unit: 'rac' }; // Por defecto 1 ración
+    
+    // Clonamos items para no tocar la memoria directamente
+    tempItems = JSON.parse(JSON.stringify(r.items || []));
 
+    // HTML del Modal
+    showModal('Ficha Técnica & Escandallo', `
+        <div class="grid grid-cols-12 gap-3 mb-2">
+            <div class="col-span-8">
+                <label>Nombre Receta / Semielaborado</label>
+                <input id="er-n" value="${clean(r.n)}" class="input-premium font-bold" placeholder="Ej: Salsa Boloñesa">
+            </div>
+            <div class="col-span-4">
+                <label>PVP Venta (€)</label>
+                <input id="er-pvp" type="number" value="${r.pvp}" class="input-premium text-center">
+            </div>
+        </div>
+
+        <div class="bg-emerald-50 p-3 rounded-xl border border-emerald-100 mb-4 flex items-center gap-3">
+            <div class="bg-emerald-100 p-2 rounded-full text-xl">⚖️</div>
+            <div class="flex-1">
+                <label class="text-emerald-800 font-bold">Rendimiento (¿Cuánto produce?)</label>
+                <div class="flex gap-2">
+                    <input id="er-yield" type="number" value="${r.yield || 1}" class="input-premium text-center font-bold text-emerald-900">
+                    <select id="er-unit" class="input-premium bg-white w-24">
+                        <option ${r.unit==='rac'?'selected':''}>rac</option>
+                        <option ${r.unit==='l'?'selected':''}>l</option>
+                        <option ${r.unit==='kg'?'selected':''}>kg</option>
+                        <option ${r.unit==='ud'?'selected':''}>ud</option>
+                    </select>
+                </div>
+            </div>
+            <div class="w-1/3">
+                 <label>Tiempo (min)</label>
+                 <input id="er-time" type="number" value="${r.time}" class="input-premium text-center">
+            </div>
+        </div>
+
+        <div class="bg-slate-50 p-3 rounded-xl border mb-4">
+            <label class="mb-2">Añadir Ingrediente o Sub-Receta</label>
+            <div class="flex gap-2 mb-2">
+                <select id="er-sel" class="input-premium text-sm flex-1" onchange="updUnit()"></select>
+                <input id="er-q" type="number" class="input-premium w-20 text-center" placeholder="Cant">
+                <select id="er-u" class="input-premium w-20 text-xs bg-slate-200"></select>
+                <button class="bg-indigo-600 text-white rounded-lg w-10 font-bold shadow-lg hover:bg-indigo-700 transition" onclick="addItem()">+</button>
+            </div>
+            <div class="flex justify-between px-2 text-[10px] font-bold text-slate-400 uppercase mb-1">
+                <span>Producto</span><span>Cantidad</span>
+            </div>
+            <div id="er-list" class="max-h-40 overflow-y-auto custom-scrollbar bg-white rounded-lg border border-slate-200"></div>
+        </div>
+
+        <label>Instrucciones</label>
+        <textarea id="er-inst" class="input-premium mb-4 font-normal text-sm" rows="3" placeholder="Paso a paso...">${clean(r.inst)}</textarea>
+        
+        <div class="flex gap-2">
+            <button class="btn-premium flex-1" onclick="saveRec('${r.id}')">GUARDAR FICHA</button>
+            ${id ? `<button class="btn-ghost w-auto text-red-500" onclick="delRec('${id}')">🗑️</button>` : ''}
+        </div>
+    `);
+
+    renderRecTypes();
+    renderRecItems();
+}
 function renderRecTypes() {
     const sel = document.getElementById('er-sel');
-    sel.innerHTML = db.ingredientes.sort((a,b)=>a.n.localeCompare(b.n)).map(i=>`<option value="${i.id}" data-t="ing">${clean(i.n)}</option>`).join('') + db.recetas.map(r=>`<option value="${r.id}" data-t="rec">🥣 ${clean(r.n)}</option>`).join('');
+    
+    // 1. Preparamos la lista de Ingredientes (Materia Prima)
+    const ings = db.ingredientes
+        .sort((a,b)=>a.n.localeCompare(b.n))
+        .map(i=>`<option value="${i.id}" data-t="ing">📦 ${clean(i.n)}</option>`)
+        .join('');
+    
+    // 2. Preparamos la lista de Recetas (Sub-Recetas)
+    const recs = db.recetas
+        .sort((a,b)=>a.n.localeCompare(b.n))
+        .map(r=>`<option value="${r.id}" data-t="rec">🍲 SUB: ${clean(r.n)}</option>`)
+        .join('');
+    
+    // 3. Lo mostramos agrupado y bonito
+    sel.innerHTML = `<optgroup label="--- SEMIELABORADOS ---">${recs}</optgroup><optgroup label="--- MATERIA PRIMA ---">${ings}</optgroup>`;
+    
     updUnit();
 }
-
 // Selector inteligente de unidades (LIBERADO)
 function updUnit() {
     const sel = document.getElementById('er-sel'); 
@@ -1084,15 +1187,29 @@ function renderRecItems() {
         return `<div class="flex justify-between py-2 border-b text-sm items-center"><div><span class="mr-2">${icon}</span><b>${n}</b></div><span>${it.q} ${it.unit}</span><button class="text-red-400 ml-2" onclick="tempItems.splice(${i},1);renderRecItems()">✕</button></div>`;
     }).join('');
 }
-
 function saveRec(id) {
-    const n = document.getElementById('er-n').value; if(!n) return;
-    const r = { id, n, pvp:parseFloat(document.getElementById('er-pvp').value)||0, time:parseFloat(document.getElementById('er-time').value)||0, items:tempItems, inst:document.getElementById('er-inst').value };
-    const idx = db.recetas.findIndex(x=>x.id===id);
-    if(idx>=0) db.recetas[idx]=r; else db.recetas.push(r);
-    save("Ficha Guardada"); closeModal(); render('Cocina');
-}
+    const n = document.getElementById('er-n').value; 
+    if(!n) return toast("Falta nombre", "error");
 
+    const r = { 
+        id, 
+        n, 
+        pvp: parseFloat(document.getElementById('er-pvp').value) || 0, 
+        time: parseFloat(document.getElementById('er-time').value) || 0,
+        // NUEVO: Guardamos cuánto produce esta receta
+        yield: parseFloat(document.getElementById('er-yield').value) || 1,
+        unit: document.getElementById('er-unit').value,
+        items: tempItems, 
+        inst: document.getElementById('er-inst').value 
+    };
+
+    const idx = db.recetas.findIndex(x => x.id === id);
+    if(idx >= 0) db.recetas[idx] = r; else db.recetas.push(r);
+    
+    save("Ficha Técnica Guardada"); 
+    closeModal(); 
+    render('Cocina');
+}
 function delRec(id) { if(confirm("¿Borrar?")) { db.recetas=db.recetas.filter(x=>x.id!==id); save("Borrada"); closeModal(); render('Cocina'); } }
 
 function viewRec(id) {
