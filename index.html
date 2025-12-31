@@ -1461,12 +1461,15 @@ function delIng(id) {
 /* =============================================================
    ⚠️ 14. DIARIO (CIERRE DE CAJA Z) - VERSIÓN CON DELIVERY ⚠️
    ============================================================= */
-
 function renderDiario(app) {
-    // 1. Inicializamos los datos incluyendo los nuevos campos de delivery
-    const r = db.diario.find(d => d.date === currentDiarioDate) || { 
-        cash: 0, visa: 0, uber: 0, glovo: 0, app: 0, total: 0, expenses: 0 
+    // Buscamos el registro del día
+    let r = db.diario.find(d => d.date === currentDiarioDate) || { 
+        cash: 0, visa: 0, tpv: 0, madisa: 0, amex: 0, uber: 0, glovo: 0, app: 0, total: 0, expenses: 0 
     };
+
+    // COMPATIBILIDAD CON DATOS ANTIGUOS:
+    // Si es un cierre viejo que tenía "visa" pero no los campos nuevos, lo pasamos a TPV
+    if (r.visa && !r.tpv && !r.madisa && !r.amex) { r.tpv = r.visa; }
 
     const hist = db.diario.filter(d => isInPeriod(d.date))
         .sort((a, b) => b.date.localeCompare(a.date))
@@ -1490,8 +1493,12 @@ function renderDiario(app) {
             </div>
             
             <div class="bg-blue-50 p-3 rounded-xl border border-blue-100 shadow-sm">
-                <h6 class="text-[10px] font-bold text-blue-600 uppercase mb-2">💳 TPV / Tarjeta</h6>
-                <input type="number" id="z-v" value="${r.visa}" class="input-premium text-center font-bold text-lg" onchange="calcZ()">
+                <h6 class="text-[10px] font-bold text-blue-600 uppercase mb-2">💳 Tarjetas & Pasarelas</h6>
+                <div class="grid grid-cols-3 gap-2">
+                    <div><label>TPV</label><input type="number" id="z-tpv" value="${r.tpv || 0}" class="input-premium text-center font-bold" onchange="calcZ()"></div>
+                    <div><label>Madisa</label><input type="number" id="z-madisa" value="${r.madisa || 0}" class="input-premium text-center font-bold" onchange="calcZ()"></div>
+                    <div><label>AMEX</label><input type="number" id="z-amex" value="${r.amex || 0}" class="input-premium text-center font-bold" onchange="calcZ()"></div>
+                </div>
             </div>
 
             <div class="bg-orange-50 p-3 rounded-xl border border-orange-100 shadow-sm">
@@ -1516,37 +1523,46 @@ function renderDiario(app) {
         <div class="max-h-40 overflow-y-auto custom-scrollbar">${hist}</div>
     </div>`;
 }
-
 function calcZ() {
     const c = parseFloat(document.getElementById('z-c').value) || 0;
-    const v = parseFloat(document.getElementById('z-v').value) || 0;
-    // Sumamos los nuevos campos
+    
+    // Nuevos campos de tarjeta
+    const tpv = parseFloat(document.getElementById('z-tpv').value) || 0;
+    const madisa = parseFloat(document.getElementById('z-madisa').value) || 0;
+    const amex = parseFloat(document.getElementById('z-amex').value) || 0;
+    
     const uber = parseFloat(document.getElementById('z-uber').value) || 0;
     const glovo = parseFloat(document.getElementById('z-glovo').value) || 0;
     const app = parseFloat(document.getElementById('z-app').value) || 0;
     
-    document.getElementById('z-t').innerText = Num.fmt(c + v + uber + glovo + app) + '€';
+    // Total sumando todo
+    document.getElementById('z-t').innerText = Num.fmt(c + tpv + madisa + amex + uber + glovo + app) + '€';
 }
-
 function saveZ() {
     const c = parseFloat(document.getElementById('z-c').value) || 0;
-    const v = parseFloat(document.getElementById('z-v').value) || 0;
-    const e = parseFloat(document.getElementById('z-e').value) || 0;
     
-    // Capturamos los valores de delivery
+    // Capturamos los 3 tipos de tarjeta
+    const tpv = parseFloat(document.getElementById('z-tpv').value) || 0;
+    const madisa = parseFloat(document.getElementById('z-madisa').value) || 0;
+    const amex = parseFloat(document.getElementById('z-amex').value) || 0;
+    
+    const e = parseFloat(document.getElementById('z-e').value) || 0;
     const uber = parseFloat(document.getElementById('z-uber').value) || 0;
     const glovo = parseFloat(document.getElementById('z-glovo').value) || 0;
     const app = parseFloat(document.getElementById('z-app').value) || 0;
 
-    const total = c + v + uber + glovo + app;
+    const total = c + tpv + madisa + amex + uber + glovo + app;
 
     const data = { 
         date: currentDiarioDate, 
         cash: c, 
-        visa: v, 
-        uber: uber,   // Guardamos Uber
-        glovo: glovo, // Guardamos Glovo
-        app: app,     // Guardamos Apperestret/Otros
+        tpv: tpv,       // Guardamos TPV separado
+        madisa: madisa, // Guardamos Madisa separado
+        amex: amex,     // Guardamos AMEX separado
+        visa: tpv + madisa + amex, // Mantenemos 'visa' como suma total para compatibilidad
+        uber: uber, 
+        glovo: glovo, 
+        app: app, 
         expenses: e, 
         total: total 
     };
@@ -1554,7 +1570,7 @@ function saveZ() {
     const idx = db.diario.findIndex(d => d.date === currentDiarioDate);
     if (idx >= 0) db.diario[idx] = data; else db.diario.push(data);
     
-    save("Cierre Guardado con Delivery ✅"); 
+    save("Cierre Desglosado Guardado ✅"); 
     render('Diario');
 }
 /* =============================================================
