@@ -285,6 +285,7 @@ let searchFilter = "";
 let currentDiarioDate = getISO();
 let inventoryMode = false;
 let activeFamily = 'Todos';
+let tempAlgs = []; // Variable temporal para alérgenos
 
 // Cálculo automático del trimestre fiscal
 let fiscalYear = new Date().getFullYear();
@@ -1204,52 +1205,58 @@ function saveMerma(id) {
         save("Merma registrada"); closeModal(); render('Stock'); 
     }
 }
-
-// Edición de Productos
-function editIng(id) {
-    const i = db.ingredientes.find(x => x.id === id) || { id, n: '', cost: 0, stock: 0, min: 0, unit: 'kg', fam: 'General' };
-    const fams = FAMILIES.map(f => `<option ${i.fam === f ? 'selected' : ''}>${f}</option>`).join('');
+function viewRec(id) {
+    const r = db.recetas.find(x => x.id === id); if(!r)return;
     
-    showModal('Ficha Producto', `
-        <label>Nombre</label><input id="ei-n" value="${clean(i.n)}" class="input-premium mb-2">
-        <label>Familia</label><select id="ei-f" class="input-premium mb-2">${fams}</select>
-        <div class="grid grid-cols-3 gap-2">
-            <div><label>Coste</label><input id="ei-c" type="number" value="${i.cost}" class="input-premium"></div>
-            <div><label>Stock</label><input id="ei-s" type="number" value="${i.stock}" class="input-premium"></div>
-            <div><label>Mín</label><input id="ei-m" type="number" value="${i.min}" class="input-premium"></div>
+    // 1. Calcular alérgenos totales de la receta
+    const recAlgs = new Set();
+    r.items.forEach(it => {
+        if(it.type === 'ing') {
+            const ing = db.ingredientes.find(i => i.id === it.id);
+            if(ing && ing.alg) ing.alg.forEach(a => recAlgs.add(a));
+        }
+    });
+    
+    // 2. Generar HTML de iconos de alérgenos
+    let algIcons = '';
+    if (recAlgs.size > 0) {
+        algIcons = '<div class="flex flex-wrap gap-2 mb-4 justify-center bg-red-50 p-2 rounded-xl border border-red-100">';
+        recAlgs.forEach(k => {
+            const a = ALLERGENS.find(x => x.k === k);
+            if(a) algIcons += `<span class="text-xl" title="${k}">${a.i}</span>`;
+        });
+        algIcons += '</div>';
+    } else {
+        algIcons = '<div class="text-center text-xs text-emerald-600 mb-4 bg-emerald-50 p-2 rounded-xl">✅ Libre de alérgenos registrados</div>';
+    }
+
+    // Calculadora dinámica
+    window.renderIngsForCalc = (f) => r.items.map(it => {
+        let n="?", q=it.q*f;
+        if(it.type==='ing'){ const i=db.ingredientes.find(x=>x.id===it.id); if(i)n=i.n; } else { const s=db.recetas.find(x=>x.id===it.id); if(s)n="🥣 "+s.n; }
+        return `<li class="flex justify-between py-1 border-b border-slate-50"><span>${n}</span><span class="font-bold text-indigo-600">${Num.fmt(q)} ${it.unit}</span></li>`;
+    }).join('');
+    
+    const c = calcRecipe(r);
+    
+    showModal(clean(r.n), `
+        <div class="flex justify-between text-center mb-2 bg-slate-50 p-3 rounded-xl border">
+            <div class="flex-1 border-r"><h6>COSTE</h6><b>${Num.fmt(c.t)}€</b></div>
+            <div class="flex-1"><h6>PVP</h6><b>${Num.fmt(r.pvp)}€</b></div>
         </div>
-        <label>Unidad</label>
-        <select id="ei-u" class="input-premium mb-4">
-            <option ${i.unit==='kg'?'selected':''}>kg</option><option ${i.unit==='g'?'selected':''}>g</option>
-            <option ${i.unit==='l'?'selected':''}>l</option><option ${i.unit==='ml'?'selected':''}>ml</option>
-            <option ${i.unit==='ud'?'selected':''}>ud</option>
-        </select>
+        
+        ${algIcons} <div class="bg-indigo-50 p-3 rounded-xl mb-4 flex items-center justify-between">
+            <span>Multiplicador</span>
+            <input type="number" value="1" class="w-16 text-center font-bold text-xl bg-white rounded border border-indigo-200" oninput="document.getElementById('v-list').innerHTML=window.renderIngsForCalc(this.value)">
+        </div>
+        <ul id="v-list" class="text-sm mb-4">${window.renderIngsForCalc(1)}</ul>
+        <p class="text-sm text-slate-600 bg-yellow-50 p-3 rounded-xl mb-4">${clean(r.inst)}</p>
         <div class="flex gap-2">
-            <button class="btn-premium flex-1" onclick="saveIng('${id}')">GUARDAR</button>
-            ${db.ingredientes.find(x => x.id === id) ? `<button class="btn-ghost w-auto text-red-500" onclick="delIng('${id}')">🗑️</button>` : ''}
+            <button class="btn-ghost flex-1" onclick="window.print()">🖨️ IMPRIMIR</button>
+            <button class="btn-premium flex-1" onclick="editRec('${id}')">EDITAR</button>
         </div>
     `);
 }
-
-function saveIng(id) {
-    const n = document.getElementById('ei-n').value; 
-    if (!n) return toast("Falta nombre", "error");
-    
-    const obj = {
-        id, n, 
-        fam: document.getElementById('ei-f').value, 
-        cost: parseFloat(document.getElementById('ei-c').value) || 0, 
-        stock: parseFloat(document.getElementById('ei-s').value) || 0, 
-        min: parseFloat(document.getElementById('ei-m').value) || 0, 
-        unit: document.getElementById('ei-u').value
-    };
-    
-    const idx = db.ingredientes.findIndex(x => x.id === id);
-    if (idx >= 0) db.ingredientes[idx] = obj; else db.ingredientes.push(obj);
-    
-    save("Guardado"); closeModal(); render('Stock');
-}
-
 function delIng(id) { 
     if (confirm("¿Eliminar producto?")) { 
         db.ingredientes = db.ingredientes.filter(x => x.id !== id); 
