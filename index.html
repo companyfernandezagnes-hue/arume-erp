@@ -188,18 +188,25 @@ const CONFIG = { COST_HOUR: 15 };
 const { createClient } = supabase;
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-/* === 2. UTILIDADES MATEMÁTICAS Y FORMATO === */
+/* === 2. UTILIDADES MATEMÁTICAS Y FORMATO (MEJORADO) === */
 const Num = {
     parse: (str) => { 
         if (!str) return 0; 
         if (typeof str === 'number') return str; 
-        let clean = String(str).replace(/[^0-9.,-]/g, '').replace(',', '.'); 
+        // 1. Quitamos todo lo que no sea número, punto, coma o guion
+        let clean = String(str).replace(/[^0-9.,-]/g, '');
+        // 2. Si hay coma, reemplazamos por punto para estándar JS
+        clean = clean.replace(/,/g, '.');
+        // 3. Evitamos múltiples puntos (ej: 1.500.50 -> 1500.50)
+        const parts = clean.split('.');
+        if (parts.length > 2) {
+            clean = parts.shift() + '.' + parts.join('');
+        }
         return parseFloat(clean) || 0; 
     },
     fmt: (n) => (n || 0).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
     csv: (n) => String(n || 0).replace('.', ',')
 };
-
 function clean(str) { 
     return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); 
 }
@@ -295,61 +302,65 @@ let fiscalQuarter = Math.floor(new Date().getMonth() / 3) + 1;
 const ALLERGENS = [{k:'glu',i:'🌾'},{k:'cru',i:'🦐'},{k:'hue',i:'🥚'},{k:'pes',i:'🐟'},{k:'cac',i:'🥜'},{k:'soj',i:'🫘'},{k:'lac',i:'🥛'},{k:'fru',i:'🌰'},{k:'api',i:'🥬'},{k:'mos',i:'🌭'},{k:'ses',i:'🌱'},{k:'sul',i:'🍷'},{k:'alt',i:'🫘'},{k:'mol',i:'🐙'}];
 const FAMILIES = ['General', 'Carne', 'Pescado', 'Verdura', 'Secos', 'Lácteos', 'Congelado', 'Bebida', 'Alcohol', 'Limpieza', 'Packaging'];
         /* =============================================================
-   ⚠️ 6. MOTOR DE SINCRONIZACIÓN (SUPABASE REAL-TIME) ⚠️
+/* =============================================================
+   ⚠️ 6. MOTOR DE SINCRONIZACIÓN (CON SEMÁFORO) ⚠️
    ============================================================= */
+let isSyncing = false; // El semáforo
 
 // Función: BAJAR datos de la nube
 async function syncDown() {
+    if (isSyncing) return; // Si ya está trabajando, no molestar
+    isSyncing = true;
+
     try {
-        // Leemos la fila con ID=1 de la tabla 'arume_data'
         const { data, error } = await sb.from('arume_data').select('data').eq('id', 1).single();
         
         if (data && data.data) {
             const cloudDB = data.data;
-            // Si la versión de la nube es más nueva que la local...
-            if (cloudDB.lastSync > (db.lastSync || 0)) {
-                // SEGURIDAD: Si el usuario tiene una ventana abierta escribiendo, NO interrumpimos
-                if (!document.getElementById('modal-overlay').classList.contains('hidden')) return;
+            // Solo actualizamos si la nube tiene datos más nuevos
+            if ((cloudDB.lastSync || 0) > (db.lastSync || 0)) {
+                // SEGURIDAD: No interrumpir si el usuario está escribiendo en un modal
+                if (!document.getElementById('modal-overlay').classList.contains('hidden')) {
+                    console.log("Sync pospuesto: Usuario ocupado");
+                    return;
+                }
                 
-                // Actualizamos la base de datos local
                 db = cloudDB;
                 localStorage.setItem('arume_v152', secure.enc(db));
-                refreshCurrentView(); // Refrescamos la pantalla
+                refreshCurrentView();
                 toast("☁️ Datos actualizados", "success");
             }
         } else if (error && error.code === 'PGRST116') {
-            // Error 116 significa "No hay datos". Es la primera vez que se usa.
-            // Creamos la fila inicial.
-            console.log("Inicializando Base de Datos en Nube...");
+            console.log("Inicializando Nube...");
             await sb.from('arume_data').insert([{ id: 1, data: db }]);
         }
     } catch (e) { 
         console.error("Error Sync:", e); 
+    } finally {
+        isSyncing = false; // Abrir semáforo
     }
 }
 
 // Función: SUBIR datos a la nube
 async function save(msg) {
-    loading(true); // Pantalla de carga
+    loading(true);
+    isSyncing = true; // Bloqueamos bajadas mientras subimos
     try {
-        db.lastSync = Date.now(); // Marcamos la hora actual
-        
-        // 1. Guardado de seguridad en el navegador (Instantáneo)
+        db.lastSync = Date.now();
         localStorage.setItem('arume_v152', secure.enc(db)); 
         
-        // 2. Guardado en la Nube (Supabase)
         const { error } = await sb.from('arume_data').upsert({ id: 1, data: db });
         if (error) throw error;
         
         if (msg) toast(msg, 'success');
     } catch (e) {
-        toast("Error de conexión. Guardado en local OK.", "info"); // Si falla internet, no perdemos datos
+        toast("Guardado en local (Sin red)", "info");
         console.error(e);
     } finally { 
-        loading(false); // Quitar pantalla de carga
+        loading(false); 
+        isSyncing = false; 
     }
 }
-
 // Auxiliar para refrescar la pantalla actual tras sincronizar
 function refreshCurrentView() {
     const activeBtn = document.querySelector('nav button.active');
