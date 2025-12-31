@@ -1230,7 +1230,6 @@ function viewRec(id) {
 /* =============================================================
    ⚠️ 13. MÓDULO DE STOCK Y PEDIDOS (COMPLETO Y CORREGIDO) ⚠️
    ============================================================= */
-
 function renderStock(app) {
     // Filtrado y Ordenación
     const list = db.ingredientes
@@ -1243,6 +1242,11 @@ function renderStock(app) {
         filteredList = list.filter(i => (i.fam || 'General') === activeFamily);
     }
 
+    // --- NUEVO: CÁLCULO DE VALOR DEL INVENTARIO ---
+    // Sumamos (Stock * Coste) de cada ingrediente para saber el dinero inmovilizado
+    const totalStockValue = filteredList.reduce((acc, i) => acc + (i.stock * i.cost), 0);
+    // ----------------------------------------------
+
     // Chips de Categorías
     const cats = ['Todos', ...FAMILIES].map(c => 
         `<button class="px-3 py-1 rounded-full text-[10px] border whitespace-nowrap ${activeFamily===c ? 'bg-slate-800 text-white' : 'bg-white'}" onclick="activeFamily='${c}';render('Stock')">${c}</button>`
@@ -1252,10 +1256,16 @@ function renderStock(app) {
         <div class="glass-card ${inventoryMode ? 'border-l-4 border-orange-500' : ''}">
             <div class="flex justify-between items-center mb-4">
                 <h3 class="font-bold flex items-center gap-2">${inventoryMode ? '📋 MODO AUDITORÍA' : '📦 ALMACÉN'}</h3>
-                <div class="flex gap-2">
-                    ${!inventoryMode ? `<button class="btn-whatsapp text-xs px-3" onclick="sendWhatsApp()">📞 PEDIDO</button>` : ''}
-                    <button class="btn-ghost text-xs px-3" onclick="toggleInventoryMode()">${inventoryMode ? 'SALIR' : 'AUDITAR'}</button>
+                
+                <div class="bg-slate-100 px-3 py-1 rounded-lg border border-slate-200">
+                    <span class="text-[9px] text-slate-400 uppercase font-bold">Valor</span>
+                    <span class="font-bold text-slate-700 ml-1">${Num.fmt(totalStockValue)}€</span>
                 </div>
+                </div>
+            
+            <div class="flex justify-end gap-2 mb-3">
+                 ${!inventoryMode ? `<button class="btn-whatsapp text-xs px-3" onclick="sendWhatsApp()">📞 PEDIDO</button>` : ''}
+                 <button class="btn-ghost text-xs px-3" onclick="toggleInventoryMode()">${inventoryMode ? 'SALIR' : 'AUDITAR'}</button>
             </div>
             
             <input class="input-premium mb-3" placeholder="🔍 Buscar producto..." onkeyup="searchFilter=this.value;render('Stock')" value="${searchFilter}">
@@ -1265,7 +1275,7 @@ function renderStock(app) {
                 ${filteredList.map(i => {
                     const low = i.stock < (i.min || 0);
                     
-                    // VISTA AUDITORÍA (Para contar rápido)
+                    // VISTA AUDITORÍA
                     if(inventoryMode) return `
                         <div class="bg-white p-3 rounded-xl border shadow-sm flex justify-between items-center animate-fade-in">
                             <div class="flex-1">
@@ -1278,7 +1288,7 @@ function renderStock(app) {
                             </div>
                         </div>`;
                     
-                    // VISTA NORMAL (Gestión)
+                    // VISTA NORMAL
                     return `
                         <div class="bg-white p-3 rounded-xl border ${low ? 'border-red-300 bg-red-50/20' : 'border-slate-100'} shadow-sm flex justify-between items-center group">
                             <div class="flex-1 cursor-pointer" onclick="editIng('${i.id}')">
@@ -1299,7 +1309,6 @@ function renderStock(app) {
             ${!inventoryMode ? `<button class="btn-premium mt-4" onclick="editIng(generateID())">＋ NUEVO PRODUCTO</button>` : ''}
         </div>`;
 }
-
 function toggleInventoryMode() { 
     inventoryMode = !inventoryMode; 
     render('Stock'); 
