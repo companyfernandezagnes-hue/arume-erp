@@ -494,20 +494,66 @@ function render(v) {
 /* =============================================================
    ⚠️ 10. MÓDULO DE ADMINISTRACIÓN Y GESTIÓN ⚠️
    ============================================================= */
+/* === WIDGET DE ALERTAS DE STOCK === */
+function getStockAlerts() {
+    // Filtramos productos por debajo del mínimo definido
+    const lowStock = db.ingredientes.filter(i => i.stock <= (i.min || 0));
+    
+    if (lowStock.length === 0) {
+        return `
+        <div class="bg-emerald-50 border border-emerald-100 p-4 rounded-2xl flex items-center gap-3 mb-6 shadow-sm">
+            <div class="bg-emerald-100 p-2 rounded-full text-emerald-600">✅</div>
+            <div>
+                <h4 class="font-bold text-emerald-800 text-sm">Almacén Saludable</h4>
+                <p class="text-[10px] text-emerald-600">Todo el stock está por encima del mínimo.</p>
+            </div>
+        </div>`;
+    }
 
+    // Si hay alertas, las mostramos
+    const itemsHtml = lowStock.map(i => {
+        const percent = i.min > 0 ? (i.stock / i.min) * 100 : 0;
+        let color = percent < 25 ? 'bg-red-500' : 'bg-orange-400';
+        
+        return `
+        <div class="flex justify-between items-center py-2 border-b border-slate-50 last:border-0">
+            <div class="flex items-center gap-2">
+                <div class="w-2 h-2 rounded-full ${color} animate-pulse"></div>
+                <span class="text-xs font-bold text-slate-700">${clean(i.n)}</span>
+            </div>
+            <div class="text-right">
+                <span class="text-xs font-black text-slate-800">${parseFloat(i.stock).toFixed(1)} ${i.unit}</span>
+                <div class="text-[9px] text-red-400 font-bold">Mín: ${i.min}</div>
+            </div>
+        </div>`;
+    }).join('');
+
+    return `
+    <div class="bg-white border-l-4 border-red-500 shadow-md rounded-xl p-4 mb-6">
+        <div class="flex justify-between items-center mb-3">
+            <h3 class="font-black text-slate-800 text-xs uppercase tracking-widest flex items-center gap-2">
+                ⚠️ ALERTA DE STOCK <span class="bg-red-100 text-red-600 px-2 py-0.5 rounded-full text-[9px]">${lowStock.length}</span>
+            </h3>
+            <button class="text-[10px] font-bold text-indigo-600 hover:underline" onclick="render('Stock')">VER ALMACÉN</button>
+        </div>
+        <div class="max-h-40 overflow-y-auto pr-1 custom-scrollbar">
+            ${itemsHtml}
+        </div>
+        <button class="w-full mt-3 btn-whatsapp text-[10px] py-2" onclick="sendWhatsApp()">📞 GENERAR PEDIDO AUTO</button>
+    </div>`;
+}
 function renderAdmin(app) {
-    // Cálculos Financieros en Tiempo Real
+    // 1. Cálculos Financieros en Tiempo Real
     const tot = db.diario.filter(d => isInPeriod(d.date)).reduce((a, b) => a + (b.total || 0), 0);
     const periodAlbs = db.albaranes.filter(a => isInPeriod(a.date));
     const compras = periodAlbs.reduce((a, b) => a + (b.subtotal || 0), 0);
     const taxes = periodAlbs.reduce((a, b) => a + (b.taxes || 0), 0);
     
-    // Cálculo teórico de Food Cost (Lo que deberíamos haber gastado según recetas)
+    // 2. Cálculo teórico de Food Cost
     let theoreticalCost = 0;
     db.sales_history.filter(log => isInPeriod(log.date)).forEach(log => {
         log.items.forEach(soldItem => {
             const rec = db.recetas.find(r => r.id === soldItem.rid);
-            // Nota: calcRecipe se definirá en la siguiente sección, pero JS lo encontrará bien
             if (rec) theoreticalCost += (calcRecipe(rec).t * soldItem.q);
         });
     });
@@ -516,11 +562,12 @@ function renderAdmin(app) {
     const foodCostPercent = tot > 0 ? (theoreticalCost / tot) * 100 : 0;
     const cashFlow = tot - (compras + taxes); // Dinero real en banco
 
-    // Selector de Trimestre
+    // 3. Selector de Trimestre (HTML)
     const qCtrl = `<div class="flex items-center justify-between bg-white p-2 rounded-2xl shadow-sm mb-4 border border-slate-100"><div class="flex items-center gap-2 bg-slate-100 rounded-lg px-2 py-1"><button class="w-8 h-8 flex items-center justify-center hover:bg-white rounded-full transition font-bold" onclick="fiscalYear--;renderAdmin(document.getElementById('app'))">‹</button><span class="font-black text-slate-700 text-sm tracking-widest">${fiscalYear}</span><button class="w-8 h-8 flex items-center justify-center hover:bg-white rounded-full transition font-bold" onclick="fiscalYear++;renderAdmin(document.getElementById('app'))">›</button></div><div class="flex gap-1 overflow-x-auto no-scrollbar"><button class="px-2 py-1 rounded ${fiscalQuarter===1?'bg-slate-800 text-white':'bg-slate-100 text-slate-500'} text-xs font-bold" onclick="fiscalQuarter=1;renderAdmin(document.getElementById('app'))">1T</button><button class="px-2 py-1 rounded ${fiscalQuarter===2?'bg-slate-800 text-white':'bg-slate-100 text-slate-500'} text-xs font-bold" onclick="fiscalQuarter=2;renderAdmin(document.getElementById('app'))">2T</button><button class="px-2 py-1 rounded ${fiscalQuarter===3?'bg-slate-800 text-white':'bg-slate-100 text-slate-500'} text-xs font-bold" onclick="fiscalQuarter=3;renderAdmin(document.getElementById('app'))">3T</button><button class="px-2 py-1 rounded ${fiscalQuarter===4?'bg-slate-800 text-white':'bg-slate-100 text-slate-500'} text-xs font-bold" onclick="fiscalQuarter=4;renderAdmin(document.getElementById('app'))">4T</button><button class="px-2 py-1 rounded ${fiscalQuarter===0?'bg-slate-800 text-white':'bg-slate-100 text-slate-500'} text-xs font-bold" onclick="fiscalQuarter=0;renderAdmin(document.getElementById('app'))">AÑO</button></div></div>`;
 
-    // Menú de Pestañas Admin y Renderizado Condicional
+    // 4. ESTRUCTURA FINAL DEL HTML
     app.innerHTML = `${qCtrl}
+    
     <div class="flex gap-2 mb-6 bg-white p-1 rounded-2xl shadow-sm border border-slate-100 overflow-x-auto no-scrollbar">
         <button class="flex-1 min-w-[80px] py-2.5 rounded-xl font-bold text-xs transition ${activeAdminTab==='dash'?'bg-slate-800 text-white shadow-md':'text-slate-500 hover:bg-slate-50'}" onclick="activeAdminTab='dash';renderAdmin(document.getElementById('app'))">DASHBOARD</button>
         <button class="flex-1 min-w-[80px] py-2.5 rounded-xl font-bold text-xs transition ${activeAdminTab==='omnes'?'bg-slate-800 text-white shadow-md':'text-slate-500 hover:bg-slate-50'}" onclick="activeAdminTab='omnes';renderAdmin(document.getElementById('app'))">OMNES</button>
@@ -540,27 +587,31 @@ function renderAdmin(app) {
                 <span>Ventas: ${Num.fmt(tot)}€</span><span>Consumo: ${Num.fmt(theoreticalCost)}€</span>
             </div>
         </div>
+
         <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm mb-6">
             <h3 class="text-[10px] font-bold text-slate-400 uppercase mb-3">Flujo de Caja</h3>
             <div class="flex justify-between items-center mb-2"><span class="text-xs font-bold text-slate-600">Entradas</span><span class="font-bold text-emerald-600">+${Num.fmt(tot)}€</span></div>
             <div class="flex justify-between items-center mb-2"><span class="text-xs font-bold text-slate-600">Salidas (IVA inc)</span><span class="font-bold text-red-500">-${Num.fmt(compras + taxes)}€</span></div>
             <div class="border-t border-slate-100 pt-2 mt-2 flex justify-between items-center"><span class="text-xs font-black text-slate-800 uppercase">Saldo</span><span class="font-black text-lg ${cashFlow >= 0 ? 'text-slate-800' : 'text-red-600'}">${Num.fmt(cashFlow)}€</span></div>
         </div>
-       <div class="grid grid-cols-3 gap-2">
+
+        ${getStockAlerts()} 
+        <div class="grid grid-cols-3 gap-2">
             <button class="btn-ghost" onclick="downloadBackup()">💾 BACKUP</button>
             <button class="btn-ghost text-indigo-600" onclick="document.getElementById('backup-input').click()">📤 RESTAURAR</button>
             <button class="btn-ghost text-emerald-600 font-black border-emerald-200 bg-emerald-50" onclick="forceCloudDownload()">☁️ BAJAR</button>
         </div>
     ` : ''}
+
     <div id="adm-c"></div>`;
 
+    // Lógica para renderizar las otras pestañas si están activas
     const c = document.getElementById('adm-c');
     if (activeAdminTab === 'omnes') renderOmnes(c);
     if (activeAdminTab === 'albs') renderAlbaranes(c);
     if (activeAdminTab === 'facturas') renderFacturas(c);
     if (activeAdminTab === 'prov') renderProvs(c);
 }
-
 // --- SUB-MÓDULO: PROVEEDORES ---
 function renderProvs(c) { 
     // Calcular gasto por proveedor
