@@ -207,37 +207,50 @@ function clean(str) {
 const generateID = () => Math.random().toString(36).substr(2, 9);
 const getISO = () => new Date().toLocaleDateString('en-CA');
 const getTS = () => new Date().toLocaleString('es-ES');
-
-/* === 3. CONVERSOR DE UNIDADES INTELIGENTE === */
+/* === 3. CONVERSOR DE UNIDADES INTELIGENTE (MEJORADO) === */
 const UnitConverter = {
     normalize: (u) => {
         if (!u) return 'ud';
         u = String(u).toLowerCase().trim().replace('.', '');
+        // Peso
         if (['kg', 'kilo', 'k'].includes(u)) return 'kg';
         if (['g', 'gr', 'gramos'].includes(u)) return 'g';
+        if (['mg', 'mili'].includes(u)) return 'mg';
+        if (['lb', 'libra'].includes(u)) return 'lb';
+        if (['oz', 'onza'].includes(u)) return 'oz';
+        // Volumen
         if (['l', 'litro', 'lt'].includes(u)) return 'l';
-        if (['ml', 'mili', 'cl'].includes(u)) return 'ml';
+        if (['ml', 'mili'].includes(u)) return 'ml';
+        if (['cl', 'centi'].includes(u)) return 'cl';
         return 'ud';
     },
     convert: (q, from, to) => {
         from = UnitConverter.normalize(from);
         to = UnitConverter.normalize(to);
         if (from === to) return q;
-        // Peso
-        if (from === 'kg' && to === 'g') return q * 1000;
-        if (from === 'g' && to === 'kg') return q / 1000;
-        // Volumen
-        if (from === 'l' && to === 'ml') return q * 1000;
-        if (from === 'ml' && to === 'l') return q / 1000;
-        // Aproximaciones (Densidad del agua 1kg = 1l)
-        if (from === 'kg' && to === 'l') return q; 
-        if (from === 'l' && to === 'kg') return q;
-        if (from === 'g' && to === 'ml') return q;
-        if (from === 'ml' && to === 'g') return q;
-        return q; // Si no se puede convertir, devuelve lo mismo
+
+        // Tabla de conversión a base común (Base peso: g, Base volumen: ml)
+        const toG = { 'kg': 1000, 'g': 1, 'mg': 0.001, 'lb': 453.59, 'oz': 28.35 };
+        const toMl = { 'l': 1000, 'ml': 1, 'cl': 10 };
+
+        // 1. Si ambos son PESO
+        if (toG[from] && toG[to]) return q * (toG[from] / toG[to]);
+
+        // 2. Si ambos son VOLUMEN
+        if (toMl[from] && toMl[to]) return q * (toMl[from] / toMl[to]);
+
+        // 3. Conversión PESO <-> VOLUMEN (Aproximación Agua: 1g = 1ml)
+        // Convertimos el origen a gramos/ml y luego al destino
+        const valInBase = (toG[from] || toMl[from]) * q;
+        if (valInBase) {
+            const factorDestino = (toG[to] || toMl[to]);
+            if (factorDestino) return valInBase / factorDestino;
+        }
+
+        // 4. Si es Unidad (ud), no se puede convertir matemáticamente sin saber lo que pesa 1 ud
+        return q; 
     }
 };
-
 /* === 4. ESTRUCTURA DE LA BASE DE DATOS === */
 const DB_INIT = { 
     users: [
@@ -986,21 +999,25 @@ function renderRecTypes() {
     updUnit();
 }
 
-// Selector inteligente de unidades (según tipo de ingrediente)
+// Selector inteligente de unidades (LIBERADO)
 function updUnit() {
-    const sel = document.getElementById('er-sel'); const uSel = document.getElementById('er-u');
-    const type = sel.options[sel.selectedIndex]?.dataset.t; const id = sel.value;
-    let opts = ['ud'];
-    if(type==='ing') {
-        const i = db.ingredientes.find(x=>x.id===id);
-        if(i) {
-            const u = UnitConverter.normalize(i.unit);
-            if(['kg','g'].includes(u)) opts=['g','kg']; else if(['l','ml'].includes(u)) opts=['ml','l','cl']; else opts=[u];
-        }
-    } else opts=['rac'];
-    uSel.innerHTML = opts.map(u=>`<option>${u}</option>`).join('');
+    const sel = document.getElementById('er-sel'); 
+    const uSel = document.getElementById('er-u');
+    const type = sel.options[sel.selectedIndex]?.dataset.t;
+    
+    let opts = [];
+    
+    if(type === 'rec') {
+        // Si es una sub-receta, usamos raciones
+        opts = ['rac']; 
+    } else {
+        // Si es ingrediente, DAMOS LIBERTAD TOTAL
+        // Ordenadas por uso común
+        opts = ['kg', 'g', 'l', 'ml', 'cl', 'ud', 'oz', 'lb', 'mg'];
+    }
+    
+    uSel.innerHTML = opts.map(u => `<option>${u}</option>`).join('');
 }
-
 function addItem() {
     const sel = document.getElementById('er-sel'); const type = sel.options[sel.selectedIndex].dataset.t;
     const q = parseFloat(document.getElementById('er-q').value);
