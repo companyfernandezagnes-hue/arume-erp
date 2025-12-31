@@ -301,7 +301,6 @@ let fiscalQuarter = Math.floor(new Date().getMonth() / 3) + 1;
 // Constantes de negocio
 const ALLERGENS = [{k:'glu',i:'🌾'},{k:'cru',i:'🦐'},{k:'hue',i:'🥚'},{k:'pes',i:'🐟'},{k:'cac',i:'🥜'},{k:'soj',i:'🫘'},{k:'lac',i:'🥛'},{k:'fru',i:'🌰'},{k:'api',i:'🥬'},{k:'mos',i:'🌭'},{k:'ses',i:'🌱'},{k:'sul',i:'🍷'},{k:'alt',i:'🫘'},{k:'mol',i:'🐙'}];
 const FAMILIES = ['General', 'Carne', 'Pescado', 'Verdura', 'Secos', 'Lácteos', 'Congelado', 'Bebida', 'Alcohol', 'Limpieza', 'Packaging'];
-        /* =============================================================
 /* =============================================================
    ⚠️ 6. MOTOR DE SINCRONIZACIÓN (CON SEMÁFORO) ⚠️
    ============================================================= */
@@ -394,7 +393,6 @@ function isInPeriod(dateStr) {
     if (fiscalQuarter === 0) return true; // Si es "AÑO", todo dentro
     return Math.ceil(month / 3) === fiscalQuarter; // Cálculo de trimestre
 }
-
 /* === 8. LÓGICA DE ARRANQUE Y LOGIN (PIN) === */
 function init() {
     // 1. Intentamos recuperar datos del navegador por si acaso
@@ -424,10 +422,9 @@ function init() {
         document.getElementById('pin-screen').classList.remove('hidden');
     }
     
-    // ACTIVAMOS EL LATIDO: Sincronizar cada 3 segundos
-    setInterval(syncDown, 3000); 
+    // ACTIVAMOS EL LATIDO: Sincronizar cada 10 segundos (OPTIMIZADO)
+    setInterval(syncDown, 10000); 
 }
-
 // Lógica del teclado numérico
 function pin(n) {
     if (n === 'C') {
