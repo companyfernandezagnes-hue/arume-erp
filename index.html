@@ -1493,24 +1493,40 @@ function viewRec(id) {
    ⚠️ 13. MÓDULO DE STOCK Y PEDIDOS (COMPLETO Y CORREGIDO) ⚠️
    ============================================================= */
 function renderStock(app) {
-    // Filtrado y Ordenación
-    const list = db.ingredientes
-        .filter(i => i.n.toLowerCase().includes(searchFilter.toLowerCase()))
-        .sort((a,b) => a.n.localeCompare(b.n));
+    // 1. Preparamos la lista base
+    let list = db.ingredientes
+        .filter(i => i.n.toLowerCase().includes(searchFilter.toLowerCase()));
+
+    // 2. CÁLCULO ABC (Detectar Joyas) 💎
+    // Calculamos el valor monetario de cada item (Stock * Coste)
+    list.forEach(i => i._val = i.stock * i.cost);
     
-    // Filtro por Familia
-    let filteredList = list;
-    if(activeFamily !== 'Todos') {
-        filteredList = list.filter(i => (i.fam || 'General') === activeFamily);
+    // Ordenamos temporalmente por valor (de más caro a más barato) para encontrar el Top 20%
+    const sortedByVal = [...list].sort((a,b) => b._val - a._val);
+    const top20Count = Math.ceil(list.length * 0.2); // El 20% de tus productos
+    const highValueIds = sortedByVal.slice(0, top20Count).map(i => i.id); // Guardamos los IDs de las "Joyas"
+
+    // 3. Filtros de visualización
+    // Si pulsamos el botón de familia, filtramos
+    if(activeFamily !== 'Todos' && activeFamily !== 'Joyas') {
+        list = list.filter(i => (i.fam || 'General') === activeFamily);
+    }
+    // Si pulsamos el botón "Joyas", mostramos solo las caras
+    if (activeFamily === 'Joyas') {
+        list = list.filter(i => highValueIds.includes(i.id));
     }
 
-    // Valor del Inventario
-    const totalStockValue = filteredList.reduce((acc, i) => acc + (i.stock * i.cost), 0);
+    // Ordenación visual (Alfabética por defecto)
+    list.sort((a,b) => a.n.localeCompare(b.n));
 
-    // Chips de Categorías
-    const cats = ['Todos', ...FAMILIES].map(c => 
-        `<button class="px-3 py-1 rounded-full text-[10px] border whitespace-nowrap ${activeFamily===c ? 'bg-slate-800 text-white' : 'bg-white'}" onclick="activeFamily='${c}';render('Stock')">${c}</button>`
-    ).join('');
+    // Valor Total del Inventario visible
+    const totalStockValue = list.reduce((acc, i) => acc + (i._val), 0);
+
+    // 4. Generar Chips de Categorías (Incluyendo el nuevo botón Diamante)
+    const cats = [`<button class="px-3 py-1 rounded-full text-[10px] border whitespace-nowrap ${activeFamily==='Joyas' ? 'bg-indigo-600 text-white border-indigo-600 shadow-md' : 'bg-white text-indigo-600 border-indigo-200'}" onclick="activeFamily='Joyas';render('Stock')">💎 JOYAS (Top 20%)</button>`]
+        .concat(['Todos', ...FAMILIES].map(c => 
+            `<button class="px-3 py-1 rounded-full text-[10px] border whitespace-nowrap ${activeFamily===c ? 'bg-slate-800 text-white' : 'bg-white'}" onclick="activeFamily='${c}';render('Stock')">${c}</button>`
+    )).join('');
 
     app.innerHTML = `
         <div class="glass-card ${inventoryMode ? 'border-l-4 border-orange-500' : ''}">
@@ -1518,7 +1534,7 @@ function renderStock(app) {
                 <h3 class="font-bold flex items-center gap-2">${inventoryMode ? '📋 MODO AUDITORÍA' : '📦 ALMACÉN'}</h3>
                 
                 <div class="bg-slate-100 px-3 py-1 rounded-lg border border-slate-200">
-                    <span class="text-[9px] text-slate-400 uppercase font-bold">Valor</span>
+                    <span class="text-[9px] text-slate-400 uppercase font-bold">Valor Visible</span>
                     <span class="font-bold text-slate-700 ml-1">${Num.fmt(totalStockValue)}€</span>
                 </div>
             </div>
@@ -1533,26 +1549,28 @@ function renderStock(app) {
             <div class="flex gap-2 overflow-x-auto pb-2 mb-2 no-scrollbar">${cats}</div>
 
             <div class="max-h-[60vh] overflow-y-auto space-y-2 pr-1">
-                ${filteredList.map(i => {
+                ${list.map(i => {
                     const low = i.stock < (i.min || 0);
+                    const isJewel = highValueIds.includes(i.id); // ¿Es una joya?
                     
-                    // --- LÓGICA DEL CHIVATO DE INFLACIÓN ---
+                    // Lógica del Chivato de Inflación (Mantenida)
                     let trend = '';
                     if (i.lastCost) {
                         const diff = i.cost - i.lastCost;
                         const pct = (diff / i.lastCost) * 100;
-                        // Solo mostramos si la variación es mayor al 1%
                         if (pct > 1) trend = `<span class="ml-1 text-[9px] font-black text-red-500 bg-red-50 px-1 rounded">↑${pct.toFixed(0)}%</span>`;
                         else if (pct < -1) trend = `<span class="ml-1 text-[9px] font-black text-emerald-500 bg-emerald-50 px-1 rounded">↓${Math.abs(pct).toFixed(0)}%</span>`;
                     }
-                    // ---------------------------------------
+
+                    // Icono de Joya
+                    const jewelIcon = isJewel ? '<span class="text-xs mr-1" title="Producto de Alto Valor">💎</span>' : '';
 
                     // VISTA AUDITORÍA
                     if(inventoryMode) return `
-                        <div class="bg-white p-3 rounded-xl border shadow-sm flex justify-between items-center animate-fade-in">
+                        <div class="bg-white p-3 rounded-xl border shadow-sm flex justify-between items-center animate-fade-in ${isJewel ? 'border-indigo-200 bg-indigo-50/30' : ''}">
                             <div class="flex-1">
-                                <div class="font-bold text-sm">${clean(i.n)}</div>
-                                <div class="text-[10px] text-slate-400">Teórico: ${i.stock} ${i.unit}</div>
+                                <div class="font-bold text-sm flex items-center">${jewelIcon} ${clean(i.n)}</div>
+                                <div class="text-[10px] text-slate-400">Teórico: ${i.stock} ${i.unit} · Valor: ${Num.fmt(i._val)}€</div>
                             </div>
                             <div class="flex gap-2 items-center">
                                 <input id="rs-${i.id}" type="number" placeholder="${i.stock}" class="w-20 text-center bg-orange-50 border border-orange-200 p-2 rounded-lg font-bold text-lg outline-none focus:ring-2 focus:ring-orange-500">
@@ -1562,9 +1580,9 @@ function renderStock(app) {
                     
                     // VISTA NORMAL
                     return `
-                        <div class="bg-white p-3 rounded-xl border ${low ? 'border-red-300 bg-red-50/20' : 'border-slate-100'} shadow-sm flex justify-between items-center group">
+                        <div class="bg-white p-3 rounded-xl border ${low ? 'border-red-300 bg-red-50/20' : 'border-slate-100'} shadow-sm flex justify-between items-center group ${isJewel ? 'border-l-4 border-l-indigo-400' : ''}">
                             <div class="flex-1 cursor-pointer" onclick="editIng('${i.id}')">
-                                <div class="font-bold text-slate-800 text-sm">${clean(i.n)}</div>
+                                <div class="font-bold text-slate-800 text-sm flex items-center">${jewelIcon} ${clean(i.n)}</div>
                                 <div class="text-xs text-slate-500 flex gap-2 items-center mt-1">
                                     <span class="bg-slate-100 px-2 rounded text-[10px] font-bold border">${parseFloat(i.stock).toFixed(2)} ${i.unit}</span>
                                     <span class="text-[10px] text-slate-400 flex items-center">
@@ -1578,7 +1596,7 @@ function renderStock(app) {
                             </div>
                         </div>`;
                 }).join('')}
-                ${filteredList.length === 0 ? '<div class="text-center p-8 text-slate-400">No hay productos.</div>' : ''}
+                ${list.length === 0 ? '<div class="text-center p-8 text-slate-400">No hay productos.</div>' : ''}
             </div>
             ${!inventoryMode ? `<button class="btn-premium mt-4" onclick="editIng(generateID())">＋ NUEVO PRODUCTO</button>` : ''}
         </div>`;
