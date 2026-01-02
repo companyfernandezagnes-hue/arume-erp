@@ -1626,12 +1626,10 @@ function saveMerma(id) {
 }
 
 // --- EDICIÓN DE PRODUCTOS (CON ALÉRGENOS) ---
-
 function editIng(id) {
     const i = db.ingredientes.find(x => x.id === id) || { id, n: '', cost: 0, stock: 0, min: 0, unit: 'kg', fam: 'General', alg: [] };
     const fams = FAMILIES.map(f => `<option ${i.fam === f ? 'selected' : ''}>${f}</option>`).join('');
     
-    // IMPORTANTE: Aseguramos que sea un array
     tempAlgs = Array.isArray(i.alg) ? i.alg : [];
 
     const algHTML = ALLERGENS.map(a => {
@@ -1639,6 +1637,11 @@ function editIng(id) {
         return `<button id="btn-alg-${a.k}" onclick="toggleAlg('${a.k}')" class="w-8 h-8 rounded-full border flex items-center justify-center text-sm transition ${active ? 'bg-red-100 border-red-400 scale-110 shadow-sm' : 'bg-slate-50 border-slate-200 opacity-60 grayscale'}">${a.i}</button>`;
     }).join('');
     
+    // Botón de Historial añadido abajo
+    const histBtn = db.ingredientes.find(x => x.id === id) 
+        ? `<button class="btn-ghost w-auto text-indigo-600 border-indigo-200 bg-indigo-50" onclick="viewKardex('${id}')">📜 HISTORIAL</button>` 
+        : '';
+
     showModal('Ficha Producto', `
         <label>Nombre</label><input id="ei-n" value="${clean(i.n)}" class="input-premium mb-2">
         <label>Familia</label><select id="ei-f" class="input-premium mb-2">${fams}</select>
@@ -1669,11 +1672,11 @@ function editIng(id) {
         
         <div class="flex gap-2">
             <button class="btn-premium flex-1" onclick="saveIng('${id}')">GUARDAR</button>
+            ${histBtn}
             ${db.ingredientes.find(x => x.id === id) ? `<button class="btn-ghost w-auto text-red-500" onclick="delIng('${id}')">🗑️</button>` : ''}
         </div>
     `);
 }
-
 function toggleAlg(k) {
     const btn = document.getElementById(`btn-alg-${k}`);
     if (tempAlgs.includes(k)) {
@@ -1986,6 +1989,52 @@ function downloadDiarioCSV(monthIndex, monthName) {
     a.href = URL.createObjectURL(blob);
     a.download = `Caja_${monthName}_${fiscalYear}.csv`;
     a.click();
+}
+// Ver Historial de Movimientos (Estilo Odoo Trazabilidad)
+function viewKardex(id) {
+    const i = db.ingredientes.find(x => x.id === id);
+    if (!i) return;
+
+    // Filtramos los movimientos de este producto y ordenamos (más reciente arriba)
+    // Limitamos a los últimos 50 para que no sea infinito
+    const moves = db.kardex
+        .filter(k => k.ingId === id)
+        .sort((a,b) => (b.date > a.date ? 1 : -1)) // Ordenar por fecha string (o timestamp si lo fuera)
+        .slice(0, 50);
+
+    if (moves.length === 0) return toast("No hay movimientos registrados", "info");
+
+    const html = moves.map(m => {
+        let color = 'text-slate-600';
+        let icon = '🔄';
+        let sign = '';
+
+        // Estilos visuales según el tipo de movimiento
+        if (m.type === 'IN') { color = 'text-emerald-600'; icon = '📥'; sign = '+'; }
+        if (m.type === 'OUT') { color = 'text-red-500'; icon = '📤'; sign = '-'; }
+        if (m.type === 'ADJ' || m.type === 'RESET') { color = 'text-orange-500'; icon = '🔧'; }
+
+        return `
+        <div class="flex justify-between items-center py-2 border-b border-slate-50 text-xs">
+            <div>
+                <div class="font-bold text-slate-700 flex items-center gap-1">
+                    <span>${icon}</span> ${m.reason || 'Movimiento'}
+                </div>
+                <div class="text-[10px] text-slate-400 font-mono">${m.date}</div>
+            </div>
+            <div class="text-right">
+                <div class="font-black ${color} text-sm">${sign}${parseFloat(m.qty).toFixed(2)} ${i.unit}</div>
+                ${m.price ? `<div class="text-[9px] text-slate-400">${Num.fmt(m.price)}€/ud</div>` : ''}
+            </div>
+        </div>`;
+    }).join('');
+
+    showModal(`Historial: ${clean(i.n)}`, `
+        <div class="bg-slate-50 p-3 rounded-xl border border-slate-100 max-h-[60vh] overflow-y-auto custom-scrollbar">
+            ${html}
+        </div>
+        <div class="text-center mt-3 text-[10px] text-slate-400 uppercase font-bold">Últimos 50 movimientos</div>
+    `);
 }
 </script>
 </body>
