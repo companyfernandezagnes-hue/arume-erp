@@ -1222,9 +1222,22 @@ function renderRecGrid(list) {
 function filterRec(txt) { document.getElementById('rec-grid').innerHTML = renderRecGrid(db.recetas.filter(r=>r.n.toLowerCase().includes(txt.toLowerCase()))); }
         
 // La función Recursiva Maestra (Calcula costes anidados con Rendimiento)
+// --- OPTIMIZACIÓN: CACHÉ DE RECETAS (MEMORIA) ---
+const recipeCache = new Map(); // El "post-it" para recordar precios
+
+function clearCache() {
+    recipeCache.clear(); // Borra la memoria cuando cambiamos precios
+}
+
+// La función Recursiva Maestra (AHORA CON MEMORIA)
 function calcRecipe(r, visited = new Set()) {
     if (!r) return { t: 0 };
     
+    // 1. CONSULTA: ¿Ya calculé esta receta antes?
+    if (recipeCache.has(r.id)) {
+        return recipeCache.get(r.id); // ¡Sí! Devuelvo el dato guardado y ahorro trabajo
+    }
+
     // Protección contra bucles infinitos
     if (visited.has(r.id)) {
         console.warn("Bucle detectado en receta:", r.n);
@@ -1241,7 +1254,6 @@ function calcRecipe(r, visited = new Set()) {
             // Es un ingrediente normal
             const i = db.ingredientes.find(x => x.id === it.id);
             if (i) {
-                // Convertimos la unidad usada a la unidad del almacén
                 const qtyInBaseUnit = UnitConverter.convert(it.q, it.unit || i.unit, i.unit);
                 totalCost += (qtyInBaseUnit * i.cost) / yieldFactor;
             }
@@ -1250,14 +1262,11 @@ function calcRecipe(r, visited = new Set()) {
             // ¡ES UNA SUB-RECETA!
             const sub = db.recetas.find(x => x.id === it.id);
             if (sub) {
-                // 1. Coste del lote entero
+                // Aquí usamos la memoria (recursividad optimizada)
                 const subFullCost = calcRecipe(sub, new Set(visited)).t;
                 
-                // 2. Coste unitario (Coste Lote / Rendimiento)
                 const subYield = sub.yield || 1; 
                 const costPerUnit = subFullCost / subYield;
-
-                // 3. Conversión de unidades inteligente
                 const qtyNormalized = UnitConverter.convert(it.q, it.unit, sub.unit || 'rac');
 
                 totalCost += qtyNormalized * costPerUnit;
@@ -1265,10 +1274,15 @@ function calcRecipe(r, visited = new Set()) {
         }
     });
 
-    // Añadimos mano de obra directa de ESTA receta
+    // Añadimos mano de obra
     const laborCost = (r.time / 60) * CONFIG.COST_HOUR;
     
-    return { t: totalCost + laborCost };
+    const result = { t: totalCost + laborCost };
+
+    // 2. GUARDADO: Antes de salir, anoto el resultado en la memoria
+    recipeCache.set(r.id, result);
+
+    return result;
 }
 function editRec(id) {
     const r = id ? db.recetas.find(x => x.id === id) : { id: generateID(), n: '', pvp: 0, time: 10, items: [], inst: '', yield: 1, unit: 'rac' }; // Por defecto 1 ración
@@ -1397,7 +1411,6 @@ function saveRec(id) {
         n, 
         pvp: parseFloat(document.getElementById('er-pvp').value) || 0, 
         time: parseFloat(document.getElementById('er-time').value) || 0,
-        // NUEVO: Guardamos cuánto produce esta receta
         yield: parseFloat(document.getElementById('er-yield').value) || 1,
         unit: document.getElementById('er-unit').value,
         items: tempItems, 
@@ -1406,6 +1419,8 @@ function saveRec(id) {
 
     const idx = db.recetas.findIndex(x => x.id === id);
     if(idx >= 0) db.recetas[idx] = r; else db.recetas.push(r);
+    
+    clearCache(); // <--- ¡LÍNEA NUEVA! Importante para actualizar precios
     
     save("Ficha Técnica Guardada"); 
     closeModal(); 
@@ -1642,7 +1657,6 @@ function toggleAlg(k) {
         btn.className = "w-8 h-8 rounded-full border flex items-center justify-center text-sm transition bg-red-100 border-red-400 scale-110 shadow-sm";
     }
 }
-
 function saveIng(id) {
     const n = document.getElementById('ei-n').value; 
     if (!n) return toast("Falta nombre", "error");
@@ -1660,9 +1674,10 @@ function saveIng(id) {
     const idx = db.ingredientes.findIndex(x => x.id === id);
     if (idx >= 0) db.ingredientes[idx] = obj; else db.ingredientes.push(obj);
     
+    clearCache(); // <--- ¡AÑADIDO! Esto limpia la memoria para recalcular costes
+    
     save("Guardado"); closeModal(); render('Stock');
 }
-
 function delIng(id) { 
     if (confirm("¿Eliminar producto?")) { 
         db.ingredientes = db.ingredientes.filter(x => x.id !== id); 
