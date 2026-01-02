@@ -853,26 +853,216 @@ function exportAlbCSV() {
     const blob = new Blob(["\uFEFF" + csv], { type: 'text/csv;charset=utf-8' }); 
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'Albaran_Import.csv'; a.click(); 
 }
+/* =============================================================
+   ⚠️ NUEVO MÓDULO DE FACTURACIÓN (AGRUPADO + EXCEL + MODAL) ⚠️
+   ============================================================= */
 
-// --- SUB-MÓDULO: FACTURAS ---
+// Variable temporal para guardar datos mientras está abierta la ventana modal
+let tempInvoiceData = null;
+
 function renderFacturas(c) {
+    // 1. Lógica de Albaranes Pendientes (Agrupar por proveedor)
     const pends = db.albaranes.filter(a => !a.invoiced);
     const groups = {}; 
-    // Agrupar albaranes pendientes por proveedor
-    pends.forEach(a => { if (!groups[a.prov]) groups[a.prov] = { c: 0, t: 0, ids: [] }; groups[a.prov].c++; groups[a.prov].t += a.total; groups[a.prov].ids.push(a.id); });
-    const hist = db.facturas.filter(f => isInPeriod(f.date)).slice().reverse();
+    pends.forEach(a => { 
+        if (!groups[a.prov]) groups[a.prov] = { c: 0, t: 0, ids: [] }; 
+        groups[a.prov].c++; 
+        groups[a.prov].t += a.total; 
+        groups[a.prov].ids.push(a.id); 
+    });
     
-    c.innerHTML = `${Object.keys(groups).length ? `<div class="glass-card"><h3 class="font-bold text-xs text-slate-400 mb-3 uppercase">Pendientes de Factura</h3>${Object.entries(groups).map(([p, d]) => `<div class="flex justify-between items-center py-2 border-b"><div><div class="font-bold text-slate-800">${clean(p)}</div><div class="text-xs text-slate-400">${d.c} albaranes</div></div><div class="flex items-center gap-3"><span class="font-bold">${Num.fmt(d.t)}€</span><button class="bg-indigo-600 text-white px-3 py-1 rounded-lg text-xs font-bold" onclick="invoice('${p}','${d.ids}')">GENERAR</button></div></div>`).join('')}</div>` : ''} <div class="glass-card"><h3 class="font-bold text-xs text-slate-400 mb-4 uppercase">Facturas ${fiscalQuarter}T</h3>${hist.map(f => `<div class="flex justify-between py-2 border-b"><div><b>${clean(f.prov)}</b><div class="text-[10px]">${f.date}</div></div><div class="text-right"><b>${Num.fmt(f.total)}€</b><div onclick="togglePaid('${f.id}')" class="text-[9px] font-bold cursor-pointer ${f.paid ? 'text-emerald-500' : 'text-red-500'}">${f.paid ? 'PAGADO' : 'PENDIENTE'}</div></div></div>`).join('')}</div>`;
+    // 2. Lógica de Historial (Agrupado por Meses)
+    const hist = db.facturas.filter(f => isInPeriod(f.date)).sort((a,b) => b.date.localeCompare(a.date));
+    
+    // Diccionario de meses
+    const monthNames = ["", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+
+    // Agrupamos las facturas en "Cajitas" por mes numérico (1-12)
+    const byMonth = {};
+    hist.forEach(f => {
+        const m = parseInt(f.date.split('-')[1]); 
+        if(!byMonth[m]) byMonth[m] = { name: monthNames[m], total: 0, items: [] };
+        byMonth[m].items.push(f);
+        byMonth[m].total += f.total;
+    });
+
+    // --- HTML PARTE SUPERIOR: PENDIENTES ---
+    const htmlPends = Object.keys(groups).length ? 
+        `<div class="glass-card mb-6 border-l-4 border-indigo-500">
+            <h3 class="font-bold text-xs text-slate-400 mb-3 uppercase tracking-widest">⚠️ Pendientes de Facturar</h3>
+            ${Object.entries(groups).map(([p, d]) => `
+                <div class="flex justify-between items-center py-3 border-b border-slate-100 last:border-0">
+                    <div>
+                        <div class="font-bold text-slate-800 text-sm">${clean(p)}</div>
+                        <div class="text-[10px] text-slate-400 font-bold bg-slate-50 px-2 rounded inline-block">
+                            ${d.c} albaranes
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <span class="font-black text-slate-700 text-sm">${Num.fmt(d.t)}€</span>
+                        <button class="bg-indigo-600 text-white px-3 py-2 rounded-xl text-[10px] font-bold shadow-lg shadow-indigo-200 active:scale-95 transition tracking-wide" onclick="openInvoiceModal('${p}','${d.ids.join(',')}', ${d.t})">
+                            GENERAR FACTURA
+                        </button>
+                    </div>
+                </div>`).join('')}
+        </div>` : 
+        `<div class="glass-card mb-6 flex items-center gap-4 p-4 opacity-70">
+            <div class="bg-emerald-100 p-2 rounded-full text-emerald-600">✅</div>
+            <div class="text-xs font-bold text-slate-500">Todo al día. No hay albaranes pendientes.</div>
+         </div>`;
+
+    // --- HTML PARTE INFERIOR: HISTORIAL POR MESES ---
+    let htmlHist = '';
+    const sortedMonths = Object.keys(byMonth).sort((a,b) => b - a); // Mes más reciente primero
+
+    if(sortedMonths.length === 0) {
+        htmlHist = `<div class="text-center p-10 text-slate-300 font-bold border-2 border-dashed border-slate-200 rounded-3xl">Sin facturas este trimestre</div>`;
+    } else {
+        htmlHist = sortedMonths.map(mKey => {
+            const mData = byMonth[mKey];
+            return `
+            <div class="glass-card mb-6">
+                <div class="flex justify-between items-center mb-4 border-b border-slate-100 pb-3">
+                    <div>
+                        <h3 class="font-black text-slate-800 uppercase text-lg tracking-tight">${mData.name}</h3>
+                        <div class="text-[10px] font-bold text-slate-400">Total: ${Num.fmt(mData.total)}€</div>
+                    </div>
+                    <button class="flex items-center gap-2 bg-emerald-50 text-emerald-700 px-3 py-2 rounded-lg text-[10px] font-bold hover:bg-emerald-100 transition" onclick="downloadMonthCSV(${mKey}, '${mData.name}')">
+                        <span>📥 EXCEL</span>
+                    </button>
+                </div>
+
+                <div class="space-y-1">
+                ${mData.items.map(f => `
+                    <div class="flex justify-between items-center py-2 px-2 hover:bg-slate-50 transition rounded-lg group">
+                        <div class="flex items-center gap-3">
+                            <div class="bg-slate-100 w-8 h-8 flex items-center justify-center rounded-full text-[10px] font-bold text-slate-500 group-hover:bg-white group-hover:shadow-sm transition">📄</div>
+                            <div>
+                                <div class="font-bold text-slate-700 text-sm leading-tight">${clean(f.prov)}</div>
+                                <div class="text-[10px] text-slate-400 font-mono flex gap-2">
+                                    <span>${f.date}</span>
+                                    <span class="text-slate-300">|</span>
+                                    <span class="text-indigo-400 font-bold">Ref: ${clean(f.num)}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <div class="font-black text-slate-800 text-sm">${Num.fmt(f.total)}€</div>
+                            <button onclick="togglePaid('${f.id}')" class="mt-1 text-[9px] font-bold px-2 py-0.5 rounded border transition ${f.paid ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-500 border-red-100'}">
+                                ${f.paid ? 'PAGADO' : 'PENDIENTE'}
+                            </button>
+                        </div>
+                    </div>
+                `).join('')}
+                </div>
+            </div>`;
+        }).join('');
+    }
+
+    c.innerHTML = htmlPends + htmlHist;
 }
-function invoice(p, ids) {
-    const l = ids.split(','); let t = 0;
-    l.forEach(id => { const a = db.albaranes.find(x => x.id === id); if (a) { a.invoiced = true; t += a.total; } });
-    db.facturas.push({ id: generateID(), date: getISO(), prov: p, total: t, paid: false });
-    save("Factura Generada"); renderAdmin(document.getElementById('app'));
+
+// 1. Paso previo: Abrir ventana para pedir datos (Número de factura real)
+function openInvoiceModal(provName, idsString, amount) {
+    // Guardamos los datos en memoria temporal
+    tempInvoiceData = { 
+        prov: provName, 
+        ids: idsString.split(','), 
+        total: amount 
+    };
+
+    const today = getISO();
+
+    showModal('Nueva Factura', `
+        <div class="bg-indigo-50 p-4 rounded-xl border border-indigo-100 mb-4 text-center">
+            <div class="text-xs text-indigo-400 font-bold uppercase mb-1">Proveedor</div>
+            <div class="text-xl font-black text-indigo-900">${clean(provName)}</div>
+            <div class="text-2xl font-black text-indigo-600 mt-2">${Num.fmt(amount)}€</div>
+        </div>
+
+        <label>Número de Factura (Obligatorio)</label>
+        <input type="text" id="inv-num" class="input-premium mb-3 font-mono text-lg font-bold" placeholder="Ej: F-2024/001">
+        
+        <label>Fecha de Emisión</label>
+        <input type="date" id="inv-date" value="${today}" class="input-premium mb-6">
+
+        <button class="btn-premium btn-action shadow-indigo-200" onclick="confirmInvoice()">
+            ✅ CONFIRMAR Y GUARDAR
+        </button>
+    `);
+    
+    // Poner el foco en el input para escribir rápido
+    setTimeout(() => document.getElementById('inv-num').focus(), 100);
 }
+
+// 2. Paso final: Crear la factura real
+function confirmInvoice() {
+    if (!tempInvoiceData) return closeModal();
+
+    const num = document.getElementById('inv-num').value.trim();
+    const date = document.getElementById('inv-date').value;
+
+    if (!num) return toast("⚠️ Falta el número de factura", "error");
+    if (!date) return toast("⚠️ Falta la fecha", "error");
+
+    // 1. Marcar albaranes como facturados
+    tempInvoiceData.ids.forEach(id => {
+        const a = db.albaranes.find(x => x.id === id);
+        if (a) a.invoiced = true; 
+    });
+
+    // 2. Crear la factura en la base de datos
+    db.facturas.push({
+        id: generateID(),
+        num: num,         // El número real que acabamos de escribir
+        date: date,       // La fecha real
+        prov: tempInvoiceData.prov,
+        total: tempInvoiceData.total,
+        paid: false       // Nace como pendiente de pago
+    });
+
+    save(`Factura ${num} Generada ✅`);
+    tempInvoiceData = null; // Limpiar memoria
+    closeModal();
+    renderAdmin(document.getElementById('app')); // Recargar pantalla
+}
+
+// Cambiar estado Pagado/Pendiente
 function togglePaid(id) { 
     const f = db.facturas.find(x => x.id === id); 
-    if (f) { f.paid = !f.paid; save(); renderAdmin(document.getElementById('app')); } 
+    if (f) { 
+        f.paid = !f.paid; 
+        save(); 
+        renderAdmin(document.getElementById('app')); 
+    } 
+}
+
+// Descargar Excel/CSV del mes
+function downloadMonthCSV(monthIndex, monthName) {
+    // 1. Filtramos facturas solo de este mes y año fiscal
+    const list = db.facturas.filter(f => {
+        if (!isInPeriod(f.date)) return false; // Primero filtro trimestre/año general
+        const m = parseInt(f.date.split('-')[1]);
+        return m === monthIndex;
+    });
+
+    if (!list.length) return toast("No hay datos para exportar", "error");
+
+    // 2. Cabeceras del CSV
+    const headers = ['Fecha;Factura_Num;Proveedor;Estado;Total_EUR'];
+    
+    // 3. Filas de datos
+    const rows = list.map(f => {
+        return `${f.date};"${f.num}";"${clean(f.prov)}";${f.paid ? 'PAGADO' : 'PENDIENTE'};${Num.csv(f.total)}`;
+    });
+
+    // 4. Crear archivo y descargar
+    const csvContent = headers.concat(rows).join('\n');
+    const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `Facturas_${monthName}_${fiscalYear}.csv`;
+    a.click();
 }
         /* =============================================================
    ⚠️ 11. INGENIERÍA DE MENÚ (MATRIZ OMNES) ⚠️
