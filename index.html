@@ -609,11 +609,19 @@ function renderAdmin(app) {
 
         ${getStockAlerts()} 
 
-       <div class="grid grid-cols-3 gap-2">
+      <div class="grid grid-cols-3 gap-2">
             <button class="btn-ghost" onclick="downloadBackup()">💾 BACKUP</button>
             <button class="btn-ghost text-indigo-600" onclick="document.getElementById('backup-input').click()">📤 RESTAURAR</button>
             <button class="btn-ghost text-emerald-600 font-black border-emerald-200 bg-emerald-50" onclick="forceCloudDownload()">☁️ BAJAR</button>
         </div>
+
+        <div class="mt-6 border-t border-slate-200 pt-4">
+            <h4 class="text-[10px] font-bold text-slate-400 uppercase mb-2">Mantenimiento</h4>
+            <button class="btn-ghost text-red-500 border-red-100 bg-red-50" onclick="resetStockToZero()">
+                ♻️ RESETEAR STOCK A CERO
+            </button>
+        </div>
+
     ` : ''}
     <div id="adm-c"></div>`;
 
@@ -1861,6 +1869,24 @@ async function forceCloudDownload() {
         } finally {
             loading(false);
         }
+    }
+}
+/* === FUNCIÓN DE MANTENIMIENTO (RESET) === */
+function resetStockToZero() {
+    if (confirm("⚠️ ¿ESTÁS SEGURO?\n\nEsto pondrá el stock de TODOS los productos a 0.\nÚsalo solo para empezar de cero tras las pruebas.\n\n(No se borran los productos, solo las cantidades)")) {
+        
+        let count = 0;
+        db.ingredientes.forEach(i => {
+            if (i.stock !== 0) {
+                // Dejamos rastro en Kardex de que se reseteó
+                logStock(i.id, i.stock, 'RESET', 'Puesta a Cero Inicial', 0);
+                i.stock = 0;
+                count++;
+            }
+        });
+        
+        save(`✅ ${count} productos puestos a cero`);
+        render('Stock');
     }
 }
 </script>
