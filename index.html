@@ -1225,16 +1225,49 @@ function renderCocina(app) {
     const list = db.recetas.sort((a,b)=>a.n.localeCompare(b.n));
     app.innerHTML = `<div class="glass-card"><div class="flex justify-between items-center mb-4"><h2 class="font-black text-xl text-slate-800">ESCANDALLOS</h2><button class="btn-premium w-auto px-4 py-3 text-xs" onclick="editRec()">＋ NUEVA</button></div><input placeholder="🔍 Buscar..." onkeyup="filterRec(this.value)" class="input-premium mb-4"><div id="rec-grid" class="space-y-3">${renderRecGrid(list)}</div></div>`;
 }
-
 function renderRecGrid(list) {
     if(!list.length) return '<div class="text-center p-8 text-slate-400 border-2 border-dashed rounded-xl">Sin recetas.</div>';
+    
     return list.map(r => {
         const c = calcRecipe(r); 
-        const fc = r.pvp > 0 ? (c.t/r.pvp)*100 : 0; // Cálculo Food Cost %
-        return `<div class="bg-white p-4 rounded-xl border border-slate-100 shadow-sm cursor-pointer flex justify-between items-center" onclick="viewRec('${r.id}')"><div><div class="font-bold text-slate-800">${clean(r.n)}</div><div class="text-xs text-slate-400">${r.items.length} Ingredientes · ${r.time} min</div></div><div class="text-right"><div class="font-black text-slate-700">${Num.fmt(c.t)}€</div><div class="text-[10px] font-bold ${fc>35?'text-red-500':'text-emerald-500'}">FC: ${fc.toFixed(1)}%</div></div></div>`;
+        const fc = r.pvp > 0 ? (c.t/r.pvp)*100 : 0;
+        
+        // --- NUEVO: CÁLCULO DE DISPONIBILIDAD (SEMÁFORO) ---
+        // Llamamos a la calculadora para saber cuántos podemos hacer
+        const max = calcMaxProd(r);
+        let stockBadge = '';
+        
+        // Elegimos el color según la urgencia
+        if (max === Infinity) {
+            stockBadge = '<span class="text-[9px] bg-slate-100 text-slate-400 px-2 py-1 rounded border">♾️</span>';
+        } else if (max < 5) {
+            // ROJO: ¡Peligro! Quedan menos de 5
+            stockBadge = `<span class="text-[9px] bg-red-100 text-red-600 font-black px-2 py-1 rounded animate-pulse border border-red-200">⚠️ SOLO ${max}</span>`;
+        } else if (max < 15) {
+            // NARANJA: Atención, van quedando pocos
+            stockBadge = `<span class="text-[9px] bg-orange-100 text-orange-600 font-bold px-2 py-1 rounded border border-orange-200">🟠 ${max} rac.</span>`;
+        } else {
+            // VERDE: Hay de sobra
+            stockBadge = `<span class="text-[9px] bg-emerald-100 text-emerald-600 font-bold px-2 py-1 rounded border border-emerald-200">✅ ${max} rac.</span>`;
+        }
+        // ----------------------------------------------------
+
+        return `
+        <div class="bg-white p-4 rounded-xl border border-slate-100 shadow-sm cursor-pointer flex justify-between items-center group hover:border-indigo-300 transition" onclick="viewRec('${r.id}')">
+            <div>
+                <div class="font-bold text-slate-800 text-sm mb-1">${clean(r.n)}</div>
+                <div class="flex gap-2 items-center">
+                    ${stockBadge}
+                    <span class="text-[9px] text-slate-400">${r.items.length} ingr.</span>
+                </div>
+            </div>
+            <div class="text-right">
+                <div class="font-black text-slate-700">${Num.fmt(c.t)}€</div>
+                <div class="text-[10px] font-bold ${fc>35?'text-red-500':'text-emerald-500'}">FC: ${fc.toFixed(1)}%</div>
+            </div>
+        </div>`;
     }).join('');
 }
-
 function filterRec(txt) { document.getElementById('rec-grid').innerHTML = renderRecGrid(db.recetas.filter(r=>r.n.toLowerCase().includes(txt.toLowerCase()))); }
         
 // La función Recursiva Maestra (Calcula costes anidados con Rendimiento)
@@ -2035,6 +2068,40 @@ function viewKardex(id) {
         </div>
         <div class="text-center mt-3 text-[10px] text-slate-400 uppercase font-bold">Últimos 50 movimientos</div>
     `);
+}
+// Calcular Disponibilidad Teórica (¿Cuántos platos puedo cocinar hoy?)
+function calcMaxProd(r) {
+    // Si la receta no tiene ingredientes, no hay límite
+    if (!r.items || r.items.length === 0) return Infinity; 
+
+    let maxPossible = Infinity;
+
+    r.items.forEach(it => {
+        if (it.type === 'ing') {
+            // Buscamos el ingrediente en el almacén
+            const ing = db.ingredientes.find(x => x.id === it.id);
+            
+            if (ing) {
+                // TRUCO MATEMÁTICO:
+                // Convertimos el stock total del almacén a la unidad que usa la receta.
+                const stockInRecipeUnit = UnitConverter.convert(ing.stock, ing.unit, it.unit);
+                
+                // Dividimos lo que tenemos entre lo que necesitamos
+                if (it.q > 0) {
+                    const possible = stockInRecipeUnit / it.q;
+                    
+                    // Si este ingrediente me limita más que el anterior, actualizo el "record" a la baja
+                    if (possible < maxPossible) maxPossible = possible;
+                }
+            } else {
+                // Si falta un ingrediente en la base de datos (se borró), no podemos cocinar nada
+                maxPossible = 0;
+            }
+        }
+    });
+
+    // Si sigue siendo infinito, devolvemos infinito. Si no, redondeamos hacia abajo
+    return maxPossible === Infinity ? Infinity : Math.floor(maxPossible);
 }
 </script>
 </body>
