@@ -1311,58 +1311,55 @@ function clearCache() {
 }
 
 // La función Recursiva Maestra (AHORA CON MEMORIA)
+// La función Recursiva Maestra (AHORA CON FACTOR DE CORRECCIÓN AUTOMÁTICO)
 function calcRecipe(r, visited = new Set()) {
     if (!r) return { t: 0 };
     
     // 1. CONSULTA: ¿Ya calculé esta receta antes?
     if (recipeCache.has(r.id)) {
-        return recipeCache.get(r.id); // ¡Sí! Devuelvo el dato guardado y ahorro trabajo
+        return recipeCache.get(r.id); 
     }
 
-    // Protección contra bucles infinitos
-    if (visited.has(r.id)) {
-        console.warn("Bucle detectado en receta:", r.n);
-        return { t: 0 }; 
-    }
+    if (visited.has(r.id)) { console.warn("Bucle:", r.n); return { t: 0 }; }
     visited.add(r.id);
 
-    let totalCost = 0;
+    let totalIngredientsCost = 0;
 
     (r.items || []).forEach(it => {
         const yieldFactor = it.merma ? (1 - (it.merma / 100)) : 1;
         
         if (it.type === 'ing') {
-            // Es un ingrediente normal
             const i = db.ingredientes.find(x => x.id === it.id);
             if (i) {
                 const qtyInBaseUnit = UnitConverter.convert(it.q, it.unit || i.unit, i.unit);
-                totalCost += (qtyInBaseUnit * i.cost) / yieldFactor;
+                // Fórmula Maestra: (Cantidad * Precio) / Rendimiento
+                totalIngredientsCost += (qtyInBaseUnit * i.cost) / yieldFactor;
             }
 
         } else if (it.type === 'rec') {
-            // ¡ES UNA SUB-RECETA!
             const sub = db.recetas.find(x => x.id === it.id);
             if (sub) {
-                // Aquí usamos la memoria (recursividad optimizada)
                 const subFullCost = calcRecipe(sub, new Set(visited)).t;
-                
                 const subYield = sub.yield || 1; 
                 const costPerUnit = subFullCost / subYield;
                 const qtyNormalized = UnitConverter.convert(it.q, it.unit, sub.unit || 'rac');
-
-                totalCost += qtyNormalized * costPerUnit;
+                totalIngredientsCost += qtyNormalized * costPerUnit;
             }
         }
     });
 
+    // --- MEJORA PROFESIONAL AQUÍ (ESTO ES LO NUEVO) ---
+    // Añadimos un 3% extra por sal, especias, aceite y mermas ocultas.
+    const seasoningFactor = 1.03; 
+    totalIngredientsCost = totalIngredientsCost * seasoningFactor;
+    // --------------------------------------------------
+
     // Añadimos mano de obra
     const laborCost = (r.time / 60) * CONFIG.COST_HOUR;
     
-    const result = { t: totalCost + laborCost };
+    const result = { t: totalIngredientsCost + laborCost };
 
-    // 2. GUARDADO: Antes de salir, anoto el resultado en la memoria
     recipeCache.set(r.id, result);
-
     return result;
 }
 function editRec(id) {
