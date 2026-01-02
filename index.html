@@ -763,7 +763,6 @@ function renderAlbGrid() {
     const total = tempItems.reduce((acc, it) => acc + (it.q * it.p * (1 - (it.d||0)/100)) * (1 + (it.tax||10)/100), 0);
     document.getElementById('alb-total').innerText = Num.fmt(total) + '€';
 }
-
 function commitAlb() {
     if (!tempItems.length) return toast("Albarán vacío", "error");
     const prov = document.getElementById('alb-prov').value.trim();
@@ -779,6 +778,13 @@ function commitAlb() {
         const netPrice = it.p * (1 - (it.d || 0) / 100);
         if (!ing) { ing = { id: generateID(), n: it.n, stock: 0, cost: 0, unit: it.unit, fam: 'General', min: 0 }; db.ingredientes.push(ing); }
         
+        // --- AQUÍ ESTÁ LA MAGIA DEL CHIVATO (NUEVO) ---
+        // Si el precio cambia más de 1 céntimo, guardamos el anterior como referencia
+        if (ing.cost > 0 && Math.abs(ing.cost - netPrice) > 0.01) {
+            ing.lastCost = ing.cost;
+        }
+        // ----------------------------------------------
+
         const totalVal = (ing.stock * ing.cost) + (it.q * netPrice);
         const totalQty = ing.stock + it.q;
         if (totalQty > 0) ing.cost = totalVal / totalQty;
@@ -790,9 +796,11 @@ function commitAlb() {
     });
 
     db.albaranes.push({ id: generateID(), num, prov, date, items: [...tempItems], total: subtotal + taxes, subtotal, taxes, invoiced: false });
+    
+    clearCache(); 
+    
     save(`✅ Albarán ${num} guardado`); tempItems = []; renderAdmin(document.getElementById('app'));
 }
-
 function viewAlbDetails(id) { 
     const a = db.albaranes.find(x => x.id === id); 
     if (a) showModal(`Detalle ${a.num || ''}`, `<div class="mb-2 text-xs font-bold text-slate-500">${a.prov} - ${a.date}</div><table class="w-full text-xs"><thead><tr class="text-left text-slate-400 border-b"><th>Prod</th><th>Cant</th><th>€/ud</th><th>Total</th></tr></thead><tbody>${a.items.map(i => { const net = i.p * (1-(i.d||0)/100); return `<tr><td class="py-1">${i.n}</td><td>${i.q}${i.unit}</td><td>${Num.fmt(net)}</td><td class="text-right">${Num.fmt(i.q * net * (1+(i.tax||10)/100))}</td></tr>`; }).join('')}</tbody></table><div class="text-right font-black text-xl mt-4">${Num.fmt(a.total)}€</div>`); 
@@ -1463,10 +1471,8 @@ function renderStock(app) {
         filteredList = list.filter(i => (i.fam || 'General') === activeFamily);
     }
 
-    // --- NUEVO: CÁLCULO DE VALOR DEL INVENTARIO ---
-    // Sumamos (Stock * Coste) de cada ingrediente para saber el dinero inmovilizado
+    // Valor del Inventario
     const totalStockValue = filteredList.reduce((acc, i) => acc + (i.stock * i.cost), 0);
-    // ----------------------------------------------
 
     // Chips de Categorías
     const cats = ['Todos', ...FAMILIES].map(c => 
@@ -1497,6 +1503,17 @@ function renderStock(app) {
                 ${filteredList.map(i => {
                     const low = i.stock < (i.min || 0);
                     
+                    // --- LÓGICA DEL CHIVATO DE INFLACIÓN ---
+                    let trend = '';
+                    if (i.lastCost) {
+                        const diff = i.cost - i.lastCost;
+                        const pct = (diff / i.lastCost) * 100;
+                        // Solo mostramos si la variación es mayor al 1%
+                        if (pct > 1) trend = `<span class="ml-1 text-[9px] font-black text-red-500 bg-red-50 px-1 rounded">↑${pct.toFixed(0)}%</span>`;
+                        else if (pct < -1) trend = `<span class="ml-1 text-[9px] font-black text-emerald-500 bg-emerald-50 px-1 rounded">↓${Math.abs(pct).toFixed(0)}%</span>`;
+                    }
+                    // ---------------------------------------
+
                     // VISTA AUDITORÍA
                     if(inventoryMode) return `
                         <div class="bg-white p-3 rounded-xl border shadow-sm flex justify-between items-center animate-fade-in">
@@ -1515,9 +1532,11 @@ function renderStock(app) {
                         <div class="bg-white p-3 rounded-xl border ${low ? 'border-red-300 bg-red-50/20' : 'border-slate-100'} shadow-sm flex justify-between items-center group">
                             <div class="flex-1 cursor-pointer" onclick="editIng('${i.id}')">
                                 <div class="font-bold text-slate-800 text-sm">${clean(i.n)}</div>
-                                <div class="text-xs text-slate-500 flex gap-2">
+                                <div class="text-xs text-slate-500 flex gap-2 items-center mt-1">
                                     <span class="bg-slate-100 px-2 rounded text-[10px] font-bold border">${parseFloat(i.stock).toFixed(2)} ${i.unit}</span>
-                                    <span class="text-[10px] text-slate-400">${Num.fmt(i.cost)}€/ud</span>
+                                    <span class="text-[10px] text-slate-400 flex items-center">
+                                        ${Num.fmt(i.cost)}€/ud ${trend}
+                                    </span>
                                 </div>
                             </div>
                             <div class="flex gap-2">
@@ -1669,20 +1688,32 @@ function saveIng(id) {
     const n = document.getElementById('ei-n').value; 
     if (!n) return toast("Falta nombre", "error");
     
+    const newCost = parseFloat(document.getElementById('ei-c').value) || 0;
+    
+    // Recuperamos el objeto actual para ver si tenía un precio anterior
+    const existing = db.ingredientes.find(x => x.id === id);
+    let lastCost = existing ? (existing.lastCost || 0) : 0;
+
+    // Si el precio cambia manualmente más de 1 céntimo, actualizamos el histórico
+    if (existing && Math.abs(existing.cost - newCost) > 0.01) {
+        lastCost = existing.cost;
+    }
+
     const obj = {
         id, n, 
         fam: document.getElementById('ei-f').value, 
-        cost: parseFloat(document.getElementById('ei-c').value) || 0, 
+        cost: newCost, 
         stock: parseFloat(document.getElementById('ei-s').value) || 0, 
         min: parseFloat(document.getElementById('ei-m').value) || 0, 
         unit: document.getElementById('ei-u').value,
-        alg: tempAlgs
+        alg: tempAlgs, // Mantenemos los alérgenos
+        lastCost: lastCost // Guardamos la referencia de precio antiguo
     };
     
     const idx = db.ingredientes.findIndex(x => x.id === id);
     if (idx >= 0) db.ingredientes[idx] = obj; else db.ingredientes.push(obj);
     
-    clearCache(); // <--- ¡AÑADIDO! Esto limpia la memoria para recalcular costes
+    clearCache(); // Limpiamos memoria para que las recetas se actualicen
     
     save("Guardado"); closeModal(); render('Stock');
 }
