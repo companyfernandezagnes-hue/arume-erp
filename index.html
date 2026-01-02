@@ -557,13 +557,12 @@ function renderAdmin(app) {
     const compras = periodAlbs.reduce((a, b) => a + (b.subtotal || 0), 0);
     const taxes = periodAlbs.reduce((a, b) => a + (b.taxes || 0), 0);
     
-    // 2. Cálculo teórico de Food Cost (CORREGIDO PARA RENDIMIENTO)
+    // 2. Cálculo teórico de Food Cost
     let theoreticalCost = 0;
     db.sales_history.filter(log => isInPeriod(log.date)).forEach(log => {
         log.items.forEach(soldItem => {
             const rec = db.recetas.find(r => r.id === soldItem.rid);
             if (rec) {
-                // AQUÍ ESTABA EL ERROR: Ahora dividimos el coste total entre el rendimiento
                 const unitCost = calcRecipe(rec).t / (rec.yield || 1);
                 theoreticalCost += (unitCost * soldItem.q);
             }
@@ -573,6 +572,17 @@ function renderAdmin(app) {
     const theoreticalMargin = tot - theoreticalCost;
     const foodCostPercent = tot > 0 ? (theoreticalCost / tot) * 100 : 0;
     const cashFlow = tot - (compras + taxes); 
+
+    // --- NUEVO: CÁLCULO DE MERMAS (FUGAS) ---
+    const mermasPeriodo = db.mermas.filter(m => isInPeriod(m.date));
+    const totalMermas = mermasPeriodo.reduce((acc, m) => acc + (m.loss || 0), 0);
+    
+    // Agrupar por motivo para el gráfico
+    const mermasPorCausa = {};
+    mermasPeriodo.forEach(m => {
+        mermasPorCausa[m.reason] = (mermasPorCausa[m.reason] || 0) + (m.loss || 0);
+    });
+    // ----------------------------------------
 
     // 3. Selector de Trimestre (HTML)
     const qCtrl = `<div class="flex items-center justify-between bg-white p-2 rounded-2xl shadow-sm mb-4 border border-slate-100"><div class="flex items-center gap-2 bg-slate-100 rounded-lg px-2 py-1"><button class="w-8 h-8 flex items-center justify-center hover:bg-white rounded-full transition font-bold" onclick="fiscalYear--;renderAdmin(document.getElementById('app'))">‹</button><span class="font-black text-slate-700 text-sm tracking-widest">${fiscalYear}</span><button class="w-8 h-8 flex items-center justify-center hover:bg-white rounded-full transition font-bold" onclick="fiscalYear++;renderAdmin(document.getElementById('app'))">›</button></div><div class="flex gap-1 overflow-x-auto no-scrollbar"><button class="px-2 py-1 rounded ${fiscalQuarter===1?'bg-slate-800 text-white':'bg-slate-100 text-slate-500'} text-xs font-bold" onclick="fiscalQuarter=1;renderAdmin(document.getElementById('app'))">1T</button><button class="px-2 py-1 rounded ${fiscalQuarter===2?'bg-slate-800 text-white':'bg-slate-100 text-slate-500'} text-xs font-bold" onclick="fiscalQuarter=2;renderAdmin(document.getElementById('app'))">2T</button><button class="px-2 py-1 rounded ${fiscalQuarter===3?'bg-slate-800 text-white':'bg-slate-100 text-slate-500'} text-xs font-bold" onclick="fiscalQuarter=3;renderAdmin(document.getElementById('app'))">3T</button><button class="px-2 py-1 rounded ${fiscalQuarter===4?'bg-slate-800 text-white':'bg-slate-100 text-slate-500'} text-xs font-bold" onclick="fiscalQuarter=4;renderAdmin(document.getElementById('app'))">4T</button><button class="px-2 py-1 rounded ${fiscalQuarter===0?'bg-slate-800 text-white':'bg-slate-100 text-slate-500'} text-xs font-bold" onclick="fiscalQuarter=0;renderAdmin(document.getElementById('app'))">AÑO</button></div></div>`;
@@ -609,7 +619,29 @@ function renderAdmin(app) {
 
         ${getStockAlerts()} 
 
-      <div class="grid grid-cols-3 gap-2">
+        ${totalMermas > 0 ? `
+        <div class="bg-white border border-red-100 p-4 rounded-2xl shadow-sm mb-6">
+            <div class="flex justify-between items-center mb-3">
+                <h3 class="text-xs font-black text-red-500 uppercase tracking-widest">📉 FUGAS / MERMAS</h3>
+                <span class="font-black text-red-600">-${Num.fmt(totalMermas)}€</span>
+            </div>
+            <div class="space-y-2">
+                ${Object.entries(mermasPorCausa).sort((a,b)=>b[1]-a[1]).map(([cause, amount]) => {
+                    const pct = (amount / totalMermas) * 100;
+                    return `
+                    <div>
+                        <div class="flex justify-between text-[10px] font-bold text-slate-500 mb-1">
+                            <span>${cause}</span><span>${Num.fmt(amount)}€</span>
+                        </div>
+                        <div class="w-full bg-red-50 rounded-full h-2">
+                            <div class="bg-red-400 h-2 rounded-full" style="width: ${pct}%"></div>
+                        </div>
+                    </div>`;
+                }).join('')}
+            </div>
+        </div>` : ''}
+
+        <div class="grid grid-cols-3 gap-2">
             <button class="btn-ghost" onclick="downloadBackup()">💾 BACKUP</button>
             <button class="btn-ghost text-indigo-600" onclick="document.getElementById('backup-input').click()">📤 RESTAURAR</button>
             <button class="btn-ghost text-emerald-600 font-black border-emerald-200 bg-emerald-50" onclick="forceCloudDownload()">☁️ BAJAR</button>
@@ -621,7 +653,7 @@ function renderAdmin(app) {
                 ♻️ RESETEAR STOCK A CERO
             </button>
         </div>
-
+        
     ` : ''}
     <div id="adm-c"></div>`;
 
