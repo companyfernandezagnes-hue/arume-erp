@@ -771,8 +771,10 @@ function renderAlbaranes(c) {
     const provOptions = db.proveedores.map(p => `<option value="${clean(p.n)}">`).join('');
     const ingOptions = db.ingredientes.map(i => `<option value="${clean(i.n)}">`).join('');
     
-    // --- NUEVO: Cargamos la lista de socios ---
-    const socioOptions = db.listaSocios.map(s => `<option>${s}</option>`).join('');
+    // === 🛡️ CORRECCIÓN AQUÍ 🛡️ ===
+    // Si la lista de socios no existe en la nube aún, usamos esta por defecto para que no falle
+    const listaSociosSegura = db.listaSocios || ['Jeronimo', 'Pedro', 'Pau', 'Agnes'];
+    const socioOptions = listaSociosSegura.map(s => `<option>${s}</option>`).join('');
 
     c.innerHTML = `
     <div class="glass-card border-l-4 border-indigo-500" id="alb-form-anchor">
