@@ -197,8 +197,11 @@
         <span id="user-name">Login</span>
     </div>
 </header>
+    <main id="app" class="p-4 pb-24 min-h-screen"></main>
 
-    <div id="modal-overlay" class="overlay hidden">
+<nav id="navbar"></nav> 
+
+<div id="modal-overlay" class="overlay hidden">
         <div class="modal">
             <div class="flex justify-between items-center mb-6 border-b border-slate-100 pb-4">
                 <h3 id="m-title" class="text-lg font-black text-slate-800 uppercase tracking-tight"></h3>
@@ -2466,6 +2469,7 @@ window.onclick = function(event) {
         }
     }
 }
+document.addEventListener('DOMContentLoaded', init);
 </script> 
 </body>
 </html>
