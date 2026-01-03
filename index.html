@@ -273,6 +273,7 @@ const DB_INIT = {
     mermas: [], 
     kardex: [], 
     sales_history: [], 
+    gastos_fijos: [], // <--- AÑADE ESTA LÍNEA
     lastSync: 0 
 };
 
@@ -551,117 +552,77 @@ function getStockAlerts() {
     </div>`;
 }
 function renderAdmin(app) {
-    // 1. Cálculos Financieros en Tiempo Real
-    const tot = db.diario.filter(d => isInPeriod(d.date)).reduce((a, b) => a + (b.total || 0), 0);
-    const periodAlbs = db.albaranes.filter(a => isInPeriod(a.date));
-    const compras = periodAlbs.reduce((a, b) => a + (b.subtotal || 0), 0);
-    const taxes = periodAlbs.reduce((a, b) => a + (b.taxes || 0), 0);
+    // 1. Cálculos Financieros del Periodo
+    const ventasCaja = db.diario.filter(d => isInPeriod(d.date)).reduce((a, b) => a + (b.total || 0), 0);
+    const comprasPagadas = db.facturas.filter(f => isInPeriod(f.date) && f.paid).reduce((a, b) => a + (b.total || 0), 0);
+    const fijosTotal = db.gastos_fijos.filter(g => isInPeriod(g.date)).reduce((a, b) => a + (b.total || 0), 0);
     
-    // 2. Cálculo teórico de Food Cost
-    let theoreticalCost = 0;
-    db.sales_history.filter(log => isInPeriod(log.date)).forEach(log => {
-        log.items.forEach(soldItem => {
-            const rec = db.recetas.find(r => r.id === soldItem.rid);
-            if (rec) {
-                const unitCost = calcRecipe(rec).t / (rec.yield || 1);
-                theoreticalCost += (unitCost * soldItem.q);
-            }
-        });
-    });
-    
-    const theoreticalMargin = tot - theoreticalCost;
-    const foodCostPercent = tot > 0 ? (theoreticalCost / tot) * 100 : 0;
-    const cashFlow = tot - (compras + taxes); 
+    // Beneficio Real (Lo que queda en el bolsillo)
+    const beneficioNeto = ventasCaja - comprasPagadas - fijosTotal;
 
-    // --- NUEVO: CÁLCULO DE MERMAS (FUGAS) ---
-    const mermasPeriodo = db.mermas.filter(m => isInPeriod(m.date));
-    const totalMermas = mermasPeriodo.reduce((acc, m) => acc + (m.loss || 0), 0);
-    
-    // Agrupar por motivo para el gráfico
-    const mermasPorCausa = {};
-    mermasPeriodo.forEach(m => {
-        mermasPorCausa[m.reason] = (mermasPorCausa[m.reason] || 0) + (m.loss || 0);
-    });
-    // ----------------------------------------
+    // 2. Selector de Trimestre (Tu código original recuperado)
+    const qCtrl = `
+    <div class="flex items-center justify-between bg-white p-2 rounded-2xl shadow-sm mb-4 border border-slate-100">
+        <div class="flex items-center gap-2 bg-slate-100 rounded-lg px-2 py-1">
+            <button class="w-8 h-8 flex items-center justify-center hover:bg-white rounded-full transition font-bold" onclick="fiscalYear--;renderAdmin(document.getElementById('app'))">‹</button>
+            <span class="font-black text-slate-700 text-sm tracking-widest">${fiscalYear}</span>
+            <button class="w-8 h-8 flex items-center justify-center hover:bg-white rounded-full transition font-bold" onclick="fiscalYear++;renderAdmin(document.getElementById('app'))">›</button>
+        </div>
+        <div class="flex gap-1 overflow-x-auto no-scrollbar">
+            ${[1, 2, 3, 4, 0].map(q => `
+                <button class="px-2 py-1 rounded ${fiscalQuarter === q ? 'bg-slate-800 text-white shadow-md' : 'bg-slate-100 text-slate-500'} text-xs font-bold" 
+                onclick="fiscalQuarter=${q};renderAdmin(document.getElementById('app'))">
+                    ${q === 0 ? 'AÑO' : q + 'T'}
+                </button>
+            `).join('')}
+        </div>
+    </div>`;
 
-    // 3. Selector de Trimestre (HTML)
-    const qCtrl = `<div class="flex items-center justify-between bg-white p-2 rounded-2xl shadow-sm mb-4 border border-slate-100"><div class="flex items-center gap-2 bg-slate-100 rounded-lg px-2 py-1"><button class="w-8 h-8 flex items-center justify-center hover:bg-white rounded-full transition font-bold" onclick="fiscalYear--;renderAdmin(document.getElementById('app'))">‹</button><span class="font-black text-slate-700 text-sm tracking-widest">${fiscalYear}</span><button class="w-8 h-8 flex items-center justify-center hover:bg-white rounded-full transition font-bold" onclick="fiscalYear++;renderAdmin(document.getElementById('app'))">›</button></div><div class="flex gap-1 overflow-x-auto no-scrollbar"><button class="px-2 py-1 rounded ${fiscalQuarter===1?'bg-slate-800 text-white':'bg-slate-100 text-slate-500'} text-xs font-bold" onclick="fiscalQuarter=1;renderAdmin(document.getElementById('app'))">1T</button><button class="px-2 py-1 rounded ${fiscalQuarter===2?'bg-slate-800 text-white':'bg-slate-100 text-slate-500'} text-xs font-bold" onclick="fiscalQuarter=2;renderAdmin(document.getElementById('app'))">2T</button><button class="px-2 py-1 rounded ${fiscalQuarter===3?'bg-slate-800 text-white':'bg-slate-100 text-slate-500'} text-xs font-bold" onclick="fiscalQuarter=3;renderAdmin(document.getElementById('app'))">3T</button><button class="px-2 py-1 rounded ${fiscalQuarter===4?'bg-slate-800 text-white':'bg-slate-100 text-slate-500'} text-xs font-bold" onclick="fiscalQuarter=4;renderAdmin(document.getElementById('app'))">4T</button><button class="px-2 py-1 rounded ${fiscalQuarter===0?'bg-slate-800 text-white':'bg-slate-100 text-slate-500'} text-xs font-bold" onclick="fiscalQuarter=0;renderAdmin(document.getElementById('app'))">AÑO</button></div></div>`;
-
-    // 4. Renderizado HTML
-    app.innerHTML = `${qCtrl}
+    // 3. Renderizado de la Interfaz
+    app.innerHTML = `
+    ${qCtrl}
     
     <div class="flex gap-2 mb-6 bg-white p-1 rounded-2xl shadow-sm border border-slate-100 overflow-x-auto no-scrollbar">
-        <button class="flex-1 min-w-[80px] py-2.5 rounded-xl font-bold text-xs transition ${activeAdminTab==='dash'?'bg-slate-800 text-white shadow-md':'text-slate-500 hover:bg-slate-50'}" onclick="activeAdminTab='dash';renderAdmin(document.getElementById('app'))">DASHBOARD</button>
-        <button class="flex-1 min-w-[80px] py-2.5 rounded-xl font-bold text-xs transition ${activeAdminTab==='omnes'?'bg-slate-800 text-white shadow-md':'text-slate-500 hover:bg-slate-50'}" onclick="activeAdminTab='omnes';renderAdmin(document.getElementById('app'))">OMNES</button>
-        <button class="flex-1 min-w-[80px] py-2.5 rounded-xl font-bold text-xs transition ${activeAdminTab==='albs'?'bg-slate-800 text-white shadow-md':'text-slate-500 hover:bg-slate-50'}" onclick="activeAdminTab='albs';renderAdmin(document.getElementById('app'))">COMPRAS</button>
-        <button class="flex-1 min-w-[80px] py-2.5 rounded-xl font-bold text-xs transition ${activeAdminTab==='facturas'?'bg-slate-800 text-white shadow-md':'text-slate-500 hover:bg-slate-50'}" onclick="activeAdminTab='facturas';renderAdmin(document.getElementById('app'))">FACTURAS</button>
-        <button class="flex-1 min-w-[80px] py-2.5 rounded-xl font-bold text-xs transition ${activeAdminTab==='prov'?'bg-slate-800 text-white shadow-md':'text-slate-500 hover:bg-slate-50'}" onclick="activeAdminTab='prov';renderAdmin(document.getElementById('app'))">AGENDA</button>
+        <button class="flex-1 min-w-[90px] py-2.5 rounded-xl font-bold text-[10px] transition ${activeAdminTab==='dash'?'bg-slate-800 text-white shadow-md':'text-slate-500 hover:bg-slate-50'}" onclick="activeAdminTab='dash';renderAdmin(document.getElementById('app'))">📊 BALANCE</button>
+        <button class="flex-1 min-w-[90px] py-2.5 rounded-xl font-bold text-[10px] transition ${activeAdminTab==='fijos'?'bg-slate-800 text-white shadow-md':'text-slate-500 hover:bg-slate-50'}" onclick="activeAdminTab='fijos';renderAdmin(document.getElementById('app'))">🏠 ESTRUCTURA</button>
+        <button class="flex-1 min-w-[90px] py-2.5 rounded-xl font-bold text-[10px] transition ${activeAdminTab==='albs'?'bg-slate-800 text-white shadow-md':'text-slate-500 hover:bg-slate-50'}" onclick="activeAdminTab='albs';renderAdmin(document.getElementById('app'))">📦 COMPRAS</button>
+        <button class="flex-1 min-w-[90px] py-2.5 rounded-xl font-bold text-[10px] transition ${activeAdminTab==='facturas'?'bg-slate-800 text-white shadow-md':'text-slate-500 hover:bg-slate-50'}" onclick="activeAdminTab='facturas';renderAdmin(document.getElementById('app'))">📄 FACTURAS</button>
     </div>
     
     ${activeAdminTab === 'dash' ? `
-        <div class="glass-card bg-gradient-to-br from-indigo-900 to-slate-900 text-white mb-4">
-            <h3 class="text-xs uppercase tracking-widest mb-4 font-bold opacity-70">Resultados ${fiscalQuarter===0?'AÑO':fiscalQuarter+'T'}</h3>
-            <div class="flex justify-between items-end mb-4">
-                <div><div class="text-3xl font-black">${Num.fmt(theoreticalMargin)}€</div><div class="text-[10px] uppercase font-bold">Margen Bruto</div></div>
-                <div class="text-right"><div class="text-xl font-bold ${foodCostPercent > 35 ? 'text-red-400' : 'text-emerald-400'}">${Num.fmt(foodCostPercent)}%</div><div class="text-[10px] uppercase font-bold">Food Cost %</div></div>
-            </div>
-            <div class="flex text-[10px] gap-4 font-bold text-indigo-200/50 uppercase tracking-wide border-t border-white/10 pt-2">
-                <span>Ventas: ${Num.fmt(tot)}€</span><span>Consumo: ${Num.fmt(theoreticalCost)}€</span>
+        <div class="glass-card bg-slate-900 text-white mb-6 border-none shadow-2xl">
+            <h3 class="text-[10px] uppercase font-bold opacity-50 mb-1 tracking-[0.2em]">Resultado Real Neto</h3>
+            <div class="text-4xl font-black ${beneficioNeto >= 0 ? 'text-emerald-400' : 'text-red-400'}">${Num.fmt(beneficioNeto)}€</div>
+            <div class="flex justify-between mt-6 pt-4 border-t border-white/10 text-[9px] font-bold opacity-60 uppercase tracking-widest">
+                <span>Ventas: ${Num.fmt(ventasCaja)}€</span>
+                <span>Gastos: ${Num.fmt(comprasPagadas + fijosTotal)}€</span>
             </div>
         </div>
 
-        <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm mb-6">
-            <h3 class="text-[10px] font-bold text-slate-400 uppercase mb-3">Flujo de Caja</h3>
-            <div class="flex justify-between items-center mb-2"><span class="text-xs font-bold text-slate-600">Entradas</span><span class="font-bold text-emerald-600">+${Num.fmt(tot)}€</span></div>
-            <div class="flex justify-between items-center mb-2"><span class="text-xs font-bold text-slate-600">Salidas (IVA inc)</span><span class="font-bold text-red-500">-${Num.fmt(compras + taxes)}€</span></div>
-            <div class="border-t border-slate-100 pt-2 mt-2 flex justify-between items-center"><span class="text-xs font-black text-slate-800 uppercase">Saldo</span><span class="font-black text-lg ${cashFlow >= 0 ? 'text-slate-800' : 'text-red-600'}">${Num.fmt(cashFlow)}€</span></div>
-        </div>
-
-        ${getStockAlerts()} 
-
-        ${totalMermas > 0 ? `
-        <div class="bg-white border border-red-100 p-4 rounded-2xl shadow-sm mb-6">
-            <div class="flex justify-between items-center mb-3">
-                <h3 class="text-xs font-black text-red-500 uppercase tracking-widest">📉 FUGAS / MERMAS</h3>
-                <span class="font-black text-red-600">-${Num.fmt(totalMermas)}€</span>
+        <div class="grid grid-cols-2 gap-3 mb-6">
+            <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
+                <h4 class="text-[9px] font-bold text-slate-400 uppercase tracking-tighter mb-1">Proveedores (Pagado)</h4>
+                <div class="text-lg font-black text-slate-800">-${Num.fmt(comprasPagadas)}€</div>
             </div>
-            <div class="space-y-2">
-                ${Object.entries(mermasPorCausa).sort((a,b)=>b[1]-a[1]).map(([cause, amount]) => {
-                    const pct = (amount / totalMermas) * 100;
-                    return `
-                    <div>
-                        <div class="flex justify-between text-[10px] font-bold text-slate-500 mb-1">
-                            <span>${cause}</span><span>${Num.fmt(amount)}€</span>
-                        </div>
-                        <div class="w-full bg-red-50 rounded-full h-2">
-                            <div class="bg-red-400 h-2 rounded-full" style="width: ${pct}%"></div>
-                        </div>
-                    </div>`;
-                }).join('')}
+            <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
+                <h4 class="text-[9px] font-bold text-slate-400 uppercase tracking-tighter mb-1">Gastos Estructura</h4>
+                <div class="text-lg font-black text-slate-800">-${Num.fmt(fijosTotal)}€</div>
             </div>
-        </div>` : ''}
-
-        <div class="grid grid-cols-3 gap-2">
-            <button class="btn-ghost" onclick="downloadBackup()">💾 BACKUP</button>
-            <button class="btn-ghost text-indigo-600" onclick="document.getElementById('backup-input').click()">📤 RESTAURAR</button>
-            <button class="btn-ghost text-emerald-600 font-black border-emerald-200 bg-emerald-50" onclick="forceCloudDownload()">☁️ BAJAR</button>
-        </div>
-
-        <div class="mt-6 border-t border-slate-200 pt-4">
-            <h4 class="text-[10px] font-bold text-slate-400 uppercase mb-2">Mantenimiento</h4>
-            <button class="btn-ghost text-red-500 border-red-100 bg-red-50" onclick="resetStockToZero()">
-                ♻️ RESETEAR STOCK A CERO
-            </button>
         </div>
         
+        <div class="bg-amber-50 border border-amber-100 p-4 rounded-2xl mb-6">
+            <h4 class="text-[10px] font-black text-amber-700 uppercase mb-2">💡 Análisis de Caja</h4>
+            <p class="text-xs text-amber-800 leading-relaxed">
+                Has generado <b>${Num.fmt(ventasCaja)}€</b> en ventas. Tras pagar facturas y costes fijos, tu beneficio real es del <b>${ventasCaja > 0 ? ((beneficioNeto/ventasCaja)*100).toFixed(1) : 0}%</b>.
+            </p>
+        </div>
     ` : ''}
     <div id="adm-c"></div>`;
 
     const c = document.getElementById('adm-c');
-    if (activeAdminTab === 'omnes') renderOmnes(c);
+    if (activeAdminTab === 'fijos') renderGastosFijos(c);
     if (activeAdminTab === 'albs') renderAlbaranes(c);
     if (activeAdminTab === 'facturas') renderFacturas(c);
-    if (activeAdminTab === 'prov') renderProvs(c);
 }
 // --- SUB-MÓDULO: PROVEEDORES ---
 function renderProvs(c) { 
@@ -2167,6 +2128,62 @@ function deleteInvoice(id) {
         renderAdmin(document.getElementById('app'));
         
         if(typeof toast === "function") toast("🗑️ Factura eliminada");
+    }
+}
+        function renderGastosFijos(c) {
+    const list = db.gastos_fijos.filter(g => isInPeriod(g.date)).reverse();
+    const cats = ['Personal', 'Alquiler', 'Luz/Agua', 'Gestoría', 'Seguros', 'Otros'];
+
+    c.innerHTML = `
+    <div class="glass-card">
+        <h3 class="font-bold text-sm mb-4">REGISTRAR GASTO ESTRUCTURAL</h3>
+        <div class="grid grid-cols-2 gap-2 mb-3">
+            <div><label>Categoría</label><select id="gf-cat" class="input-premium">${cats.map(cat => `<option>${cat}</option>`).join('')}</select></div>
+            <div><label>Importe (€)</label><input type="number" id="gf-tot" class="input-premium" placeholder="0.00"></div>
+        </div>
+        <label>Concepto / Mes</label>
+        <input type="text" id="gf-con" class="input-premium mb-3" placeholder="Ej: Nóminas Diciembre">
+        <label>Fecha Pago</label>
+        <input type="date" id="gf-date" value="${getISO()}" class="input-premium mb-4">
+        <button class="btn-premium btn-action" onclick="saveGastoFijo()">＋ AÑADIR GASTO</button>
+    </div>
+    <div class="glass-card">
+        <h4 class="text-xs font-bold text-slate-400 uppercase mb-4">Historial de Estructura</h4>
+        ${list.map(g => `
+            <div class="flex justify-between items-center py-2 border-b">
+                <div>
+                    <div class="font-bold text-sm text-slate-700">${g.cat}: ${g.concept}</div>
+                    <div class="text-[10px] text-slate-400">${g.date}</div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="font-black text-slate-800">-${Num.fmt(g.total)}€</span>
+                    <button class="text-red-400" onclick="deleteGastoFijo('${g.id}')">✕</button>
+                </div>
+            </div>`).join('')}
+    </div>`;
+}
+
+function saveGastoFijo() {
+    const total = parseFloat(document.getElementById('gf-tot').value);
+    const concept = document.getElementById('gf-con').value;
+    if (total > 0 && concept) {
+        db.gastos_fijos.push({
+            id: generateID(),
+            cat: document.getElementById('gf-cat').value,
+            total: total,
+            concept: concept,
+            date: document.getElementById('gf-date').value
+        });
+        save("Gasto estructural registrado");
+        renderAdmin(document.getElementById('app'));
+    }
+}
+
+function deleteGastoFijo(id) {
+    if(confirm("¿Borrar este gasto?")) {
+        db.gastos_fijos = db.gastos_fijos.filter(g => g.id !== id);
+        save("Gasto eliminado");
+        renderAdmin(document.getElementById('app'));
     }
 }
 </script>
