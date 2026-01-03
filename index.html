@@ -116,6 +116,52 @@
             .glass-card, .modal { border: 1px solid #000; box-shadow: none; border-radius: 0; }
             p, li { page-break-inside: avoid; }
         }
+        .contenedor-menu { 
+        position: relative; 
+        display: inline-block; 
+        font-family: Arial, sans-serif; 
+    }
+    
+    .btn-principal { 
+        background-color: #4CAF50; 
+        color: white; 
+        padding: 12px 24px; 
+        font-size: 16px; 
+        border: none; 
+        cursor: pointer; 
+        border-radius: 5px; 
+    }
+    
+    .btn-principal:hover { 
+        background-color: #3e8e41; 
+    }
+    
+    .contenido-opciones { 
+        display: none; 
+        position: absolute; 
+        background-color: #f1f1f1; 
+        min-width: 160px; 
+        box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2); 
+        z-index: 1; 
+        border-radius: 5px; 
+        margin-top: 5px; 
+    }
+    
+    .contenido-opciones a { 
+        color: black; 
+        padding: 12px 16px; 
+        text-decoration: none; 
+        display: block; 
+    }
+    
+    .contenido-opciones a:hover { 
+        background-color: #ddd; 
+        border-radius: 5px; 
+    }
+    
+    .mostrar { 
+        display: block; 
+    }
     </style>
 </head>
 <body>
@@ -129,19 +175,36 @@
     
     <input type="file" id="backup-input" class="hidden" onchange="restoreBackup(this)">
 
-    <header class="sticky top-0 z-40 px-6 py-4 flex justify-between items-center bg-white/80 backdrop-blur-xl border-b border-white/50 shadow-sm">
-        <div>
-            <h1 class="text-2xl font-black text-slate-900 tracking-tighter">ARUME <span class="text-emerald-500">PRO</span></h1>
-            <p class="text-[9px] text-slate-400 font-bold tracking-widest uppercase">Sistema Cloud Supabase</p>
-        </div>
-        <div class="bg-slate-100 px-3 py-1.5 rounded-full text-xs font-bold text-slate-600 flex items-center gap-2 cursor-pointer hover:bg-slate-200 transition border border-slate-200" onclick="logout()">
-            <div id="sync-dot" class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div> 
-            <span id="user-name">Login</span>
-        </div>
-    </header>
+   <header class="sticky top-0 z-40 px-6 py-4 flex justify-between items-center bg-white/80 backdrop-blur-xl border-b border-white/50 shadow-sm">
+    <div>
+        <h1 class="text-2xl font-black text-slate-900 tracking-tighter">ARUME <span class="text-emerald-500">PRO</span></h1>
+        <p class="text-[9px] text-slate-400 font-bold tracking-widest uppercase">Sistema Cloud Supabase</p>
+    </div>
 
-    <main id="app" class="px-4 py-6 max-w-2xl mx-auto"></main>
-    
+    <div class="contenedor-menu">
+        <button onclick="mostrarOpciones()" class="btn-principal" style="padding: 8px 16px; font-size: 12px; background: #0f172a;">
+            ⚙️ Opciones ▼
+        </button>
+        <div id="misOpciones" class="contenido-opciones">
+            <a href="#" onclick="importProvsModal()">📥 Importar Proveedores</a>
+            <a href="#" onclick="window.print()">🖨️ Imprimir Pantalla</a>
+            <a href="#" onclick="resetStockToZero()" style="color:red;">⚠️ Reset Stock</a>
+        </div>
+    </div>
+
+    <div class="bg-slate-100 px-3 py-1.5 rounded-full text-xs font-bold text-slate-600 flex items-center gap-2 cursor-pointer hover:bg-slate-200 transition border border-slate-200" onclick="logout()">
+        <div id="sync-dot" class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div> 
+        <span id="user-name">Login</span>
+    </div>
+</header>
+<main id="app" class="px-4 py-6 max-w-2xl mx-auto"></main>  
+        <div id="misOpciones" class="contenido-opciones">
+            <a href="#">Editar Datos</a>
+            <a href="#">Imprimir</a>
+            <a href="#">Salir</a>
+        </div>
+    </div>
+    </main>
     <nav id="navbar"></nav>
 
     <div id="modal-overlay" class="overlay hidden">
@@ -273,10 +336,14 @@ const DB_INIT = {
     mermas: [], 
     kardex: [], 
     sales_history: [], 
-    gastos_fijos: [], // <--- AÑADE ESTA LÍNEA
+    gastos_fijos: [],
+    
+    // --- NOVEDADES PASO 1 ---
+    eventos: [], // Aquí guardaremos las bodas y comuniones
+    listaSocios: ['Jeronimo', 'Pedro', 'Pau', 'Agnes'], // Los nombres de los socios
+    
     lastSync: 0 
 };
-
 // Encriptación para copias locales
 const secure = { 
     enc: (d) => btoa(encodeURIComponent(JSON.stringify(d))), 
@@ -400,6 +467,13 @@ function init() {
     try { 
         const stored = localStorage.getItem('arume_v152'); 
         if (stored) db = secure.dec(stored); 
+        
+        // --- 🛡️ PARCHE DE SEGURIDAD PARA DATOS VIEJOS 🛡️ ---
+        // Si cargamos datos antiguos que no tienen eventos ni socios, los creamos ahora
+        if (!db.eventos) db.eventos = [];
+        if (!db.listaSocios) db.listaSocios = ['Jeronimo', 'Pedro', 'Pau', 'Agnes'];
+        // -----------------------------------------------------
+
     } catch(e) { console.warn("Reset DB"); }
     
     // Si la DB está corrupta o vacía, usamos la plantilla inicial
@@ -2270,7 +2344,7 @@ function deleteGastoFijo(id) {
         renderAdmin(document.getElementById('app'));
     }
 }
-        /* === IMPORTADOR DE PROVEEDORES (WASSAP) === */
+/* === IMPORTADOR DE PROVEEDORES (WASSAP) === */
 
 function importProvsModal() {
     showModal('Importar desde WhatsApp', `
@@ -2280,10 +2354,7 @@ function importProvsModal() {
             2. Pégalo aquí abajo.<br>
             3. El sistema buscará nombres y teléfonos solo.
         </div>
-        <textarea id="imp-text" class="input-premium h-40 text-xs font-mono mb-4" placeholder="Ejemplo:
-Frutas Pepe 666777888
-Carnicería Paco: 981 22 33 44
-Pescados Ría - 655443322"></textarea>
+        <textarea id="imp-text" class="input-premium h-40 text-xs font-mono mb-4" placeholder="Ejemplo:\nFrutas Pepe 666777888\nCarnicería Paco: 981 22 33 44"></textarea>
         <button class="btn-premium btn-action" onclick="runImportProvs()">🚀 PROCESAR LISTA</button>
     `);
 }
@@ -2292,34 +2363,27 @@ function runImportProvs() {
     const txt = document.getElementById('imp-text').value;
     if(!txt) return toast("Pega algo primero", "error");
 
-    const lines = txt.split(/\r?\n/); // Separamos por líneas
+    const lines = txt.split(/\r?\n/); 
     let updated = 0;
     let created = 0;
 
     lines.forEach(line => {
-        // 1. Buscamos números de teléfono (9 dígitos seguidos o con espacios)
-        // Esta fórmula busca patrones de móviles/fijos españoles
         const phoneMatch = line.replace(/\s/g, '').match(/[6789]\d{8}/);
         
         if (phoneMatch) {
-            const tel = phoneMatch[0]; // El número limpio
-            
-            // 2. Limpiamos el nombre (quitamos el número y símbolos raros del texto)
+            const tel = phoneMatch[0]; 
             let name = line.replace(/[0-9]/g, '').replace(/[:.-]/g, '').trim();
             
             if (name.length > 2) {
-                // 3. Buscamos si ya existe (ignorando mayúsculas)
                 const existing = db.proveedores.find(p => p.n.toLowerCase().includes(name.toLowerCase()) || name.toLowerCase().includes(p.n.toLowerCase()));
 
                 if (existing) {
-                    // Si existe, actualizamos el teléfono
                     existing.tel = tel;
                     updated++;
                 } else {
-                    // Si no existe, lo creamos nuevo
                     db.proveedores.push({ 
                         id: generateID(), 
-                        n: name.charAt(0).toUpperCase() + name.slice(1), // Primera mayúscula
+                        n: name.charAt(0).toUpperCase() + name.slice(1), 
                         tel: tel, 
                         fam: 'General' 
                     });
@@ -2333,6 +2397,26 @@ function runImportProvs() {
     closeModal();
     renderAdmin(document.getElementById('app'));
 }
-</script>
+
+/* -----------------------------------------------------
+   LÓGICA DEL MENÚ DESPLEGABLE
+   ----------------------------------------------------- */
+function mostrarOpciones() {
+    document.getElementById("misOpciones").classList.toggle("mostrar");
+}
+
+// Cierra el menú si haces clic fuera
+window.onclick = function(event) {
+    if (!event.target.matches('.btn-principal')) {
+        var dropdowns = document.getElementsByClassName("contenido-opciones");
+        for (var i = 0; i < dropdowns.length; i++) {
+            var openDropdown = dropdowns[i];
+            if (openDropdown.classList.contains('mostrar')) {
+                openDropdown.classList.remove('mostrar');
+            }
+        }
+    }
+}
+</script> 
 </body>
 </html>
