@@ -777,7 +777,9 @@ function renderAlbaranes(c) {
     // === 🛡️ CORRECCIÓN AQUÍ 🛡️ ===
     // Si la lista de socios no existe en la nube aún, usamos esta por defecto para que no falle
     const listaSociosSegura = db.listaSocios || ['Jeronimo', 'Pedro', 'Pau', 'Agnes'];
-    const socioOptions = listaSociosSegura.map(s => `<option>${s}</option>`).join('');
+   // === CAMBIO: AÑADIMOS ARUME COMO PRIMERA OPCIÓN POR DEFECTO ===
+    const socioOptions = `<option value="Arume" selected>🏠 ARUME</option>` + 
+                         listaSociosSegura.map(s => `<option value="${s}">${s}</option>`).join('');
 
     c.innerHTML = `
     <div class="glass-card border-l-4 border-indigo-500" id="alb-form-anchor">
