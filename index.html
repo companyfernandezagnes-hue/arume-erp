@@ -2089,8 +2089,50 @@ function closeModal() {
 /* =============================================================
    🚀 ARRANQUE DE LA APLICACIÓN 🚀
    ============================================================= */
-init();
-// Función para forzar la descarga de la nube (Solución para el móvil)
+/* === 8. LÓGICA DE ARRANQUE Y LOGIN (BLINDADA) === */
+function init() {
+    // 1. Recuperar datos
+    try { 
+        const stored = localStorage.getItem('arume_v152'); 
+        if (stored) db = secure.dec(stored); 
+    } catch(e) { console.warn("Reset DB"); }
+    
+    // === 🛡️ ESCUDO ANTI-ERRORES (BLINDAJE TOTAL) 🛡️ ===
+    // Revisamos UNA a UNA todas las carpetas. Si alguna falta, la creamos.
+    if (!db.users) db.users = DB_INIT.users;
+    if (!db.ingredientes) db.ingredientes = [];
+    if (!db.recetas) db.recetas = [];
+    if (!db.proveedores) db.proveedores = [{ id: 'p1', n: 'Makro', tel: '', fam: 'General' }];
+    if (!db.albaranes) db.albaranes = [];
+    if (!db.facturas) db.facturas = [];
+    if (!db.diario) db.diario = [];
+    
+    // Estas son las que solían dar problemas al actualizar:
+    if (!db.mermas) db.mermas = [];         // <--- Esto arregla tu pantalla blanca
+    if (!db.kardex) db.kardex = [];
+    if (!db.sales_history) db.sales_history = [];
+    if (!db.gastos_fijos) db.gastos_fijos = [];
+    if (!db.eventos) db.eventos = [];
+    if (!db.listaSocios) db.listaSocios = ['Jeronimo', 'Pedro', 'Pau', 'Agnes'];
+    // ====================================================
+
+    // 2. Comprobamos usuario
+    const savedUser = localStorage.getItem('arume_user');
+    if (savedUser) { 
+        try { currentUser = db.users.find(x => x.id === JSON.parse(savedUser).id); } catch(e){} 
+    }
+
+    if (currentUser) {
+        document.getElementById('pin-screen').classList.add('hidden');
+        loadApp();
+        syncDown(); 
+    } else {
+        document.getElementById('pin-screen').classList.remove('hidden');
+    }
+    
+    // Latido del corazón (Sync)
+    setInterval(syncDown, 10000); 
+}
 async function forceCloudDownload() {
     if(confirm("⚠️ ¿ESTÁS SEGURO?\n\nEsto borrará los datos de ESTE dispositivo y bajará la última copia de la nube.\n\nÚsalo solo si no ves los datos actualizados.")) {
         loading(true);
