@@ -552,15 +552,15 @@ function getStockAlerts() {
     </div>`;
 }
 function renderAdmin(app) {
-    // 1. Cálculos Financieros del Periodo
+    // 1. Cálculos Financieros (Balance Real)
     const ventasCaja = db.diario.filter(d => isInPeriod(d.date)).reduce((a, b) => a + (b.total || 0), 0);
     const comprasPagadas = db.facturas.filter(f => isInPeriod(f.date) && f.paid).reduce((a, b) => a + (b.total || 0), 0);
     const fijosTotal = db.gastos_fijos.filter(g => isInPeriod(g.date)).reduce((a, b) => a + (b.total || 0), 0);
     
-    // Beneficio Real (Lo que queda en el bolsillo)
+    // Beneficio Neto Real (Dinero en el bolsillo)
     const beneficioNeto = ventasCaja - comprasPagadas - fijosTotal;
 
-    // 2. Selector de Trimestre (Tu código original recuperado)
+    // 2. Selector de Trimestre
     const qCtrl = `
     <div class="flex items-center justify-between bg-white p-2 rounded-2xl shadow-sm mb-4 border border-slate-100">
         <div class="flex items-center gap-2 bg-slate-100 rounded-lg px-2 py-1">
@@ -587,6 +587,8 @@ function renderAdmin(app) {
         <button class="flex-1 min-w-[90px] py-2.5 rounded-xl font-bold text-[10px] transition ${activeAdminTab==='fijos'?'bg-slate-800 text-white shadow-md':'text-slate-500 hover:bg-slate-50'}" onclick="activeAdminTab='fijos';renderAdmin(document.getElementById('app'))">🏠 ESTRUCTURA</button>
         <button class="flex-1 min-w-[90px] py-2.5 rounded-xl font-bold text-[10px] transition ${activeAdminTab==='albs'?'bg-slate-800 text-white shadow-md':'text-slate-500 hover:bg-slate-50'}" onclick="activeAdminTab='albs';renderAdmin(document.getElementById('app'))">📦 COMPRAS</button>
         <button class="flex-1 min-w-[90px] py-2.5 rounded-xl font-bold text-[10px] transition ${activeAdminTab==='facturas'?'bg-slate-800 text-white shadow-md':'text-slate-500 hover:bg-slate-50'}" onclick="activeAdminTab='facturas';renderAdmin(document.getElementById('app'))">📄 FACTURAS</button>
+        <button class="flex-1 min-w-[90px] py-2.5 rounded-xl font-bold text-[10px] transition ${activeAdminTab==='prov'?'bg-slate-800 text-white shadow-md':'text-slate-500 hover:bg-slate-50'}" onclick="activeAdminTab='prov';renderAdmin(document.getElementById('app'))">📒 AGENDA</button>
+        <button class="flex-1 min-w-[90px] py-2.5 rounded-xl font-bold text-[10px] transition ${activeAdminTab==='omnes'?'bg-slate-800 text-white shadow-md':'text-slate-500 hover:bg-slate-50'}" onclick="activeAdminTab='omnes';renderAdmin(document.getElementById('app'))">🍽️ OMNES</button>
     </div>
     
     ${activeAdminTab === 'dash' ? `
@@ -594,8 +596,8 @@ function renderAdmin(app) {
             <h3 class="text-[10px] uppercase font-bold opacity-50 mb-1 tracking-[0.2em]">Resultado Real Neto</h3>
             <div class="text-4xl font-black ${beneficioNeto >= 0 ? 'text-emerald-400' : 'text-red-400'}">${Num.fmt(beneficioNeto)}€</div>
             <div class="flex justify-between mt-6 pt-4 border-t border-white/10 text-[9px] font-bold opacity-60 uppercase tracking-widest">
-                <span>Ventas: ${Num.fmt(ventasCaja)}€</span>
-                <span>Gastos: ${Num.fmt(comprasPagadas + fijosTotal)}€</span>
+                <span>Ventas Caja: ${Num.fmt(ventasCaja)}€</span>
+                <span>Total Gastos: ${Num.fmt(comprasPagadas + fijosTotal)}€</span>
             </div>
         </div>
 
@@ -611,9 +613,9 @@ function renderAdmin(app) {
         </div>
         
         <div class="bg-amber-50 border border-amber-100 p-4 rounded-2xl mb-6">
-            <h4 class="text-[10px] font-black text-amber-700 uppercase mb-2">💡 Análisis de Caja</h4>
+            <h4 class="text-[10px] font-black text-amber-700 uppercase mb-2">💡 Análisis de Salud</h4>
             <p class="text-xs text-amber-800 leading-relaxed">
-                Has generado <b>${Num.fmt(ventasCaja)}€</b> en ventas. Tras pagar facturas y costes fijos, tu beneficio real es del <b>${ventasCaja > 0 ? ((beneficioNeto/ventasCaja)*100).toFixed(1) : 0}%</b>.
+                De cada 100€ que entran en la caja, te quedan limpios <b>${ventasCaja > 0 ? ((beneficioNeto/ventasCaja)*100).toFixed(1) : 0}€</b> después de pagar todo.
             </p>
         </div>
     ` : ''}
@@ -623,6 +625,8 @@ function renderAdmin(app) {
     if (activeAdminTab === 'fijos') renderGastosFijos(c);
     if (activeAdminTab === 'albs') renderAlbaranes(c);
     if (activeAdminTab === 'facturas') renderFacturas(c);
+    if (activeAdminTab === 'omnes') renderOmnes(c);
+    if (activeAdminTab === 'prov') renderProvs(c);
 }
 // --- SUB-MÓDULO: PROVEEDORES ---
 function renderProvs(c) { 
@@ -2130,42 +2134,72 @@ function deleteInvoice(id) {
         if(typeof toast === "function") toast("🗑️ Factura eliminada");
     }
 }
-        function renderGastosFijos(c) {
+       /* === GESTIÓN DE GASTOS ESTRUCTURALES (PASO 3) === */
+
+function renderGastosFijos(c) {
+    // Solo mostramos los gastos del año/trimestre seleccionado
     const list = db.gastos_fijos.filter(g => isInPeriod(g.date)).reverse();
     const cats = ['Personal', 'Alquiler', 'Luz/Agua', 'Gestoría', 'Seguros', 'Otros'];
 
     c.innerHTML = `
-    <div class="glass-card">
-        <h3 class="font-bold text-sm mb-4">REGISTRAR GASTO ESTRUCTURAL</h3>
-        <div class="grid grid-cols-2 gap-2 mb-3">
-            <div><label>Categoría</label><select id="gf-cat" class="input-premium">${cats.map(cat => `<option>${cat}</option>`).join('')}</select></div>
-            <div><label>Importe (€)</label><input type="number" id="gf-tot" class="input-premium" placeholder="0.00"></div>
+    <div class="glass-card border-l-4 border-slate-800">
+        <h3 class="font-black text-slate-800 text-sm mb-4 uppercase tracking-tight">Nuevo Gasto Estructural</h3>
+        <div class="grid grid-cols-2 gap-3 mb-3">
+            <div>
+                <label>Categoría</label>
+                <select id="gf-cat" class="input-premium bg-white">
+                    ${cats.map(cat => `<option>${cat}</option>`).join('')}
+                </select>
+            </div>
+            <div>
+                <label>Importe (€)</label>
+                <input type="number" id="gf-tot" class="input-premium font-bold text-lg" placeholder="0.00">
+            </div>
         </div>
         <label>Concepto / Mes</label>
-        <input type="text" id="gf-con" class="input-premium mb-3" placeholder="Ej: Nóminas Diciembre">
-        <label>Fecha Pago</label>
+        <input type="text" id="gf-con" class="input-premium mb-3" placeholder="Ej: Nóminas Enero">
+        
+        <label>Fecha del Pago</label>
         <input type="date" id="gf-date" value="${getISO()}" class="input-premium mb-4">
-        <button class="btn-premium btn-action" onclick="saveGastoFijo()">＋ AÑADIR GASTO</button>
+        
+        <button class="btn-premium btn-action shadow-indigo-200" onclick="saveGastoFijo()">
+            ＋ REGISTRAR GASTO
+        </button>
     </div>
+
     <div class="glass-card">
-        <h4 class="text-xs font-bold text-slate-400 uppercase mb-4">Historial de Estructura</h4>
-        ${list.map(g => `
-            <div class="flex justify-between items-center py-2 border-b">
-                <div>
-                    <div class="font-bold text-sm text-slate-700">${g.cat}: ${g.concept}</div>
-                    <div class="text-[10px] text-slate-400">${g.date}</div>
+        <div class="flex justify-between items-center mb-4">
+            <h4 class="text-xs font-black text-slate-400 uppercase tracking-widest">Historial de Pagos</h4>
+            <span class="bg-slate-100 text-slate-600 px-2 py-1 rounded text-[10px] font-bold">
+                ${list.length} registros
+            </span>
+        </div>
+        
+        <div class="space-y-2">
+            ${list.length ? list.map(g => `
+                <div class="flex justify-between items-center py-3 border-b border-slate-50 last:border-0 hover:bg-slate-50 transition px-2 rounded-xl">
+                    <div>
+                        <div class="font-bold text-sm text-slate-800">${clean(g.concept)}</div>
+                        <div class="flex gap-2 items-center">
+                            <span class="text-[9px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-bold uppercase">${g.cat}</span>
+                            <span class="text-[9px] text-slate-400 font-mono">${g.date}</span>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <span class="font-black text-slate-800 text-sm">-${Num.fmt(g.total)}€</span>
+                        <button class="w-8 h-8 flex items-center justify-center bg-red-50 text-red-400 rounded-full hover:bg-red-500 hover:text-white transition" 
+                                onclick="deleteGastoFijo('${g.id}')">✕</button>
+                    </div>
                 </div>
-                <div class="flex items-center gap-2">
-                    <span class="font-black text-slate-800">-${Num.fmt(g.total)}€</span>
-                    <button class="text-red-400" onclick="deleteGastoFijo('${g.id}')">✕</button>
-                </div>
-            </div>`).join('')}
+            `).join('') : '<div class="text-center py-8 text-slate-400 text-xs italic">No hay gastos fijos registrados en este periodo.</div>'}
+        </div>
     </div>`;
 }
 
 function saveGastoFijo() {
     const total = parseFloat(document.getElementById('gf-tot').value);
     const concept = document.getElementById('gf-con').value;
+    
     if (total > 0 && concept) {
         db.gastos_fijos.push({
             id: generateID(),
@@ -2176,11 +2210,13 @@ function saveGastoFijo() {
         });
         save("Gasto estructural registrado");
         renderAdmin(document.getElementById('app'));
+    } else {
+        toast("Faltan datos", "error");
     }
 }
 
 function deleteGastoFijo(id) {
-    if(confirm("¿Borrar este gasto?")) {
+    if(confirm("¿Eliminar este gasto de la lista?")) {
         db.gastos_fijos = db.gastos_fijos.filter(g => g.id !== id);
         save("Gasto eliminado");
         renderAdmin(document.getElementById('app'));
