@@ -655,13 +655,34 @@ function renderAdmin(app) {
     if (activeAdminTab === 'omnes') renderOmnes(c);
     if (activeAdminTab === 'prov') renderProvs(c);
 }
-// --- SUB-MÓDULO: PROVEEDORES ---
+// --- SUB-MÓDULO: PROVEEDORES (CON BOTÓN IMPORTAR) ---
 function renderProvs(c) { 
     // Calcular gasto por proveedor
     const spendMap = {}; 
     db.albaranes.forEach(a => { if (isInPeriod(a.date)) spendMap[a.prov] = (spendMap[a.prov] || 0) + a.total; });
     
-    c.innerHTML = `<div class="glass-card"><div class="flex justify-between mb-4"><h3 class="font-bold">PROVEEDORES</h3><button class="btn-premium w-auto px-3 py-1 text-xs" onclick="editProv()">+ NUEVO</button></div><div class="space-y-2">${db.proveedores.map(p => `<div class="bg-white p-3 rounded-xl border flex justify-between items-center" onclick="editProv('${p.id}')"><div><div class="font-bold text-slate-800">${clean(p.n)}</div><div class="text-[10px] bg-slate-100 px-2 rounded inline-block">${p.fam}</div></div><div class="text-right font-bold text-slate-700">${Num.fmt(spendMap[p.n])}€</div></div>`).join('')}</div></div>`; 
+    c.innerHTML = `
+    <div class="glass-card">
+        <div class="flex justify-between mb-4">
+            <h3 class="font-bold text-slate-800">PROVEEDORES</h3>
+            <div class="flex gap-2">
+                <button class="btn-ghost w-auto px-3 py-1 text-[10px] bg-indigo-50 text-indigo-600 border-indigo-200" onclick="importProvsModal()">📥 IMPORTAR WASSAP</button>
+                <button class="btn-premium w-auto px-3 py-1 text-xs" onclick="editProv()">+ NUEVO</button>
+            </div>
+        </div>
+        <div class="space-y-2">
+            ${db.proveedores.map(p => `
+                <div class="bg-white p-3 rounded-xl border flex justify-between items-center group" onclick="editProv('${p.id}')">
+                    <div>
+                        <div class="font-bold text-slate-800">${clean(p.n)}</div>
+                        <div class="text-[10px] bg-slate-100 px-2 rounded inline-block uppercase font-bold text-slate-500">${p.fam}</div>
+                        ${p.tel ? `<div class="text-[10px] text-indigo-500 font-mono mt-1">📞 ${p.tel}</div>` : ''}
+                    </div>
+                    <div class="text-right font-bold text-slate-700">${Num.fmt(spendMap[p.n])}€</div>
+                </div>
+            `).join('')}
+        </div>
+    </div>`; 
 }
 function editProv(id) { 
     const p = id ? db.proveedores.find(x => x.id === id) : { id: generateID(), n: '', tel: '', fam: 'General' }; 
@@ -2248,6 +2269,69 @@ function deleteGastoFijo(id) {
         save("Gasto eliminado");
         renderAdmin(document.getElementById('app'));
     }
+}
+        /* === IMPORTADOR DE PROVEEDORES (WASSAP) === */
+
+function importProvsModal() {
+    showModal('Importar desde WhatsApp', `
+        <div class="bg-indigo-50 p-3 rounded-xl border border-indigo-100 mb-4 text-xs text-indigo-800">
+            <b>Instrucciones:</b><br>
+            1. Copia el mensaje entero del WhatsApp con la lista.<br>
+            2. Pégalo aquí abajo.<br>
+            3. El sistema buscará nombres y teléfonos solo.
+        </div>
+        <textarea id="imp-text" class="input-premium h-40 text-xs font-mono mb-4" placeholder="Ejemplo:
+Frutas Pepe 666777888
+Carnicería Paco: 981 22 33 44
+Pescados Ría - 655443322"></textarea>
+        <button class="btn-premium btn-action" onclick="runImportProvs()">🚀 PROCESAR LISTA</button>
+    `);
+}
+
+function runImportProvs() {
+    const txt = document.getElementById('imp-text').value;
+    if(!txt) return toast("Pega algo primero", "error");
+
+    const lines = txt.split(/\r?\n/); // Separamos por líneas
+    let updated = 0;
+    let created = 0;
+
+    lines.forEach(line => {
+        // 1. Buscamos números de teléfono (9 dígitos seguidos o con espacios)
+        // Esta fórmula busca patrones de móviles/fijos españoles
+        const phoneMatch = line.replace(/\s/g, '').match(/[6789]\d{8}/);
+        
+        if (phoneMatch) {
+            const tel = phoneMatch[0]; // El número limpio
+            
+            // 2. Limpiamos el nombre (quitamos el número y símbolos raros del texto)
+            let name = line.replace(/[0-9]/g, '').replace(/[:.-]/g, '').trim();
+            
+            if (name.length > 2) {
+                // 3. Buscamos si ya existe (ignorando mayúsculas)
+                const existing = db.proveedores.find(p => p.n.toLowerCase().includes(name.toLowerCase()) || name.toLowerCase().includes(p.n.toLowerCase()));
+
+                if (existing) {
+                    // Si existe, actualizamos el teléfono
+                    existing.tel = tel;
+                    updated++;
+                } else {
+                    // Si no existe, lo creamos nuevo
+                    db.proveedores.push({ 
+                        id: generateID(), 
+                        n: name.charAt(0).toUpperCase() + name.slice(1), // Primera mayúscula
+                        tel: tel, 
+                        fam: 'General' 
+                    });
+                    created++;
+                }
+            }
+        }
+    });
+
+    save(`✅ Proceso terminado: ${updated} actualizados, ${created} nuevos.`);
+    closeModal();
+    renderAdmin(document.getElementById('app'));
 }
 </script>
 </body>
