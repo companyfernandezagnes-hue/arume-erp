@@ -552,24 +552,22 @@ function getStockAlerts() {
     </div>`;
 }
 function renderAdmin(app) {
-    // === 🛡️ PROTECCIÓN ANTI-CAÍDA 🛡️ ===
-    // Si la memoria del navegador es vieja y no tiene la carpeta 'gastos_fijos',
-    // la creamos vacía ahora mismo para que no dé error.
-    if (!db.gastos_fijos) { 
-        db.gastos_fijos = []; 
-        console.log("Carpeta de Gastos creada automáticamente");
-    }
+    // === 🛡️ 1. PROTECCIÓN ANTI-CAÍDA (Esto arregla el error de pantalla blanca) ===
+    if (!db.gastos_fijos) { db.gastos_fijos = []; save("Sistema actualizado: Estructura creada"); }
 
-    // 1. Cálculos Financieros (Ahora ya es seguro hacerlo)
+    // === 2. CÁLCULOS FINANCIEROS (BALANCE REAL) ===
     const ventasCaja = db.diario.filter(d => isInPeriod(d.date)).reduce((a, b) => a + (b.total || 0), 0);
     const comprasPagadas = db.facturas.filter(f => isInPeriod(f.date) && f.paid).reduce((a, b) => a + (b.total || 0), 0);
-    
-    // Aquí es donde daba el error, ahora ya no lo dará gracias a la protección de arriba
     const fijosTotal = db.gastos_fijos.filter(g => isInPeriod(g.date)).reduce((a, b) => a + (b.total || 0), 0);
-    
     const beneficioNeto = ventasCaja - comprasPagadas - fijosTotal;
 
-    // 2. Selector de Trimestre
+    // === 3. CÁLCULO DE MERMAS (Pérdidas) ===
+    const mermasPeriodo = db.mermas.filter(m => isInPeriod(m.date));
+    const totalMermas = mermasPeriodo.reduce((acc, m) => acc + (m.loss || 0), 0);
+    const mermasPorCausa = {};
+    mermasPeriodo.forEach(m => { mermasPorCausa[m.reason] = (mermasPorCausa[m.reason] || 0) + (m.loss || 0); });
+
+    // === 4. CONTROL DE TRIMESTRES (Navegación temporal) ===
     const qCtrl = `
     <div class="flex items-center justify-between bg-white p-2 rounded-2xl shadow-sm mb-4 border border-slate-100">
         <div class="flex items-center gap-2 bg-slate-100 rounded-lg px-2 py-1">
@@ -587,9 +585,10 @@ function renderAdmin(app) {
         </div>
     </div>`;
 
-    // 3. Renderizado de la Interfaz
+    // === 5. RENDERIZADO DE LA INTERFAZ ===
     app.innerHTML = `
     ${qCtrl}
+    
     <div class="flex gap-2 mb-6 bg-white p-1 rounded-2xl shadow-sm border border-slate-100 overflow-x-auto no-scrollbar">
         <button class="flex-1 min-w-[90px] py-2.5 rounded-xl font-bold text-[10px] transition ${activeAdminTab==='dash'?'bg-slate-800 text-white shadow-md':'text-slate-500 hover:bg-slate-50'}" onclick="activeAdminTab='dash';renderAdmin(document.getElementById('app'))">📊 BALANCE</button>
         <button class="flex-1 min-w-[90px] py-2.5 rounded-xl font-bold text-[10px] transition ${activeAdminTab==='fijos'?'bg-slate-800 text-white shadow-md':'text-slate-500 hover:bg-slate-50'}" onclick="activeAdminTab='fijos';renderAdmin(document.getElementById('app'))">🏠 ESTRUCTURA</button>
@@ -619,6 +618,33 @@ function renderAdmin(app) {
                 <div class="text-lg font-black text-slate-800">-${Num.fmt(fijosTotal)}€</div>
             </div>
         </div>
+
+        ${getStockAlerts()}
+
+        ${totalMermas > 0 ? `
+        <div class="bg-white border border-red-100 p-4 rounded-2xl shadow-sm mb-6">
+            <div class="flex justify-between items-center mb-3">
+                <h3 class="text-xs font-black text-red-500 uppercase tracking-widest">📉 FUGAS / MERMAS</h3>
+                <span class="font-black text-red-600">-${Num.fmt(totalMermas)}€</span>
+            </div>
+            <div class="space-y-2">
+                ${Object.entries(mermasPorCausa).sort((a,b)=>b[1]-a[1]).map(([cause, amount]) => {
+                    const pct = (amount / totalMermas) * 100;
+                    return `<div><div class="flex justify-between text-[10px] font-bold text-slate-500 mb-1"><span>${cause}</span><span>${Num.fmt(amount)}€</span></div><div class="w-full bg-red-50 rounded-full h-2"><div class="bg-red-400 h-2 rounded-full" style="width: ${pct}%"></div></div></div>`;
+                }).join('')}
+            </div>
+        </div>` : ''}
+
+        <div class="glass-card mt-8">
+            <h4 class="text-[10px] font-bold text-slate-400 uppercase mb-4 tracking-widest">Zona de Control</h4>
+            <div class="grid grid-cols-3 gap-2 mb-4">
+                <button class="btn-ghost text-[10px]" onclick="downloadBackup()">💾 BACKUP</button>
+                <button class="btn-ghost text-indigo-600 text-[10px]" onclick="document.getElementById('backup-input').click()">📤 RESTAURAR</button>
+                <button class="btn-ghost text-emerald-600 font-black border-emerald-200 bg-emerald-50 text-[10px]" onclick="forceCloudDownload()">☁️ BAJAR NUBE</button>
+            </div>
+            <button class="btn-ghost text-red-500 border-red-100 bg-red-50 text-[10px] w-full" onclick="resetStockToZero()">♻️ RESETEAR STOCK A CERO</button>
+        </div>
+
     ` : ''}
     <div id="adm-c"></div>`;
 
