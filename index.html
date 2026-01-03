@@ -766,21 +766,28 @@ function saveProv(id) {
 function delProv(id) { 
     if (confirm("¿Borrar?")) { db.proveedores = db.proveedores.filter(x => x.id !== id); save("Borrado"); closeModal(); renderAdmin(document.getElementById('app')); } 
 }
-/* === SUB-MÓDULO: ALBARANES PRO (CON EDICIÓN) === */
-
 function renderAlbaranes(c) {
     const list = db.albaranes.filter(a => isInPeriod(a.date)).slice().reverse();
     const provOptions = db.proveedores.map(p => `<option value="${clean(p.n)}">`).join('');
     const ingOptions = db.ingredientes.map(i => `<option value="${clean(i.n)}">`).join('');
+    
+    // --- NUEVO: Cargamos la lista de socios ---
+    const socioOptions = db.listaSocios.map(s => `<option>${s}</option>`).join('');
 
     c.innerHTML = `
     <div class="glass-card border-l-4 border-indigo-500" id="alb-form-anchor">
         <h3 class="font-bold text-slate-700 text-sm mb-4 uppercase">Nuevo / Editar Albarán</h3>
         
-        <div class="grid grid-cols-3 gap-3 mb-3">
-            <div><label>Proveedor</label><input list="prov-list" id="alb-prov" class="input-premium" placeholder="..." onchange="checkDuplicate()"><datalist id="prov-list">${provOptions}</datalist></div>
-            <div><label>Ref / Factura</label><input id="alb-num" class="input-premium font-mono" onkeyup="checkDuplicate()" placeholder="Ref..."></div>
-            <div><label>Fecha</label><input type="date" id="alb-date" value="${getISO()}" class="input-premium"></div>
+        <div class="grid grid-cols-4 gap-2 mb-3">
+            <div class="col-span-1">
+                <label>Socio</label>
+                <select id="alb-socio" class="input-premium px-1 text-sm font-bold text-indigo-600">
+                    ${socioOptions}
+                </select>
+            </div>
+            <div class="col-span-1"><label>Proveedor</label><input list="prov-list" id="alb-prov" class="input-premium px-1 text-sm" placeholder="..." onchange="checkDuplicate()"><datalist id="prov-list">${provOptions}</datalist></div>
+            <div class="col-span-1"><label>Ref / Fra</label><input id="alb-num" class="input-premium px-1 text-sm font-mono" onkeyup="checkDuplicate()" placeholder="Ref..."></div>
+            <div class="col-span-1"><label>Fecha</label><input type="date" id="alb-date" value="${getISO()}" class="input-premium px-1 text-sm"></div>
         </div>
         <div id="dup-alert" class="hidden text-[10px] text-red-500 font-bold mb-2 text-center bg-red-50 p-1 rounded">⚠️ FACTURA DUPLICADA</div>
 
@@ -814,7 +821,9 @@ function renderAlbaranes(c) {
         ${list.length ? list.map(a => `
             <div class="flex justify-between items-center py-3 border-b hover:bg-slate-50 transition px-2 rounded-lg">
                 <div class="text-sm font-bold text-slate-700">
-                    ${clean(a.prov)} <span class="text-[10px] text-slate-400 font-normal">(${a.date})</span>
+                    ${clean(a.prov)} 
+                    <span class="text-[10px] text-slate-400 font-normal">(${a.date})</span>
+                    <span class="ml-2 text-[9px] bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded font-bold border border-indigo-100">👤 ${a.socio || '?'}</span>
                     <div class="text-[10px] text-slate-400 font-mono">Ref: ${a.num || '-'}</div>
                 </div>
                 <div class="flex items-center gap-2">
@@ -829,7 +838,6 @@ function renderAlbaranes(c) {
     </div>`;
     renderAlbGrid();
 }
-
 function checkDuplicate() {
     const num = document.getElementById('alb-num').value.trim();
     const prov = document.getElementById('alb-prov').value.trim();
@@ -875,9 +883,14 @@ function renderAlbGrid() {
 }
 function commitAlb() {
     if (!tempItems.length) return toast("Albarán vacío", "error");
+    
+    // --- NUEVO: LEEMOS EL SOCIO ---
+    const socio = document.getElementById('alb-socio').value;
+    
     const prov = document.getElementById('alb-prov').value.trim();
     const date = document.getElementById('alb-date').value;
     const num = document.getElementById('alb-num').value.trim() || `A-${Date.now().toString().slice(-6)}`;
+    
     if (!prov || !date) return toast("Faltan datos", "error");
 
     if (!db.proveedores.find(p => p.n.toLowerCase() === prov.toLowerCase())) db.proveedores.push({ id: generateID(), n: prov, tel: '', fam: 'General' });
@@ -888,12 +901,9 @@ function commitAlb() {
         const netPrice = it.p * (1 - (it.d || 0) / 100);
         if (!ing) { ing = { id: generateID(), n: it.n, stock: 0, cost: 0, unit: it.unit, fam: 'General', min: 0 }; db.ingredientes.push(ing); }
         
-        // --- AQUÍ ESTÁ LA MAGIA DEL CHIVATO (NUEVO) ---
-        // Si el precio cambia más de 1 céntimo, guardamos el anterior como referencia
         if (ing.cost > 0 && Math.abs(ing.cost - netPrice) > 0.01) {
             ing.lastCost = ing.cost;
         }
-        // ----------------------------------------------
 
         const totalVal = (ing.stock * ing.cost) + (it.q * netPrice);
         const totalQty = ing.stock + it.q;
@@ -905,7 +915,19 @@ function commitAlb() {
         subtotal += base; taxes += base * (it.tax / 100);
     });
 
-    db.albaranes.push({ id: generateID(), num, prov, date, items: [...tempItems], total: subtotal + taxes, subtotal, taxes, invoiced: false });
+    // --- AQUI GUARDAMOS EL SOCIO ---
+    db.albaranes.push({ 
+        id: generateID(), 
+        num, 
+        prov, 
+        date, 
+        socio: socio, // <--- GUARDADO
+        items: [...tempItems], 
+        total: subtotal + taxes, 
+        subtotal, 
+        taxes, 
+        invoiced: false 
+    });
     
     clearCache(); 
     
@@ -929,49 +951,41 @@ function deleteAlb(id) {
         }
     }
 }
-
-// Función para editar Albaranes
 function editAlb(id) {
     const alb = db.albaranes.find(a => a.id === id);
     if (!alb) return;
     
-    // Seguridad: No editar si ya está en una factura cerrada
     if (alb.invoiced) return toast("⛔ No se puede editar: Ya está facturado", "error");
 
     if(confirm("¿Modificar albarán? \nSe cargará arriba para editar y se recalculará el stock.")) {
-        // 1. Revertir el Stock (Restamos lo que se había sumado)
         alb.items.forEach(it => {
             const ing = db.ingredientes.find(x => x.n === it.n && x.unit === it.unit);
             if(ing) {
                 ing.stock -= it.q;
-                // Dejamos un rastro técnico en el Kardex por si acaso
                 logStock(ing.id, it.q, 'OUT', `Edición Alb: ${alb.num}`, ing.cost);
             }
         });
 
-        // 2. Cargar los datos en el formulario de arriba
         document.getElementById('alb-prov').value = alb.prov;
         document.getElementById('alb-num').value = alb.num;
         document.getElementById('alb-date').value = alb.date;
+        
+        // --- RECUPERAMOS EL SOCIO AL EDITAR ---
+        if(alb.socio) {
+            document.getElementById('alb-socio').value = alb.socio;
+        }
 
-        // 3. Pasar los items a la memoria temporal (tempItems)
-        // Usamos JSON parse/stringify para romper la referencia y que sea una copia limpia
         tempItems = JSON.parse(JSON.stringify(alb.items));
-
-        // 4. Borrar el albarán antiguo de la base de datos
         db.albaranes = db.albaranes.filter(a => a.id !== id);
 
-        // 5. Refrescar la pantalla
-        renderAdmin(document.getElementById('app')); // Recarga todo para ver los cambios
+        renderAdmin(document.getElementById('app')); 
         
-        // Un pequeño truco para hacer scroll hacia arriba y que veas el formulario
         setTimeout(() => {
             document.getElementById('alb-form-anchor').scrollIntoView({ behavior: 'smooth' });
             toast("✏️ Datos cargados. Modifica y pulsa GUARDAR.", "info");
         }, 100);
     }
 }
-
 function exportAlbCSV() { 
     if (!tempItems.length) return toast("Tabla vacía", "error"); 
     const rows = tempItems.map(it => [it.n, Num.csv(it.q), it.unit, Num.csv(it.p), Num.csv(it.d || 0), Num.csv((it.q * it.p) * (1 + it.tax / 100))]); 
