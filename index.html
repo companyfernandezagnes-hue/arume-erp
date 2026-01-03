@@ -907,9 +907,8 @@ function exportAlbCSV() {
 
 // Variable temporal para guardar datos mientras está abierta la ventana modal
 let tempInvoiceData = null;
-
 function renderFacturas(c) {
-    // 1. Lógica de Albaranes Pendientes (Agrupar por proveedor)
+    // 1. Lógica de Albaranes Pendientes
     const pends = db.albaranes.filter(a => !a.invoiced);
     const groups = {}; 
     pends.forEach(a => { 
@@ -921,11 +920,8 @@ function renderFacturas(c) {
     
     // 2. Lógica de Historial (Agrupado por Meses)
     const hist = db.facturas.filter(f => isInPeriod(f.date)).sort((a,b) => b.date.localeCompare(a.date));
-    
-    // Diccionario de meses
     const monthNames = ["", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
 
-    // Agrupamos las facturas en "Cajitas" por mes numérico (1-12)
     const byMonth = {};
     hist.forEach(f => {
         const m = parseInt(f.date.split('-')[1]); 
@@ -961,7 +957,7 @@ function renderFacturas(c) {
 
     // --- HTML PARTE INFERIOR: HISTORIAL POR MESES ---
     let htmlHist = '';
-    const sortedMonths = Object.keys(byMonth).sort((a,b) => b - a); // Mes más reciente primero
+    const sortedMonths = Object.keys(byMonth).sort((a,b) => b - a);
 
     if(sortedMonths.length === 0) {
         htmlHist = `<div class="text-center p-10 text-slate-300 font-bold border-2 border-dashed border-slate-200 rounded-3xl">Sin facturas este trimestre</div>`;
@@ -979,7 +975,6 @@ function renderFacturas(c) {
                         <span>📥 EXCEL</span>
                     </button>
                 </div>
-
                 <div class="space-y-1">
                 ${mData.items.map(f => `
                     <div class="flex justify-between items-center py-2 px-2 hover:bg-slate-50 transition rounded-lg group">
@@ -994,14 +989,14 @@ function renderFacturas(c) {
                                 </div>
                             </div>
                         </div>
-                        <div class="text-right">
+                        <div class="text-right flex flex-col items-end gap-1">
                             <div class="font-black text-slate-800 text-sm">${Num.fmt(f.total)}€</div>
-                            <button onclick="togglePaid('${f.id}')" class="mt-1 text-[9px] font-bold px-2 py-0.5 rounded border transition ${f.paid ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-500 border-red-100'}">
-                                ${f.paid ? 'PAGADO' : 'PENDIENTE'}
-                            </button>
+                            <div class="flex gap-1">
+                                <button onclick="deleteInvoice('${f.id}')" class="text-[10px] bg-red-50 text-red-500 border border-red-100 px-2 py-1 rounded hover:bg-red-500 hover:text-white transition shadow-sm">🗑️</button>
+                                <button onclick="togglePaid('${f.id}')" class="text-[9px] font-bold px-2 py-1 rounded border transition ${f.paid ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-500 border-red-100'}">${f.paid ? 'PAGADO' : 'PENDIENTE'}</button>
+                            </div>
                         </div>
-                    </div>
-                `).join('')}
+                    </div>`).join('')}
                 </div>
             </div>`;
         }).join('');
@@ -1009,7 +1004,6 @@ function renderFacturas(c) {
 
     c.innerHTML = htmlPends + htmlHist;
 }
-
 // 1. Paso previo: Abrir ventana para pedir datos (Número de factura real)
 function openInvoiceModal(provName, idsString, amount) {
     // Guardamos los datos en memoria temporal
@@ -2149,6 +2143,31 @@ function calcMaxProd(r) {
 
     // Si sigue siendo infinito, devolvemos infinito. Si no, redondeamos hacia abajo
     return maxPossible === Infinity ? Infinity : Math.floor(maxPossible);
+}
+        // ... funciones anteriores (resetStockToZero, downloadDiarioCSV, etc.)
+
+function deleteInvoice(id) {
+    const f = db.facturas.find(x => x.id === id);
+    if (!f) return;
+
+    if (confirm(`¿Eliminar factura ${f.num} de ${f.prov}?\n\nLos albaranes volverán a aparecer como "Pendientes de facturar".`)) {
+        
+        // 1. Liberamos los albaranes para que vuelvan a aparecer arriba
+        db.albaranes.forEach(alb => {
+            if (alb.prov === f.prov && alb.invoiced === true) {
+                alb.invoiced = false; 
+            }
+        });
+
+        // 2. Quitamos la factura de la base de datos
+        db.facturas = db.facturas.filter(x => x.id !== id);
+
+        // 3. Guardamos en la nube y refrescamos la pantalla
+        save("Factura eliminada");
+        renderAdmin(document.getElementById('app'));
+        
+        if(typeof toast === "function") toast("🗑️ Factura eliminada");
+    }
 }
 </script>
 </body>
