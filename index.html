@@ -1646,6 +1646,165 @@ function viewRec(id) {
         </div>
     `);
 }
+    function renderGastosFijos(c) {
+    const list = db.gastos_fijos || [];
+    
+    // Calcular total mensual aproximado
+    const totalMensual = list.reduce((acc, g) => {
+        return acc + (g.freq === 'mensual' ? g.amount : g.amount / 12);
+    }, 0);
+
+    c.innerHTML = `
+    <div class="glass-card">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="font-bold text-slate-800">ESTRUCTURA DE COSTES</h3>
+            <div class="text-right">
+                <div class="text-[10px] text-slate-400 font-bold uppercase">Coste Fijo Mes</div>
+                <div class="font-black text-slate-700 text-lg">${Num.fmt(totalMensual)}€</div>
+            </div>
+        </div>
+
+        <div class="bg-indigo-50 p-4 rounded-xl border border-indigo-100 mb-6">
+            <h4 class="text-xs font-bold text-indigo-800 mb-2 uppercase">Añadir Gasto Recurrente</h4>
+            <div class="grid grid-cols-12 gap-2 mb-2">
+                <div class="col-span-5"><input id="gf-n" placeholder="Concepto (ej: Alquiler)" class="input-premium"></div>
+                <div class="col-span-3"><input id="gf-a" type="number" placeholder="€" class="input-premium text-center"></div>
+                <div class="col-span-4">
+                    <select id="gf-f" class="input-premium">
+                        <option value="mensual">Mensual</option>
+                        <option value="anual">Anual</option>
+                        <option value="trimestral">Trimestral</option>
+                    </select>
+                </div>
+            </div>
+            <button class="btn-premium btn-action w-full" onclick="addGastoFijo()">GUARDAR GASTO</button>
+        </div>
+
+        <div class="space-y-2">
+            ${list.length ? list.map((g, i) => `
+                <div class="bg-white p-3 rounded-xl border border-slate-100 shadow-sm flex justify-between items-center">
+                    <div>
+                        <div class="font-bold text-slate-700">${clean(g.n)}</div>
+                        <div class="text-[10px] bg-slate-100 px-2 rounded inline-block text-slate-500 uppercase font-bold">${g.freq}</div>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <span class="font-black text-slate-800">${Num.fmt(g.amount)}€</span>
+                        <button class="text-red-400 hover:text-red-600 font-bold px-2" onclick="delGastoFijo(${i})">✕</button>
+                    </div>
+                </div>
+            `).join('') : '<div class="text-center text-slate-400 text-xs py-4">No hay gastos fijos definidos</div>'}
+        </div>
+    </div>`;
+}
+
+function addGastoFijo() {
+    const n = document.getElementById('gf-n').value;
+    const a = parseFloat(document.getElementById('gf-a').value);
+    const f = document.getElementById('gf-f').value;
+    
+    if (n && a > 0) {
+        if (!db.gastos_fijos) db.gastos_fijos = [];
+        // Creamos un ID único y guardamos la fecha para saber cuándo se aplica
+        db.gastos_fijos.push({ id: generateID(), n, amount: a, freq: f, date: getISO() });
+        save("Gasto fijo añadido");
+        renderAdmin(document.getElementById('app'));
+    } else {
+        toast("Revisa los datos", "error");
+    }
+}
+
+function delGastoFijo(index) {
+    if(confirm("¿Eliminar este gasto fijo?")) {
+        db.gastos_fijos.splice(index, 1);
+        save("Gasto eliminado");
+        renderAdmin(document.getElementById('app'));
+    }
+}
+    /* === MÓDULO DE EVENTOS Y RESERVAS === */
+function renderEventos(c) {
+    // Filtrar eventos futuros o de hoy
+    const list = (db.eventos || []).sort((a,b) => a.date.localeCompare(b.date));
+
+    c.innerHTML = `
+    <div class="glass-card border-l-4 border-pink-500">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="font-bold text-slate-800">AGENDA DE EVENTOS</h3>
+            <button class="btn-premium w-auto px-3 py-1 text-xs" onclick="newEventModal()">+ NUEVO</button>
+        </div>
+        
+        <div class="space-y-3">
+            ${list.map(e => `
+                <div class="bg-white p-3 rounded-xl border border-slate-100 shadow-sm relative overflow-hidden">
+                    <div class="flex justify-between items-start mb-2">
+                        <div>
+                            <div class="text-[10px] font-bold text-pink-500 uppercase tracking-widest mb-1">${e.date} · ${e.time || '??:??'}</div>
+                            <div class="font-black text-slate-800 text-lg leading-none mb-1">${clean(e.name)}</div>
+                            <div class="text-xs text-slate-500">👥 ${e.pax} Pax · 💰 Señal: ${Num.fmt(e.deposit)}€</div>
+                        </div>
+                        <button class="bg-slate-50 text-slate-400 w-8 h-8 rounded-full flex items-center justify-center hover:bg-red-50 hover:text-red-500 transition" onclick="delEvent('${e.id}')">🗑️</button>
+                    </div>
+                    <div class="bg-slate-50 p-2 rounded-lg text-[10px] text-slate-600 italic border border-slate-100">
+                        ${clean(e.notes) || 'Sin notas adicionales.'}
+                    </div>
+                </div>
+            `).join('')}
+            ${list.length === 0 ? '<div class="text-center py-8 text-slate-400 border-2 border-dashed rounded-xl">No hay eventos próximos.</div>' : ''}
+        </div>
+    </div>`;
+}
+
+function newEventModal() {
+    showModal('Nuevo Evento', `
+        <label>Nombre Cliente / Evento</label>
+        <input id="ev-n" class="input-premium mb-2" placeholder="Ej: Cumpleaños Marta">
+        
+        <div class="grid grid-cols-2 gap-2 mb-2">
+            <div><label>Fecha</label><input type="date" id="ev-d" class="input-premium"></div>
+            <div><label>Hora</label><input type="time" id="ev-t" class="input-premium"></div>
+        </div>
+        
+        <div class="grid grid-cols-2 gap-2 mb-4">
+            <div><label>Pax (Personas)</label><input type="number" id="ev-p" class="input-premium text-center"></div>
+            <div><label>Señal / Depósito (€)</label><input type="number" id="ev-dep" class="input-premium text-center"></div>
+        </div>
+
+        <label>Notas / Menú pactado</label>
+        <textarea id="ev-notes" class="input-premium mb-4 h-20" placeholder="Detalles..."></textarea>
+        
+        <button class="btn-premium btn-action" onclick="saveEvent()">GUARDAR EVENTO</button>
+    `);
+}
+
+function saveEvent() {
+    const n = document.getElementById('ev-n').value;
+    const d = document.getElementById('ev-d').value;
+    
+    if(n && d) {
+        if(!db.eventos) db.eventos = [];
+        db.eventos.push({
+            id: generateID(),
+            name: n,
+            date: d,
+            time: document.getElementById('ev-t').value,
+            pax: document.getElementById('ev-p').value,
+            deposit: parseFloat(document.getElementById('ev-dep').value) || 0,
+            notes: document.getElementById('ev-notes').value
+        });
+        save("Evento agendado");
+        closeModal();
+        renderAdmin(document.getElementById('app'));
+    } else {
+        toast("Falta nombre o fecha", "error");
+    }
+}
+
+function delEvent(id) {
+    if(confirm("¿Borrar evento?")) {
+        db.eventos = db.eventos.filter(e => e.id !== id);
+        save("Evento borrado");
+        renderAdmin(document.getElementById('app'));
+    }
+}
 /* =============================================================
    ⚠️ 13. MÓDULO DE STOCK Y PEDIDOS (COMPLETO Y CORREGIDO) ⚠️
    ============================================================= */
@@ -1932,6 +2091,42 @@ function delIng(id) {
         db.ingredientes = db.ingredientes.filter(x => x.id !== id); 
         save("Eliminado"); closeModal(); render('Stock'); 
     } 
+}
+    /* === HISTORIAL DE MOVIMIENTOS (KARDEX) === */
+function viewKardex(id) {
+    const i = db.ingredientes.find(x => x.id === id);
+    if (!i) return;
+
+    // Filtramos el kardex global buscando solo este ID
+    const logs = db.kardex.filter(k => k.ingId === id).sort((a,b) => b.date.localeCompare(a.date)); // Del más nuevo al viejo
+
+    const logHTML = logs.map(l => {
+        let color = 'text-slate-500';
+        let sign = '';
+        if (l.type === 'IN' || l.type === 'ADJ' && l.qty > 0) { color = 'text-emerald-600'; sign = '+'; }
+        if (l.type === 'OUT') { color = 'text-red-500'; sign = '-'; }
+
+        return `
+        <div class="flex justify-between items-center py-2 border-b border-slate-50 text-xs">
+            <div>
+                <div class="font-bold text-slate-700">${l.reason}</div>
+                <div class="text-[10px] text-slate-400">${l.date}</div>
+            </div>
+            <div class="font-mono font-bold ${color} text-sm">
+                ${sign}${parseFloat(l.qty).toFixed(2)}
+            </div>
+        </div>`;
+    }).join('');
+
+    showModal(`Historial: ${clean(i.n)}`, `
+        <div class="bg-slate-50 p-2 rounded mb-4 text-center">
+            <span class="text-xs text-slate-400">Stock Actual</span>
+            <div class="text-2xl font-black text-slate-800">${parseFloat(i.stock).toFixed(2)} <span class="text-sm font-normal text-slate-400">${i.unit}</span></div>
+        </div>
+        <div class="max-h-60 overflow-y-auto pr-2 custom-scrollbar">
+            ${logs.length ? logHTML : '<div class="text-center text-slate-300 py-4">Sin movimientos registrados</div>'}
+        </div>
+    `);
 }
 /* =============================================================
    ⚠️ 14. DIARIO (CIERRE DE CAJA Z) - VERSIÓN CON DELIVERY ⚠️
