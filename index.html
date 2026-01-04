@@ -1781,6 +1781,81 @@ function viewRec(id) {
     window.updateRecCalc = updateView;
     updateView(1); // Render inicial
 }
+    /* === MÓDULO DE ESTRUCTURA (GASTOS FIJOS) === */
+function renderGastosFijos(c) {
+    const list = db.gastos_fijos || [];
+    
+    // Calcular total mensual aproximado
+    const totalMensual = list.reduce((acc, g) => {
+        return acc + (g.freq === 'mensual' ? g.amount : g.amount / 12);
+    }, 0);
+
+    c.innerHTML = `
+    <div class="glass-card">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="font-bold text-slate-800">ESTRUCTURA DE COSTES</h3>
+            <div class="text-right">
+                <div class="text-[10px] text-slate-400 font-bold uppercase">Coste Fijo Mes</div>
+                <div class="font-black text-slate-700 text-lg">${Num.fmt(totalMensual)}€</div>
+            </div>
+        </div>
+
+        <div class="bg-indigo-50 p-4 rounded-xl border border-indigo-100 mb-6">
+            <h4 class="text-xs font-bold text-indigo-800 mb-2 uppercase">Añadir Gasto Recurrente</h4>
+            <div class="grid grid-cols-12 gap-2 mb-2">
+                <div class="col-span-5"><input id="gf-n" placeholder="Concepto (ej: Alquiler)" class="input-premium"></div>
+                <div class="col-span-3"><input id="gf-a" type="number" placeholder="€" class="input-premium text-center"></div>
+                <div class="col-span-4">
+                    <select id="gf-f" class="input-premium">
+                        <option value="mensual">Mensual</option>
+                        <option value="anual">Anual</option>
+                        <option value="trimestral">Trimestral</option>
+                    </select>
+                </div>
+            </div>
+            <button class="btn-premium btn-action w-full" onclick="addGastoFijo()">GUARDAR GASTO</button>
+        </div>
+
+        <div class="space-y-2">
+            ${list.length ? list.map((g, i) => `
+                <div class="bg-white p-3 rounded-xl border border-slate-100 shadow-sm flex justify-between items-center">
+                    <div>
+                        <div class="font-bold text-slate-700">${clean(g.n)}</div>
+                        <div class="text-[10px] bg-slate-100 px-2 rounded inline-block text-slate-500 uppercase font-bold">${g.freq}</div>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <span class="font-black text-slate-800">${Num.fmt(g.amount)}€</span>
+                        <button class="text-red-400 hover:text-red-600 font-bold px-2" onclick="delGastoFijo(${i})">✕</button>
+                    </div>
+                </div>
+            `).join('') : '<div class="text-center text-slate-400 text-xs py-4">No hay gastos fijos definidos</div>'}
+        </div>
+    </div>`;
+}
+
+function addGastoFijo() {
+    const n = document.getElementById('gf-n').value;
+    const a = parseFloat(document.getElementById('gf-a').value);
+    const f = document.getElementById('gf-f').value;
+    
+    if (n && a > 0) {
+        if (!db.gastos_fijos) db.gastos_fijos = [];
+        // Creamos un ID único y guardamos la fecha para saber cuándo se aplica
+        db.gastos_fijos.push({ id: generateID(), n, amount: a, freq: f, date: getISO() });
+        save("Gasto fijo añadido");
+        renderAdmin(document.getElementById('app'));
+    } else {
+        toast("Revisa los datos", "error");
+    }
+}
+
+function delGastoFijo(index) {
+    if(confirm("¿Eliminar este gasto fijo?")) {
+        db.gastos_fijos.splice(index, 1);
+        save("Gasto eliminado");
+        renderAdmin(document.getElementById('app'));
+    }
+}
 /* =============================================================
    ⚠️ 13. MÓDULO DE STOCK Y PEDIDOS (COMPLETO Y CORREGIDO) ⚠️
    ============================================================= */
