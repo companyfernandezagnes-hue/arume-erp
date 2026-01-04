@@ -1512,8 +1512,8 @@ function renderEventos(c) {
                     </div>
                     <div class="flex gap-1">
                         <button class="btn-ghost text-[10px] px-2 py-1" onclick="printEventBudget('${e.id}')">🖨️ IMPRIMIR</button>
-                        <span class="text-[10px] bg-indigo-50 text-indigo-600 px-2 py-1 rounded font-bold">
-                            Alb: ${Num.fmt(sumAlbaranesForEvent(e.date))}€
+                        <span class="text-[10px] bg-indigo-50 text-indigo-600 px-2 py-1 rounded font-bold" title="Compras asociadas a este evento">
+                            Compras: ${Num.fmt(sumAlbaranesForEvent(e.date))}€
                         </span>
                     </div>
                 </div>
@@ -1740,6 +1740,7 @@ window.openEventCalendar = function(id) {
     if (!evento) return toast("Evento no encontrado", "error");
     
     // Formato de fecha para Google Calendar (YYYYMMDDTHHmmss)
+    // Por defecto: eventos de 10:00 a 22:00 (horario típico de eventos)
     const startDate = evento.date.replace(/-/g, '') + 'T100000';
     const endDate = evento.date.replace(/-/g, '') + 'T220000';
     
