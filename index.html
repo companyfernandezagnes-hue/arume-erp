@@ -2532,22 +2532,19 @@ document.addEventListener('DOMContentLoaded', init);
 
 function renderEventos(c) {
     // 1. BUSCAR GASTOS DE PAU (ALBARANES CON SOCIO 'OnlyOne')
-    // Filtramos solo los de este año fiscal para ver la rentabilidad del periodo
     const gastosOnlyOne = db.albaranes
         .filter(a => isInPeriod(a.date) && a.socio === 'OnlyOne');
     
     const totalGastoMaterial = gastosOnlyOne.reduce((acc, a) => acc + a.total, 0);
 
     // 2. BUSCAR INGRESOS DE EVENTOS
-    // (Estos son los eventos que registras manualmente tras cobrar por TPV)
     const eventosList = (db.eventos || []).filter(e => isInPeriod(e.date));
     const totalFacturado = eventosList.reduce((acc, e) => acc + (e.total || 0), 0);
     
-    // 3. GASTOS DE PERSONAL EXTRA (Registrados dentro de cada evento)
+    // 3. GASTOS DE PERSONAL EXTRA
     const totalPersonal = eventosList.reduce((acc, e) => acc + (e.costPersonal || 0), 0);
 
     // 4. EL CÁLCULO DE LA "CAJA NEGRA"
-    // Lo que entra - Lo que gastó Pau en botellas - Lo que se pagó a camareros extra
     const beneficioCajaNegra = totalFacturado - totalGastoMaterial - totalPersonal;
 
     // RENDERIZADO
@@ -2583,7 +2580,7 @@ function renderEventos(c) {
         </div>
     </div>
 
-    <div class="flex justify-between items-center mb-4 px-2">
+    <div class="flex justify-between items-center mb-4 px-2 mt-6">
         <h3 class="font-bold text-slate-700 text-sm">AGENDA DE EVENTOS</h3>
         <button class="btn-premium w-auto px-4 py-2 text-xs bg-pink-600 shadow-pink-200" onclick="editEvent()">+ NUEVO EVENTO</button>
     </div>
@@ -2600,7 +2597,15 @@ function renderEventos(c) {
                 <div class="text-right">
                     <div class="font-bold text-emerald-600">+${Num.fmt(e.total)}€</div>
                     ${e.costPersonal ? `<div class="text-[9px] text-red-400 font-bold">Personal: -${e.costPersonal}€</div>` : ''}
-                    <button class="text-[10px] text-slate-300 underline mt-1" onclick="delEvent('${e.id}')">Borrar</button>
+                    
+                    <div class="flex gap-2 justify-end mt-2">
+                        <button class="text-[10px] bg-blue-50 text-blue-600 px-2 py-1 rounded border border-blue-100 hover:bg-blue-100 transition" 
+                                onclick="window.open('https://calendar.google.com/calendar/render?action=TEMPLATE&text=' + encodeURIComponent('${clean(e.n)}') + '&details=' + encodeURIComponent('Evento tipo: ${e.type}. Ingresos: ${e.total}€') + '&dates=${e.date.replace(/-/g,'')}T090000/${e.date.replace(/-/g,'')}T180000', '_blank')">
+                            📅 G-Cal
+                        </button>
+                        
+                        <button class="text-[10px] text-slate-300 underline" onclick="delEvent('${e.id}')">Borrar</button>
+                    </div>
                 </div>
             </div>
         `).join('') : '<div class="text-center p-6 text-slate-400 text-xs italic">No hay eventos este trimestre.</div>'}
