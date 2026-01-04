@@ -2496,6 +2496,290 @@ async function forceCloudDownload() {
     }
 }
     window.onload = init;
+    // =========================
+// Módulo EVENTOS · OnlyOne
+// Insertar antes de cerrar </script> en index.html
+// =========================
+
+function renderEventos(c) {
+    if (!db.eventos) db.eventos = [];
+    // Lista de eventos (últimos primero)
+    const eventosList = db.eventos.slice().reverse();
+
+    // Totales del periodo (o global si no filtras por periodo)
+    const ingresosTotal = db.eventos.reduce((s, e) => s + (Num.parse(e.ingreso) || 0), 0);
+    const personalExtraTotal = db.eventos.reduce((s, e) => s + (Num.parse(e.personalExtra) || 0), 0);
+
+    // Albaranes relacionados a OnlyOne
+    const albsOnlyOne = (db.albaranes || []).filter(a => (a.socio === 'OnlyOne'));
+    const albsOnlyOnePeriod = albsOnlyOne.filter(a => isInPeriod(a.date));
+    const albsTotal = albsOnlyOnePeriod.reduce((s, a) => s + (a.total || 0), 0);
+
+    // Caja Negra = ingresos - albaranes OnlyOne (periodo) - personalExtra
+    const cajaNegra = ingresosTotal - albsTotal - personalExtraTotal;
+
+    c.innerHTML = `
+    <div class="glass-card">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="font-bold text-slate-800">EVENTOS · OnlyOne</h3>
+            <div class="text-right">
+                <div class="text-[10px] text-slate-400">Ingresos: <strong>${Num.fmt(ingresosTotal)}€</strong></div>
+                <div class="text-[10px] text-slate-400">Albaranes OnlyOne: <strong>${Num.fmt(albsTotal)}€</strong></div>
+                <div class="text-[10px] text-slate-400">Personal Extra: <strong>${Num.fmt(personalExtraTotal)}€</strong></div>
+                <div class="text-sm font-black ${cajaNegra >= 0 ? 'text-emerald-500' : 'text-red-500'}">Caja Negra: ${Num.fmt(cajaNegra)}€</div>
+            </div>
+        </div>
+
+        <div class="mb-4">
+            <h4 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Registrar Evento</h4>
+            <div class="grid grid-cols-3 gap-2 mb-2">
+                <div>
+                    <label>Fecha</label>
+                    <input type="date" id="ev-date" value="${getISO()}" class="input-premium">
+                </div>
+                <div>
+                    <label>Tipo</label>
+                    <select id="ev-tipo" class="input-premium">
+                        <option value="Catering">Catering</option>
+                        <option value="Cocktail">Cocktail</option>
+                        <option value="Festival">Festival</option>
+                        <option value="Otro">Otro</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Ingreso (€)</label>
+                    <input type="number" id="ev-ingreso" class="input-premium" step="0.01" value="0">
+                </div>
+            </div>
+
+            <div class="grid grid-cols-3 gap-2 mb-2">
+                <div>
+                    <label>Personal Extra (€)</label>
+                    <input type="number" id="ev-personal" class="input-premium" step="0.01" value="0">
+                </div>
+                <div class="col-span-2">
+                    <label>Título / Cliente</label>
+                    <input id="ev-title" class="input-premium" placeholder="Nombre del evento / cliente">
+                </div>
+            </div>
+
+            <label>Notas</label>
+            <textarea id="ev-notes" class="input-premium" rows="2" placeholder="Notas, detalles, contacto..."></textarea>
+
+            <div class="flex gap-2 mt-3">
+                <button class="btn-premium btn-action" onclick="saveEvent()">💾 Guardar Evento</button>
+                <button class="btn-ghost" onclick="clearEventForm()">Limpiar</button>
+            </div>
+        </div>
+
+        <div id="ev-list" class="mt-4">
+            <h4 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Listado de Eventos</h4>
+            ${eventosList.length ? eventosList.map(ev => `
+                <div class="bg-white p-3 rounded-lg border flex justify-between items-center mb-2">
+                    <div>
+                        <div class="font-bold text-slate-800">${clean(ev.title || ev.tipo || 'Evento')}</div>
+                        <div class="text-[10px] text-slate-400">${ev.date} · ${ev.tipo} · ${ev.notes ? clean(ev.notes).slice(0,80) : ''}</div>
+                    </div>
+                    <div class="text-right">
+                        <div class="font-black">${Num.fmt(ev.ingreso||0)}€</div>
+                        <div class="text-[10px] text-slate-400">Pers: ${Num.fmt(ev.personalExtra||0)}€</div>
+                        <div class="flex gap-1 mt-2 justify-end">
+                            <button class="btn-ghost text-[10px]" onclick="openEventCalendar('${ev.id}')">📅 Calendario</button>
+                            <button class="btn-ghost text-[10px]" onclick="printEventBudget('${ev.id}')">🖨 Presupuesto</button>
+                            <button class="btn-edit btn-icon" onclick="editEvent('${ev.id}')">✏️</button>
+                            <button class="btn-delete btn-icon" onclick="deleteEvent('${ev.id}')">🗑️</button>
+                        </div>
+                    </div>
+                </div>
+            `).join('') : '<div class="text-center p-4 text-slate-400">No hay eventos registrados</div>'}
+        </div>
+    </div>
+
+    <div class="glass-card mt-4">
+        <h4 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Albaranes · ONLYONE</h4>
+        <div class="text-[12px] font-black mb-3">Total (periodo): ${Num.fmt(albsTotal)}€</div>
+        <div class="space-y-2 max-h-48 overflow-y-auto custom-scrollbar">
+            ${albsOnlyOnePeriod.length ? albsOnlyOnePeriod.map(a => `
+                <div class="flex justify-between items-center bg-white p-2 rounded border">
+                    <div>
+                        <div class="font-bold text-slate-700">${clean(a.prov)} <span class="text-[10px] text-slate-400">(${a.date})</span></div>
+                        <div class="text-[10px] text-slate-400">Ref: ${clean(a.num || '-')}</div>
+                    </div>
+                    <div class="font-black">${Num.fmt(a.total)}€</div>
+                </div>
+            `).join('') : '<div class="text-center p-2 text-slate-400">Sin albaranes OnlyOne</div>'}
+        </div>
+    </div>
+    `;
+
+    // Llevar foco al formulario
+    document.getElementById('ev-date')?.scrollIntoView({ behavior: 'smooth' });
+}
+
+function clearEventForm() {
+    const dateEl = document.getElementById('ev-date');
+    if (dateEl) dateEl.value = getISO();
+    if (document.getElementById('ev-tipo')) document.getElementById('ev-tipo').value = 'Catering';
+    if (document.getElementById('ev-ingreso')) document.getElementById('ev-ingreso').value = '0';
+    if (document.getElementById('ev-personal')) document.getElementById('ev-personal').value = '0';
+    if (document.getElementById('ev-title')) document.getElementById('ev-title').value = '';
+    if (document.getElementById('ev-notes')) document.getElementById('ev-notes').value = '';
+    // quitar flag de edición si existe
+    if (dateEl) dateEl.dataset.editing = '';
+}
+
+function saveEvent() {
+    if (!db.eventos) db.eventos = [];
+    const dateEl = document.getElementById('ev-date');
+    const idEditing = dateEl?.dataset?.editing;
+    const ev = {
+        id: idEditing || generateID(),
+        date: document.getElementById('ev-date').value,
+        tipo: document.getElementById('ev-tipo').value,
+        ingreso: Num.parse(document.getElementById('ev-ingreso').value),
+        personalExtra: Num.parse(document.getElementById('ev-personal').value),
+        title: document.getElementById('ev-title').value || '',
+        notes: document.getElementById('ev-notes').value || '',
+        createdAt: new Date().toISOString()
+    };
+
+    if (idEditing) {
+        const idx = db.eventos.findIndex(x => x.id === idEditing);
+        if (idx >= 0) db.eventos[idx] = ev;
+    } else {
+        db.eventos.push(ev);
+    }
+
+    save("Evento guardado");
+    clearEventForm();
+    renderAdmin(document.getElementById('app'));
+    toast('✅ Evento registrado', 'success');
+}
+
+function editEvent(id) {
+    const ev = (db.eventos || []).find(e => e.id === id);
+    if (!ev) return toast('Evento no encontrado', 'error');
+    if (document.getElementById('ev-date')) document.getElementById('ev-date').value = ev.date || getISO();
+    if (document.getElementById('ev-tipo')) document.getElementById('ev-tipo').value = ev.tipo || 'Catering';
+    if (document.getElementById('ev-ingreso')) document.getElementById('ev-ingreso').value = ev.ingreso || 0;
+    if (document.getElementById('ev-personal')) document.getElementById('ev-personal').value = ev.personalExtra || 0;
+    if (document.getElementById('ev-title')) document.getElementById('ev-title').value = ev.title || '';
+    if (document.getElementById('ev-notes')) document.getElementById('ev-notes').value = ev.notes || '';
+    if (document.getElementById('ev-date')) document.getElementById('ev-date').dataset.editing = id;
+    if (document.getElementById('ev-title')) document.getElementById('ev-title').focus();
+}
+
+function deleteEvent(id) {
+    if (!confirm('¿Borrar evento?')) return;
+    db.eventos = (db.eventos || []).filter(e => e.id !== id);
+    save('Evento eliminado');
+    renderAdmin(document.getElementById('app'));
+    toast('Evento eliminado', 'info');
+}
+
+// Imprimir presupuesto (abre ventana nueva con diseño limpio y llama window.print())
+function printEventBudget(id) {
+    const ev = (db.eventos || []).find(e => e.id === id);
+    if (!ev) return toast('Evento no encontrado', 'error');
+
+    // HTML limpio para impresión (logo OnlyOne)
+    const html = `
+    <html>
+    <head>
+        <meta charset="utf-8">
+        <title>Presupuesto - ${clean(ev.title || ev.tipo)}</title>
+        <style>
+            body { font-family: Arial, sans-serif; padding: 24px; color: #0f172a; }
+            header { display:flex; justify-content:space-between; align-items:center; margin-bottom:24px; }
+            .logo { font-weight:900; color:#ec4899; font-size:22px; }
+            .muted { color:#6b7280; font-size:12px; }
+            .box { border:1px solid #e6e6e6; padding:16px; border-radius:8px; margin-bottom:12px;}
+            .big { font-size:28px; font-weight:900; }
+            .small { font-size:14px; }
+            footer { margin-top:24px; color:#6b7280; font-size:12px; }
+        </style>
+    </head>
+    <body>
+        <header>
+            <div>
+                <div class="logo">ONLYONE · Presupuesto</div>
+                <div class="muted">Evento: ${clean(ev.title || ev.tipo)}</div>
+            </div>
+            <div style="text-align:right">
+                <div class="muted">${ev.date}</div>
+                <div class="muted">${ev.tipo}</div>
+            </div>
+        </header>
+
+        <div class="box">
+            <div class="small">Ingreso esperado</div>
+            <div class="big">${Num.fmt(ev.ingreso || 0)}€</div>
+        </div>
+
+        <div class="box">
+            <div class="small">Gasto en personal extra</div>
+            <div class="big">-${Num.fmt(ev.personalExtra || 0)}€</div>
+        </div>
+
+        <div class="box">
+            <div class="small">ALBARANES ONLYONE (misma fecha)</div>
+            <div class="small">${Num.fmt(sumAlbaranesForEvent(ev.date))}€</div>
+        </div>
+
+        <div class="box">
+            <div class="small">Caja neta estimada</div>
+            <div class="big">${Num.fmt((ev.ingreso||0) - (ev.personalExtra||0) - sumAlbaranesForEvent(ev.date))}€</div>
+        </div>
+
+        <div class="box">
+            <h4>Notas</h4>
+            <div class="small">${clean(ev.notes || '')}</div>
+        </div>
+
+        <footer>Presupuesto generado por ARUME · OnlyOne</footer>
+    </body>
+    </html>
+    `;
+
+    const w = window.open('', '_blank', 'width=900,height=700');
+    w.document.write(html);
+    w.document.close();
+    setTimeout(() => { w.print(); }, 400);
+}
+
+// Suma albaranes OnlyOne que coincidan exactamente con la fecha del evento (ajustable)
+function sumAlbaranesForEvent(dateStr) {
+    if (!dateStr) return 0;
+    return (db.albaranes || []).filter(a => a.socio === 'OnlyOne' && a.date === dateStr).reduce((s,a) => s + (a.total||0), 0);
+}
+
+// Genera enlace a Google Calendar (all-day). Abre en nueva pestaña.
+function openEventCalendar(id) {
+    const ev = (db.eventos || []).find(e => e.id === id);
+    if (!ev) return toast('Evento no encontrado', 'error');
+
+    const start = (ev.date || getISO()).replace(/-/g, '');
+    const endDate = new Date((ev.date || getISO()) + 'T00:00:00');
+    endDate.setDate(endDate.getDate() + 1);
+    const end = endDate.toISOString().slice(0,10).replace(/-/g, '');
+
+    const text = encodeURIComponent(ev.title || `${ev.tipo} · OnlyOne`);
+    const details = encodeURIComponent((ev.notes || '') + `\nIngreso: ${Num.fmt(ev.ingreso||0)}€\nPersonal Extra: ${Num.fmt(ev.personalExtra||0)}€`);
+    const location = encodeURIComponent('OnlyOne / Local');
+
+    const url = `https://www.google.com/calendar/render?action=TEMPLATE&text=${text}&dates=${start}/${end}&details=${details}&location=${location}&sf=true&output=xml`;
+    window.open(url, '_blank');
+}
+
+// Exponer funciones globalmente por si se cargan desde botones dinámicos
+if (!window.openEventCalendar) {
+    window.openEventCalendar = openEventCalendar;
+    window.printEventBudget = printEventBudget;
+    window.saveEvent = saveEvent;
+    window.editEvent = editEvent;
+    window.deleteEvent = deleteEvent;
+    window.renderEventos = function(container) { renderEventos(container); };
+}
 </script>
 </body>
 </html>
