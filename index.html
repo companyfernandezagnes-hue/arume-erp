@@ -620,22 +620,53 @@ function getStockAlerts() {
     </div>`;
 }
 function renderAdmin(app) {
-    // === 🛡️ 1. PROTECCIÓN ANTI-CAÍDA (Esto arregla el error de pantalla blanca) ===
+    // === 🛡️ 1. PROTECCIÓN ANTI-CAÍDA ===
     if (!db.gastos_fijos) { db.gastos_fijos = []; save("Sistema actualizado: Estructura creada"); }
 
     // === 2. CÁLCULOS FINANCIEROS (BALANCE REAL) ===
     const ventasCaja = db.diario.filter(d => isInPeriod(d.date)).reduce((a, b) => a + (b.total || 0), 0);
-    const comprasPagadas = db.facturas.filter(f => isInPeriod(f.date) && f.paid).reduce((a, b) => a + (b.total || 0), 0);
     const fijosTotal = db.gastos_fijos.filter(g => isInPeriod(g.date)).reduce((a, b) => a + (b.total || 0), 0);
+
+    // --- LÓGICA DE SEPARACIÓN: ARUME vs SOCIOS ---
+    let comprasArume = 0;
+    const gastosSocios = {}; // Aquí guardaremos "Jeronimo": 50€, "Pedro": 100€...
+    let totalSocios = 0;
+
+    // Filtramos facturas y albaranes
+    // Nota: Para simplificar, asumimos que el gasto se registra por Albarán para el desglose
+    // Pero contablemente usamos las facturas pagadas para el flujo de caja.
+    
+    // A) Calculamos lo que realmente ha salido de caja (Facturas Pagadas Generales)
+    // (Esta es una aproximación, lo ideal es filtrar facturas por socio, pero las facturas suelen agrupar)
+    const comprasPagadas = db.facturas.filter(f => isInPeriod(f.date) && f.paid).reduce((a, b) => a + (b.total || 0), 0);
+
+    // B) Calculamos el desglose de SOCIOS basado en ALBARANES (que es donde está el dato del socio)
+    const albsPeriodo = db.albaranes.filter(a => isInPeriod(a.date));
+    
+    albsPeriodo.forEach(a => {
+        // Si no tiene socio o es Arume, es gasto del restaurante
+        if (!a.socio || a.socio === 'Arume') {
+            comprasArume += a.total;
+        } else {
+            // Es un socio
+            if (!gastosSocios[a.socio]) gastosSocios[a.socio] = 0;
+            gastosSocios[a.socio] += a.total;
+            totalSocios += a.total;
+        }
+    });
+
+    // El Beneficio Neto Real (Operativo) debería contar solo los gastos de Arume, 
+    // pero para el flujo de caja (dinero en banco) restamos todo lo pagado.
+    // Vamos a mostrar el Beneficio CONTABLE (todo incluido)
     const beneficioNeto = ventasCaja - comprasPagadas - fijosTotal;
 
-    // === 3. CÁLCULO DE MERMAS (Pérdidas) ===
+    // === 3. CÁLCULO DE MERMAS ===
     const mermasPeriodo = db.mermas.filter(m => isInPeriod(m.date));
     const totalMermas = mermasPeriodo.reduce((acc, m) => acc + (m.loss || 0), 0);
     const mermasPorCausa = {};
     mermasPeriodo.forEach(m => { mermasPorCausa[m.reason] = (mermasPorCausa[m.reason] || 0) + (m.loss || 0); });
 
-    // === 4. CONTROL DE TRIMESTRES (Navegación temporal) ===
+    // === 4. CONTROL DE TRIMESTRES ===
     const qCtrl = `
     <div class="flex items-center justify-between bg-white p-2 rounded-2xl shadow-sm mb-4 border border-slate-100">
         <div class="flex items-center gap-2 bg-slate-100 rounded-lg px-2 py-1">
@@ -653,7 +684,7 @@ function renderAdmin(app) {
         </div>
     </div>`;
 
-    // === 5. RENDERIZADO DE LA INTERFAZ ===
+    // === 5. RENDERIZADO ===
     app.innerHTML = `
     ${qCtrl}
     
@@ -671,15 +702,35 @@ function renderAdmin(app) {
             <h3 class="text-[10px] uppercase font-bold opacity-50 mb-1 tracking-[0.2em]">Resultado Real Neto</h3>
             <div class="text-4xl font-black ${beneficioNeto >= 0 ? 'text-emerald-400' : 'text-red-400'}">${Num.fmt(beneficioNeto)}€</div>
             <div class="flex justify-between mt-6 pt-4 border-t border-white/10 text-[9px] font-bold opacity-60 uppercase tracking-widest">
-                <span>Ventas Caja: ${Num.fmt(ventasCaja)}€</span>
-                <span>Total Gastos: ${Num.fmt(comprasPagadas + fijosTotal)}€</span>
+                <span>Ventas: ${Num.fmt(ventasCaja)}€</span>
+                <span>Pagado Prov: ${Num.fmt(comprasPagadas)}€</span>
             </div>
         </div>
 
+        ${totalSocios > 0 ? `
+        <div class="bg-indigo-50 border border-indigo-100 p-4 rounded-2xl shadow-sm mb-6">
+            <div class="flex justify-between items-center mb-3">
+                <h3 class="text-xs font-black text-indigo-600 uppercase tracking-widest">👥 CONSUMO SOCIOS</h3>
+                <span class="font-black text-indigo-700">${Num.fmt(totalSocios)}€</span>
+            </div>
+            <div class="space-y-2">
+                ${Object.entries(gastosSocios).map(([socio, amount]) => `
+                    <div class="flex justify-between items-center bg-white p-2 rounded-lg border border-indigo-50">
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs">👤</span>
+                            <span class="text-xs font-bold text-slate-700">${socio}</span>
+                        </div>
+                        <span class="text-xs font-bold text-slate-900">${Num.fmt(amount)}€</span>
+                    </div>
+                `).join('')}
+            </div>
+            <p class="text-[9px] text-indigo-400 mt-2 text-center">*Esto son compras asignadas a socios, no al restaurante.</p>
+        </div>` : ''}
         <div class="grid grid-cols-2 gap-3 mb-6">
             <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
-                <h4 class="text-[9px] font-bold text-slate-400 uppercase tracking-tighter mb-1">Proveedores (Pagado)</h4>
-                <div class="text-lg font-black text-slate-800">-${Num.fmt(comprasPagadas)}€</div>
+                <h4 class="text-[9px] font-bold text-slate-400 uppercase tracking-tighter mb-1">Compras "Arume"</h4>
+                <div class="text-lg font-black text-slate-800">${Num.fmt(comprasArume)}€</div>
+                <div class="text-[9px] text-slate-400">En albaranes</div>
             </div>
             <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
                 <h4 class="text-[9px] font-bold text-slate-400 uppercase tracking-tighter mb-1">Gastos Estructura</h4>
