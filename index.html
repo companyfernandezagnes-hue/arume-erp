@@ -2534,31 +2534,32 @@ document.addEventListener('DOMContentLoaded', init);
 /* =============================================================
    ⚠️ MÓDULO ONLYONE: GESTIÓN DE EVENTOS Y CAJA NEGRA (FINAL) ⚠️
    ============================================================= */
-function renderEventos(c) {
-    // --- 🛡️ PARCHE DE SEGURIDAD (Esto evita la pantalla blanca) ---
-    if (!db) return; 
-    if (!db.eventos) db.eventos = []; // Si no existe la carpeta eventos, la crea
-    if (!db.albaranes) db.albaranes = []; // Si no existe albaranes, la crea
-    // ------------------------------------------------------------
 
-    // 1. BUSCAR GASTOS DE PAU (MATERIAL)
-    // Usamos el parche aquí también para evitar errores si a.total no existe
+// --- 1. RENDERIZADO VISUAL PRINCIPAL ---
+function renderEventos(c) {
+    // 🛡️ PARCHE DE SEGURIDAD (Evita pantalla blanca)
+    if (!db) return;
+    if (!db.eventos) db.eventos = []; 
+    if (!db.albaranes) db.albaranes = [];
+    // ----------------------------------------------------
+
+    // A. CÁLCULOS: GASTOS DE PAU (MATERIAL)
     const gastosOnlyOne = db.albaranes
         .filter(a => isInPeriod(a.date) && a.socio === 'OnlyOne');
     
     const totalGastoMaterial = gastosOnlyOne.reduce((acc, a) => acc + (a.total || 0), 0);
 
-    // 2. BUSCAR INGRESOS DE EVENTOS
+    // B. CÁLCULOS: INGRESOS DE EVENTOS
     const eventosList = db.eventos.filter(e => isInPeriod(e.date));
     const totalFacturado = eventosList.reduce((acc, e) => acc + (e.total || 0), 0);
     
-    // 3. GASTOS DE PERSONAL EXTRA
+    // C. CÁLCULOS: PERSONAL EXTRA
     const totalPersonal = eventosList.reduce((acc, e) => acc + (e.costPersonal || 0), 0);
 
-    // 4. CÁLCULO CAJA NEGRA (Beneficio Real)
+    // D. CÁLCULO BENEFICIO FINAL
     const beneficioCajaNegra = totalFacturado - totalGastoMaterial - totalPersonal;
 
-    // --- RENDERIZADO UI (LA PARTE VISUAL) ---
+    // --- HTML VISUAL ---
     c.innerHTML = `
     <div class="glass-card border-l-4 border-pink-500 bg-slate-900 text-white">
         <div class="flex justify-between items-start">
@@ -2629,20 +2630,8 @@ function renderEventos(c) {
         </div>
     </div>`;
 }
-// --- CALENDARIO GOOGLE (CON NOTAS INCLUIDAS) ---
-function openCalendar(id) {
-    const e = db.eventos.find(x => x.id === id);
-    if(!e) return;
-    
-    const text = encodeURIComponent(`ONLYONE: ${e.n}`);
-    const details = encodeURIComponent(`Tipo: ${e.type}\nIngresos: ${Num.fmt(e.total)}€\n\nNOTAS:\n${e.notes || 'Sin notas adicionales.'}`);
-    const d = e.date.replace(/-/g, ''); 
-    const dates = `${d}T090000/${d}T180000`; // 09:00 - 18:00
-    
-    window.open(`https://calendar.google.com/calendar/render?action=TEMPLATE&text=${text}&details=${details}&dates=${dates}`, '_blank');
-}
 
-// --- FORMULARIO DE EVENTO (CON CAMPO NOTAS) ---
+// --- 2. LÓGICA DEL FORMULARIO (CREAR/EDITAR) ---
 function editEvent(id) {
     const e = id ? db.eventos.find(x => x.id === id) : { id: generateID(), n: '', date: getISO(), type: 'Catering', total: 0, costPersonal: 0, notes: '' };
     
@@ -2686,7 +2675,7 @@ function saveEvent(id) {
         n,
         date: document.getElementById('ev-d').value,
         type: document.getElementById('ev-t').value,
-        notes: document.getElementById('ev-notes').value, // Guardamos las notas
+        notes: document.getElementById('ev-notes').value, 
         total: parseFloat(document.getElementById('ev-tot').value) || 0,
         costPersonal: parseFloat(document.getElementById('ev-per').value) || 0
     };
@@ -2708,8 +2697,23 @@ function delEvent(id) {
 }
 
 /* =============================================================
-   🖨️ GENERADOR DE PRESUPUESTOS (PDF)
+   🖨️ HERRAMIENTAS: PDF Y CALENDARIO (SIN DUPLICADOS)
    ============================================================= */
+
+// --- A. CALENDARIO GOOGLE ---
+function openCalendar(id) {
+    const e = db.eventos.find(x => x.id === id);
+    if(!e) return;
+    
+    const text = encodeURIComponent(`ONLYONE: ${e.n}`);
+    const details = encodeURIComponent(`Tipo: ${e.type}\nIngresos: ${Num.fmt(e.total)}€\n\nNOTAS:\n${e.notes || 'Sin notas adicionales.'}`);
+    const d = e.date.replace(/-/g, ''); 
+    const dates = `${d}T090000/${d}T180000`; // 09:00 - 18:00
+    
+    window.open(`https://calendar.google.com/calendar/render?action=TEMPLATE&text=${text}&details=${details}&dates=${dates}`, '_blank');
+}
+
+// --- B. GENERADOR DE PDF ---
 function printBudget(id) {
     const e = db.eventos.find(x => x.id === id);
     if (!e) return;
