@@ -2110,7 +2110,7 @@ function saveZ() {
     render('Diario');
 }
 /* =============================================================
-   ⚠️ 15. SISTEMA Y UTILIDADES FINALES ⚠️
+   ⚠️ 15. SISTEMA Y UTILIDADES FINALES (CORREGIDO) ⚠️
    ============================================================= */
 
 function downloadBackup() { 
@@ -2150,15 +2150,20 @@ function closeModal() {
    ============================================================= */
 /* === 8. LÓGICA DE ARRANQUE Y LOGIN (BLINDADA) === */
 function init() {
+    // 0. Seguridad: Definir db si no existe para evitar crash
+    if (typeof db === 'undefined') window.db = {};
+
     // 1. Recuperar datos
     try { 
         const stored = localStorage.getItem('arume_v152'); 
         if (stored) db = secure.dec(stored); 
-    } catch(e) { console.warn("Reset DB"); }
+    } catch(e) { console.warn("Reset DB / Inicio limpio"); }
     
     // === 🛡️ ESCUDO ANTI-ERRORES (BLINDAJE TOTAL) 🛡️ ===
     // Revisamos UNA a UNA todas las carpetas. Si alguna falta, la creamos.
-    if (!db.users) db.users = DB_INIT.users;
+    if (!db.users && typeof DB_INIT !== 'undefined') db.users = DB_INIT.users; // Fallback si existe DB_INIT
+    if (!db.users) db.users = []; // Fallback final
+    
     if (!db.ingredientes) db.ingredientes = [];
     if (!db.recetas) db.recetas = [];
     if (!db.proveedores) db.proveedores = [{ id: 'p1', n: 'Makro', tel: '', fam: 'General' }];
@@ -2167,7 +2172,7 @@ function init() {
     if (!db.diario) db.diario = [];
     
     // Estas son las que solían dar problemas al actualizar:
-    if (!db.mermas) db.mermas = [];         // <--- Esto arregla tu pantalla blanca
+    if (!db.mermas) db.mermas = [];          // <--- Esto arregla tu pantalla blanca
     if (!db.kardex) db.kardex = [];
     if (!db.sales_history) db.sales_history = [];
     if (!db.gastos_fijos) db.gastos_fijos = [];
@@ -2183,15 +2188,17 @@ function init() {
 
     if (currentUser) {
         document.getElementById('pin-screen').classList.add('hidden');
-        loadApp();
-        syncDown(); 
+        if (typeof loadApp === 'function') loadApp();
+        if (typeof syncDown === 'function') syncDown(); 
     } else {
-        document.getElementById('pin-screen').classList.remove('hidden');
+        const pinScreen = document.getElementById('pin-screen');
+        if(pinScreen) pinScreen.classList.remove('hidden');
     }
     
     // Latido del corazón (Sync)
-    setInterval(syncDown, 10000); 
+    if (typeof syncDown === 'function') setInterval(syncDown, 10000); 
 }
+
 async function forceCloudDownload() {
     if(confirm("⚠️ ¿ESTÁS SEGURO?\n\nEsto borrará los datos de ESTE dispositivo y bajará la última copia de la nube.\n\nÚsalo solo si no ves los datos actualizados.")) {
         loading(true);
@@ -2215,6 +2222,7 @@ async function forceCloudDownload() {
         }
     }
 }
+
 /* === FUNCIÓN DE MANTENIMIENTO (RESET) === */
 function resetStockToZero() {
     if (confirm("⚠️ ¿ESTÁS SEGURO?\n\nEsto pondrá el stock de TODOS los productos a 0.\nÚsalo solo para empezar de cero tras las pruebas.\n\n(No se borran los productos, solo las cantidades)")) {
@@ -2254,21 +2262,25 @@ function downloadDiarioCSV(monthIndex, monthName) {
 
     const csvContent = headers.concat(rows).join('\n');
     const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8' });
+    
+    // FIX: Usar año actual si fiscalYear no está definido
+    const year = (typeof fiscalYear !== 'undefined') ? fiscalYear : new Date().getFullYear();
+    
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `Caja_${monthName}_${fiscalYear}.csv`;
+    a.download = `Caja_${monthName}_${year}.csv`;
     a.click();
 }
+
 // Ver Historial de Movimientos (Estilo Odoo Trazabilidad)
 function viewKardex(id) {
     const i = db.ingredientes.find(x => x.id === id);
     if (!i) return;
 
     // Filtramos los movimientos de este producto y ordenamos (más reciente arriba)
-    // Limitamos a los últimos 50 para que no sea infinito
     const moves = db.kardex
         .filter(k => k.ingId === id)
-        .sort((a,b) => (b.date > a.date ? 1 : -1)) // Ordenar por fecha string (o timestamp si lo fuera)
+        .sort((a,b) => (b.date > a.date ? 1 : -1)) 
         .slice(0, 50);
 
     if (moves.length === 0) return toast("No hay movimientos registrados", "info");
@@ -2278,7 +2290,6 @@ function viewKardex(id) {
         let icon = '🔄';
         let sign = '';
 
-        // Estilos visuales según el tipo de movimiento
         if (m.type === 'IN') { color = 'text-emerald-600'; icon = '📥'; sign = '+'; }
         if (m.type === 'OUT') { color = 'text-red-500'; icon = '📤'; sign = '-'; }
         if (m.type === 'ADJ' || m.type === 'RESET') { color = 'text-orange-500'; icon = '🔧'; }
@@ -2305,41 +2316,33 @@ function viewKardex(id) {
         <div class="text-center mt-3 text-[10px] text-slate-400 uppercase font-bold">Últimos 50 movimientos</div>
     `);
 }
-// Calcular Disponibilidad Teórica (¿Cuántos platos puedo cocinar hoy?)
+
+// Calcular Disponibilidad Teórica
 function calcMaxProd(r) {
-    // Si la receta no tiene ingredientes, no hay límite
     if (!r.items || r.items.length === 0) return Infinity; 
 
     let maxPossible = Infinity;
 
     r.items.forEach(it => {
         if (it.type === 'ing') {
-            // Buscamos el ingrediente en el almacén
             const ing = db.ingredientes.find(x => x.id === it.id);
             
             if (ing) {
-                // TRUCO MATEMÁTICO:
-                // Convertimos el stock total del almacén a la unidad que usa la receta.
+                // Convertimos el stock total a la unidad de la receta
                 const stockInRecipeUnit = UnitConverter.convert(ing.stock, ing.unit, it.unit);
                 
-                // Dividimos lo que tenemos entre lo que necesitamos
                 if (it.q > 0) {
                     const possible = stockInRecipeUnit / it.q;
-                    
-                    // Si este ingrediente me limita más que el anterior, actualizo el "record" a la baja
                     if (possible < maxPossible) maxPossible = possible;
                 }
             } else {
-                // Si falta un ingrediente en la base de datos (se borró), no podemos cocinar nada
                 maxPossible = 0;
             }
         }
     });
 
-    // Si sigue siendo infinito, devolvemos infinito. Si no, redondeamos hacia abajo
     return maxPossible === Infinity ? Infinity : Math.floor(maxPossible);
 }
-        // ... funciones anteriores (resetStockToZero, downloadDiarioCSV, etc.)
 
 function deleteInvoice(id) {
     const f = db.facturas.find(x => x.id === id);
@@ -2347,27 +2350,26 @@ function deleteInvoice(id) {
 
     if (confirm(`¿Eliminar factura ${f.num} de ${f.prov}?\n\nLos albaranes volverán a aparecer como "Pendientes de facturar".`)) {
         
-        // 1. Liberamos los albaranes para que vuelvan a aparecer arriba
+        // 1. Liberamos los albaranes
         db.albaranes.forEach(alb => {
             if (alb.prov === f.prov && alb.invoiced === true) {
                 alb.invoiced = false; 
             }
         });
 
-        // 2. Quitamos la factura de la base de datos
+        // 2. Quitamos la factura
         db.facturas = db.facturas.filter(x => x.id !== id);
 
-        // 3. Guardamos en la nube y refrescamos la pantalla
+        // 3. Guardamos
         save("Factura eliminada");
         renderAdmin(document.getElementById('app'));
         
         if(typeof toast === "function") toast("🗑️ Factura eliminada");
     }
 }
-       /* === GESTIÓN DE GASTOS ESTRUCTURALES (PASO 3) === */
 
+/* === GESTIÓN DE GASTOS ESTRUCTURALES === */
 function renderGastosFijos(c) {
-    // Solo mostramos los gastos del año/trimestre seleccionado
     const list = db.gastos_fijos.filter(g => isInPeriod(g.date)).reverse();
     const cats = ['Personal', 'Alquiler', 'Luz/Agua', 'Gestoría', 'Seguros', 'Otros'];
 
@@ -2452,8 +2454,8 @@ function deleteGastoFijo(id) {
         renderAdmin(document.getElementById('app'));
     }
 }
-/* === IMPORTADOR DE PROVEEDORES (WASSAP) === */
 
+/* === IMPORTADOR DE PROVEEDORES (WASSAP) === */
 function importProvsModal() {
     showModal('Importar desde WhatsApp', `
         <div class="bg-indigo-50 p-3 rounded-xl border border-indigo-100 mb-4 text-xs text-indigo-800">
@@ -2510,7 +2512,8 @@ function runImportProvs() {
    LÓGICA DEL MENÚ DESPLEGABLE
    ----------------------------------------------------- */
 function mostrarOpciones() {
-    document.getElementById("misOpciones").classList.toggle("mostrar");
+    const opts = document.getElementById("misOpciones");
+    if(opts) opts.classList.toggle("mostrar");
 }
 
 // Cierra el menú si haces clic fuera
@@ -2525,13 +2528,15 @@ window.onclick = function(event) {
         }
     }
 }
+
+// INICIO AUTOMÁTICO
 document.addEventListener('DOMContentLoaded', init);
 /* =============================================================
-   ⚠️ MÓDULO ONLYONE: GESTIÓN DE EVENTOS Y CAJA NEGRA ⚠️
+   ⚠️ MÓDULO ONLYONE: GESTIÓN DE EVENTOS Y CAJA NEGRA (FINAL) ⚠️
    ============================================================= */
 
 function renderEventos(c) {
-    // 1. BUSCAR GASTOS DE PAU
+    // 1. BUSCAR GASTOS DE PAU (MATERIAL)
     const gastosOnlyOne = db.albaranes
         .filter(a => isInPeriod(a.date) && a.socio === 'OnlyOne');
     
@@ -2544,10 +2549,10 @@ function renderEventos(c) {
     // 3. GASTOS DE PERSONAL EXTRA
     const totalPersonal = eventosList.reduce((acc, e) => acc + (e.costPersonal || 0), 0);
 
-    // 4. CÁLCULO CAJA NEGRA
+    // 4. CÁLCULO CAJA NEGRA (Beneficio Real)
     const beneficioCajaNegra = totalFacturado - totalGastoMaterial - totalPersonal;
 
-    // RENDERIZADO
+    // RENDERIZADO UI
     c.innerHTML = `
     <div class="glass-card border-l-4 border-pink-500 bg-slate-900 text-white">
         <div class="flex justify-between items-start">
@@ -2583,7 +2588,10 @@ function renderEventos(c) {
                 <div class="pl-3">
                     <div class="text-[10px] font-bold text-pink-500 uppercase">${e.type}</div>
                     <div class="font-black text-slate-800">${clean(e.n)}</div>
-                    <div class="text-[10px] text-slate-400">${e.date}</div>
+                    <div class="text-[10px] text-slate-400 flex items-center gap-2">
+                        <span>${e.date}</span>
+                        ${e.notes ? '<span class="text-pink-400" title="Ver notas">📝</span>' : ''}
+                    </div>
                 </div>
                 <div class="text-right">
                     <div class="font-bold text-emerald-600">+${Num.fmt(e.total)}€</div>
@@ -2616,22 +2624,22 @@ function renderEventos(c) {
     </div>`;
 }
 
-// --- FUNCIÓN NUEVA Y SEGURA PARA ABRIR CALENDARIO ---
+// --- CALENDARIO GOOGLE (CON NOTAS INCLUIDAS) ---
 function openCalendar(id) {
     const e = db.eventos.find(x => x.id === id);
     if(!e) return;
     
-    const text = encodeURIComponent(e.n);
-    const details = encodeURIComponent(`Evento tipo: ${e.type}. Ingresos previstos: ${e.total}€. Notas: ${e.notes || ''}`);
-    const d = e.date.replace(/-/g, ''); // Convertir 2024-01-01 a 20240101
-    const dates = `${d}T090000/${d}T180000`; // De 09:00 a 18:00 por defecto
+    const text = encodeURIComponent(`ONLYONE: ${e.n}`);
+    const details = encodeURIComponent(`Tipo: ${e.type}\nIngresos: ${Num.fmt(e.total)}€\n\nNOTAS:\n${e.notes || 'Sin notas adicionales.'}`);
+    const d = e.date.replace(/-/g, ''); 
+    const dates = `${d}T090000/${d}T180000`; // 09:00 - 18:00
     
     window.open(`https://calendar.google.com/calendar/render?action=TEMPLATE&text=${text}&details=${details}&dates=${dates}`, '_blank');
 }
 
-// FORMULARIO SIMPLIFICADO PARA EVENTOS
+// --- FORMULARIO DE EVENTO (CON CAMPO NOTAS) ---
 function editEvent(id) {
-    const e = id ? db.eventos.find(x => x.id === id) : { id: generateID(), n: '', date: getISO(), type: 'Catering', total: 0, costPersonal: 0 };
+    const e = id ? db.eventos.find(x => x.id === id) : { id: generateID(), n: '', date: getISO(), type: 'Catering', total: 0, costPersonal: 0, notes: '' };
     
     showModal('Registrar Evento OnlyOne', `
         <label>Cliente / Evento</label>
@@ -2648,8 +2656,11 @@ function editEvent(id) {
             </div>
         </div>
 
+        <label>Notas Internas</label>
+        <textarea id="ev-notes" class="input-premium mb-4 text-xs h-16" placeholder="Detalles, horarios, alérgenos...">${clean(e.notes || '')}</textarea>
+
         <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 mb-4">
-            <label>💰 Ingreso Total (Lo cobrado por TPV Arume)</label>
+            <label>💰 Ingreso Total (TPV Arume)</label>
             <input type="number" id="ev-tot" value="${e.total}" class="input-premium font-black text-emerald-600 text-xl text-center mb-4">
             
             <label>👷 Gasto Personal EXTRA (Si se pagó aparte)</label>
@@ -2670,6 +2681,7 @@ function saveEvent(id) {
         n,
         date: document.getElementById('ev-d').value,
         type: document.getElementById('ev-t').value,
+        notes: document.getElementById('ev-notes').value, // Guardamos las notas
         total: parseFloat(document.getElementById('ev-tot').value) || 0,
         costPersonal: parseFloat(document.getElementById('ev-per').value) || 0
     };
