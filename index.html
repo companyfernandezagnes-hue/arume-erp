@@ -627,37 +627,34 @@ function renderAdmin(app) {
     const ventasCaja = db.diario.filter(d => isInPeriod(d.date)).reduce((a, b) => a + (b.total || 0), 0);
     const fijosTotal = db.gastos_fijos.filter(g => isInPeriod(g.date)).reduce((a, b) => a + (b.total || 0), 0);
 
-    // --- LÓGICA DE SEPARACIÓN: ARUME vs SOCIOS ---
+    // --- LÓGICA DE SEPARACIÓN: ARUME vs SOCIOS vs ONLYONE ---
     let comprasArume = 0;
-    const gastosSocios = {}; // Aquí guardaremos "Jeronimo": 50€, "Pedro": 100€...
+    const gastosSocios = {}; 
     let totalSocios = 0;
 
     // Filtramos facturas y albaranes
-    // Nota: Para simplificar, asumimos que el gasto se registra por Albarán para el desglose
-    // Pero contablemente usamos las facturas pagadas para el flujo de caja.
-    
-    // A) Calculamos lo que realmente ha salido de caja (Facturas Pagadas Generales)
-    // (Esta es una aproximación, lo ideal es filtrar facturas por socio, pero las facturas suelen agrupar)
     const comprasPagadas = db.facturas.filter(f => isInPeriod(f.date) && f.paid).reduce((a, b) => a + (b.total || 0), 0);
 
-    // B) Calculamos el desglose de SOCIOS basado en ALBARANES (que es donde está el dato del socio)
+    // Calculamos el desglose basado en ALBARANES
     const albsPeriodo = db.albaranes.filter(a => isInPeriod(a.date));
     
     albsPeriodo.forEach(a => {
+        // Si es OnlyOne, NO es gasto de Arume (es deuda de la caja negra), así que lo ignoramos aquí
+        if (a.socio === 'OnlyOne') {
+            return; 
+        }
         // Si no tiene socio o es Arume, es gasto del restaurante
-        if (!a.socio || a.socio === 'Arume') {
+        else if (!a.socio || a.socio === 'Arume') {
             comprasArume += a.total;
-        } else {
-            // Es un socio
+        } 
+        // Si es otro socio (Jeronimo, etc)
+        else {
             if (!gastosSocios[a.socio]) gastosSocios[a.socio] = 0;
             gastosSocios[a.socio] += a.total;
             totalSocios += a.total;
         }
     });
 
-    // El Beneficio Neto Real (Operativo) debería contar solo los gastos de Arume, 
-    // pero para el flujo de caja (dinero en banco) restamos todo lo pagado.
-    // Vamos a mostrar el Beneficio CONTABLE (todo incluido)
     const beneficioNeto = ventasCaja - comprasPagadas - fijosTotal;
 
     // === 3. CÁLCULO DE MERMAS ===
@@ -690,6 +687,7 @@ function renderAdmin(app) {
     
     <div class="flex gap-2 mb-6 bg-white p-1 rounded-2xl shadow-sm border border-slate-100 overflow-x-auto no-scrollbar">
         <button class="flex-1 min-w-[90px] py-2.5 rounded-xl font-bold text-[10px] transition ${activeAdminTab==='dash'?'bg-slate-800 text-white shadow-md':'text-slate-500 hover:bg-slate-50'}" onclick="activeAdminTab='dash';renderAdmin(document.getElementById('app'))">📊 BALANCE</button>
+        <button class="flex-1 min-w-[90px] py-2.5 rounded-xl font-bold text-[10px] transition ${activeAdminTab==='eventos'?'bg-pink-600 text-white shadow-md':'text-slate-500 hover:bg-slate-50'}" onclick="activeAdminTab='eventos';renderAdmin(document.getElementById('app'))">🍸 EVENTOS</button>
         <button class="flex-1 min-w-[90px] py-2.5 rounded-xl font-bold text-[10px] transition ${activeAdminTab==='fijos'?'bg-slate-800 text-white shadow-md':'text-slate-500 hover:bg-slate-50'}" onclick="activeAdminTab='fijos';renderAdmin(document.getElementById('app'))">🏠 ESTRUCTURA</button>
         <button class="flex-1 min-w-[90px] py-2.5 rounded-xl font-bold text-[10px] transition ${activeAdminTab==='albs'?'bg-slate-800 text-white shadow-md':'text-slate-500 hover:bg-slate-50'}" onclick="activeAdminTab='albs';renderAdmin(document.getElementById('app'))">📦 COMPRAS</button>
         <button class="flex-1 min-w-[90px] py-2.5 rounded-xl font-bold text-[10px] transition ${activeAdminTab==='facturas'?'bg-slate-800 text-white shadow-md':'text-slate-500 hover:bg-slate-50'}" onclick="activeAdminTab='facturas';renderAdmin(document.getElementById('app'))">📄 FACTURAS</button>
@@ -726,6 +724,7 @@ function renderAdmin(app) {
             </div>
             <p class="text-[9px] text-indigo-400 mt-2 text-center">*Esto son compras asignadas a socios, no al restaurante.</p>
         </div>` : ''}
+
         <div class="grid grid-cols-2 gap-3 mb-6">
             <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
                 <h4 class="text-[9px] font-bold text-slate-400 uppercase tracking-tighter mb-1">Compras "Arume"</h4>
@@ -773,6 +772,9 @@ function renderAdmin(app) {
     if (activeAdminTab === 'facturas') renderFacturas(c);
     if (activeAdminTab === 'omnes') renderOmnes(c);
     if (activeAdminTab === 'prov') renderProvs(c);
+    
+    // 🟣 AQUÍ ESTÁ LA LLAVE DE LA PUERTA NUEVA
+    if (activeAdminTab === 'eventos') renderEventos(c);
 }
 // --- SUB-MÓDULO: PROVEEDORES (CON BOTÓN IMPORTAR) ---
 function renderProvs(c) { 
