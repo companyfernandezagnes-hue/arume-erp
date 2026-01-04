@@ -1362,24 +1362,37 @@ function commitSales() {
     }
 }
 /* =============================================================
-   ⚠️ 12. MÓDULO COCINA PRO (RECETAS Y ESCANDALLOS) ⚠️
+   ⚠️ 12. MÓDULO COCINA PRO (RECETAS, ESCANDALLOS Y FICHA TÉCNICA) ⚠️
    ============================================================= */
 
 function renderCocina(app) {
-    const list = db.recetas.sort((a,b)=>a.n.localeCompare(b.n));
+    // 🛡️ AUTO-REPARACIÓN DE DATOS PERDIDOS
+    if (!db.recetas && db.recipes && db.recipes.length > 0) {
+        db.recetas = JSON.parse(JSON.stringify(db.recipes)); // Migrar datos viejos
+        delete db.recipes; // Limpiar
+        save("Recetas recuperadas de versión anterior");
+    }
+    if (!db.recetas) db.recetas = [];
+
+    const list = db.recetas.sort((a,b) => a.n.localeCompare(b.n));
+    
     app.innerHTML = `
     <div class="glass-card">
         <div class="flex justify-between items-center mb-4">
-            <h2 class="font-black text-xl text-slate-800">ESCANDALLOS</h2>
-            <button class="btn-premium w-auto px-4 py-3 text-xs" onclick="editRec()">＋ NUEVA</button>
+            <h2 class="font-black text-xl text-slate-800 flex items-center gap-2">
+                🍳 COCINA <span class="bg-indigo-100 text-indigo-600 px-2 rounded-full text-xs">${list.length}</span>
+            </h2>
+            <button class="btn-premium w-auto px-4 py-3 text-xs" onclick="editRec()">＋ NUEVA RECETA</button>
         </div>
-        <input placeholder="🔍 Buscar..." onkeyup="filterRec(this.value)" class="input-premium mb-4">
-        <div id="rec-grid" class="space-y-3">${renderRecGrid(list)}</div>
+        <input placeholder="🔍 Buscar escandallo..." onkeyup="filterRec(this.value)" class="input-premium mb-4">
+        <div id="rec-grid" class="space-y-3">
+            ${renderRecGrid(list)}
+        </div>
     </div>`;
 }
 
 function renderRecGrid(list) {
-    if(!list.length) return '<div class="text-center p-8 text-slate-400 border-2 border-dashed rounded-xl">Sin recetas.</div>';
+    if (!list || !list.length) return '<div class="text-center p-8 text-slate-400 border-2 border-dashed rounded-xl bg-slate-50/50">No hay recetas creadas.<br>Pulsa "NUEVA RECETA" para empezar.</div>';
     
     return list.map(r => {
         const c = calcRecipe(r); 
@@ -1400,24 +1413,26 @@ function renderRecGrid(list) {
         }
 
         return `
-        <div class="bg-white p-4 rounded-xl border border-slate-100 shadow-sm cursor-pointer flex justify-between items-center group hover:border-indigo-300 transition" onclick="viewRec('${r.id}')">
+        <div class="bg-white p-4 rounded-xl border border-slate-100 shadow-sm cursor-pointer flex justify-between items-center group hover:border-indigo-300 hover:shadow-md transition" onclick="viewRec('${r.id}')">
             <div>
                 <div class="font-bold text-slate-800 text-sm mb-1">${clean(r.n)}</div>
                 <div class="flex gap-2 items-center">
                     ${stockBadge}
-                    <span class="text-[9px] text-slate-400">${r.items.length} ingr.</span>
+                    <span class="text-[9px] text-slate-400">${(r.items || []).length} ingr.</span>
                 </div>
             </div>
             <div class="text-right">
                 <div class="font-black text-slate-700">${Num.fmt(c.t)}€</div>
-                <div class="text-[10px] font-bold ${fc>35?'text-red-500':'text-emerald-500'}">FC: ${fc.toFixed(1)}%</div>
+                <div class="text-[10px] font-bold ${fc > 35 ? 'text-red-500' : 'text-emerald-500'}">FC: ${fc.toFixed(1)}%</div>
             </div>
         </div>`;
     }).join('');
 }
 
 function filterRec(txt) { 
-    document.getElementById('rec-grid').innerHTML = renderRecGrid(db.recetas.filter(r=>r.n.toLowerCase().includes(txt.toLowerCase()))); 
+    if(!db.recetas) return;
+    const filtered = db.recetas.filter(r => r.n.toLowerCase().includes(txt.toLowerCase()));
+    document.getElementById('rec-grid').innerHTML = renderRecGrid(filtered); 
 }
 
 // --- MOTOR DE CÁLCULO DE COSTES (RECURSIVO) ---
@@ -1435,7 +1450,10 @@ function calcRecipe(r, visited = new Set()) {
         return recipeCache.get(r.id); 
     }
 
-    if (visited.has(r.id)) { console.warn("Bucle detectado:", r.n); return { t: 0 }; }
+    if (visited.has(r.id)) { 
+        console.warn("Bucle infinito detectado en receta:", r.n); 
+        return { t: 0 }; 
+    }
     visited.add(r.id);
 
     let totalIngredientsCost = 0;
@@ -1446,16 +1464,19 @@ function calcRecipe(r, visited = new Set()) {
         if (it.type === 'ing') {
             const i = db.ingredientes.find(x => x.id === it.id);
             if (i) {
+                // Si el ingrediente existe, calculamos
                 const qtyInBaseUnit = UnitConverter.convert(it.q, it.unit || i.unit, i.unit);
                 totalIngredientsCost += (qtyInBaseUnit * i.cost) / yieldFactor;
             }
-
         } else if (it.type === 'rec') {
             const sub = db.recetas.find(x => x.id === it.id);
             if (sub) {
+                // Recursividad: calcular coste de la sub-receta
                 const subFullCost = calcRecipe(sub, new Set(visited)).t;
                 const subYield = sub.yield || 1; 
                 const costPerUnit = subFullCost / subYield;
+                
+                // Normalizar unidades (ej: litros de salsa a raciones)
                 const qtyNormalized = UnitConverter.convert(it.q, it.unit, sub.unit || 'rac');
                 totalIngredientsCost += qtyNormalized * costPerUnit;
             }
@@ -1466,16 +1487,47 @@ function calcRecipe(r, visited = new Set()) {
     const seasoningFactor = 1.03; 
     totalIngredientsCost = totalIngredientsCost * seasoningFactor;
 
-    // Mano de obra
-    const laborCost = (r.time / 60) * CONFIG.COST_HOUR;
+    // Mano de obra (Calculada según tiempo)
+    const laborCost = ((r.time || 0) / 60) * (CONFIG.COST_HOUR || 15);
     
     const result = { t: totalIngredientsCost + laborCost };
     recipeCache.set(r.id, result);
     return result;
 }
 
+// --- CÁLCULO DE MÁXIMO PRODUCIBLE (STOCK) ---
+function calcMaxProd(r, visited = new Set()) {
+    if (!r || !r.items || !r.items.length) return Infinity;
+    if (visited.has(r.id)) return Infinity;
+    visited.add(r.id);
+
+    let minRatio = Infinity;
+
+    r.items.forEach(it => {
+        if (it.type === 'ing') {
+            const i = db.ingredientes.find(x => x.id === it.id);
+            if (i) {
+                // Convertir stock a la unidad de la receta
+                const stockInRecipeUnit = UnitConverter.convert(i.stock, i.unit, it.unit);
+                const yieldFactor = it.merma ? (1 - (it.merma / 100)) : 1;
+                const needed = it.q / yieldFactor;
+                if(needed > 0) {
+                    const possible = stockInRecipeUnit / needed;
+                    if (possible < minRatio) minRatio = possible;
+                }
+            } else {
+                minRatio = 0; // Falta el ingrediente
+            }
+        } 
+        // Nota: Para sub-recetas sería más complejo, simplificado aquí
+    });
+
+    return minRatio === Infinity ? 0 : Math.floor(minRatio);
+}
+
+// --- EDICIÓN Y CREACIÓN ---
 function editRec(id) {
-    const r = id ? db.recetas.find(x => x.id === id) : { id: generateID(), n: '', pvp: 0, time: 10, items: [], inst: '', yield: 1, unit: 'rac' }; 
+    const r = id ? db.recetas.find(x => x.id === id) : { id: generateID(), n: '', pvp: 0, time: 15, items: [], inst: '', yield: 1, unit: 'rac' }; 
     
     // Clonamos para no editar la referencia original hasta guardar
     tempItems = JSON.parse(JSON.stringify(r.items || []));
@@ -1513,24 +1565,25 @@ function editRec(id) {
         </div>
 
         <div class="bg-slate-50 p-3 rounded-xl border mb-4">
-            <label class="mb-2">Añadir Ingrediente o Sub-Receta</label>
+            <label class="mb-2 text-indigo-600 font-bold">Añadir Ingrediente o Sub-Receta</label>
             <div class="flex gap-2 mb-2">
                 <select id="er-sel" class="input-premium text-sm flex-1" onchange="updUnit()"></select>
                 <input id="er-q" type="number" class="input-premium w-20 text-center" placeholder="Cant">
                 <select id="er-u" class="input-premium w-20 text-xs bg-slate-200"></select>
-                <button class="bg-indigo-600 text-white rounded-lg w-10 font-bold shadow-lg hover:bg-indigo-700 transition" onclick="addItem()">+</button>
+                <button class="bg-indigo-600 text-white rounded-lg w-10 font-bold shadow-lg hover:bg-indigo-700 transition active:scale-95" onclick="addItem()">+</button>
             </div>
+            
             <div class="flex justify-between px-2 text-[10px] font-bold text-slate-400 uppercase mb-1">
                 <span>Producto</span><span>Cantidad</span>
             </div>
-            <div id="er-list" class="max-h-40 overflow-y-auto custom-scrollbar bg-white rounded-lg border border-slate-200"></div>
+            <div id="er-list" class="max-h-40 overflow-y-auto custom-scrollbar bg-white rounded-lg border border-slate-200 p-1"></div>
         </div>
 
-        <label>Instrucciones</label>
+        <label>Instrucciones de Elaboración</label>
         <textarea id="er-inst" class="input-premium mb-4 font-normal text-sm" rows="3" placeholder="Paso a paso...">${clean(r.inst)}</textarea>
         
         <div class="flex gap-2">
-            <button class="btn-premium flex-1" onclick="saveRec('${r.id}')">GUARDAR FICHA</button>
+            <button class="btn-premium flex-1" onclick="saveRec('${r.id}')">💾 GUARDAR FICHA</button>
             ${id ? `<button class="btn-ghost w-auto text-red-500" onclick="delRec('${id}')">🗑️</button>` : ''}
         </div>
     `);
@@ -1541,6 +1594,7 @@ function editRec(id) {
 
 function renderRecTypes() {
     const sel = document.getElementById('er-sel');
+    if(!sel) return;
     
     const ings = db.ingredientes
         .sort((a,b)=>a.n.localeCompare(b.n))
@@ -1559,11 +1613,14 @@ function renderRecTypes() {
 function updUnit() {
     const sel = document.getElementById('er-sel'); 
     const uSel = document.getElementById('er-u');
-    const type = sel.options[sel.selectedIndex]?.dataset.t;
+    if(!sel || !uSel) return;
+
+    const opt = sel.options[sel.selectedIndex];
+    const type = opt ? opt.dataset.t : 'ing';
     
     let opts = [];
     if(type === 'rec') {
-        opts = ['rac']; 
+        opts = ['rac', 'l', 'kg']; 
     } else {
         opts = ['kg', 'g', 'l', 'ml', 'cl', 'ud', 'oz', 'lb', 'mg'];
     }
@@ -1572,17 +1629,49 @@ function updUnit() {
 }
 
 function addItem() {
-    const sel = document.getElementById('er-sel'); const type = sel.options[sel.selectedIndex].dataset.t;
+    const sel = document.getElementById('er-sel'); 
+    if(!sel) return;
+    
+    const type = sel.options[sel.selectedIndex].dataset.t;
     const q = parseFloat(document.getElementById('er-q').value);
-    if(q>0) { tempItems.push({type, id:sel.value, q, unit:document.getElementById('er-u').value, merma:0}); renderRecItems(); }
+    
+    if(q > 0) { 
+        tempItems.push({
+            type, 
+            id: sel.value, 
+            q, 
+            unit: document.getElementById('er-u').value, 
+            merma: 0
+        }); 
+        renderRecItems();
+        // Limpiar input cantidad para agilizar
+        document.getElementById('er-q').value = '';
+        document.getElementById('er-q').focus();
+    } else {
+        toast("Cantidad inválida", "error");
+    }
 }
 
 function renderRecItems() {
-    document.getElementById('er-list').innerHTML = tempItems.map((it,i) => {
+    const el = document.getElementById('er-list');
+    if(!el) return;
+
+    el.innerHTML = tempItems.map((it,i) => {
         let n="?", icon="📦"; 
         if(it.type==='ing'){ const x=db.ingredientes.find(z=>z.id===it.id); if(x)n=x.n; } 
-        else { const x=db.recetas.find(z=>z.id===it.id); if(x){n=x.n; icon="🥣";} }
-        return `<div class="flex justify-between py-2 border-b text-sm items-center"><div><span class="mr-2">${icon}</span><b>${n}</b></div><span>${it.q} ${it.unit}</span><button class="text-red-400 ml-2" onclick="tempItems.splice(${i},1);renderRecItems()">✕</button></div>`;
+        else { const x=db.recetas.find(z=>z.id===it.id); if(x){n=x.n; icon="🍲";} }
+        
+        return `
+        <div class="flex justify-between py-2 border-b border-slate-50 last:border-0 text-sm items-center hover:bg-slate-50 px-2 rounded">
+            <div class="flex items-center">
+                <span class="mr-2 text-xs">${icon}</span>
+                <span class="font-medium text-slate-700">${n}</span>
+            </div>
+            <div class="flex items-center gap-3">
+                <span class="font-bold text-slate-900">${it.q} ${it.unit}</span>
+                <button class="text-red-400 hover:text-red-600 font-bold" onclick="tempItems.splice(${i},1);renderRecItems()">✕</button>
+            </div>
+        </div>`;
     }).join('');
 }
 
@@ -1596,7 +1685,7 @@ function saveRec(id) {
         time: parseFloat(document.getElementById('er-time').value) || 0,
         yield: parseFloat(document.getElementById('er-yield').value) || 1,
         unit: document.getElementById('er-unit').value,
-        items: tempItems, 
+        items: [...tempItems], // Copia segura
         inst: document.getElementById('er-inst').value 
     };
 
@@ -1604,15 +1693,15 @@ function saveRec(id) {
     if(idx >= 0) db.recetas[idx] = r; else db.recetas.push(r);
     
     clearCache(); 
-    save("Ficha Técnica Guardada"); 
+    save("Ficha Técnica Guardada ✅"); 
     closeModal(); 
     render('Cocina');
 }
 
 function delRec(id) { 
-    if(confirm("¿Borrar?")) { 
-        db.recetas=db.recetas.filter(x=>x.id!==id); 
-        save("Borrada"); 
+    if(confirm("¿Borrar receta definitivamente?")) { 
+        db.recetas = db.recetas.filter(x => x.id !== id); 
+        save("Receta borrada"); 
         closeModal(); 
         render('Cocina'); 
     } 
@@ -1621,189 +1710,63 @@ function delRec(id) {
 function viewRec(id) {
     const r = db.recetas.find(x=>x.id===id); if(!r)return;
     
-    // Calculadora dinámica en el modal
-    window.renderIngsForCalc = (f) => r.items.map(it => {
-        let n="?", q=it.q*f;
-        if(it.type==='ing'){ const i=db.ingredientes.find(x=>x.id===it.id); if(i)n=i.n; } else { const s=db.recetas.find(x=>x.id===it.id); if(s)n="🥣 "+s.n; }
-        return `<li class="flex justify-between py-1 border-b border-slate-50"><span>${n}</span><span class="font-bold text-indigo-600">${Num.fmt(q)} ${it.unit}</span></li>`;
-    }).join('');
+    // Función local para actualizar la vista al cambiar el multiplicador
+    const updateView = (f) => {
+        const h = r.items.map(it => {
+            let n="?", q = it.q * f;
+            if(it.type==='ing'){ const i=db.ingredientes.find(x=>x.id===it.id); if(i)n=i.n; } 
+            else { const s=db.recetas.find(x=>x.id===it.id); if(s)n="🥣 "+s.n; }
+            
+            return `
+            <li class="flex justify-between py-2 border-b border-slate-50 last:border-0">
+                <span class="text-slate-600">${n}</span>
+                <span class="font-bold text-indigo-600 font-mono">${Num.fmt(q)} ${it.unit}</span>
+            </li>`;
+        }).join('');
+        document.getElementById('v-list').innerHTML = h;
+    };
     
     const c = calcRecipe(r);
     showModal(clean(r.n), `
-        <div class="flex justify-between text-center mb-4 bg-slate-50 p-3 rounded-xl border">
-            <div class="flex-1 border-r"><h6>COSTE</h6><b>${Num.fmt(c.t)}€</b></div>
-            <div class="flex-1"><h6>PVP</h6><b>${Num.fmt(r.pvp)}€</b></div>
+        <div class="flex justify-between text-center mb-4 bg-slate-50 p-3 rounded-xl border border-slate-100">
+            <div class="flex-1 border-r border-slate-200">
+                <h6 class="text-[10px] text-slate-400 uppercase font-bold">Coste Producción</h6>
+                <b class="text-slate-800 text-lg">${Num.fmt(c.t)}€</b>
+            </div>
+            <div class="flex-1">
+                <h6 class="text-[10px] text-slate-400 uppercase font-bold">PVP Venta</h6>
+                <b class="text-slate-800 text-lg">${Num.fmt(r.pvp)}€</b>
+            </div>
         </div>
-        <div class="bg-indigo-50 p-3 rounded-xl mb-4 flex items-center justify-between">
-            <span>Multiplicador</span>
-            <input type="number" value="1" class="w-16 text-center font-bold text-xl bg-white rounded border border-indigo-200" oninput="document.getElementById('v-list').innerHTML=window.renderIngsForCalc(this.value)">
+        
+        <div class="bg-indigo-600 p-4 rounded-xl mb-4 flex items-center justify-between text-white shadow-lg shadow-indigo-200">
+            <div>
+                <div class="text-xs font-bold opacity-80">PRODUCCIÓN PARA</div>
+                <div class="text-xs opacity-60">Calculadora automática</div>
+            </div>
+            <div class="flex items-center gap-2 bg-white/20 p-1 rounded-lg">
+                <input type="number" value="1" class="w-16 text-center font-bold text-xl bg-transparent outline-none text-white placeholder-white/50" oninput="document.getElementById('calc-factor').innerText = this.value; window.updateRecCalc(this.value)">
+                <span class="font-bold text-sm">x Raciones</span>
+            </div>
         </div>
-        <ul id="v-list" class="text-sm mb-4">${window.renderIngsForCalc(1)}</ul>
-        <p class="text-sm text-slate-600 bg-yellow-50 p-3 rounded-xl mb-4">${clean(r.inst)}</p>
+
+        <h6 class="text-xs font-bold text-slate-400 uppercase mb-2">Ingredientes Requeridos</h6>
+        <ul id="v-list" class="text-sm mb-6 bg-white border border-slate-100 rounded-xl p-3 shadow-sm max-h-40 overflow-y-auto"></ul>
+        
+        <h6 class="text-xs font-bold text-slate-400 uppercase mb-2">Instrucciones</h6>
+        <p class="text-sm text-slate-600 bg-yellow-50 p-4 rounded-xl border border-yellow-100 mb-6 italic leading-relaxed">
+            ${clean(r.inst) || 'Sin instrucciones definidas.'}
+        </p>
+        
         <div class="flex gap-2">
             <button class="btn-ghost flex-1" onclick="window.print()">🖨️ IMPRIMIR</button>
-            <button class="btn-premium flex-1" onclick="editRec('${id}')">EDITAR</button>
+            <button class="btn-premium flex-1" onclick="editRec('${id}')">EDITAR FICHA</button>
         </div>
     `);
-}
-    function renderGastosFijos(c) {
-    const list = db.gastos_fijos || [];
-    
-    // Calcular total mensual aproximado
-    const totalMensual = list.reduce((acc, g) => {
-        return acc + (g.freq === 'mensual' ? g.amount : g.amount / 12);
-    }, 0);
 
-    c.innerHTML = `
-    <div class="glass-card">
-        <div class="flex justify-between items-center mb-4">
-            <h3 class="font-bold text-slate-800">ESTRUCTURA DE COSTES</h3>
-            <div class="text-right">
-                <div class="text-[10px] text-slate-400 font-bold uppercase">Coste Fijo Mes</div>
-                <div class="font-black text-slate-700 text-lg">${Num.fmt(totalMensual)}€</div>
-            </div>
-        </div>
-
-        <div class="bg-indigo-50 p-4 rounded-xl border border-indigo-100 mb-6">
-            <h4 class="text-xs font-bold text-indigo-800 mb-2 uppercase">Añadir Gasto Recurrente</h4>
-            <div class="grid grid-cols-12 gap-2 mb-2">
-                <div class="col-span-5"><input id="gf-n" placeholder="Concepto (ej: Alquiler)" class="input-premium"></div>
-                <div class="col-span-3"><input id="gf-a" type="number" placeholder="€" class="input-premium text-center"></div>
-                <div class="col-span-4">
-                    <select id="gf-f" class="input-premium">
-                        <option value="mensual">Mensual</option>
-                        <option value="anual">Anual</option>
-                        <option value="trimestral">Trimestral</option>
-                    </select>
-                </div>
-            </div>
-            <button class="btn-premium btn-action w-full" onclick="addGastoFijo()">GUARDAR GASTO</button>
-        </div>
-
-        <div class="space-y-2">
-            ${list.length ? list.map((g, i) => `
-                <div class="bg-white p-3 rounded-xl border border-slate-100 shadow-sm flex justify-between items-center">
-                    <div>
-                        <div class="font-bold text-slate-700">${clean(g.n)}</div>
-                        <div class="text-[10px] bg-slate-100 px-2 rounded inline-block text-slate-500 uppercase font-bold">${g.freq}</div>
-                    </div>
-                    <div class="flex items-center gap-3">
-                        <span class="font-black text-slate-800">${Num.fmt(g.amount)}€</span>
-                        <button class="text-red-400 hover:text-red-600 font-bold px-2" onclick="delGastoFijo(${i})">✕</button>
-                    </div>
-                </div>
-            `).join('') : '<div class="text-center text-slate-400 text-xs py-4">No hay gastos fijos definidos</div>'}
-        </div>
-    </div>`;
-}
-
-function addGastoFijo() {
-    const n = document.getElementById('gf-n').value;
-    const a = parseFloat(document.getElementById('gf-a').value);
-    const f = document.getElementById('gf-f').value;
-    
-    if (n && a > 0) {
-        if (!db.gastos_fijos) db.gastos_fijos = [];
-        // Creamos un ID único y guardamos la fecha para saber cuándo se aplica
-        db.gastos_fijos.push({ id: generateID(), n, amount: a, freq: f, date: getISO() });
-        save("Gasto fijo añadido");
-        renderAdmin(document.getElementById('app'));
-    } else {
-        toast("Revisa los datos", "error");
-    }
-}
-
-function delGastoFijo(index) {
-    if(confirm("¿Eliminar este gasto fijo?")) {
-        db.gastos_fijos.splice(index, 1);
-        save("Gasto eliminado");
-        renderAdmin(document.getElementById('app'));
-    }
-}
-    /* === MÓDULO DE EVENTOS Y RESERVAS === */
-function renderEventos(c) {
-    // Filtrar eventos futuros o de hoy
-    const list = (db.eventos || []).sort((a,b) => a.date.localeCompare(b.date));
-
-    c.innerHTML = `
-    <div class="glass-card border-l-4 border-pink-500">
-        <div class="flex justify-between items-center mb-4">
-            <h3 class="font-bold text-slate-800">AGENDA DE EVENTOS</h3>
-            <button class="btn-premium w-auto px-3 py-1 text-xs" onclick="newEventModal()">+ NUEVO</button>
-        </div>
-        
-        <div class="space-y-3">
-            ${list.map(e => `
-                <div class="bg-white p-3 rounded-xl border border-slate-100 shadow-sm relative overflow-hidden">
-                    <div class="flex justify-between items-start mb-2">
-                        <div>
-                            <div class="text-[10px] font-bold text-pink-500 uppercase tracking-widest mb-1">${e.date} · ${e.time || '??:??'}</div>
-                            <div class="font-black text-slate-800 text-lg leading-none mb-1">${clean(e.name)}</div>
-                            <div class="text-xs text-slate-500">👥 ${e.pax} Pax · 💰 Señal: ${Num.fmt(e.deposit)}€</div>
-                        </div>
-                        <button class="bg-slate-50 text-slate-400 w-8 h-8 rounded-full flex items-center justify-center hover:bg-red-50 hover:text-red-500 transition" onclick="delEvent('${e.id}')">🗑️</button>
-                    </div>
-                    <div class="bg-slate-50 p-2 rounded-lg text-[10px] text-slate-600 italic border border-slate-100">
-                        ${clean(e.notes) || 'Sin notas adicionales.'}
-                    </div>
-                </div>
-            `).join('')}
-            ${list.length === 0 ? '<div class="text-center py-8 text-slate-400 border-2 border-dashed rounded-xl">No hay eventos próximos.</div>' : ''}
-        </div>
-    </div>`;
-}
-
-function newEventModal() {
-    showModal('Nuevo Evento', `
-        <label>Nombre Cliente / Evento</label>
-        <input id="ev-n" class="input-premium mb-2" placeholder="Ej: Cumpleaños Marta">
-        
-        <div class="grid grid-cols-2 gap-2 mb-2">
-            <div><label>Fecha</label><input type="date" id="ev-d" class="input-premium"></div>
-            <div><label>Hora</label><input type="time" id="ev-t" class="input-premium"></div>
-        </div>
-        
-        <div class="grid grid-cols-2 gap-2 mb-4">
-            <div><label>Pax (Personas)</label><input type="number" id="ev-p" class="input-premium text-center"></div>
-            <div><label>Señal / Depósito (€)</label><input type="number" id="ev-dep" class="input-premium text-center"></div>
-        </div>
-
-        <label>Notas / Menú pactado</label>
-        <textarea id="ev-notes" class="input-premium mb-4 h-20" placeholder="Detalles..."></textarea>
-        
-        <button class="btn-premium btn-action" onclick="saveEvent()">GUARDAR EVENTO</button>
-    `);
-}
-
-function saveEvent() {
-    const n = document.getElementById('ev-n').value;
-    const d = document.getElementById('ev-d').value;
-    
-    if(n && d) {
-        if(!db.eventos) db.eventos = [];
-        db.eventos.push({
-            id: generateID(),
-            name: n,
-            date: d,
-            time: document.getElementById('ev-t').value,
-            pax: document.getElementById('ev-p').value,
-            deposit: parseFloat(document.getElementById('ev-dep').value) || 0,
-            notes: document.getElementById('ev-notes').value
-        });
-        save("Evento agendado");
-        closeModal();
-        renderAdmin(document.getElementById('app'));
-    } else {
-        toast("Falta nombre o fecha", "error");
-    }
-}
-
-function delEvent(id) {
-    if(confirm("¿Borrar evento?")) {
-        db.eventos = db.eventos.filter(e => e.id !== id);
-        save("Evento borrado");
-        renderAdmin(document.getElementById('app'));
-    }
+    // Asignamos la función al objeto global window temporalmente para que el input funcione
+    window.updateRecCalc = updateView;
+    updateView(1); // Render inicial
 }
 /* =============================================================
    ⚠️ 13. MÓDULO DE STOCK Y PEDIDOS (COMPLETO Y CORREGIDO) ⚠️
