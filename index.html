@@ -2534,16 +2534,22 @@ document.addEventListener('DOMContentLoaded', init);
 /* =============================================================
    ⚠️ MÓDULO ONLYONE: GESTIÓN DE EVENTOS Y CAJA NEGRA (FINAL) ⚠️
    ============================================================= */
-
 function renderEventos(c) {
+    // --- 🛡️ PARCHE DE SEGURIDAD (Esto evita la pantalla blanca) ---
+    if (!db) return; 
+    if (!db.eventos) db.eventos = []; // Si no existe la carpeta eventos, la crea
+    if (!db.albaranes) db.albaranes = []; // Si no existe albaranes, la crea
+    // ------------------------------------------------------------
+
     // 1. BUSCAR GASTOS DE PAU (MATERIAL)
+    // Usamos el parche aquí también para evitar errores si a.total no existe
     const gastosOnlyOne = db.albaranes
         .filter(a => isInPeriod(a.date) && a.socio === 'OnlyOne');
     
-    const totalGastoMaterial = gastosOnlyOne.reduce((acc, a) => acc + a.total, 0);
+    const totalGastoMaterial = gastosOnlyOne.reduce((acc, a) => acc + (a.total || 0), 0);
 
     // 2. BUSCAR INGRESOS DE EVENTOS
-    const eventosList = (db.eventos || []).filter(e => isInPeriod(e.date));
+    const eventosList = db.eventos.filter(e => isInPeriod(e.date));
     const totalFacturado = eventosList.reduce((acc, e) => acc + (e.total || 0), 0);
     
     // 3. GASTOS DE PERSONAL EXTRA
@@ -2552,7 +2558,7 @@ function renderEventos(c) {
     // 4. CÁLCULO CAJA NEGRA (Beneficio Real)
     const beneficioCajaNegra = totalFacturado - totalGastoMaterial - totalPersonal;
 
-    // RENDERIZADO UI
+    // --- RENDERIZADO UI (LA PARTE VISUAL) ---
     c.innerHTML = `
     <div class="glass-card border-l-4 border-pink-500 bg-slate-900 text-white">
         <div class="flex justify-between items-start">
@@ -2623,7 +2629,6 @@ function renderEventos(c) {
         </div>
     </div>`;
 }
-
 // --- CALENDARIO GOOGLE (CON NOTAS INCLUIDAS) ---
 function openCalendar(id) {
     const e = db.eventos.find(x => x.id === id);
