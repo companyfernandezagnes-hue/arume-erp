@@ -829,9 +829,10 @@ function renderAlbaranes(c) {
     // Si la lista de socios no existe en la nube aún, usamos esta por defecto para que no falle
     const listaSociosSegura = db.listaSocios || ['Jeronimo', 'Pedro', 'Pau', 'Agnes'];
    // === CAMBIO: AÑADIMOS ARUME COMO PRIMERA OPCIÓN POR DEFECTO ===
-    const socioOptions = `<option value="Arume" selected>🏠 ARUME</option>` + 
-                         listaSociosSegura.map(s => `<option value="${s}">${s}</option>`).join('');
-
+   // AÑADIMOS ONLYONE PARA SEPARAR SUS GASTOS
+const socioOptions = `<option value="Arume" selected>🏠 ARUME</option>` + 
+                     `<option value="OnlyOne">🍸 ONLYONE (Pau)</option>` +
+                     listaSociosSegura.map(s => `<option value="${s}">${s}</option>`).join('');
     c.innerHTML = `
     <div class="glass-card border-l-4 border-indigo-500" id="alb-form-anchor">
         <h3 class="font-bold text-slate-700 text-sm mb-4 uppercase">Nuevo / Editar Albarán</h3>
@@ -2523,6 +2524,160 @@ window.onclick = function(event) {
     }
 }
 document.addEventListener('DOMContentLoaded', init);
+/* =============================================================
+   ⚠️ MÓDULO ONLYONE: GESTIÓN DE EVENTOS Y CAJA NEGRA ⚠️
+   ============================================================= */
+
+function renderEventos(c) {
+    // 1. BUSCAR GASTOS DE PAU (ALBARANES CON SOCIO 'OnlyOne')
+    // Filtramos solo los de este año fiscal para ver la rentabilidad del periodo
+    const gastosOnlyOne = db.albaranes
+        .filter(a => isInPeriod(a.date) && a.socio === 'OnlyOne');
+    
+    const totalGastoMaterial = gastosOnlyOne.reduce((acc, a) => acc + a.total, 0);
+
+    // 2. BUSCAR INGRESOS DE EVENTOS
+    // (Estos son los eventos que registras manualmente tras cobrar por TPV)
+    const eventosList = (db.eventos || []).filter(e => isInPeriod(e.date));
+    const totalFacturado = eventosList.reduce((acc, e) => acc + (e.total || 0), 0);
+    
+    // 3. GASTOS DE PERSONAL EXTRA (Registrados dentro de cada evento)
+    const totalPersonal = eventosList.reduce((acc, e) => acc + (e.costPersonal || 0), 0);
+
+    // 4. EL CÁLCULO DE LA "CAJA NEGRA"
+    // Lo que entra - Lo que gastó Pau en botellas - Lo que se pagó a camareros extra
+    const beneficioCajaNegra = totalFacturado - totalGastoMaterial - totalPersonal;
+
+    // RENDERIZADO
+    c.innerHTML = `
+    <div class="glass-card border-l-4 border-pink-500 bg-slate-900 text-white">
+        <div class="flex justify-between items-start">
+            <div>
+                <h3 class="font-black text-pink-400 text-sm uppercase tracking-widest mb-1">FONDO DE RESERVA</h3>
+                <h2 class="text-3xl font-black text-white">ONLY<span class="text-pink-500">ONE</span></h2>
+                <p class="text-[10px] text-slate-400 mt-1">Beneficio generado tras cubrir gastos Arume</p>
+            </div>
+            <div class="text-right">
+                <div class="text-[10px] font-bold text-slate-400 uppercase">A LA CAJA NEGRA</div>
+                <div class="text-4xl font-black ${beneficioCajaNegra >= 0 ? 'text-emerald-400' : 'text-red-400'}">
+                    ${Num.fmt(beneficioCajaNegra)}€
+                </div>
+            </div>
+        </div>
+        
+        <div class="grid grid-cols-3 gap-2 mt-6 pt-4 border-t border-white/10 text-center">
+            <div>
+                <div class="text-[9px] text-slate-500 font-bold uppercase">Facturado (TPV)</div>
+                <div class="text-lg font-bold text-white">${Num.fmt(totalFacturado)}€</div>
+            </div>
+            <div>
+                <div class="text-[9px] text-slate-500 font-bold uppercase">Compras (Tarjeta)</div>
+                <div class="text-lg font-bold text-red-400">-${Num.fmt(totalGastoMaterial)}€</div>
+            </div>
+            <div>
+                <div class="text-[9px] text-slate-500 font-bold uppercase">Personal Extra</div>
+                <div class="text-lg font-bold text-orange-400">-${Num.fmt(totalPersonal)}€</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="flex justify-between items-center mb-4 px-2">
+        <h3 class="font-bold text-slate-700 text-sm">AGENDA DE EVENTOS</h3>
+        <button class="btn-premium w-auto px-4 py-2 text-xs bg-pink-600 shadow-pink-200" onclick="editEvent()">+ NUEVO EVENTO</button>
+    </div>
+
+    <div class="space-y-3">
+        ${eventosList.length ? eventosList.sort((a,b) => b.date.localeCompare(a.date)).map(e => `
+            <div class="glass-card p-3 flex justify-between items-center relative overflow-hidden group">
+                <div class="absolute left-0 top-0 bottom-0 w-1 bg-pink-500"></div>
+                <div class="pl-3">
+                    <div class="text-[10px] font-bold text-pink-500 uppercase">${e.type}</div>
+                    <div class="font-black text-slate-800">${clean(e.n)}</div>
+                    <div class="text-[10px] text-slate-400">${e.date}</div>
+                </div>
+                <div class="text-right">
+                    <div class="font-bold text-emerald-600">+${Num.fmt(e.total)}€</div>
+                    ${e.costPersonal ? `<div class="text-[9px] text-red-400 font-bold">Personal: -${e.costPersonal}€</div>` : ''}
+                    <button class="text-[10px] text-slate-300 underline mt-1" onclick="delEvent('${e.id}')">Borrar</button>
+                </div>
+            </div>
+        `).join('') : '<div class="text-center p-6 text-slate-400 text-xs italic">No hay eventos este trimestre.</div>'}
+    </div>
+    
+    <div class="mt-8">
+        <h4 class="font-bold text-slate-600 text-xs uppercase mb-3 px-2">Compras Tarjeta Arume (OnlyOne)</h4>
+        <div class="space-y-1">
+            ${gastosOnlyOne.length ? gastosOnlyOne.map(a => `
+                <div class="flex justify-between items-center bg-white p-2 rounded border border-red-50 text-xs opacity-75">
+                    <span class="font-bold text-slate-600">${clean(a.prov)}</span>
+                    <span class="font-mono text-red-400">-${Num.fmt(a.total)}€</span>
+                </div>
+            `).join('') : '<div class="text-center p-2 text-slate-300 text-[10px]">Pau no ha gastado nada aún.</div>'}
+        </div>
+    </div>
+    `;
+}
+
+// FORMULARIO SIMPLIFICADO PARA EVENTOS
+function editEvent(id) {
+    const e = id ? db.eventos.find(x => x.id === id) : { id: generateID(), n: '', date: getISO(), type: 'Catering', total: 0, costPersonal: 0 };
+    
+    showModal('Registrar Evento OnlyOne', `
+        <label>Cliente / Evento</label>
+        <input id="ev-n" value="${clean(e.n)}" class="input-premium mb-2" placeholder="Ej: Boda Finca X">
+        
+        <div class="grid grid-cols-2 gap-2 mb-2">
+            <div><label>Fecha</label><input type="date" id="ev-d" value="${e.date}" class="input-premium"></div>
+            <div><label>Tipo</label>
+                <select id="ev-t" class="input-premium bg-white">
+                    <option ${e.type==='Catering'?'selected':''}>Catering</option>
+                    <option ${e.type==='Cocktail'?'selected':''}>Cocktail</option>
+                    <option ${e.type==='Festival'?'selected':''}>Festival</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 mb-4">
+            <label>💰 Ingreso Total (Lo cobrado por TPV Arume)</label>
+            <input type="number" id="ev-tot" value="${e.total}" class="input-premium font-black text-emerald-600 text-xl text-center mb-4">
+            
+            <label>👷 Gasto Personal EXTRA (Si se pagó aparte)</label>
+            <input type="number" id="ev-per" value="${e.costPersonal || 0}" class="input-premium font-bold text-red-500 text-center">
+            <p class="text-[9px] text-slate-400 mt-1 text-center">Solo poner si se contrató gente extra pagada por Arume.</p>
+        </div>
+
+        <button class="btn-premium bg-pink-600 shadow-pink-200 btn-action" onclick="saveEvent('${e.id}')">GUARDAR Y CALCULAR</button>
+    `);
+}
+
+function saveEvent(id) {
+    const n = document.getElementById('ev-n').value;
+    if (!n) return toast("Pon un nombre", "error");
+
+    const obj = {
+        id,
+        n,
+        date: document.getElementById('ev-d').value,
+        type: document.getElementById('ev-t').value,
+        total: parseFloat(document.getElementById('ev-tot').value) || 0,
+        costPersonal: parseFloat(document.getElementById('ev-per').value) || 0
+    };
+
+    const idx = db.eventos.findIndex(x => x.id === id);
+    if (idx >= 0) db.eventos[idx] = obj; else db.eventos.push(obj);
+
+    save("Evento registrado");
+    closeModal();
+    renderAdmin(document.getElementById('app'));
+}
+
+function delEvent(id) {
+    if(confirm("¿Borrar evento?")) {
+        db.eventos = db.eventos.filter(x => x.id !== id);
+        save("Eliminado");
+        renderAdmin(document.getElementById('app'));
+    }
+}
 </script> 
 </body>
 </html>
