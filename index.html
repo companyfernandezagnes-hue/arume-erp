@@ -2529,9 +2529,12 @@ document.addEventListener('DOMContentLoaded', init);
 /* =============================================================
    ⚠️ MÓDULO ONLYONE: GESTIÓN DE EVENTOS Y CAJA NEGRA ⚠️
    ============================================================= */
+/* =============================================================
+   ⚠️ MÓDULO ONLYONE: GESTIÓN DE EVENTOS Y CAJA NEGRA ⚠️
+   ============================================================= */
 
 function renderEventos(c) {
-    // 1. BUSCAR GASTOS DE PAU (ALBARANES CON SOCIO 'OnlyOne')
+    // 1. BUSCAR GASTOS DE PAU
     const gastosOnlyOne = db.albaranes
         .filter(a => isInPeriod(a.date) && a.socio === 'OnlyOne');
     
@@ -2544,7 +2547,7 @@ function renderEventos(c) {
     // 3. GASTOS DE PERSONAL EXTRA
     const totalPersonal = eventosList.reduce((acc, e) => acc + (e.costPersonal || 0), 0);
 
-    // 4. EL CÁLCULO DE LA "CAJA NEGRA"
+    // 4. CÁLCULO CAJA NEGRA
     const beneficioCajaNegra = totalFacturado - totalGastoMaterial - totalPersonal;
 
     // RENDERIZADO
@@ -2565,18 +2568,9 @@ function renderEventos(c) {
         </div>
         
         <div class="grid grid-cols-3 gap-2 mt-6 pt-4 border-t border-white/10 text-center">
-            <div>
-                <div class="text-[9px] text-slate-500 font-bold uppercase">Facturado (TPV)</div>
-                <div class="text-lg font-bold text-white">${Num.fmt(totalFacturado)}€</div>
-            </div>
-            <div>
-                <div class="text-[9px] text-slate-500 font-bold uppercase">Compras (Tarjeta)</div>
-                <div class="text-lg font-bold text-red-400">-${Num.fmt(totalGastoMaterial)}€</div>
-            </div>
-            <div>
-                <div class="text-[9px] text-slate-500 font-bold uppercase">Personal Extra</div>
-                <div class="text-lg font-bold text-orange-400">-${Num.fmt(totalPersonal)}€</div>
-            </div>
+            <div><div class="text-[9px] text-slate-500 font-bold uppercase">Facturado (TPV)</div><div class="text-lg font-bold text-white">${Num.fmt(totalFacturado)}€</div></div>
+            <div><div class="text-[9px] text-slate-500 font-bold uppercase">Compras (Tarjeta)</div><div class="text-lg font-bold text-red-400">-${Num.fmt(totalGastoMaterial)}€</div></div>
+            <div><div class="text-[9px] text-slate-500 font-bold uppercase">Personal Extra</div><div class="text-lg font-bold text-orange-400">-${Num.fmt(totalPersonal)}€</div></div>
         </div>
     </div>
 
@@ -2599,6 +2593,11 @@ function renderEventos(c) {
                     ${e.costPersonal ? `<div class="text-[9px] text-red-400 font-bold">Personal: -${e.costPersonal}€</div>` : ''}
                     
                     <div class="flex gap-2 justify-end mt-2">
+                        <button class="text-[10px] bg-slate-50 text-slate-600 px-2 py-1 rounded border border-slate-200 hover:bg-slate-100 transition" 
+                                onclick="printBudget('${e.id}')">
+                            🖨️ PDF
+                        </button>
+
                         <button class="text-[10px] bg-blue-50 text-blue-600 px-2 py-1 rounded border border-blue-100 hover:bg-blue-100 transition" 
                                 onclick="window.open('https://calendar.google.com/calendar/render?action=TEMPLATE&text=' + encodeURIComponent('${clean(e.n)}') + '&details=' + encodeURIComponent('Evento tipo: ${e.type}. Ingresos: ${e.total}€') + '&dates=${e.date.replace(/-/g,'')}T090000/${e.date.replace(/-/g,'')}T180000', '_blank')">
                             📅 G-Cal
@@ -2621,10 +2620,8 @@ function renderEventos(c) {
                 </div>
             `).join('') : '<div class="text-center p-2 text-slate-300 text-[10px]">Pau no ha gastado nada aún.</div>'}
         </div>
-    </div>
-    `;
+    </div>`;
 }
-
 // FORMULARIO SIMPLIFICADO PARA EVENTOS
 function editEvent(id) {
     const e = id ? db.eventos.find(x => x.id === id) : { id: generateID(), n: '', date: getISO(), type: 'Catering', total: 0, costPersonal: 0 };
@@ -2684,6 +2681,110 @@ function delEvent(id) {
         save("Eliminado");
         renderAdmin(document.getElementById('app'));
     }
+}
+        /* =============================================================
+   🖨️ GENERADOR DE PRESUPUESTOS (PDF)
+   ============================================================= */
+function printBudget(id) {
+    const e = db.eventos.find(x => x.id === id);
+    if (!e) return;
+
+    // Preguntamos un detalle extra para que quede profesional (opcional)
+    const detail = prompt("¿Descripción del servicio para el PDF?\n(Ej: Barra libre premium 4h)", `Servicio de ${e.type}`);
+    if (detail === null) return; // Si cancela, no hacemos nada
+
+    const win = window.open('', '_blank');
+    
+    win.document.write(`
+        <html>
+        <head>
+            <title>Presupuesto - ${clean(e.n)}</title>
+            <style>
+                body { font-family: 'Helvetica', sans-serif; padding: 40px; color: #333; max-width: 800px; margin: 0 auto; }
+                .header { display: flex; justify-content: space-between; border-bottom: 2px solid #ec4899; padding-bottom: 20px; margin-bottom: 40px; }
+                .brand h1 { margin: 0; font-size: 28px; color: #0f172a; text-transform: uppercase; letter-spacing: -1px; }
+                .brand span { color: #ec4899; }
+                .brand p { margin: 5px 0 0; font-size: 10px; color: #64748b; text-transform: uppercase; letter-spacing: 2px; }
+                
+                .meta { text-align: right; font-size: 12px; color: #64748b; }
+                .meta strong { color: #333; }
+
+                .client-box { background: #f8fafc; padding: 30px; border-radius: 12px; border: 1px solid #e2e8f0; margin-bottom: 40px; }
+                .client-box h3 { margin: 0 0 10px 0; font-size: 10px; text-transform: uppercase; color: #94a3b8; letter-spacing: 1px; }
+                .client-box .name { font-size: 24px; font-weight: bold; color: #0f172a; margin-bottom: 5px; }
+                
+                table { width: 100%; border-collapse: collapse; margin-bottom: 40px; }
+                th { text-align: left; border-bottom: 2px solid #e2e8f0; padding: 15px 10px; color: #64748b; font-size: 10px; text-transform: uppercase; }
+                td { padding: 20px 10px; border-bottom: 1px solid #f1f5f9; }
+                .amount { text-align: right; font-weight: bold; font-family: monospace; font-size: 14px; }
+                
+                .total-section { text-align: right; }
+                .total-label { font-size: 10px; text-transform: uppercase; color: #64748b; margin-bottom: 5px; }
+                .total-price { font-size: 32px; font-weight: 900; color: #ec4899; }
+                
+                .footer { margin-top: 80px; border-top: 1px solid #e2e8f0; padding-top: 20px; display: flex; justify-content: space-between; font-size: 10px; color: #94a3b8; }
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <div class="brand">
+                    <h1>Only<span>One</span></h1>
+                    <p>Catering & Events by Arume</p>
+                </div>
+                <div class="meta">
+                    <p>PRESUPUESTO #PRE-${e.date.replace(/-/g,'').slice(2)}</p>
+                    <p>Fecha: <strong>${getISO()}</strong></p>
+                </div>
+            </div>
+
+            <div class="client-box">
+                <h3>Preparado para:</h3>
+                <div class="name">${clean(e.n)}</div>
+                <div>Fecha del evento: ${e.date}</div>
+            </div>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th width="70%">Concepto</th>
+                        <th width="30%" style="text-align: right">Importe</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>
+                            <strong>${clean(detail)}</strong><br>
+                            <span style="font-size: 12px; color: #64748b; margin-top:5px; display:block">
+                                Modalidad: ${e.type}
+                            </span>
+                        </td>
+                        <td class="amount">${Num.fmt(e.total)}€</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="total-section">
+                <div class="total-label">Total Presupuesto</div>
+                <div class="total-price">${Num.fmt(e.total)}€</div>
+            </div>
+
+            <div class="footer">
+                <div>
+                    <strong>Términos:</strong> Validez de 15 días. 50% pago por adelantado para reserva.
+                </div>
+                <div>
+                    OnlyOne Events · Arume
+                </div>
+            </div>
+            
+            <script>
+                // Abrir diálogo de imprimir automáticamente
+                setTimeout(() => { window.print(); }, 500);
+            </script>
+        </body>
+        </html>
+    `);
+    win.document.close();
 }
 </script> 
 </body>
