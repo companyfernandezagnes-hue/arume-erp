@@ -1374,6 +1374,395 @@ function commitSales() {
         toast("No has introducido cantidades", "error");
     }
 }
+
+/* =============================================================
+   ⚠️ 11.5 MÓDULO EVENTOS (ONLYONE) ⚠️
+   ============================================================= */
+
+// Variable global para mantener el ID del evento en edición
+let currentEventId = null;
+
+function renderEventos(c) {
+    if (!db.eventos) db.eventos = [];
+    
+    // Filtrar eventos del periodo actual
+    const eventosPeriodo = db.eventos.filter(e => isInPeriod(e.date));
+    
+    // Calcular totales para "Caja Negra"
+    const totalIngresos = eventosPeriodo.reduce((acc, e) => acc + (Num.parse(e.ingreso) || 0), 0);
+    const totalPersonalExtra = eventosPeriodo.reduce((acc, e) => acc + (Num.parse(e.personalExtra) || 0), 0);
+    
+    // Filtrar albaranes de OnlyOne en el periodo
+    const albaranesOnlyOne = db.albaranes.filter(a => a.socio === 'OnlyOne' && isInPeriod(a.date));
+    const totalAlbaranesOnlyOne = albaranesOnlyOne.reduce((acc, a) => acc + (a.total || 0), 0);
+    
+    // CAJA NEGRA = Ingresos - Albaranes OnlyOne - Personal Extra
+    const cajaNegra = totalIngresos - totalAlbaranesOnlyOne - totalPersonalExtra;
+    
+    // HTML del formulario de eventos
+    const formHTML = `
+    <div class="glass-card border-l-4 border-pink-500">
+        <h3 class="font-bold text-slate-700 text-sm mb-4 uppercase">Nuevo / Editar Evento</h3>
+        
+        <div class="grid grid-cols-2 gap-2 mb-3">
+            <div>
+                <label>Fecha</label>
+                <input type="date" id="evt-date" value="${getISO()}" class="input-premium">
+            </div>
+            <div>
+                <label>Tipo de Evento</label>
+                <select id="evt-tipo" class="input-premium">
+                    <option value="Boda">💒 Boda</option>
+                    <option value="Comunión">⛪ Comunión</option>
+                    <option value="Bautizo">👶 Bautizo</option>
+                    <option value="Cumpleaños">🎂 Cumpleaños</option>
+                    <option value="Empresa">🏢 Evento Empresa</option>
+                    <option value="Otro">📅 Otro</option>
+                </select>
+            </div>
+        </div>
+        
+        <div class="mb-3">
+            <label>Título / Nombre del Evento</label>
+            <input id="evt-title" class="input-premium" placeholder="Ej: Boda de Juan y María">
+        </div>
+        
+        <div class="grid grid-cols-2 gap-2 mb-3">
+            <div>
+                <label>Ingreso Total (€)</label>
+                <input type="number" id="evt-ingreso" class="input-premium text-center font-bold text-emerald-700" placeholder="0.00" step="0.01">
+            </div>
+            <div>
+                <label>Personal Extra (€)</label>
+                <input type="number" id="evt-personal" class="input-premium text-center font-bold text-orange-600" placeholder="0.00" step="0.01">
+            </div>
+        </div>
+        
+        <div class="mb-3">
+            <label>Notas / Observaciones</label>
+            <textarea id="evt-notes" class="input-premium" rows="2" placeholder="Detalles del evento..."></textarea>
+        </div>
+        
+        <div class="flex gap-2">
+            <button class="btn-premium btn-action flex-1" onclick="saveEvent()">💾 GUARDAR EVENTO</button>
+            <button class="btn-ghost" onclick="clearEventForm()">🔄 LIMPIAR</button>
+        </div>
+    </div>`;
+    
+    // HTML de la Caja Negra
+    const cajaNegraHTML = `
+    <div class="glass-card bg-gradient-to-br from-slate-900 to-slate-800 text-white mb-6 border-none shadow-2xl">
+        <h3 class="text-[10px] uppercase font-bold opacity-70 mb-2 tracking-[0.2em]">💰 CAJA NEGRA ONLYONE</h3>
+        <div class="text-4xl font-black mb-4 ${cajaNegra >= 0 ? 'text-emerald-400' : 'text-red-400'}">${Num.fmt(cajaNegra)}€</div>
+        
+        <div class="grid grid-cols-3 gap-3 pt-4 border-t border-white/10">
+            <div class="text-center">
+                <div class="text-[9px] opacity-60 uppercase tracking-widest mb-1">Ingresos</div>
+                <div class="font-bold text-emerald-300">+${Num.fmt(totalIngresos)}€</div>
+            </div>
+            <div class="text-center">
+                <div class="text-[9px] opacity-60 uppercase tracking-widest mb-1">Compras</div>
+                <div class="font-bold text-red-300">-${Num.fmt(totalAlbaranesOnlyOne)}€</div>
+            </div>
+            <div class="text-center">
+                <div class="text-[9px] opacity-60 uppercase tracking-widest mb-1">Personal</div>
+                <div class="font-bold text-orange-300">-${Num.fmt(totalPersonalExtra)}€</div>
+            </div>
+        </div>
+    </div>`;
+    
+    // HTML de la lista de eventos
+    const eventosListHTML = eventosPeriodo.length > 0 ? eventosPeriodo
+        .sort((a, b) => b.date.localeCompare(a.date))
+        .map(e => `
+            <div class="bg-white p-4 rounded-xl shadow-sm mb-3 border border-slate-100 hover:shadow-md transition">
+                <div class="flex justify-between items-start mb-2">
+                    <div class="flex-1">
+                        <div class="flex items-center gap-2 mb-1">
+                            <span class="text-lg">${getTipoIcon(e.tipo)}</span>
+                            <h4 class="font-bold text-slate-800">${clean(e.title || 'Sin título')}</h4>
+                        </div>
+                        <div class="text-xs text-slate-500 flex gap-3 flex-wrap">
+                            <span>📅 ${e.date}</span>
+                            <span>💼 ${e.tipo || 'Otro'}</span>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <div class="font-black text-emerald-600 text-lg">${Num.fmt(e.ingreso || 0)}€</div>
+                        <div class="text-[10px] text-slate-400">Ingreso</div>
+                    </div>
+                </div>
+                
+                ${e.personalExtra ? `
+                <div class="bg-orange-50 px-3 py-1.5 rounded-lg text-xs mb-2">
+                    <span class="text-orange-600 font-bold">👥 Personal Extra:</span>
+                    <span class="font-black text-orange-700">${Num.fmt(e.personalExtra)}€</span>
+                </div>` : ''}
+                
+                ${e.notes ? `
+                <div class="bg-slate-50 px-3 py-2 rounded-lg text-xs text-slate-600 mb-2 italic">
+                    "${clean(e.notes)}"
+                </div>` : ''}
+                
+                <div class="flex gap-2 items-center justify-between mt-3 pt-3 border-t border-slate-100">
+                    <div class="flex gap-1">
+                        <button class="btn-icon btn-edit text-xs" onclick="editEvent('${e.id}')" title="Editar">✏️</button>
+                        <button class="btn-icon btn-delete text-xs" onclick="deleteEvent('${e.id}')" title="Eliminar">🗑️</button>
+                        <button class="btn-icon btn-log text-xs" onclick="openEventCalendar('${e.id}')" title="Google Calendar">📅</button>
+                    </div>
+                    <div class="flex gap-1">
+                        <button class="btn-ghost text-[10px] px-2 py-1" onclick="printEventBudget('${e.id}')">🖨️ IMPRIMIR</button>
+                        <span class="text-[10px] bg-indigo-50 text-indigo-600 px-2 py-1 rounded font-bold">
+                            Alb: ${Num.fmt(sumAlbaranesForEvent(e.date))}€
+                        </span>
+                    </div>
+                </div>
+            </div>
+        `).join('') 
+        : '<div class="text-center p-8 text-slate-400 border-2 border-dashed rounded-xl">Sin eventos este periodo</div>';
+    
+    // HTML de albaranes OnlyOne
+    const albaranesHTML = `
+    <div class="glass-card">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="font-bold text-slate-800 flex items-center gap-2">
+                <span>🍸</span>
+                <span>COMPRAS ONLYONE</span>
+            </h3>
+            <div class="bg-slate-100 px-3 py-1 rounded-lg">
+                <span class="text-[9px] text-slate-400 uppercase font-bold">Total</span>
+                <span class="font-bold text-slate-700 ml-1">${Num.fmt(totalAlbaranesOnlyOne)}€</span>
+            </div>
+        </div>
+        
+        <div class="space-y-2 max-h-60 overflow-y-auto custom-scrollbar">
+            ${albaranesOnlyOne.length > 0 ? albaranesOnlyOne
+                .sort((a, b) => b.date.localeCompare(a.date))
+                .map(a => `
+                    <div class="bg-white p-3 rounded-lg border border-slate-100 flex justify-between items-center hover:bg-slate-50 transition">
+                        <div>
+                            <div class="font-bold text-sm text-slate-700">${clean(a.prov)}</div>
+                            <div class="text-[10px] text-slate-400">
+                                <span>📅 ${a.date}</span>
+                                ${a.num ? `<span class="ml-2">Ref: ${a.num}</span>` : ''}
+                            </div>
+                        </div>
+                        <div class="font-bold text-slate-800">${Num.fmt(a.total)}€</div>
+                    </div>
+                `).join('')
+                : '<div class="text-center text-slate-400 text-xs py-4">Sin compras OnlyOne este periodo</div>'}
+        </div>
+    </div>`;
+    
+    // Renderizado final
+    c.innerHTML = `
+        ${cajaNegraHTML}
+        ${formHTML}
+        
+        <div class="glass-card mt-6">
+            <h3 class="font-bold text-slate-800 mb-4 uppercase text-sm tracking-wide">📋 EVENTOS REGISTRADOS</h3>
+            ${eventosListHTML}
+        </div>
+        
+        ${albaranesHTML}
+    `;
+}
+
+// Función auxiliar para obtener el icono del tipo de evento
+function getTipoIcon(tipo) {
+    const icons = {
+        'Boda': '💒',
+        'Comunión': '⛪',
+        'Bautizo': '👶',
+        'Cumpleaños': '🎂',
+        'Empresa': '🏢',
+        'Otro': '📅'
+    };
+    return icons[tipo] || '📅';
+}
+
+// Guardar evento (nuevo o edición)
+window.saveEvent = function() {
+    const date = document.getElementById('evt-date').value;
+    const tipo = document.getElementById('evt-tipo').value;
+    const title = document.getElementById('evt-title').value.trim();
+    const ingreso = Num.parse(document.getElementById('evt-ingreso').value);
+    const personalExtra = Num.parse(document.getElementById('evt-personal').value);
+    const notes = document.getElementById('evt-notes').value.trim();
+    
+    if (!date || !title) {
+        return toast("Faltan datos obligatorios", "error");
+    }
+    
+    const evento = {
+        id: currentEventId || generateID(),
+        date: date,
+        tipo: tipo,
+        title: title,
+        ingreso: ingreso,
+        personalExtra: personalExtra,
+        notes: notes,
+        created: currentEventId ? (db.eventos.find(e => e.id === currentEventId)?.created || getTS()) : getTS()
+    };
+    
+    const idx = db.eventos.findIndex(e => e.id === evento.id);
+    if (idx >= 0) {
+        db.eventos[idx] = evento;
+    } else {
+        db.eventos.push(evento);
+    }
+    
+    save("Evento guardado ✅");
+    clearEventForm();
+    renderAdmin(document.getElementById('app'));
+};
+
+// Editar evento existente
+window.editEvent = function(id) {
+    const evento = db.eventos.find(e => e.id === id);
+    if (!evento) return toast("Evento no encontrado", "error");
+    
+    currentEventId = id;
+    document.getElementById('evt-date').value = evento.date || getISO();
+    document.getElementById('evt-tipo').value = evento.tipo || 'Otro';
+    document.getElementById('evt-title').value = evento.title || '';
+    document.getElementById('evt-ingreso').value = evento.ingreso || '';
+    document.getElementById('evt-personal').value = evento.personalExtra || '';
+    document.getElementById('evt-notes').value = evento.notes || '';
+    
+    // Hacer scroll al formulario
+    document.getElementById('evt-title').focus();
+    document.getElementById('evt-title').scrollIntoView({ behavior: 'smooth', block: 'center' });
+};
+
+// Eliminar evento
+window.deleteEvent = function(id) {
+    if (confirm("¿Eliminar este evento?")) {
+        db.eventos = db.eventos.filter(e => e.id !== id);
+        save("Evento eliminado");
+        renderAdmin(document.getElementById('app'));
+    }
+};
+
+// Limpiar formulario
+window.clearEventForm = function() {
+    currentEventId = null;
+    document.getElementById('evt-date').value = getISO();
+    document.getElementById('evt-tipo').value = 'Boda';
+    document.getElementById('evt-title').value = '';
+    document.getElementById('evt-ingreso').value = '';
+    document.getElementById('evt-personal').value = '';
+    document.getElementById('evt-notes').value = '';
+};
+
+// Imprimir presupuesto del evento
+window.printEventBudget = function(id) {
+    const evento = db.eventos.find(e => e.id === id);
+    if (!evento) return toast("Evento no encontrado", "error");
+    
+    const albaranesEvento = db.albaranes.filter(a => 
+        a.socio === 'OnlyOne' && a.date === evento.date
+    );
+    const totalAlbaranes = albaranesEvento.reduce((acc, a) => acc + (a.total || 0), 0);
+    const beneficio = (evento.ingreso || 0) - totalAlbaranes - (evento.personalExtra || 0);
+    
+    const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <title>Presupuesto Evento - ${clean(evento.title)}</title>
+        <style>
+            body { font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
+            h1 { text-align: center; border-bottom: 2px solid #000; padding-bottom: 10px; }
+            .info { margin: 20px 0; }
+            .info-row { display: flex; justify-content: space-between; padding: 5px 0; }
+            .info-row.bold { font-weight: bold; font-size: 1.2em; border-top: 2px solid #000; margin-top: 10px; padding-top: 10px; }
+            table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+            th { background-color: #f2f2f2; }
+            .total { text-align: right; font-weight: bold; }
+        </style>
+    </head>
+    <body>
+        <h1>PRESUPUESTO EVENTO</h1>
+        <div class="info">
+            <div class="info-row"><span>Evento:</span><span><strong>${clean(evento.title)}</strong></span></div>
+            <div class="info-row"><span>Tipo:</span><span>${evento.tipo || 'Otro'}</span></div>
+            <div class="info-row"><span>Fecha:</span><span>${evento.date}</span></div>
+        </div>
+        
+        <h2>Detalle Económico</h2>
+        <table>
+            <tr>
+                <th>Concepto</th>
+                <th style="text-align: right;">Importe</th>
+            </tr>
+            <tr>
+                <td>Ingreso Total</td>
+                <td class="total">${Num.fmt(evento.ingreso || 0)}€</td>
+            </tr>
+            <tr>
+                <td>Compras (Albaranes OnlyOne)</td>
+                <td class="total">-${Num.fmt(totalAlbaranes)}€</td>
+            </tr>
+            <tr>
+                <td>Personal Extra</td>
+                <td class="total">-${Num.fmt(evento.personalExtra || 0)}€</td>
+            </tr>
+            <tr style="background-color: #f9f9f9;">
+                <td><strong>BENEFICIO NETO</strong></td>
+                <td class="total"><strong>${Num.fmt(beneficio)}€</strong></td>
+            </tr>
+        </table>
+        
+        ${evento.notes ? `
+        <div class="info">
+            <h3>Observaciones</h3>
+            <p>${clean(evento.notes)}</p>
+        </div>` : ''}
+        
+        <p style="text-align: center; margin-top: 40px; font-size: 0.9em; color: #666;">
+            Generado el ${new Date().toLocaleString('es-ES')} por ARUME ERP
+        </p>
+    </body>
+    </html>`;
+    
+    const win = window.open('', '_blank');
+    win.document.write(html);
+    win.document.close();
+    setTimeout(() => win.print(), 250);
+};
+
+// Abrir Google Calendar con el evento
+window.openEventCalendar = function(id) {
+    const evento = db.eventos.find(e => e.id === id);
+    if (!evento) return toast("Evento no encontrado", "error");
+    
+    // Formato de fecha para Google Calendar (YYYYMMDDTHHmmss)
+    const startDate = evento.date.replace(/-/g, '') + 'T100000';
+    const endDate = evento.date.replace(/-/g, '') + 'T220000';
+    
+    const title = encodeURIComponent(evento.title || 'Evento');
+    const details = encodeURIComponent(`${evento.tipo || 'Evento'}\n\nIngreso: ${Num.fmt(evento.ingreso || 0)}€\nPersonal Extra: ${Num.fmt(evento.personalExtra || 0)}€\n\n${evento.notes || ''}`);
+    const location = encodeURIComponent('ARUME');
+    
+    const url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${startDate}/${endDate}&details=${details}&location=${location}`;
+    
+    window.open(url, '_blank');
+};
+
+// Sumar albaranes que coincidan con la fecha del evento
+window.sumAlbaranesForEvent = function(dateStr) {
+    if (!dateStr || !db.albaranes) return 0;
+    
+    const albaranes = db.albaranes.filter(a => 
+        a.socio === 'OnlyOne' && a.date === dateStr
+    );
+    
+    return albaranes.reduce((acc, a) => acc + (a.total || 0), 0);
+};
+
 /* =============================================================
    ⚠️ 12. MÓDULO COCINA PRO (RECETAS, ESCANDALLOS Y FICHA TÉCNICA) ⚠️
    ============================================================= */
