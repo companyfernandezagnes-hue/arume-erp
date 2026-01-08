@@ -959,39 +959,40 @@ function parseAlb() {
         }
     }, 10);
 }
-/* --- AUXILIAR: DETECTIVE DE PATRONES (Soporte Formato Extendido) --- */
+/* --- AUXILIAR: DETECTIVE DE PATRONES V3.2 (Definitivo: Negativos + Limpieza) --- */
 function detectLinePattern(line) {
-    // A. Extracción de TODOS los números de la línea
-    const numbers = line.match(/(\d+[.,]\d+|\d+)/g);
+    // 1. REGEX MEJORADO: Detecta positivos (10.50) y negativos (-2.00)
+    const numbers = line.match(/(-?\d+[.,]\d+|-?\d+)/g);
     
-    // CASO PRO: Formato Tabular Completo (Tu ejemplo)
-    // Estructura: NOMBRE [UNIDAD] CANTIDAD PRECIO DTO IVA
-    // Ejemplo: CEBOLLINO UD 1 2.54 0 10
-    // Lógica: Si encontramos 4 números al final, es este formato.
+    // CASO A: Formato Tabular Completo (Tu Prompt IA: NOMBRE | UNIDAD | Q | P | D | T)
+    // Se activa si detecta al menos 4 bloques numéricos
     if (numbers && numbers.length >= 4) {
         const nLen = numbers.length;
-        // Asignamos de atrás hacia adelante para mayor seguridad
-        const valTax = Num.parse(numbers[nLen - 1]); // Último: IVA (10)
-        const valDto = Num.parse(numbers[nLen - 2]); // Penúltimo: Dto (0)
-        const valPrice = Num.parse(numbers[nLen - 3]); // Antepenúltimo: Precio (2.54)
-        const valQty = Num.parse(numbers[nLen - 4]); // Cuarto por el final: Cantidad (1)
+        
+        // Mapeo inverso (de atrás hacia adelante es más seguro)
+        const valTax = Num.parse(numbers[nLen - 1]);   // Último: IVA
+        const valDto = Num.parse(numbers[nLen - 2]);   // Penúltimo: Descuento
+        const valPrice = Num.parse(numbers[nLen - 3]); // Antepenúltimo: Precio
+        const valQty = Num.parse(numbers[nLen - 4]);   // Cuarto por el final: Cantidad
 
-        // Limpiamos el nombre quitando esos 4 números
+        // Limpieza del nombre: Quitamos esos números específicos de la cadena
         let namePart = line;
         [numbers[nLen-1], numbers[nLen-2], numbers[nLen-3], numbers[nLen-4]].forEach(n => {
             namePart = namePart.replace(n, '');
         });
         
-        // Detectar unidad en el nombre sobrante
+        // Detectar y extraer unidad (KG, L, BARRIL...)
         let unit = 'ud';
-        const unitMatch = namePart.match(/\b(kg|kilo|gr|g|l|litro|ml|cl|oz|lb|caja|pack|botella|uds|ud|unid)\b/i);
+        // Añadido 'barril', 'lata', 'botella' a la lista de detección
+        const unitMatch = namePart.match(/\b(kg|kilo|gr|g|l|litro|ml|cl|oz|lb|caja|pack|botella|uds|ud|unid|barril|lata)\b/i);
         if (unitMatch) {
             unit = UnitConverter.normalize(unitMatch[0]);
-            namePart = namePart.replace(unitMatch[0], ''); // Quitar unidad del nombre
+            namePart = namePart.replace(unitMatch[0], ''); // Quitamos la unidad del nombre para que quede limpio
         }
 
         return { 
-            name: namePart.replace(/^\W+|\W+$/g, '').trim(), // Limpiar símbolos sobrantes
+            // Limpieza final: quita puntuación rara y espacios dobles
+            name: namePart.replace(/[^\w\sñÑáéíóúÁÉÍÓÚ+-]/g, '').replace(/\s{2,}/g, ' ').trim(),
             q: valQty, 
             p: valPrice, 
             d: valDto, 
@@ -1000,33 +1001,39 @@ function detectLinePattern(line) {
         };
     }
 
-    // B. Caso "N x Producto" (Ej: "3 x Solomillo")
-    const multiplier = line.match(/^(\d+([.,]\d+)?)\s*[xX*]\s+(.+)/);
+    // CASO B: Formato Multiplicador "N x Producto" (Notas manuales)
+    const multiplier = line.match(/^(-?\d+([.,]\d+)?)\s*[xX*]\s+(.+)/);
     if (multiplier) {
-        return { q: Num.parse(multiplier[1]), p: 0, d: 0, t: null, name: multiplier[3].trim(), unit: 'ud' };
+        return { 
+            q: Num.parse(multiplier[1]), 
+            p: 0, d: 0, t: null, 
+            name: multiplier[3].trim(), 
+            unit: 'ud' 
+        };
     }
 
-    // C. Formato Simple (Solo Cantidad y Precio, o solo Cantidad)
+    // CASO C: Formato Simple (Solo Cantidad y Precio)
+    // Fallback por si la IA se salta columnas
     if (numbers && numbers.length >= 1) {
         let name = line;
         numbers.forEach(n => name = name.replace(n, ''));
         
         let detectedUnit = 'ud';
-        const unitMatch = line.match(/\b(kg|kilo|gr|g|l|litro|ml|cl|oz|lb|caja|pack|botella|uds|ud|unid)\b/i);
+        const unitMatch = line.match(/\b(kg|kilo|gr|g|l|litro|ml|cl|oz|lb|caja|pack|botella|uds|ud|unid|barril)\b/i);
         if (unitMatch) detectedUnit = UnitConverter.normalize(unitMatch[0]);
 
         let q = Num.parse(numbers[0]);
         let p = 0;
         
-        // Si hay al menos 2 números y NO encajó en el formato PRO de arriba, 
-        // asumimos formato simple: Cantidad ... Precio
         if (numbers.length >= 2) {
-             // A veces el último es el total, penúltimo precio. 
-             // Simplificación: Segundo número es precio.
              p = Num.parse(numbers[1]);
         }
 
-        return { q, p, d: 0, t: null, name: name.replace(/^\W+|\W+$/g, '').trim(), unit: detectedUnit };
+        return { 
+            q, p, d: 0, t: null, 
+            name: name.replace(/[^\w\sñÑáéíóúÁÉÍÓÚ]/g, '').replace(/\s{2,}/g, ' ').trim(), 
+            unit: detectedUnit 
+        };
     }
 
     return null;
