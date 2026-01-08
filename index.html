@@ -875,14 +875,12 @@ function checkDuplicate() {
 /* =============================================================
    ⚠️ MOTOR INTELIGENTE V3.0 (Anti-Bloqueo & Stock Safe) ⚠️
    ============================================================= */
-
 function parseAlb() {
     const txtInput = document.getElementById('alb-input');
     const txt = txtInput.value;
     
     if (!txt.trim()) return toast("⚠️ El área de texto está vacía", "error");
 
-    // Prevenir bloqueo: Si es muy largo, mostramos loading
     if (txt.length > 5000) loading(true);
 
     setTimeout(() => {
@@ -891,60 +889,52 @@ function parseAlb() {
             let count = 0;
             let warnings = 0;
 
-            // Cache de ingredientes para búsqueda rápida (Optimización de rendimiento)
             const ingMap = db.ingredientes.map(i => ({
-                id: i.id,
-                n: i.n.toLowerCase(),
-                unit: i.unit,
-                cost: i.cost,
-                tax: 10, // Default si no tiene
-                ref: i
+                id: i.id, n: i.n.toLowerCase(), unit: i.unit, cost: i.cost, tax: 10, ref: i
             }));
 
             lines.forEach(rawLine => {
-                // 1. Limpieza Quirúrgica
+                // 1. Limpieza (Mantenemos puntos decimales y quitamos monedas)
                 let cleanLine = rawLine.replace(/[€$£"]/g, '').replace(/\s{2,}/g, ' ').trim();
-                
-                // Si la línea no tiene números, es basura -> Saltar
                 if (!/\d/.test(cleanLine)) return;
 
                 // 2. Detección de Patrones
                 const result = detectLinePattern(cleanLine);
 
                 if (result) {
-                    // 3. Vinculación Inteligente (Matching)
                     const match = findBestMatchOptimized(result.name, ingMap);
                     
                     let finalUnit = result.unit;
                     let finalQty = result.q;
-                    let status = 'new'; // 'new', 'linked', 'conflict'
-                    let finalTax = guessTax(result.name); // Intentamos adivinar IVA
+                    let status = 'new';
+                    
+                    // Prioridad de IVA: 1. El que viene en el texto, 2. El del stock, 3. Adivinado
+                    let finalTax = result.t !== null ? result.t : guessTax(result.name); 
 
                     if (match) {
                         status = 'linked';
-                        finalTax = match.ref.tax || finalTax; 
+                        // Si el texto NO traía IVA, usamos el del stock. Si traía (ej: 10), respetamos el del texto.
+                        if (result.t === null) finalTax = match.ref.tax || finalTax;
 
-                        // --- LÓGICA CRÍTICA DE STOCK ---
-                        // Intentamos convertir unidades automáticamente
                         if (match.unit !== finalUnit) {
                             const converted = tryConvertUnits(finalQty, finalUnit, match.unit);
                             if (converted !== null) {
                                 finalQty = converted;
-                                finalUnit = match.unit; // Unificamos a la unidad de stock
+                                finalUnit = match.unit;
                             } else {
-                                status = 'conflict'; // Unidades incompatibles (ej: Ud vs Kg)
+                                status = 'conflict';
                             }
                         }
                     }
 
                     tempItems.push({
-                        n: match ? match.ref.n : result.name, // Nombre normalizado
+                        n: match ? match.ref.n : result.name,
                         q: parseFloat(finalQty) || 0,
                         p: parseFloat(result.p) || 0,
                         unit: finalUnit,
-                        d: 0,
-                        tax: finalTax,
-                        status: status, // Para pintar colores
+                        d: parseFloat(result.d) || 0, // AHORA LEE EL DESCUENTO
+                        tax: parseFloat(finalTax),    // AHORA LEE EL IVA EXACTO
+                        status: status,
                         originalUnit: result.unit 
                     });
                     count++;
@@ -953,71 +943,94 @@ function parseAlb() {
                 }
             });
 
-            // Finalización
             if (count > 0) {
                 txtInput.value = '';
                 renderAlbGrid();
-                let msg = `✅ ${count} líneas leídas correctamente.`;
-                if (warnings > 0) msg += ` Omitidas ${warnings} líneas sin datos claros.`;
-                toast(msg, "success");
+                toast(`✅ ${count} líneas importadas perfectamente.`, "success");
             } else {
-                toast("❌ No pude entender el texto. Asegúrate de copiar Nombre y Cantidad.", "error");
+                toast("❌ No pude entender el formato.", "error");
             }
 
         } catch (e) {
             console.error(e);
-            toast("⚠️ Error interno al leer texto. Revisa el formato.", "error");
+            toast("⚠️ Error interno.", "error");
         } finally {
             loading(false); 
         }
-    }, 10); // Pequeño delay para que la UI respire
+    }, 10);
 }
-
-/* --- AUXILIAR: DETECTIVE DE PATRONES (REGEX MEJORADO) --- */
+/* --- AUXILIAR: DETECTIVE DE PATRONES (Soporte Formato Extendido) --- */
 function detectLinePattern(line) {
-    // A. Caso "N x Producto" (Ej: "3 x Solomillo")
-    const multiplier = line.match(/^(\d+([.,]\d+)?)\s*[xX*]\s+(.+)/);
-    if (multiplier) {
-        return { q: Num.parse(multiplier[1]), p: 0, name: multiplier[3].trim(), unit: 'ud' };
-    }
-
-    // B. Extracción General
+    // A. Extracción de TODOS los números de la línea
     const numbers = line.match(/(\d+[.,]\d+|\d+)/g);
     
+    // CASO PRO: Formato Tabular Completo (Tu ejemplo)
+    // Estructura: NOMBRE [UNIDAD] CANTIDAD PRECIO DTO IVA
+    // Ejemplo: CEBOLLINO UD 1 2.54 0 10
+    // Lógica: Si encontramos 4 números al final, es este formato.
+    if (numbers && numbers.length >= 4) {
+        const nLen = numbers.length;
+        // Asignamos de atrás hacia adelante para mayor seguridad
+        const valTax = Num.parse(numbers[nLen - 1]); // Último: IVA (10)
+        const valDto = Num.parse(numbers[nLen - 2]); // Penúltimo: Dto (0)
+        const valPrice = Num.parse(numbers[nLen - 3]); // Antepenúltimo: Precio (2.54)
+        const valQty = Num.parse(numbers[nLen - 4]); // Cuarto por el final: Cantidad (1)
+
+        // Limpiamos el nombre quitando esos 4 números
+        let namePart = line;
+        [numbers[nLen-1], numbers[nLen-2], numbers[nLen-3], numbers[nLen-4]].forEach(n => {
+            namePart = namePart.replace(n, '');
+        });
+        
+        // Detectar unidad en el nombre sobrante
+        let unit = 'ud';
+        const unitMatch = namePart.match(/\b(kg|kilo|gr|g|l|litro|ml|cl|oz|lb|caja|pack|botella|uds|ud|unid)\b/i);
+        if (unitMatch) {
+            unit = UnitConverter.normalize(unitMatch[0]);
+            namePart = namePart.replace(unitMatch[0], ''); // Quitar unidad del nombre
+        }
+
+        return { 
+            name: namePart.replace(/^\W+|\W+$/g, '').trim(), // Limpiar símbolos sobrantes
+            q: valQty, 
+            p: valPrice, 
+            d: valDto, 
+            t: valTax,
+            unit: unit 
+        };
+    }
+
+    // B. Caso "N x Producto" (Ej: "3 x Solomillo")
+    const multiplier = line.match(/^(\d+([.,]\d+)?)\s*[xX*]\s+(.+)/);
+    if (multiplier) {
+        return { q: Num.parse(multiplier[1]), p: 0, d: 0, t: null, name: multiplier[3].trim(), unit: 'ud' };
+    }
+
+    // C. Formato Simple (Solo Cantidad y Precio, o solo Cantidad)
     if (numbers && numbers.length >= 1) {
         let name = line;
         numbers.forEach(n => name = name.replace(n, ''));
-        name = name.replace(/[,.]\s*$/, '').trim(); 
-
-        // Detectar unidad en el texto
+        
         let detectedUnit = 'ud';
         const unitMatch = line.match(/\b(kg|kilo|gr|g|l|litro|ml|cl|oz|lb|caja|pack|botella|uds|ud|unid)\b/i);
         if (unitMatch) detectedUnit = UnitConverter.normalize(unitMatch[0]);
 
-        let q = 0, p = 0;
-
-        // HEURÍSTICA DE ASIGNACIÓN
-        if (numbers.length === 1) {
-            q = Num.parse(numbers[0]);
-        } else {
-            const n1 = Num.parse(numbers[0]); 
-            const nLast = Num.parse(numbers[numbers.length - 1]); 
-            const nPrev = Num.parse(numbers[numbers.length - 2]); 
-
-            q = n1; 
-            
-            if (numbers.length >= 3) {
-                 p = nPrev;
-            } else {
-                 p = nLast;
-            }
+        let q = Num.parse(numbers[0]);
+        let p = 0;
+        
+        // Si hay al menos 2 números y NO encajó en el formato PRO de arriba, 
+        // asumimos formato simple: Cantidad ... Precio
+        if (numbers.length >= 2) {
+             // A veces el último es el total, penúltimo precio. 
+             // Simplificación: Segundo número es precio.
+             p = Num.parse(numbers[1]);
         }
 
-        return { q, p, name: name.replace(/^\W+|\W+$/g, ''), unit: detectedUnit };
+        return { q, p, d: 0, t: null, name: name.replace(/^\W+|\W+$/g, '').trim(), unit: detectedUnit };
     }
+
     return null;
 }
-
 /* --- AUXILIAR: BUSCADOR OPTIMIZADO --- */
 function findBestMatchOptimized(txt, map) {
     if (!txt || txt.length < 2) return null;
