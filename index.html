@@ -2287,11 +2287,14 @@ function renderDiario(app) {
     
     ${htmlHist}`;
 }
-
 function calcZ() {
+    // 1. Obtenemos el efectivo ingresado
     const c = parseFloat(document.getElementById('z-c').value) || 0;
     
-    // Nuevos campos de tarjeta
+    // 2. IMPORTANTE: Obtenemos el gasto para restarlo
+    const e = parseFloat(document.getElementById('z-e').value) || 0;
+    
+    // 3. Obtenemos resto de métodos de pago
     const tpv = parseFloat(document.getElementById('z-tpv').value) || 0;
     const madisa = parseFloat(document.getElementById('z-madisa').value) || 0;
     const amex = parseFloat(document.getElementById('z-amex').value) || 0;
@@ -2300,46 +2303,49 @@ function calcZ() {
     const glovo = parseFloat(document.getElementById('z-glovo').value) || 0;
     const app = parseFloat(document.getElementById('z-app').value) || 0;
     
-    // Total sumando todo
-    const total = c + tpv + madisa + amex + uber + glovo + app;
+    // 4. FÓRMULA CORREGIDA: (Ingresos) - Gastos
+    // Sumamos todo lo que entra y restamos 'e' (gastos)
+    const total = (c + tpv + madisa + amex + uber + glovo + app) - e;
+    
     document.getElementById('z-t').innerText = Num.fmt(total) + '€';
 }
 
 function saveZ() {
     const c = parseFloat(document.getElementById('z-c').value) || 0;
+    // Aquí también leemos el gasto para el cálculo final
+    const e = parseFloat(document.getElementById('z-e').value) || 0;
     
     const tpv = parseFloat(document.getElementById('z-tpv').value) || 0;
     const madisa = parseFloat(document.getElementById('z-madisa').value) || 0;
     const amex = parseFloat(document.getElementById('z-amex').value) || 0;
     
-    const e = parseFloat(document.getElementById('z-e').value) || 0;
     const uber = parseFloat(document.getElementById('z-uber').value) || 0;
     const glovo = parseFloat(document.getElementById('z-glovo').value) || 0;
     const app = parseFloat(document.getElementById('z-app').value) || 0;
 
-    const total = c + tpv + madisa + amex + uber + glovo + app;
+    // FÓRMULA CORREGIDA TAMBIÉN AL GUARDAR
+    const total = (c + tpv + madisa + amex + uber + glovo + app) - e;
 
     const data = { 
         date: currentDiarioDate, 
         cash: c, 
         tpv: tpv,        
         madisa: madisa, 
-        amex: amex,     
-        visa: tpv + madisa + amex, // Compatibilidad
+        amex: amex,      
+        visa: tpv + madisa + amex, // Compatibilidad con versiones viejas
         uber: uber, 
         glovo: glovo, 
         app: app, 
         expenses: e, 
-        total: total 
+        total: total // Guardamos el total ya restado
     };
     
     const idx = db.diario.findIndex(d => d.date === currentDiarioDate);
     if (idx >= 0) db.diario[idx] = data; else db.diario.push(data);
     
-    save("Cierre Desglosado Guardado ✅"); 
+    save("Cierre Desglosado Guardado (Gastos restados) ✅"); 
     render('Diario');
 }
-
 function downloadDiarioCSV(monthIndex, monthName) {
     const list = db.diario.filter(d => {
         if (!isInPeriod(d.date)) return false; 
