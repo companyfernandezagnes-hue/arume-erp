@@ -577,51 +577,68 @@ function getStockAlerts() {
     </div>`;
 }
 
+/* =============================================================
+   ⚠️ DASHBOARD CEO "DIAMOND" V4.0 (Analytics & KPIs Reales) ⚠️
+   ============================================================= */
+
 function renderAdmin(app) {
-    // === 🛡️ 1. PROTECCIÓN ANTI-CAÍDA ===
-    if (!db.gastos_fijos) { db.gastos_fijos = []; save("Sistema actualizado: Estructura creada"); }
+    // 1. DATA SAFEGUARDS
+    if (!db.gastos_fijos) db.gastos_fijos = [];
+    if (!db.eventos) db.eventos = [];
 
-    // === 2. CÁLCULOS FINANCIEROS (BALANCE REAL) ===
-    const ventasCaja = db.diario.filter(d => isInPeriod(d.date)).reduce((a, b) => a + (b.total || 0), 0);
-    const fijosTotal = db.gastos_fijos.filter(g => isInPeriod(g.date)).reduce((a, b) => a + (b.total || 0), 0);
+    // === 2. CÁLCULO DE INGRESOS ===
+    const ventasCaja = db.diario
+        .filter(d => isInPeriod(d.date))
+        .reduce((a, b) => a + (b.total || 0), 0);
 
-    // --- LÓGICA DE SEPARACIÓN: ARUME vs SOCIOS vs ONLYONE ---
-    let comprasArume = 0;
-    const gastosSocios = {}; 
-    let totalSocios = 0;
+    const ingresosEventos = db.eventos
+        .filter(e => isInPeriod(e.date))
+        .reduce((a, b) => a + (Num.parse(e.ingreso) || 0), 0);
 
-    // Filtramos facturas y albaranes
-    const comprasPagadas = db.facturas.filter(f => isInPeriod(f.date) && f.paid).reduce((a, b) => a + (b.total || 0), 0);
+    const totalRevenue = ventasCaja + ingresosEventos;
 
-    // Calculamos el desglose basado en ALBARANES
-    const albsPeriodo = db.albaranes.filter(a => isInPeriod(a.date));
+    // === 3. CÁLCULO DE GASTOS (REALIDAD OPERATIVA) ===
     
-    albsPeriodo.forEach(a => {
-        // Si es OnlyOne, NO es gasto de Arume
-        if (a.socio === 'OnlyOne') {
-            return; 
-        }
-        // Si no tiene socio o es Arume, es gasto del restaurante
-        else if (!a.socio || a.socio === 'Arume') {
-            comprasArume += a.total;
-        } 
-        // Si es otro socio (Jeronimo, etc)
-        else {
-            if (!gastosSocios[a.socio]) gastosSocios[a.socio] = 0;
-            gastosSocios[a.socio] += a.total;
-            totalSocios += a.total;
-        }
+    // A. COMPRAS (Solo Arume)
+    const totalCompras = db.albaranes
+        .filter(a => isInPeriod(a.date) && (!a.socio || a.socio === 'Arume'))
+        .reduce((a, b) => a + (b.total || 0), 0);
+
+    // B. ESTRUCTURA (FIJOS) - Corrección: usa 'amount'
+    const totalFijos = db.gastos_fijos
+        .filter(g => isInPeriod(g.date))
+        .reduce((a, b) => a + (b.amount || 0), 0);
+
+    // C. PERSONAL EXTRA
+    const totalPersonalExtra = db.eventos
+        .filter(e => isInPeriod(e.date))
+        .reduce((a, b) => a + (Num.parse(e.personalExtra) || 0), 0);
+
+    // D. MERMAS
+    const totalMermas = db.mermas
+        .filter(m => isInPeriod(m.date))
+        .reduce((a, b) => a + (m.loss || 0), 0);
+
+    // === 4. KPIs ===
+    const totalGastos = totalCompras + totalFijos + totalPersonalExtra;
+    const netProfit = totalRevenue - totalGastos;
+    const profitMargin = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0;
+    const foodCostPct = totalRevenue > 0 ? (totalCompras / totalRevenue) * 100 : 0;
+    
+    const healthColor = netProfit > 0 ? 'text-emerald-500' : 'text-red-500';
+    const marginColor = profitMargin > 15 ? 'bg-emerald-100 text-emerald-700' : (profitMargin > 0 ? 'bg-orange-100 text-orange-700' : 'bg-red-100 text-red-700');
+    const fcAlert = foodCostPct > 35 ? 'text-red-500 animate-pulse' : 'text-slate-600';
+
+    // Gastos Socios (Aparte)
+    const gastosSocios = {};
+    let totalSocios = 0;
+    db.albaranes.filter(a => isInPeriod(a.date) && a.socio && a.socio !== 'Arume').forEach(a => {
+        if (!gastosSocios[a.socio]) gastosSocios[a.socio] = 0;
+        gastosSocios[a.socio] += a.total;
+        totalSocios += a.total;
     });
 
-    const beneficioNeto = ventasCaja - comprasPagadas - fijosTotal;
-
-    // === 3. CÁLCULO DE MERMAS ===
-    const mermasPeriodo = db.mermas.filter(m => isInPeriod(m.date));
-    const totalMermas = mermasPeriodo.reduce((acc, m) => acc + (m.loss || 0), 0);
-    const mermasPorCausa = {};
-    mermasPeriodo.forEach(m => { mermasPorCausa[m.reason] = (mermasPorCausa[m.reason] || 0) + (m.loss || 0); });
-
-    // === 4. CONTROL DE TRIMESTRES ===
+    // === 5. RENDERIZADO ===
     const qCtrl = `
     <div class="flex items-center justify-between bg-white p-2 rounded-2xl shadow-sm mb-4 border border-slate-100">
         <div class="flex items-center gap-2 bg-slate-100 rounded-lg px-2 py-1">
@@ -631,84 +648,132 @@ function renderAdmin(app) {
         </div>
         <div class="flex gap-1 overflow-x-auto no-scrollbar">
             ${[1, 2, 3, 4, 0].map(q => `
-                <button class="px-2 py-1 rounded ${fiscalQuarter === q ? 'bg-slate-800 text-white shadow-md' : 'bg-slate-100 text-slate-500'} text-xs font-bold" 
+                <button class="px-3 py-1 rounded-lg ${fiscalQuarter === q ? 'bg-slate-800 text-white shadow-md' : 'bg-slate-100 text-slate-500'} text-xs font-bold transition" 
                 onclick="fiscalQuarter=${q};renderAdmin(document.getElementById('app'))">
-                    ${q === 0 ? 'AÑO' : q + 'T'}
+                    ${q === 0 ? 'ANUAL' : q + 'T'}
                 </button>
             `).join('')}
         </div>
     </div>`;
 
-    // === 5. RENDERIZADO ===
     app.innerHTML = `
     ${qCtrl}
     
     <div class="flex gap-2 mb-6 bg-white p-1 rounded-2xl shadow-sm border border-slate-100 overflow-x-auto no-scrollbar">
-        <button class="flex-1 min-w-[90px] py-2.5 rounded-xl font-bold text-[10px] transition ${activeAdminTab==='dash'?'bg-slate-800 text-white shadow-md':'text-slate-500 hover:bg-slate-50'}" onclick="activeAdminTab='dash';renderAdmin(document.getElementById('app'))">📊 BALANCE</button>
+        <button class="flex-1 min-w-[90px] py-2.5 rounded-xl font-bold text-[10px] transition ${activeAdminTab==='dash'?'bg-slate-800 text-white shadow-md':'text-slate-500 hover:bg-slate-50'}" onclick="activeAdminTab='dash';renderAdmin(document.getElementById('app'))">📊 DASHBOARD</button>
         <button class="flex-1 min-w-[90px] py-2.5 rounded-xl font-bold text-[10px] transition ${activeAdminTab==='eventos'?'bg-pink-600 text-white shadow-md':'text-slate-500 hover:bg-slate-50'}" onclick="activeAdminTab='eventos';renderAdmin(document.getElementById('app'))">🍸 EVENTOS</button>
-        <button class="flex-1 min-w-[90px] py-2.5 rounded-xl font-bold text-[10px] transition ${activeAdminTab==='fijos'?'bg-slate-800 text-white shadow-md':'text-slate-500 hover:bg-slate-50'}" onclick="activeAdminTab='fijos';renderAdmin(document.getElementById('app'))">🏠 ESTRUCTURA</button>
         <button class="flex-1 min-w-[90px] py-2.5 rounded-xl font-bold text-[10px] transition ${activeAdminTab==='albs'?'bg-slate-800 text-white shadow-md':'text-slate-500 hover:bg-slate-50'}" onclick="activeAdminTab='albs';renderAdmin(document.getElementById('app'))">📦 COMPRAS</button>
+        <button class="flex-1 min-w-[90px] py-2.5 rounded-xl font-bold text-[10px] transition ${activeAdminTab==='fijos'?'bg-slate-800 text-white shadow-md':'text-slate-500 hover:bg-slate-50'}" onclick="activeAdminTab='fijos';renderAdmin(document.getElementById('app'))">🏠 FIJOS</button>
         <button class="flex-1 min-w-[90px] py-2.5 rounded-xl font-bold text-[10px] transition ${activeAdminTab==='facturas'?'bg-slate-800 text-white shadow-md':'text-slate-500 hover:bg-slate-50'}" onclick="activeAdminTab='facturas';renderAdmin(document.getElementById('app'))">📄 FACTURAS</button>
-        <button class="flex-1 min-w-[90px] py-2.5 rounded-xl font-bold text-[10px] transition ${activeAdminTab==='prov'?'bg-slate-800 text-white shadow-md':'text-slate-500 hover:bg-slate-50'}" onclick="activeAdminTab='prov';renderAdmin(document.getElementById('app'))">📒 AGENDA</button>
-        <button class="flex-1 min-w-[90px] py-2.5 rounded-xl font-bold text-[10px] transition ${activeAdminTab==='omnes'?'bg-slate-800 text-white shadow-md':'text-slate-500 hover:bg-slate-50'}" onclick="activeAdminTab='omnes';renderAdmin(document.getElementById('app'))">🍽️ OMNES</button>
+        <button class="flex-1 min-w-[90px] py-2.5 rounded-xl font-bold text-[10px] transition ${activeAdminTab==='prov'?'bg-slate-800 text-white shadow-md':'text-slate-500 hover:bg-slate-50'}" onclick="activeAdminTab='prov';renderAdmin(document.getElementById('app'))">📒 PROV</button>
+        <button class="flex-1 min-w-[90px] py-2.5 rounded-xl font-bold text-[10px] transition ${activeAdminTab==='omnes'?'bg-slate-800 text-white shadow-md':'text-slate-500 hover:bg-slate-50'}" onclick="activeAdminTab='omnes';renderAdmin(document.getElementById('app'))">🍽️ MENU</button>
     </div>
     
     ${activeAdminTab === 'dash' ? `
-        <div class="glass-card bg-slate-900 text-white mb-6 border-none shadow-2xl">
-            <h3 class="text-[10px] uppercase font-bold opacity-50 mb-1 tracking-[0.2em]">Resultado Real Neto</h3>
-            <div class="text-4xl font-black ${beneficioNeto >= 0 ? 'text-emerald-400' : 'text-red-400'}">${Num.fmt(beneficioNeto)}€</div>
-            <div class="flex justify-between mt-6 pt-4 border-t border-white/10 text-[9px] font-bold opacity-60 uppercase tracking-widest">
-                <span>Ventas: ${Num.fmt(ventasCaja)}€</span>
-                <span>Pagado Prov: ${Num.fmt(comprasPagadas)}€</span>
+        <div class="glass-card bg-slate-900 text-white mb-6 border-none shadow-2xl relative overflow-hidden p-6">
+            <div class="absolute -top-6 -right-6 w-32 h-32 bg-white/5 rounded-full blur-2xl"></div>
+            
+            <div class="flex justify-between items-start mb-2">
+                <h3 class="text-[10px] uppercase font-bold opacity-50 mb-1 tracking-[0.2em]">EBITDA (Beneficio Operativo)</h3>
+                <span class="${marginColor} px-2 py-0.5 rounded text-[10px] font-black tracking-wide">MARGEN ${profitMargin.toFixed(1)}%</span>
+            </div>
+            
+            <div class="text-5xl font-black ${healthColor} tracking-tighter mb-6">${Num.fmt(netProfit)}€</div>
+            
+            <div class="grid grid-cols-2 gap-8 border-t border-white/10 pt-4">
+                <div>
+                    <div class="text-[9px] opacity-50 uppercase font-bold mb-1">Ingresos Totales</div>
+                    <div class="text-xl font-bold text-emerald-300">▲ ${Num.fmt(totalRevenue)}€</div>
+                </div>
+                <div class="text-right">
+                    <div class="text-[9px] opacity-50 uppercase font-bold mb-1">Gastos Operativos</div>
+                    <div class="text-xl font-bold text-red-300">▼ ${Num.fmt(totalGastos)}€</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3 mb-6">
+            <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm relative overflow-hidden">
+                <div class="absolute top-0 right-0 p-2 text-slate-100 text-4xl font-black -z-0">🛒</div>
+                <h4 class="text-[9px] font-bold text-slate-400 uppercase tracking-tight z-10 relative">Food Cost</h4>
+                <div class="text-lg font-black text-slate-800 z-10 relative">-${Num.fmt(totalCompras)}€</div>
+                <div class="text-[10px] font-bold ${fcAlert} mt-1 z-10 relative">${foodCostPct.toFixed(1)}% sobre ventas</div>
+            </div>
+
+            <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm relative overflow-hidden">
+                <div class="absolute top-0 right-0 p-2 text-slate-100 text-4xl font-black -z-0">💡</div>
+                <h4 class="text-[9px] font-bold text-slate-400 uppercase tracking-tight z-10 relative">Estructura Fija</h4>
+                <div class="text-lg font-black text-slate-800 z-10 relative">-${Num.fmt(totalFijos)}€</div>
+            </div>
+        </div>
+
+        <div class="glass-card mb-6">
+            <h4 class="text-xs font-black text-slate-800 uppercase tracking-widest mb-4">Distribución del Gasto</h4>
+            
+            <div class="mb-3">
+                <div class="flex justify-between text-[10px] font-bold text-slate-500 mb-1">
+                    <span>Materia Prima</span>
+                    <span>${Num.fmt(totalCompras)}€</span>
+                </div>
+                <div class="w-full bg-slate-100 rounded-full h-2">
+                    <div class="bg-blue-500 h-2 rounded-full" style="width: ${Math.min((totalCompras/totalRevenue)*100, 100)}%"></div>
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <div class="flex justify-between text-[10px] font-bold text-slate-500 mb-1">
+                    <span>Gastos Fijos</span>
+                    <span>${Num.fmt(totalFijos)}€</span>
+                </div>
+                <div class="w-full bg-slate-100 rounded-full h-2">
+                    <div class="bg-purple-500 h-2 rounded-full" style="width: ${Math.min((totalFijos/totalRevenue)*100, 100)}%"></div>
+                </div>
+            </div>
+
+            <div class="mb-1">
+                <div class="flex justify-between text-[10px] font-bold text-slate-500 mb-1">
+                    <span>Personal Extra</span>
+                    <span>${Num.fmt(totalPersonalExtra)}€</span>
+                </div>
+                <div class="w-full bg-slate-100 rounded-full h-2">
+                    <div class="bg-orange-400 h-2 rounded-full" style="width: ${Math.min((totalPersonalExtra/totalRevenue)*100, 100)}%"></div>
+                </div>
             </div>
         </div>
 
         ${totalSocios > 0 ? `
         <div class="bg-indigo-50 border border-indigo-100 p-4 rounded-2xl shadow-sm mb-6">
             <div class="flex justify-between items-center mb-3">
-                <h3 class="text-xs font-black text-indigo-600 uppercase tracking-widest">👥 CONSUMO SOCIOS</h3>
-                <span class="font-black text-indigo-700">${Num.fmt(totalSocios)}€</span>
+                <h3 class="text-xs font-black text-indigo-700 uppercase tracking-widest flex items-center gap-2">
+                    <span>👤</span> CUENTAS SOCIOS
+                </h3>
+                <span class="font-black text-indigo-700 text-lg">${Num.fmt(totalSocios)}€</span>
             </div>
-            <div class="space-y-2">
+            <div class="divide-y divide-indigo-100">
                 ${Object.entries(gastosSocios).map(([socio, amount]) => `
-                    <div class="flex justify-between items-center bg-white p-2 rounded-lg border border-indigo-50">
-                        <div class="flex items-center gap-2">
-                            <span class="text-xs">👤</span>
-                            <span class="text-xs font-bold text-slate-700">${socio}</span>
-                        </div>
-                        <span class="text-xs font-bold text-slate-900">${Num.fmt(amount)}€</span>
+                    <div class="flex justify-between items-center py-2">
+                        <span class="text-xs font-bold text-indigo-900">${socio}</span>
+                        <span class="text-xs font-bold text-indigo-600">${Num.fmt(amount)}€</span>
                     </div>
                 `).join('')}
             </div>
-            <p class="text-[9px] text-indigo-400 mt-2 text-center">*Esto son compras asignadas a socios, no al restaurante.</p>
+            <div class="mt-3 text-[9px] text-indigo-400 text-center font-bold bg-white/50 p-1 rounded">
+                ℹ️ Estos gastos NO se restan del beneficio del restaurante
+            </div>
         </div>` : ''}
 
-        <div class="grid grid-cols-2 gap-3 mb-6">
-            <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
-                <h4 class="text-[9px] font-bold text-slate-400 uppercase tracking-tighter mb-1">Compras "Arume"</h4>
-                <div class="text-lg font-black text-slate-800">${Num.fmt(comprasArume)}€</div>
-                <div class="text-[9px] text-slate-400">En albaranes</div>
-            </div>
-            <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
-                <h4 class="text-[9px] font-bold text-slate-400 uppercase tracking-tighter mb-1">Gastos Estructura</h4>
-                <div class="text-lg font-black text-slate-800">-${Num.fmt(fijosTotal)}€</div>
-            </div>
-        </div>
-
         ${getStockAlerts()}
-
+        
         ${totalMermas > 0 ? `
-        <div class="bg-white border border-red-100 p-4 rounded-2xl shadow-sm mb-6">
-            <div class="flex justify-between items-center mb-3">
-                <h3 class="text-xs font-black text-red-500 uppercase tracking-widest">📉 FUGAS / MERMAS</h3>
-                <span class="font-black text-red-600">-${Num.fmt(totalMermas)}€</span>
+        <div class="bg-red-50 border border-red-100 p-3 rounded-xl flex justify-between items-center shadow-sm">
+            <div class="flex items-center gap-2">
+                <span class="text-lg">🗑️</span>
+                <div>
+                    <div class="text-[10px] font-bold text-red-400 uppercase">Mermas Registradas</div>
+                    <div class="font-black text-red-700 text-sm">-${Num.fmt(totalMermas)}€</div>
+                </div>
             </div>
-            <div class="space-y-2">
-                ${Object.entries(mermasPorCausa).sort((a,b)=>b[1]-a[1]).map(([cause, amount]) => {
-                    const pct = (amount / totalMermas) * 100;
-                    return `<div><div class="flex justify-between text-[10px] font-bold text-slate-500 mb-1"><span>${cause}</span><span>${Num.fmt(amount)}€</span></div><div class="w-full bg-red-50 rounded-full h-2"><div class="bg-red-400 h-2 rounded-full" style="width: ${pct}%"></div></div></div>`;
-                }).join('')}
-            </div>
+            <button class="text-[10px] font-bold text-red-500 underline" onclick="render('Stock')">Ver detalle</button>
         </div>` : ''}
 
         <div class="glass-card mt-8">
@@ -716,9 +781,9 @@ function renderAdmin(app) {
             <div class="grid grid-cols-3 gap-2 mb-4">
                 <button class="btn-ghost text-[10px]" onclick="downloadBackup()">💾 BACKUP</button>
                 <button class="btn-ghost text-indigo-600 text-[10px]" onclick="document.getElementById('backup-input').click()">📤 RESTAURAR</button>
-                <button class="btn-ghost text-emerald-600 font-black border-emerald-200 bg-emerald-50 text-[10px]" onclick="forceCloudDownload()">☁️ BAJAR NUBE</button>
+                <button class="btn-ghost text-emerald-600 font-black border-emerald-200 bg-emerald-50 text-[10px]" onclick="forceCloudDownload()">☁️ SINCRO</button>
             </div>
-            <button class="btn-ghost text-red-500 border-red-100 bg-red-50 text-[10px] w-full" onclick="resetStockToZero()">♻️ RESETEAR STOCK A CERO</button>
+            <button class="btn-ghost text-red-500 border-red-100 bg-red-50 text-[10px] w-full hover:bg-red-500 hover:text-white transition" onclick="resetStockToZero()">♻️ RESETEAR STOCK A CERO</button>
         </div>
 
     ` : ''}
@@ -730,11 +795,8 @@ function renderAdmin(app) {
     if (activeAdminTab === 'facturas') renderFacturas(c);
     if (activeAdminTab === 'omnes') renderOmnes(c);
     if (activeAdminTab === 'prov') renderProvs(c);
-    
-    // 🟣 AQUÍ ESTÁ LA LLAVE DE LA PUERTA NUEVA
     if (activeAdminTab === 'eventos') renderEventos(c);
 }
-
 // --- SUB-MÓDULO: PROVEEDORES (CON BOTÓN IMPORTAR) ---
 function renderProvs(c) { 
     // Calcular gasto por proveedor
@@ -1164,66 +1226,106 @@ function renderAlbGrid() {
     const safeTotal = isNaN(total) ? 0 : total;
     document.getElementById('alb-total').innerText = Num.fmt(safeTotal) + '€';
 }
+/* =============================================================
+   ⚠️ COMMIT INTELIGENTE V4.0 (Aprende IVA y Proveedores) ⚠️
+   ============================================================= */
+
 function commitAlb() {
     if (!tempItems.length) return toast("Albarán vacío", "error");
     
-    // --- NUEVO: LEEMOS EL SOCIO ---
+    // Recogemos datos de la cabecera
     const socio = document.getElementById('alb-socio').value;
-    
-    const prov = document.getElementById('alb-prov').value.trim();
+    const provName = document.getElementById('alb-prov').value.trim();
     const date = document.getElementById('alb-date').value;
     const num = document.getElementById('alb-num').value.trim() || `A-${Date.now().toString().slice(-6)}`;
     
-    if (!prov || !date) return toast("Faltan datos", "error");
+    if (!provName || !date) return toast("Faltan datos (Proveedor o Fecha)", "error");
 
-    if (!db.proveedores.find(p => p.n.toLowerCase() === prov.toLowerCase())) db.proveedores.push({ id: generateID(), n: prov, tel: '', fam: 'General' });
+    // 1. Asegurar Proveedor (Si es nuevo, lo creamos)
+    let provider = db.proveedores.find(p => p.n.toLowerCase() === provName.toLowerCase());
+    if (!provider) {
+        provider = { id: generateID(), n: provName, tel: '', fam: 'General' };
+        db.proveedores.push(provider);
+    }
 
     let subtotal = 0, taxes = 0;
+
+    // 2. Procesar Líneas (El núcleo inteligente)
     tempItems.forEach(it => {
-        let ing = db.ingredientes.find(x => x.n.toLowerCase() === it.n.toLowerCase() && x.unit === it.unit);
-        const netPrice = it.p * (1 - (it.d || 0) / 100);
+        const cleanName = it.n.trim();
         
+        // Buscamos si el ingrediente ya existe
+        let ing = db.ingredientes.find(x => x.n.toLowerCase() === cleanName.toLowerCase());
+        
+        // Cálculos financieros de la línea
+        const netPrice = it.p * (1 - (it.d || 0) / 100); // Precio unitario con descuento, sin IVA
+        const lineBase = it.q * netPrice;                // Base imponible total línea
+        const lineTax = lineBase * (it.tax / 100);       // Cuota IVA línea
+
+        // A. SI NO EXISTE -> CREAMOS NUEVO
         if (!ing) { 
-            ing = { id: generateID(), n: it.n, stock: 0, cost: 0, unit: it.unit, fam: 'General', min: 0 }; 
+            ing = { 
+                id: generateID(), 
+                n: cleanName, 
+                stock: 0, 
+                cost: netPrice, 
+                unit: it.unit, 
+                fam: 'General', 
+                min: 0,
+                tax: it.tax,        // Guardamos el IVA que ha detectado el lector
+                lastProv: provName  // Guardamos quién nos lo ha vendido
+            }; 
             db.ingredientes.push(ing); 
-        }
-        
-        if (ing.cost > 0 && Math.abs(ing.cost - netPrice) > 0.01) {
-            ing.lastCost = ing.cost;
+        } 
+        // B. SI YA EXISTE -> ACTUALIZAMOS (APRENDIZAJE)
+        else {
+            // 1. Detector de Inflación: Guardamos el coste anterior si cambia mucho
+            if (Math.abs(ing.cost - netPrice) > 0.01) {
+                ing.lastCost = ing.cost;
+            }
+
+            // 2. Cálculo Precio Medio Ponderado (PMP)
+            const totalVal = (ing.stock * ing.cost) + (it.q * netPrice);
+            const totalQty = ing.stock + it.q;
+            
+            if (totalQty > 0) ing.cost = totalVal / totalQty;
+            else if (it.q > 0) ing.cost = netPrice;
+
+            // 3. CEREBRO: Actualizamos la ficha con lo que hemos aprendido hoy
+            ing.tax = it.tax;       // Si corregiste el IVA en el grid, ahora se queda grabado
+            ing.lastProv = provName; // Recordamos que este proveedor vende este producto
         }
 
-        // --- CÁLCULO PRECIO MEDIO PONDERADO (PMP) ---
-        const totalVal = (ing.stock * ing.cost) + (it.q * netPrice);
-        const totalQty = ing.stock + it.q;
-        if (totalQty > 0) ing.cost = totalVal / totalQty;
-        // --------------------------------------------
-
+        // C. MOVIMIENTO DE STOCK
         ing.stock += it.q;
-        logStock(ing.id, it.q, 'IN', `Alb: ${num}`, netPrice);
+        logStock(ing.id, it.q, 'IN', `Alb: ${num} (${clean(provName)})`, netPrice);
         
-        const base = it.q * it.p * (1 - (it.d || 0) / 100);
-        subtotal += base; taxes += base * (it.tax / 100);
+        // Acumulamos totales
+        subtotal += lineBase;
+        taxes += lineTax;
     });
 
-    // --- AQUI GUARDAMOS EL SOCIO ---
+    // 3. Guardar Albarán en la base de datos
     db.albaranes.push({ 
         id: generateID(), 
-        num, 
-        prov, 
-        date, 
-        socio: socio, // <--- GUARDADO
-        items: [...tempItems], 
+        num: num, 
+        prov: provName, 
+        date: date, 
+        socio: socio,
+        items: [...tempItems], // Guardamos copia exacta de lo importado
         total: subtotal + taxes, 
-        subtotal, 
-        taxes, 
+        subtotal: subtotal, 
+        taxes: taxes, 
         invoiced: false 
     });
     
-    clearCache(); 
+    clearCache(); // Limpiamos caché de recetas para que se recalculen los costes con los nuevos precios
+    save(`✅ Albarán ${num} guardado`); 
     
-    save(`✅ Albarán ${num} guardado`); tempItems = []; renderAdmin(document.getElementById('app'));
+    // Limpiamos pantalla y recargamos dashboard
+    tempItems = []; 
+    renderAdmin(document.getElementById('app'));
 }
-
 function viewAlbDetails(id) { 
     const a = db.albaranes.find(x => x.id === id); 
     if (a) showModal(`Detalle ${a.num || ''}`, `<div class="mb-2 text-xs font-bold text-slate-500">${a.prov} - ${a.date}</div><table class="w-full text-xs"><thead><tr class="text-left text-slate-400 border-b"><th>Prod</th><th>Cant</th><th>€/ud</th><th>Total</th></tr></thead><tbody>${a.items.map(i => { const net = i.p * (1-(i.d||0)/100); return `<tr><td class="py-1">${i.n}</td><td>${i.q}${i.unit}</td><td>${Num.fmt(net)}</td><td class="text-right">${Num.fmt(i.q * net * (1+(i.tax||10)/100))}</td></tr>`; }).join('')}</tbody></table><div class="text-right font-black text-xl mt-4">${Num.fmt(a.total)}€</div>`); 
