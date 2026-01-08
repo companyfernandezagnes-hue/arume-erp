@@ -872,43 +872,278 @@ function checkDuplicate() {
     if(num && prov && db.albaranes.some(a => a.num === num && a.prov === prov)) alert.classList.remove('hidden');
     else alert.classList.add('hidden');
 }
+/* =============================================================
+   ⚠️ MOTOR INTELIGENTE V3.0 (Anti-Bloqueo & Stock Safe) ⚠️
+   ============================================================= */
 
 function parseAlb() {
-    const txt = document.getElementById('alb-input').value;
-    if (!txt) return toast("Pega texto primero", "error");
-    const lines = txt.split(/\r?\n/).filter(l => l.trim() !== '');
-    let count = 0;
-    lines.forEach(l => {
-        let parts = l.replace(/[€$]/g, '').trim().split(/[\t;]|\s{2,}/);
-        if (parts.length >= 2) {
-            const n = parts[0].trim();
-            const q = Num.parse(parts[1]);
-            const p = parts[2] ? Num.parse(parts[2]) : 0;
-            let u = 'ud'; const unitMatch = parts[1].match(/[a-zA-Z]+/); if(unitMatch) u = UnitConverter.normalize(unitMatch[0]);
-            if (n && q > 0) { tempItems.push({ n, q, p, unit: u, d: 0, tax: 10 }); count++; }
+    const txtInput = document.getElementById('alb-input');
+    const txt = txtInput.value;
+    
+    if (!txt.trim()) return toast("⚠️ El área de texto está vacía", "error");
+
+    // Prevenir bloqueo: Si es muy largo, mostramos loading
+    if (txt.length > 5000) loading(true);
+
+    setTimeout(() => {
+        try {
+            const lines = txt.split(/\r?\n/).filter(l => l.trim().length > 2);
+            let count = 0;
+            let warnings = 0;
+
+            // Cache de ingredientes para búsqueda rápida (Optimización de rendimiento)
+            const ingMap = db.ingredientes.map(i => ({
+                id: i.id,
+                n: i.n.toLowerCase(),
+                unit: i.unit,
+                cost: i.cost,
+                tax: 10, // Default si no tiene
+                ref: i
+            }));
+
+            lines.forEach(rawLine => {
+                // 1. Limpieza Quirúrgica
+                let cleanLine = rawLine.replace(/[€$£"]/g, '').replace(/\s{2,}/g, ' ').trim();
+                
+                // Si la línea no tiene números, es basura -> Saltar
+                if (!/\d/.test(cleanLine)) return;
+
+                // 2. Detección de Patrones
+                const result = detectLinePattern(cleanLine);
+
+                if (result) {
+                    // 3. Vinculación Inteligente (Matching)
+                    const match = findBestMatchOptimized(result.name, ingMap);
+                    
+                    let finalUnit = result.unit;
+                    let finalQty = result.q;
+                    let status = 'new'; // 'new', 'linked', 'conflict'
+                    let finalTax = guessTax(result.name); // Intentamos adivinar IVA
+
+                    if (match) {
+                        status = 'linked';
+                        finalTax = match.ref.tax || finalTax; 
+
+                        // --- LÓGICA CRÍTICA DE STOCK ---
+                        // Intentamos convertir unidades automáticamente
+                        if (match.unit !== finalUnit) {
+                            const converted = tryConvertUnits(finalQty, finalUnit, match.unit);
+                            if (converted !== null) {
+                                finalQty = converted;
+                                finalUnit = match.unit; // Unificamos a la unidad de stock
+                            } else {
+                                status = 'conflict'; // Unidades incompatibles (ej: Ud vs Kg)
+                            }
+                        }
+                    }
+
+                    tempItems.push({
+                        n: match ? match.ref.n : result.name, // Nombre normalizado
+                        q: parseFloat(finalQty) || 0,
+                        p: parseFloat(result.p) || 0,
+                        unit: finalUnit,
+                        d: 0,
+                        tax: finalTax,
+                        status: status, // Para pintar colores
+                        originalUnit: result.unit 
+                    });
+                    count++;
+                } else {
+                    warnings++;
+                }
+            });
+
+            // Finalización
+            if (count > 0) {
+                txtInput.value = '';
+                renderAlbGrid();
+                let msg = `✅ ${count} líneas leídas correctamente.`;
+                if (warnings > 0) msg += ` Omitidas ${warnings} líneas sin datos claros.`;
+                toast(msg, "success");
+            } else {
+                toast("❌ No pude entender el texto. Asegúrate de copiar Nombre y Cantidad.", "error");
+            }
+
+        } catch (e) {
+            console.error(e);
+            toast("⚠️ Error interno al leer texto. Revisa el formato.", "error");
+        } finally {
+            loading(false); 
         }
-    });
-    if (count > 0) { document.getElementById('alb-input').value = ''; renderAlbGrid(); toast(`✅ ${count} líneas`); } 
-    else toast("⚠️ Formato no reconocido", "error");
+    }, 10); // Pequeño delay para que la UI respire
 }
+
+/* --- AUXILIAR: DETECTIVE DE PATRONES (REGEX MEJORADO) --- */
+function detectLinePattern(line) {
+    // A. Caso "N x Producto" (Ej: "3 x Solomillo")
+    const multiplier = line.match(/^(\d+([.,]\d+)?)\s*[xX*]\s+(.+)/);
+    if (multiplier) {
+        return { q: Num.parse(multiplier[1]), p: 0, name: multiplier[3].trim(), unit: 'ud' };
+    }
+
+    // B. Extracción General
+    const numbers = line.match(/(\d+[.,]\d+|\d+)/g);
+    
+    if (numbers && numbers.length >= 1) {
+        let name = line;
+        numbers.forEach(n => name = name.replace(n, ''));
+        name = name.replace(/[,.]\s*$/, '').trim(); 
+
+        // Detectar unidad en el texto
+        let detectedUnit = 'ud';
+        const unitMatch = line.match(/\b(kg|kilo|gr|g|l|litro|ml|cl|oz|lb|caja|pack|botella|uds|ud|unid)\b/i);
+        if (unitMatch) detectedUnit = UnitConverter.normalize(unitMatch[0]);
+
+        let q = 0, p = 0;
+
+        // HEURÍSTICA DE ASIGNACIÓN
+        if (numbers.length === 1) {
+            q = Num.parse(numbers[0]);
+        } else {
+            const n1 = Num.parse(numbers[0]); 
+            const nLast = Num.parse(numbers[numbers.length - 1]); 
+            const nPrev = Num.parse(numbers[numbers.length - 2]); 
+
+            q = n1; 
+            
+            if (numbers.length >= 3) {
+                 p = nPrev;
+            } else {
+                 p = nLast;
+            }
+        }
+
+        return { q, p, name: name.replace(/^\W+|\W+$/g, ''), unit: detectedUnit };
+    }
+    return null;
+}
+
+/* --- AUXILIAR: BUSCADOR OPTIMIZADO --- */
+function findBestMatchOptimized(txt, map) {
+    if (!txt || txt.length < 2) return null;
+    const cleanTxt = txt.toLowerCase();
+    // Coincidencia exacta o contención fuerte
+    return map.find(i => i.n === cleanTxt || cleanTxt.includes(i.n) || i.n.includes(cleanTxt));
+}
+
+/* --- AUXILIAR: CONVERSOR SEGURO --- */
+function tryConvertUnits(val, from, to) {
+    if (from === to) return val;
+    from = UnitConverter.normalize(from);
+    to = UnitConverter.normalize(to);
+    
+    if (to === 'kg') {
+        if (from === 'g' || from === 'gr') return val / 1000;
+        if (from === 'mg') return val / 1000000;
+        if (from === 'lb') return val * 0.453592;
+    }
+    if (to === 'g' || to === 'gr') {
+        if (from === 'kg') return val * 1000;
+    }
+    if (to === 'l') {
+        if (from === 'ml') return val / 1000;
+        if (from === 'cl') return val / 100;
+    }
+    if (to === 'ml') {
+        if (from === 'l') return val * 1000;
+        if (from === 'cl') return val * 10;
+    }
+    return null; // Imposible convertir (ej: Caja a Kg)
+}
+
+/* --- AUXILIAR: ADIVINADOR DE IVA --- */
+function guessTax(name) {
+    const n = name.toLowerCase();
+    if (n.includes('vino') || n.includes('cerveza') || n.includes('licor') || n.includes('alcohol')) return 21;
+    if (n.includes('refresco') || n.includes('coca') || n.includes('fanta') || n.includes('agua')) return 10; 
+    if (n.includes('pan') || n.includes('leche') || n.includes('huevo') || n.includes('harina') || n.includes('fruta') || n.includes('verdura')) return 4;
+    return 10; 
+}
+/* =============================================================
+   ⚠️ RENDERIZADOR VISUAL DE ALBARANES (GRID INTERACTIVO) ⚠️
+   ============================================================= */
 
 function renderAlbGrid() {
-    const el = document.getElementById('alb-grid'); if (!el) return;
+    const el = document.getElementById('alb-grid'); 
+    if (!el) return;
+
     el.innerHTML = tempItems.map((it, i) => {
         const totalLine = (it.q * it.p * (1 - (it.d||0)/100)) * (1 + (it.tax||10)/100);
-        return `<div class="bg-white p-1 rounded-xl border border-slate-100 grid grid-cols-12 gap-1 items-center shadow-sm text-xs">
-            <div class="col-span-4"><input value="${clean(it.n)}" class="w-full bg-transparent font-bold outline-none" onchange="tempItems[${i}].n=this.value"></div>
-            <div class="col-span-2 flex gap-1"><input type="number" value="${it.q}" class="w-full bg-slate-50 text-center rounded" onchange="tempItems[${i}].q=parseFloat(this.value);renderAlbGrid()"><select onchange="tempItems[${i}].unit=this.value" class="w-10 bg-slate-50 rounded border-0"><option ${it.unit==='kg'?'selected':''}>kg</option><option ${it.unit==='ud'?'selected':''}>ud</option><option ${it.unit==='l'?'selected':''}>l</option></select></div>
-            <div class="col-span-2"><input type="number" value="${it.p}" class="w-full bg-slate-50 text-center rounded" onchange="tempItems[${i}].p=parseFloat(this.value);renderAlbGrid()"></div>
-            <div class="col-span-1"><input type="number" value="${it.d||0}" class="w-full bg-emerald-50 text-center rounded text-emerald-700" onchange="tempItems[${i}].d=parseFloat(this.value);renderAlbGrid()"></div>
-            <div class="col-span-1"><select onchange="tempItems[${i}].tax=parseFloat(this.value);renderAlbGrid()" class="w-full bg-blue-50 rounded text-blue-700"><option ${it.tax===10?'selected':''} value="10">10</option><option ${it.tax===21?'selected':''} value="21">21</option><option ${it.tax===4?'selected':''} value="4">4</option></select></div>
-            <div class="col-span-2 text-right font-mono font-bold pr-2">${Num.fmt(totalLine)}€</div>
-            <button class="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center opacity-0 hover:opacity-100 transition" onclick="tempItems.splice(${i},1);renderAlbGrid()">✕</button></div>`;
-    }).join('');
-    const total = tempItems.reduce((acc, it) => acc + (it.q * it.p * (1 - (it.d||0)/100)) * (1 + (it.tax||10)/100), 0);
-    document.getElementById('alb-total').innerText = Num.fmt(total) + '€';
-}
+        
+        // --- LÓGICA VISUAL DE ESTADOS ---
+        let rowClass = 'bg-white border-slate-100';
+        let badge = '';
+        let statusMsg = '';
 
+        if (it.status === 'new') {
+            rowClass = 'bg-blue-50 border-blue-200';
+            badge = '<span class="text-[9px] bg-blue-100 text-blue-600 px-1 rounded ml-2 font-bold">NUEVO</span>';
+            statusMsg = '<span class="text-[9px] text-blue-400 font-bold ml-1">Se creará ficha nueva</span>';
+        } else if (it.status === 'conflict') {
+            rowClass = 'bg-orange-50 border-orange-300 ring-1 ring-orange-200'; // Resaltado fuerte para llamar la atención
+            badge = '<span class="text-[9px] bg-orange-100 text-orange-600 px-1 rounded ml-2 font-bold">⚠️ REVISAR UNIDAD</span>';
+            statusMsg = '<span class="text-[9px] text-orange-500 font-bold ml-1">Stock usa otra unidad</span>';
+        } else {
+            // Linked OK
+            statusMsg = '<span class="text-[9px] text-emerald-500 font-bold ml-1">✓ Vinculado a Stock</span>';
+        }
+
+        return `
+        <div class="${rowClass} p-2 rounded-xl border grid grid-cols-12 gap-1 items-center shadow-sm text-xs transition mb-2 relative group">
+            
+            <div class="col-span-4 flex flex-col justify-center">
+                <div class="flex items-center">
+                    <input value="${clean(it.n)}" class="w-full bg-transparent font-bold outline-none text-slate-700 truncate placeholder-slate-400" placeholder="Nombre producto..." onchange="tempItems[${i}].n=this.value">
+                    ${badge}
+                </div>
+                ${statusMsg}
+            </div>
+            
+            <div class="col-span-2 flex gap-1 items-center">
+                <input type="number" value="${it.q}" class="w-full bg-white/50 border border-slate-200 text-center rounded py-1 font-bold focus:bg-white focus:ring-2 ring-indigo-100 outline-none" onchange="tempItems[${i}].q=parseFloat(this.value);renderAlbGrid()">
+                
+                <select onchange="tempItems[${i}].unit=this.value; tempItems[${i}].status='linked'; renderAlbGrid()" class="w-14 bg-slate-100 rounded border-0 text-[10px] py-1 font-bold text-slate-500 cursor-pointer hover:bg-slate-200 outline-none">
+                    <option ${it.unit==='kg'?'selected':''}>kg</option>
+                    <option ${it.unit==='ud'?'selected':''}>ud</option>
+                    <option ${it.unit==='l'?'selected':''}>l</option>
+                    <option ${it.unit==='oz'?'selected':''}>oz</option>
+                    <option ${it.unit==='g'?'selected':''}>g</option>
+                    <option ${it.unit==='ml'?'selected':''}>ml</option>
+                </select>
+            </div>
+
+            <div class="col-span-2">
+                <input type="number" value="${it.p}" step="0.01" class="w-full bg-white/50 border border-slate-200 text-center rounded py-1 focus:bg-white outline-none" onchange="tempItems[${i}].p=parseFloat(this.value);renderAlbGrid()">
+            </div>
+            
+            <div class="col-span-1">
+                <input type="number" value="${it.d||0}" class="w-full bg-emerald-50 text-center rounded text-emerald-700 font-bold outline-none" placeholder="%" onchange="tempItems[${i}].d=parseFloat(this.value);renderAlbGrid()">
+            </div>
+            
+            <div class="col-span-1">
+                <select onchange="tempItems[${i}].tax=parseFloat(this.value);renderAlbGrid()" class="w-full bg-blue-50 rounded text-blue-700 font-bold text-[10px] outline-none">
+                    <option ${it.tax===10?'selected':''} value="10">10%</option>
+                    <option ${it.tax===21?'selected':''} value="21">21%</option>
+                    <option ${it.tax===4?'selected':''} value="4">4%</option>
+                    <option ${it.tax===0?'selected':''} value="0">0%</option>
+                </select>
+            </div>
+            
+            <div class="col-span-2 text-right font-mono font-black pr-2 text-slate-700 flex items-center justify-end h-full">
+                ${Num.fmt(totalLine)}€
+            </div>
+            
+            <button class="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition shadow-md hover:scale-110 z-10 cursor-pointer" onclick="tempItems.splice(${i},1);renderAlbGrid()">✕</button>
+        </div>`;
+    }).join('');
+    
+    // Calcular Total General Acumulado
+    const total = tempItems.reduce((acc, it) => acc + (it.q * it.p * (1 - (it.d||0)/100)) * (1 + (it.tax||10)/100), 0);
+    
+    // Control de seguridad: Si el total es NaN (error de parseo), mostrar 0 para no romper la UI
+    const safeTotal = isNaN(total) ? 0 : total;
+    document.getElementById('alb-total').innerText = Num.fmt(safeTotal) + '€';
+}
 function commitAlb() {
     if (!tempItems.length) return toast("Albarán vacío", "error");
     
