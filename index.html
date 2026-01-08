@@ -576,11 +576,9 @@ function getStockAlerts() {
         <button class="w-full mt-3 btn-whatsapp text-[10px] py-2" onclick="sendWhatsApp()">📞 GENERAR PEDIDO AUTO</button>
     </div>`;
 }
-
 /* =============================================================
    ⚠️ DASHBOARD CEO "DIAMOND" V4.0 (Analytics & KPIs Reales) ⚠️
    ============================================================= */
-
 function renderAdmin(app) {
     // 1. DATA SAFEGUARDS
     if (!db.gastos_fijos) db.gastos_fijos = [];
@@ -591,9 +589,10 @@ function renderAdmin(app) {
         .filter(d => isInPeriod(d.date))
         .reduce((a, b) => a + (b.total || 0), 0);
 
+    // CORREGIDO AQUÍ: Cambiado 'e.ingreso' por 'b.ingreso'
     const ingresosEventos = db.eventos
         .filter(e => isInPeriod(e.date))
-        .reduce((a, b) => a + (Num.parse(e.ingreso) || 0), 0);
+        .reduce((a, b) => a + (Num.parse(b.ingreso) || 0), 0);
 
     const totalRevenue = ventasCaja + ingresosEventos;
 
@@ -604,15 +603,16 @@ function renderAdmin(app) {
         .filter(a => isInPeriod(a.date) && (!a.socio || a.socio === 'Arume'))
         .reduce((a, b) => a + (b.total || 0), 0);
 
-    // B. ESTRUCTURA (FIJOS) - Corrección: usa 'amount'
+    // B. ESTRUCTURA (FIJOS)
     const totalFijos = db.gastos_fijos
         .filter(g => isInPeriod(g.date))
         .reduce((a, b) => a + (b.amount || 0), 0);
 
     // C. PERSONAL EXTRA
+    // CORREGIDO AQUÍ: Cambiado 'e.personalExtra' por 'b.personalExtra'
     const totalPersonalExtra = db.eventos
         .filter(e => isInPeriod(e.date))
-        .reduce((a, b) => a + (Num.parse(e.personalExtra) || 0), 0);
+        .reduce((a, b) => a + (Num.parse(b.personalExtra) || 0), 0);
 
     // D. MERMAS
     const totalMermas = db.mermas
