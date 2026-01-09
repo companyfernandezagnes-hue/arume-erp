@@ -319,13 +319,9 @@ const DB_INIT = {
     ], 
     ingredientes: [], recipes: [], proveedores: [{ id: 'p1', n: 'Makro', tel: '', fam: 'General' }], 
     albaranes: [], facturas: [], diario: [], mermas: [], kardex: [], sales_history: [], gastos_fijos: [], 
-    eventos: [], listaSocios: ['Jeronimo', 'Pedro', 'Pau', 'Agnes'], lastSync: 0 
+    eventos: [], listaSocios: ['Jeronimo', 'Pedro', 'Pau', 'Agnes'], lastSync: 0,
+    config: { empresa: '', nif: '', iban: '', sufijo: '000' } // <--- NUEVO CAMPO SEGURO
 };
-const secure = { 
-    enc: (d) => btoa(encodeURIComponent(JSON.stringify(d))), 
-    dec: (d) => JSON.parse(decodeURIComponent(atob(d))) 
-};
-
 /* === 5. VARIABLES GLOBALES DE ESTADO === */
 let db = DB_INIT;
 let currentUser = null;
@@ -422,8 +418,11 @@ function init() {
     if (!db.kardex) db.kardex = [];
     if (!db.sales_history) db.sales_history = [];
     if (!db.gastos_fijos) db.gastos_fijos = [];
-    if (!db.eventos) db.eventos = []; // <--- ESTO ES VITAL
+    if (!db.eventos) db.eventos = []; 
     if (!db.listaSocios) db.listaSocios = ['Jeronimo', 'Pedro', 'Pau', 'Agnes'];
+
+    // 👇 AÑADIDO: CONFIGURACIÓN FISCAL SEGURA 👇
+    if (!db.config) db.config = { empresa: '', nif: '', iban: '', sufijo: '000' }; 
 
     const savedUser = localStorage.getItem('arume_user');
     if (savedUser) { 
@@ -437,7 +436,6 @@ function init() {
     }
     setInterval(syncDown, 10000); 
 }
-
 function pin(n) {
     if (n === 'C') { currentPin = ""; } 
     else if (n === 'OK') {
