@@ -1433,12 +1433,30 @@ function renderFacturas(c) {
     const monthNames = ["", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
     const byMonth = {};
     
+    // Filtramos facturas pendientes de pago para el contador de remesa
+    const unpaidCount = hist.filter(f => !f.paid).length;
+
     hist.forEach(f => {
         const m = parseInt(f.date.split('-')[1]); 
         if(!byMonth[m]) byMonth[m] = { name: monthNames[m], total: 0, items: [] };
         byMonth[m].items.push(f);
         byMonth[m].total += f.total;
     });
+
+    // --- PANEL DE REMESA (NUEVO) ---
+    // Solo aparece si hay facturas sin pagar
+    const remesaPanel = unpaidCount > 0 ? `
+        <div class="glass-card mb-6 bg-indigo-50 border-indigo-100 p-4">
+            <div class="flex justify-between items-center">
+                <div>
+                    <h3 class="font-black text-indigo-900 text-sm uppercase tracking-widest">🏦 REMESA BANCARIA (SEPA)</h3>
+                    <p class="text-[10px] text-indigo-500">Selecciona facturas abajo y descarga el archivo para el banco.</p>
+                </div>
+                <button class="btn-premium w-auto px-4 py-2 text-xs shadow-indigo-200" onclick="downloadSEPA()">
+                    📥 DESCARGAR XML
+                </button>
+            </div>
+        </div>` : '';
 
     const htmlPends = Object.keys(groups).length ? 
         `<div class="glass-card mb-6 border-l-4 border-indigo-500">
@@ -1472,7 +1490,9 @@ function renderFacturas(c) {
             ${mData.items.map(f => `
                 <div class="flex justify-between items-center py-2 px-2 hover:bg-slate-50 transition rounded-lg group">
                     <div class="flex items-center gap-3">
-                        <div class="bg-slate-100 w-8 h-8 flex items-center justify-center rounded-full text-[10px] font-bold text-slate-500 group-hover:bg-white group-hover:shadow-sm transition">📄</div>
+                        
+                        ${!f.paid ? `<input type="checkbox" class="sepa-check w-5 h-5 accent-indigo-600 cursor-pointer mr-1" value="${f.id}">` : '<span class="w-6"></span>'}
+                        
                         <div>
                             <div class="font-bold text-slate-700 text-sm leading-tight">${clean(f.prov)}</div>
                             <div class="text-[10px] text-slate-400 font-mono flex gap-2 items-center mt-1">
@@ -1494,7 +1514,7 @@ function renderFacturas(c) {
         </div>`;
     }).join('');
 
-    c.innerHTML = htmlPends + htmlHist;
+    c.innerHTML = remesaPanel + htmlPends + htmlHist;
 }
 // 1. Paso previo: Abrir ventana para pedir datos (Número de factura real)
 function openInvoiceModal(provName, idsString, amount) {
@@ -2879,6 +2899,115 @@ function saveConfig() {
     };
     save("Configuración actualizada");
     closeModal();
+}
+    /* =============================================================
+   ⚠️ MOTOR DE REMESAS SEPA (ISO 20022 XML) ⚠️
+   ============================================================= */
+function downloadSEPA() {
+    // 1. Validar Configuración de Empresa
+    if (!db.config || !db.config.iban || !db.config.nif) {
+        return toast("❌ Faltan tus DATOS FISCALES en Admin", "error");
+    }
+
+    // 2. Recoger facturas seleccionadas
+    const checkboxes = document.querySelectorAll('.sepa-check:checked');
+    if (checkboxes.length === 0) return toast("Selecciona al menos una factura", "error");
+
+    const selectedIds = Array.from(checkboxes).map(c => c.value);
+    const facturas = db.facturas.filter(f => selectedIds.includes(f.id));
+
+    // 3. Preparar variables
+    const today = new Date();
+    const msgId = `REMESA-${Date.now()}`; // Identificador único
+    const execDate = today.toISOString().split('T')[0]; // Fecha ejecución (Hoy)
+    let totalRemesa = 0;
+    let numTxs = 0;
+    let txsXML = '';
+    
+    // 4. Bucle: Crear transacciones
+    for (const f of facturas) {
+        // Buscar proveedor
+        const prov = db.proveedores.find(p => p.n === f.prov);
+        
+        // VALIDACIÓN RIGUROSA
+        if (!prov) return toast(`❌ Error: No encuentro al proveedor ${f.prov}`, "error");
+        if (!prov.iban || prov.iban.length < 15) return toast(`❌ Error: ${f.prov} no tiene un IBAN válido`, "error");
+
+        totalRemesa += f.total;
+        numTxs++;
+        
+        // Limpieza de caracteres para XML
+        const provName = clean(prov.n).substring(0, 69);
+        const concepto = `Pago Fra ${clean(f.num)}`.substring(0, 139);
+        
+        txsXML += `
+        <CdtTrfTxInf>
+            <PmtId><EndToEndId>${f.id}</EndToEndId></PmtId>
+            <Amt>
+                <InstdAmt Ccy="EUR">${f.total.toFixed(2)}</InstdAmt>
+            </Amt>
+            <CdtrAgt><FinInstnId><Othr><Id>NOTPROVIDED</Id></Othr></FinInstnId></CdtrAgt>
+            <Cdtr>
+                <Nm>${provName}</Nm>
+            </Cdtr>
+            <CdtrAcct>
+                <Id><IBAN>${prov.iban.replace(/\s/g, '')}</IBAN></Id>
+            </CdtrAcct>
+            <RmtInf>
+                <Ustrd>${concepto}</Ustrd>
+            </RmtInf>
+        </CdtTrfTxInf>`;
+    }
+
+    // 5. Construir XML Completo (Cabecera + Bloque de Pagos)
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:pain.001.001.03">
+    <CstmrCdtTrfInitn>
+        <GrpHdr>
+            <MsgId>${msgId}</MsgId>
+            <CreDtTm>${today.toISOString()}</CreDtTm>
+            <NbOfTxs>${numTxs}</NbOfTxs>
+            <CtrlSum>${totalRemesa.toFixed(2)}</CtrlSum>
+            <InitgPty>
+                <Nm>${clean(db.config.empresa)}</Nm>
+                <Id>
+                    <OrgId>
+                        <Othr>
+                            <Id>${db.config.nif}${db.config.sufijo || '000'}</Id>
+                        </Othr>
+                    </OrgId>
+                </Id>
+            </InitgPty>
+        </GrpHdr>
+        <PmtInf>
+            <PmtInfId>${msgId}-001</PmtInfId>
+            <PmtMtd>TRF</PmtMtd>
+            <NbOfTxs>${numTxs}</NbOfTxs>
+            <CtrlSum>${totalRemesa.toFixed(2)}</CtrlSum>
+            <PmtTpInf>
+                <SvcLvl><Cd>SEPA</Cd></SvcLvl>
+            </PmtTpInf>
+            <ReqdExctnDt>${execDate}</ReqdExctnDt>
+            <Dbtr>
+                <Nm>${clean(db.config.empresa)}</Nm>
+            </Dbtr>
+            <DbtrAcct>
+                <Id><IBAN>${db.config.iban.replace(/\s/g, '')}</IBAN></Id>
+            </DbtrAcct>
+            <DbtrAgt><FinInstnId><Othr><Id>NOTPROVIDED</Id></Othr></FinInstnId></DbtrAgt>
+            ${txsXML}
+        </PmtInf>
+    </CstmrCdtTrfInitn>
+</Document>`;
+
+    // 6. Descargar
+    const blob = new Blob([xml], { type: 'application/xml' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `REMESA_${today.toISOString().slice(0,10)}.xml`;
+    a.click();
+    
+    toast(`✅ Remesa lista: ${Num.fmt(totalRemesa)}€ (${numTxs} fras)`, "success");
 }
 /* =============================================================
    🚀 ARRANQUE DE LA APLICACIÓN (BOOTSTRAP) 🚀
