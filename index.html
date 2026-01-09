@@ -587,7 +587,6 @@ function renderAdmin(app) {
         .filter(d => isInPeriod(d.date))
         .reduce((a, b) => a + (b.total || 0), 0);
 
-    // CORREGIDO AQUÍ: Cambiado 'e.ingreso' por 'b.ingreso'
     const ingresosEventos = db.eventos
         .filter(e => isInPeriod(e.date))
         .reduce((a, b) => a + (Num.parse(b.ingreso) || 0), 0);
@@ -607,7 +606,6 @@ function renderAdmin(app) {
         .reduce((a, b) => a + (b.amount || 0), 0);
 
     // C. PERSONAL EXTRA
-    // CORREGIDO AQUÍ: Cambiado 'e.personalExtra' por 'b.personalExtra'
     const totalPersonalExtra = db.eventos
         .filter(e => isInPeriod(e.date))
         .reduce((a, b) => a + (Num.parse(b.personalExtra) || 0), 0);
@@ -776,10 +774,15 @@ function renderAdmin(app) {
 
         <div class="glass-card mt-8">
             <h4 class="text-[10px] font-bold text-slate-400 uppercase mb-4 tracking-widest">Zona de Control</h4>
-            <div class="grid grid-cols-3 gap-2 mb-4">
+            
+            <div class="grid grid-cols-2 gap-2 mb-2">
+                <button class="btn-ghost text-[10px] border-slate-200" onclick="editConfig()">⚙️ DATOS FISCALES</button>
                 <button class="btn-ghost text-[10px]" onclick="downloadBackup()">💾 BACKUP</button>
-                <button class="btn-ghost text-indigo-600 text-[10px]" onclick="document.getElementById('backup-input').click()">📤 RESTAURAR</button>
-                <button class="btn-ghost text-emerald-600 font-black border-emerald-200 bg-emerald-50 text-[10px]" onclick="forceCloudDownload()">☁️ SINCRO</button>
+            </div>
+            
+            <div class="grid grid-cols-2 gap-2 mb-4">
+                 <button class="btn-ghost text-indigo-600 text-[10px]" onclick="document.getElementById('backup-input').click()">📤 RESTAURAR</button>
+                 <button class="btn-ghost text-emerald-600 font-black border-emerald-200 bg-emerald-50 text-[10px]" onclick="forceCloudDownload()">☁️ SINCRO</button>
             </div>
             <button class="btn-ghost text-red-500 border-red-100 bg-red-50 text-[10px] w-full hover:bg-red-500 hover:text-white transition" onclick="resetStockToZero()">♻️ RESETEAR STOCK A CERO</button>
         </div>
@@ -824,23 +827,46 @@ function renderProvs(c) {
         </div>
     </div>`; 
 }
-
 function editProv(id) { 
-    const p = id ? db.proveedores.find(x => x.id === id) : { id: generateID(), n: '', tel: '', fam: 'General' }; 
+    const p = id ? db.proveedores.find(x => x.id === id) : { id: generateID(), n: '', tel: '', fam: 'General', nif: '', iban: '' }; 
     const fams = FAMILIES.map(f => `<option ${p.fam === f ? 'selected' : ''}>${f}</option>`).join(''); 
-    showModal('Proveedor', `<label>Nombre</label><input id="ep-n" value="${clean(p.n)}" class="input-premium mb-2" placeholder="Nombre"><label>Teléfono</label><input id="ep-t" value="${clean(p.tel)}" class="input-premium mb-2" placeholder="Teléfono"><label>Familia</label><select id="ep-f" class="input-premium mb-4">${fams}</select><div class="flex gap-2"><button class="btn-premium flex-1" onclick="saveProv('${p.id}')">GUARDAR</button>${id ? `<button class="btn-ghost text-red-500 w-auto" onclick="delProv('${id}')">🗑️</button>` : ''}</div>`); 
+    
+    showModal('Ficha Proveedor', `
+        <div class="grid grid-cols-2 gap-2 mb-2">
+            <div><label>Nombre Fiscal</label><input id="ep-n" value="${clean(p.n)}" class="input-premium" placeholder="Nombre"></div>
+            <div><label>NIF / CIF</label><input id="ep-nif" value="${clean(p.nif)}" class="input-premium" placeholder="B123..."></div>
+        </div>
+        <label>IBAN (Para Pagos/Remesas)</label>
+        <input id="ep-iban" value="${clean(p.iban)}" class="input-premium mb-2 font-mono uppercase" placeholder="ES00 0000...">
+        
+        <div class="grid grid-cols-2 gap-2 mb-4">
+            <div><label>Teléfono</label><input id="ep-t" value="${clean(p.tel)}" class="input-premium" placeholder="Tel"></div>
+            <div><label>Familia</label><select id="ep-f" class="input-premium">${fams}</select></div>
+        </div>
+
+        <div class="flex gap-2">
+            <button class="btn-premium flex-1" onclick="saveProv('${p.id}')">GUARDAR FICHA</button>
+            ${id ? `<button class="btn-ghost text-red-500 w-auto" onclick="delProv('${id}')">🗑️</button>` : ''}
+        </div>
+    `); 
 }
 
 function saveProv(id) { 
     const n = document.getElementById('ep-n').value; 
     if (n) { 
-        const p = { id, n, tel: document.getElementById('ep-t').value, fam: document.getElementById('ep-f').value }; 
+        const p = { 
+            id, 
+            n, 
+            nif: document.getElementById('ep-nif').value.toUpperCase(),
+            tel: document.getElementById('ep-t').value, 
+            iban: document.getElementById('ep-iban').value.toUpperCase().replace(/\s/g, ''), // Quitamos espacios al guardar
+            fam: document.getElementById('ep-f').value 
+        }; 
         const idx = db.proveedores.findIndex(x => x.id === id); 
         if (idx >= 0) db.proveedores[idx] = p; else db.proveedores.push(p); 
-        save("Guardado"); closeModal(); renderAdmin(document.getElementById('app')); 
+        save("Proveedor Guardado"); closeModal(); renderAdmin(document.getElementById('app')); 
     } 
 }
-
 function delProv(id) { 
     if (confirm("¿Borrar?")) { db.proveedores = db.proveedores.filter(x => x.id !== id); save("Borrado"); closeModal(); renderAdmin(document.getElementById('app')); } 
 }
@@ -2827,6 +2853,47 @@ window.onclick = function(event) {
             }
         }
     }
+}
+// --- CONFIGURACIÓN FISCAL (EMPRESA) ---
+function editConfig() {
+    // Si la db es antigua y no tiene config, la inicializamos (doble seguridad)
+    if (!db.config) db.config = { empresa: '', nif: '', iban: '', sufijo: '000' };
+
+    showModal('⚙️ Configuración Fiscal', `
+        <div class="bg-indigo-50 p-4 rounded-xl border border-indigo-100 mb-4 text-xs text-indigo-800">
+            Datos necesarios para <b>Remesas SEPA</b> y contabilidad.
+        </div>
+        
+        <label>Nombre Fiscal Empresa</label>
+        <input id="cfg-nom" value="${clean(db.config.empresa)}" class="input-premium mb-2" placeholder="Ej: RESTAURANTE SL">
+        
+        <div class="grid grid-cols-3 gap-2 mb-2">
+            <div class="col-span-2">
+                <label>NIF / CIF</label>
+                <input id="cfg-nif" value="${clean(db.config.nif)}" class="input-premium" placeholder="B12345678">
+            </div>
+            <div>
+                 <label>Sufijo SEPA</label>
+                 <input id="cfg-suf" value="${clean(db.config.sufijo)}" class="input-premium text-center" placeholder="000">
+            </div>
+        </div>
+
+        <label>IBAN de Emisión (Tu banco)</label>
+        <input id="cfg-iban" value="${clean(db.config.iban)}" class="input-premium mb-6 font-mono uppercase" placeholder="ES00...">
+
+        <button class="btn-premium" onclick="saveConfig()">💾 GUARDAR DATOS</button>
+    `);
+}
+
+function saveConfig() {
+    db.config = {
+        empresa: document.getElementById('cfg-nom').value,
+        nif: document.getElementById('cfg-nif').value.toUpperCase(),
+        iban: document.getElementById('cfg-iban').value.toUpperCase().replace(/\s/g, ''),
+        sufijo: document.getElementById('cfg-suf').value
+    };
+    save("Configuración actualizada");
+    closeModal();
 }
 /* =============================================================
    🚀 ARRANQUE DE LA APLICACIÓN (BOOTSTRAP) 🚀
