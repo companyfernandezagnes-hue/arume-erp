@@ -870,18 +870,13 @@ function saveProv(id) {
 function delProv(id) { 
     if (confirm("¿Borrar?")) { db.proveedores = db.proveedores.filter(x => x.id !== id); save("Borrado"); closeModal(); renderAdmin(document.getElementById('app')); } 
 }
-
 function renderAlbaranes(c) {
     const list = db.albaranes.filter(a => isInPeriod(a.date)).slice().reverse();
     const provOptions = db.proveedores.map(p => `<option value="${clean(p.n)}">`).join('');
     const ingOptions = db.ingredientes.map(i => `<option value="${clean(i.n)}">`).join('');
     
-    // === 🛡️ CORRECCIÓN AQUÍ 🛡️ ===
-    // Si la lista de socios no existe en la nube aún, usamos esta por defecto para que no falle
+    // Lista de socios segura
     const listaSociosSegura = db.listaSocios || ['Jeronimo', 'Pedro', 'Pau', 'Agnes'];
-    
-    // === CAMBIO: AÑADIMOS ARUME COMO PRIMERA OPCIÓN POR DEFECTO ===
-    // AÑADIMOS ONLYONE PARA SEPARAR SUS GASTOS
     const socioOptions = `<option value="Arume" selected>🏠 ARUME</option>` + 
                          `<option value="OnlyOne">🍸 ONLYONE (Pau)</option>` +
                          listaSociosSegura.map(s => `<option value="${s}">${s}</option>`).join('');
@@ -921,8 +916,13 @@ function renderAlbaranes(c) {
             <div class="text-xs text-slate-400 font-bold">TOTAL A PAGAR</div>
             <div class="text-3xl font-black text-slate-800"><span id="alb-total">0.00€</span></div>
         </div>
+
+        <div class="mt-4 mb-4">
+            <label class="text-red-400 font-bold">📝 NOTAS / INCIDENCIAS (Opcional)</label>
+            <textarea id="alb-notes" class="input-premium bg-red-50 border-red-100 text-red-600 font-medium text-xs" rows="2" placeholder="Si escribes algo aquí, se marcará en ROJO en facturación para revisar..."></textarea>
+        </div>
         
-        <div class="grid grid-cols-2 gap-3 mt-4">
+        <div class="grid grid-cols-2 gap-3 mt-2">
             <button class="btn-premium btn-action" onclick="commitAlb()">GUARDAR Y STOCK</button>
             <button class="btn-ghost" onclick="exportAlbCSV()">CSV</button>
         </div>
@@ -931,12 +931,13 @@ function renderAlbaranes(c) {
     <div class="glass-card">
         <h4 class="text-xs font-bold text-slate-400 uppercase mb-4">Historial</h4>
         ${list.length ? list.map(a => `
-            <div class="flex justify-between items-center py-3 border-b hover:bg-slate-50 transition px-2 rounded-lg">
+            <div class="flex justify-between items-center py-3 border-b hover:bg-slate-50 transition px-2 rounded-lg ${a.notes ? 'bg-red-50 border-l-4 border-red-400' : ''}">
                 <div class="text-sm font-bold text-slate-700">
                     ${clean(a.prov)} 
                     <span class="text-[10px] text-slate-400 font-normal">(${a.date})</span>
                     <span class="ml-2 text-[9px] bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded font-bold border border-indigo-100">👤 ${a.socio || '?'}</span>
                     <div class="text-[10px] text-slate-400 font-mono">Ref: ${a.num || '-'}</div>
+                    ${a.notes ? `<div class="text-[10px] text-red-500 font-bold mt-1">⚠️ ${clean(a.notes)}</div>` : ''}
                 </div>
                 <div class="flex items-center gap-2">
                     <span class="font-bold text-sm mr-2">${Num.fmt(a.total)}€</span>
@@ -950,7 +951,6 @@ function renderAlbaranes(c) {
     </div>`;
     renderAlbGrid();
 }
-
 function checkDuplicate() {
     const num = document.getElementById('alb-num').value.trim();
     const prov = document.getElementById('alb-prov').value.trim();
@@ -1253,7 +1253,6 @@ function renderAlbGrid() {
 /* =============================================================
    ⚠️ COMMIT INTELIGENTE V4.0 (Aprende IVA y Proveedores) ⚠️
    ============================================================= */
-
 function commitAlb() {
     if (!tempItems.length) return toast("Albarán vacío", "error");
     
@@ -1262,10 +1261,12 @@ function commitAlb() {
     const provName = document.getElementById('alb-prov').value.trim();
     const date = document.getElementById('alb-date').value;
     const num = document.getElementById('alb-num').value.trim() || `A-${Date.now().toString().slice(-6)}`;
+    // NUEVO: Recoger notas
+    const notes = document.getElementById('alb-notes').value.trim();
     
     if (!provName || !date) return toast("Faltan datos (Proveedor o Fecha)", "error");
 
-    // 1. Asegurar Proveedor (Si es nuevo, lo creamos)
+    // 1. Asegurar Proveedor
     let provider = db.proveedores.find(p => p.n.toLowerCase() === provName.toLowerCase());
     if (!provider) {
         provider = { id: generateID(), n: provName, tel: '', fam: 'General' };
@@ -1274,79 +1275,53 @@ function commitAlb() {
 
     let subtotal = 0, taxes = 0;
 
-    // 2. Procesar Líneas (El núcleo inteligente)
+    // 2. Procesar Líneas
     tempItems.forEach(it => {
         const cleanName = it.n.trim();
-        
-        // Buscamos si el ingrediente ya existe
         let ing = db.ingredientes.find(x => x.n.toLowerCase() === cleanName.toLowerCase());
-        
-        // Cálculos financieros de la línea
-        const netPrice = it.p * (1 - (it.d || 0) / 100); // Precio unitario con descuento, sin IVA
-        const lineBase = it.q * netPrice;                // Base imponible total línea
-        const lineTax = lineBase * (it.tax / 100);       // Cuota IVA línea
+        const netPrice = it.p * (1 - (it.d || 0) / 100);
+        const lineBase = it.q * netPrice;
+        const lineTax = lineBase * (it.tax / 100);
 
-        // A. SI NO EXISTE -> CREAMOS NUEVO
         if (!ing) { 
             ing = { 
-                id: generateID(), 
-                n: cleanName, 
-                stock: 0, 
-                cost: netPrice, 
-                unit: it.unit, 
-                fam: 'General', 
-                min: 0,
-                tax: it.tax,        // Guardamos el IVA que ha detectado el lector
-                lastProv: provName  // Guardamos quién nos lo ha vendido
+                id: generateID(), n: cleanName, stock: 0, cost: netPrice, unit: it.unit, fam: 'General', min: 0,
+                tax: it.tax, lastProv: provName 
             }; 
             db.ingredientes.push(ing); 
-        } 
-        // B. SI YA EXISTE -> ACTUALIZAMOS (APRENDIZAJE)
-        else {
-            // 1. Detector de Inflación: Guardamos el coste anterior si cambia mucho
-            if (Math.abs(ing.cost - netPrice) > 0.01) {
-                ing.lastCost = ing.cost;
-            }
-
-            // 2. Cálculo Precio Medio Ponderado (PMP)
+        } else {
+            if (Math.abs(ing.cost - netPrice) > 0.01) ing.lastCost = ing.cost;
             const totalVal = (ing.stock * ing.cost) + (it.q * netPrice);
             const totalQty = ing.stock + it.q;
-            
             if (totalQty > 0) ing.cost = totalVal / totalQty;
             else if (it.q > 0) ing.cost = netPrice;
-
-            // 3. CEREBRO: Actualizamos la ficha con lo que hemos aprendido hoy
-            ing.tax = it.tax;       // Si corregiste el IVA en el grid, ahora se queda grabado
-            ing.lastProv = provName; // Recordamos que este proveedor vende este producto
+            ing.tax = it.tax; ing.lastProv = provName; 
         }
 
-        // C. MOVIMIENTO DE STOCK
         ing.stock += it.q;
         logStock(ing.id, it.q, 'IN', `Alb: ${num} (${clean(provName)})`, netPrice);
-        
-        // Acumulamos totales
         subtotal += lineBase;
         taxes += lineTax;
     });
 
-    // 3. Guardar Albarán en la base de datos
+    // 3. Guardar Albarán
     db.albaranes.push({ 
         id: generateID(), 
         num: num, 
         prov: provName, 
         date: date, 
         socio: socio,
-        items: [...tempItems], // Guardamos copia exacta de lo importado
+        items: [...tempItems], 
         total: subtotal + taxes, 
         subtotal: subtotal, 
         taxes: taxes, 
-        invoiced: false 
+        invoiced: false,
+        notes: notes // <--- GUARDAMOS LA NOTA AQUÍ
     });
     
-    clearCache(); // Limpiamos caché de recetas para que se recalculen los costes con los nuevos precios
-    save(`✅ Albarán ${num} guardado`); 
+    clearCache();
+    save(`✅ Albarán ${num} guardado`);
     
-    // Limpiamos pantalla y recargamos dashboard
     tempItems = []; 
     renderAdmin(document.getElementById('app'));
 }
@@ -1368,7 +1343,6 @@ function deleteAlb(id) {
         }
     }
 }
-
 function editAlb(id) {
     const alb = db.albaranes.find(a => a.id === id);
     if (!alb) return;
@@ -1376,6 +1350,7 @@ function editAlb(id) {
     if (alb.invoiced) return toast("⛔ No se puede editar: Ya está facturado", "error");
 
     if(confirm("¿Modificar albarán? \nSe cargará arriba para editar y se recalculará el stock.")) {
+        // 1. Devolver Stock (Deshacer movimientos)
         alb.items.forEach(it => {
             const ing = db.ingredientes.find(x => x.n === it.n && x.unit === it.unit);
             if(ing) {
@@ -1384,15 +1359,16 @@ function editAlb(id) {
             }
         });
 
+        // 2. Cargar datos en el formulario
         document.getElementById('alb-prov').value = alb.prov;
         document.getElementById('alb-num').value = alb.num;
         document.getElementById('alb-date').value = alb.date;
+        if(alb.socio) document.getElementById('alb-socio').value = alb.socio;
         
-        // --- RECUPERAMOS EL SOCIO AL EDITAR ---
-        if(alb.socio) {
-            document.getElementById('alb-socio').value = alb.socio;
-        }
+        // === NUEVO: RECUPERAR NOTAS ===
+        document.getElementById('alb-notes').value = alb.notes || ''; 
 
+        // 3. Cargar items y borrar el antiguo
         tempItems = JSON.parse(JSON.stringify(alb.items));
         db.albaranes = db.albaranes.filter(a => a.id !== id);
 
@@ -1404,7 +1380,6 @@ function editAlb(id) {
         }, 100);
     }
 }
-
 function exportAlbCSV() { 
     if (!tempItems.length) return toast("Tabla vacía", "error"); 
     const rows = tempItems.map(it => [it.n, Num.csv(it.q), it.unit, Num.csv(it.p), Num.csv(it.d || 0), Num.csv((it.q * it.p) * (1 + it.tax / 100))]); 
@@ -1422,18 +1397,22 @@ function renderFacturas(c) {
     const pends = db.albaranes.filter(a => !a.invoiced);
     const groups = {}; 
     pends.forEach(a => { 
-        if (!groups[a.prov]) groups[a.prov] = { c: 0, t: 0, ids: [] }; 
+        if (!groups[a.prov]) groups[a.prov] = { c: 0, t: 0, ids: [], hasNotes: false }; 
         groups[a.prov].c++; 
         groups[a.prov].t += a.total; 
-        groups[a.prov].ids.push(a.id); 
+        groups[a.prov].ids.push(a.id);
+        
+        // === DETECTOR DE INCIDENCIAS ===
+        // Si tiene notas, activamos la bandera 'hasNotes'
+        if (a.notes && a.notes.trim().length > 0) {
+            groups[a.prov].hasNotes = true;
+        }
     });
     
-    // 2. Historial
+    // 2. Historial (Facturas ya hechas)
     const hist = db.facturas.filter(f => isInPeriod(f.date)).sort((a,b) => b.date.localeCompare(a.date));
     const monthNames = ["", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
     const byMonth = {};
-    
-    // Filtramos facturas pendientes de pago para el contador de remesa
     const unpaidCount = hist.filter(f => !f.paid).length;
 
     hist.forEach(f => {
@@ -1443,8 +1422,6 @@ function renderFacturas(c) {
         byMonth[m].total += f.total;
     });
 
-    // --- PANEL DE REMESA (NUEVO) ---
-    // Solo aparece si hay facturas sin pagar
     const remesaPanel = unpaidCount > 0 ? `
         <div class="glass-card mb-6 bg-indigo-50 border-indigo-100 p-4">
             <div class="flex justify-between items-center">
@@ -1461,17 +1438,30 @@ function renderFacturas(c) {
     const htmlPends = Object.keys(groups).length ? 
         `<div class="glass-card mb-6 border-l-4 border-indigo-500">
             <h3 class="font-bold text-xs text-slate-400 mb-3 uppercase tracking-widest">⚠️ Pendientes de Facturar</h3>
-            ${Object.entries(groups).map(([p, d]) => `
-                <div class="flex justify-between items-center py-3 border-b border-slate-100 last:border-0">
+            ${Object.entries(groups).map(([p, d]) => {
+                // === LÓGICA VISUAL DE ALERTA ===
+                // Si hasNotes es true, cambiamos el estilo a ROJO y mostramos aviso
+                const alertStyle = d.hasNotes 
+                    ? 'bg-red-50 border-l-4 border-red-500 my-2 rounded-r-xl shadow-sm' 
+                    : 'border-b border-slate-100 last:border-0';
+                
+                const alertBadge = d.hasNotes 
+                    ? `<div class="text-[10px] font-black text-red-600 animate-pulse mt-1">⚠️ REVISAR NOTAS EN ALBARÁN</div>` 
+                    : '';
+
+                return `
+                <div class="flex justify-between items-center py-3 px-2 ${alertStyle}">
                     <div>
                         <div class="font-bold text-slate-800 text-sm">${clean(p)}</div>
-                        <div class="text-[10px] text-slate-400 font-bold bg-slate-50 px-2 rounded inline-block">${d.c} albaranes</div>
+                        <div class="text-[10px] text-slate-400 font-bold bg-white px-2 rounded inline-block border">${d.c} albaranes</div>
+                        ${alertBadge}
                     </div>
                     <div class="flex items-center gap-3">
                         <span class="font-black text-slate-700 text-sm">${Num.fmt(d.t)}€</span>
                         <button class="bg-indigo-600 text-white px-3 py-2 rounded-xl text-[10px] font-bold shadow-lg active:scale-95 transition" onclick="openInvoiceModal('${p}','${d.ids.join(',')}', ${d.t})">GENERAR FACTURA</button>
                     </div>
-                </div>`).join('')}
+                </div>`
+            }).join('')}
         </div>` : 
         `<div class="glass-card mb-6 flex items-center gap-4 p-4 opacity-70"><div class="bg-emerald-100 p-2 rounded-full text-emerald-600">✅</div><div class="text-xs font-bold text-slate-500">Todo facturado.</div></div>`;
 
@@ -1490,9 +1480,7 @@ function renderFacturas(c) {
             ${mData.items.map(f => `
                 <div class="flex justify-between items-center py-2 px-2 hover:bg-slate-50 transition rounded-lg group">
                     <div class="flex items-center gap-3">
-                        
                         ${!f.paid ? `<input type="checkbox" class="sepa-check w-5 h-5 accent-indigo-600 cursor-pointer mr-1" value="${f.id}">` : '<span class="w-6"></span>'}
-                        
                         <div>
                             <div class="font-bold text-slate-700 text-sm leading-tight">${clean(f.prov)}</div>
                             <div class="text-[10px] text-slate-400 font-mono flex gap-2 items-center mt-1">
