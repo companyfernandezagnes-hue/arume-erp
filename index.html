@@ -3290,670 +3290,277 @@ function saveConfig() {
     save("Configuración actualizada");
     closeModal();
 }
-    /* =============================================================
-   ⚠️ MOTOR DE REMESAS SEPA (ISO 20022 XML) ⚠️
-   ============================================================= */
-function downloadSEPA() {
-    // 1. Validar Configuración de Empresa
-    if (!db.config || !db.config.iban || !db.config.nif) {
-        return toast("❌ Faltan tus DATOS FISCALES en Admin", "error");
-    }
-
-    // 2. Recoger facturas seleccionadas
-    const checkboxes = document.querySelectorAll('.sepa-check:checked');
-    if (checkboxes.length === 0) return toast("Selecciona al menos una factura", "error");
-
-    const selectedIds = Array.from(checkboxes).map(c => c.value);
-    const facturas = db.facturas.filter(f => selectedIds.includes(f.id));
-
-    // 3. Preparar variables
-    const today = new Date();
-    const msgId = `REMESA-${Date.now()}`; // Identificador único
-    const execDate = today.toISOString().split('T')[0]; // Fecha ejecución (Hoy)
-    let totalRemesa = 0;
-    let numTxs = 0;
-    let txsXML = '';
-    
-    // 4. Bucle: Crear transacciones
-    for (const f of facturas) {
-        // Buscar proveedor
-        const prov = db.proveedores.find(p => p.n === f.prov);
-        
-        // VALIDACIÓN RIGUROSA
-        if (!prov) return toast(`❌ Error: No encuentro al proveedor ${f.prov}`, "error");
-        if (!prov.iban || prov.iban.length < 15) return toast(`❌ Error: ${f.prov} no tiene un IBAN válido`, "error");
-
-        totalRemesa += f.total;
-        numTxs++;
-        
-        // Limpieza de caracteres para XML
-        const provName = clean(prov.n).substring(0, 69);
-        const concepto = `Pago Fra ${clean(f.num)}`.substring(0, 139);
-        
-        txsXML += `
-        <CdtTrfTxInf>
-            <PmtId><EndToEndId>${f.id}</EndToEndId></PmtId>
-            <Amt>
-                <InstdAmt Ccy="EUR">${f.total.toFixed(2)}</InstdAmt>
-            </Amt>
-            <CdtrAgt><FinInstnId><Othr><Id>NOTPROVIDED</Id></Othr></FinInstnId></CdtrAgt>
-            <Cdtr>
-                <Nm>${provName}</Nm>
-            </Cdtr>
-            <CdtrAcct>
-                <Id><IBAN>${prov.iban.replace(/\s/g, '')}</IBAN></Id>
-            </CdtrAcct>
-            <RmtInf>
-                <Ustrd>${concepto}</Ustrd>
-            </RmtInf>
-        </CdtTrfTxInf>`;
-    }
-
-    // 5. Construir XML Completo (Cabecera + Bloque de Pagos)
-    const xml = `<?xml version="1.0" encoding="UTF-8"?>
-<Document xmlns="urn:iso:std:iso:20022:tech:xsd:pain.001.001.03">
-    <CstmrCdtTrfInitn>
-        <GrpHdr>
-            <MsgId>${msgId}</MsgId>
-            <CreDtTm>${today.toISOString()}</CreDtTm>
-            <NbOfTxs>${numTxs}</NbOfTxs>
-            <CtrlSum>${totalRemesa.toFixed(2)}</CtrlSum>
-            <InitgPty>
-                <Nm>${clean(db.config.empresa)}</Nm>
-                <Id>
-                    <OrgId>
-                        <Othr>
-                            <Id>${db.config.nif}${db.config.sufijo || '000'}</Id>
-                        </Othr>
-                    </OrgId>
-                </Id>
-            </InitgPty>
-        </GrpHdr>
-        <PmtInf>
-            <PmtInfId>${msgId}-001</PmtInfId>
-            <PmtMtd>TRF</PmtMtd>
-            <NbOfTxs>${numTxs}</NbOfTxs>
-            <CtrlSum>${totalRemesa.toFixed(2)}</CtrlSum>
-            <PmtTpInf>
-                <SvcLvl><Cd>SEPA</Cd></SvcLvl>
-            </PmtTpInf>
-            <ReqdExctnDt>${execDate}</ReqdExctnDt>
-            <Dbtr>
-                <Nm>${clean(db.config.empresa)}</Nm>
-            </Dbtr>
-            <DbtrAcct>
-                <Id><IBAN>${db.config.iban.replace(/\s/g, '')}</IBAN></Id>
-            </DbtrAcct>
-            <DbtrAgt><FinInstnId><Othr><Id>NOTPROVIDED</Id></Othr></FinInstnId></DbtrAgt>
-            ${txsXML}
-        </PmtInf>
-    </CstmrCdtTrfInitn>
-</Document>`;
-
-    // 6. Descargar
-    const blob = new Blob([xml], { type: 'application/xml' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `REMESA_${today.toISOString().slice(0,10)}.xml`;
-    a.click();
-    
-    toast(`✅ Remesa lista: ${Num.fmt(totalRemesa)}€ (${numTxs} fras)`, "success");
-}
-/* =============================================================
-   🚀 ARRANQUE DE LA APLICACIÓN (BOOTSTRAP) 🚀
-   ============================================================= */
-
-/* === 16. LÓGICA DE ARRANQUE FINAL === */
-async function forceCloudDownload() {
-    if(confirm("⚠️ ¿ESTÁS SEGURO?\n\nEsto borrará los datos de ESTE dispositivo y bajará la última copia de la nube.\n\nÚsalo solo si no ves los datos actualizados.")) {
-        loading(true);
-        try {
-            const { data, error } = await sb.from('arume_data').select('data').eq('id', 1).single();
-            if (error) throw error;
-            
-            if (data && data.data) {
-                db = data.data;
-                localStorage.setItem('arume_v152', secure.enc(db));
-                toast("✅ Datos sincronizados", "success");
-                setTimeout(() => location.reload(), 500); 
-            } else {
-                toast("❌ No hay datos en la nube", "error");
-            }
-        } catch (e) {
-            console.error(e);
-            toast("Error de conexión", "error");
-        } finally {
-            loading(false);
-        }
-    }
-}
-    window.onload = init;
-    // =========================
-// Módulo EVENTOS · OnlyOne
-function renderEventos(c) {
-    if (!db.eventos) db.eventos = [];
-    // Lista de eventos (últimos primero)
-    const eventosList = db.eventos.slice().reverse();
-
-    // Totales del periodo (o global si no filtras por periodo)
-    const ingresosTotal = db.eventos.reduce((s, e) => s + (Num.parse(e.ingreso) || 0), 0);
-    const personalExtraTotal = db.eventos.reduce((s, e) => s + (Num.parse(e.personalExtra) || 0), 0);
-
-    // Albaranes relacionados a OnlyOne
-    const albsOnlyOne = (db.albaranes || []).filter(a => (a.socio === 'OnlyOne'));
-    const albsOnlyOnePeriod = albsOnlyOne.filter(a => isInPeriod(a.date));
-    const albsTotal = albsOnlyOnePeriod.reduce((s, a) => s + (a.total || 0), 0);
-
-    // Caja Negra = ingresos - albaranes OnlyOne (periodo) - personalExtra
-    const cajaNegra = ingresosTotal - albsTotal - personalExtraTotal;
-
-    c.innerHTML = `
-    <div class="glass-card">
-        <div class="flex justify-between items-center mb-4">
-            <h3 class="font-bold text-slate-800">EVENTOS · OnlyOne</h3>
-            <div class="text-right">
-                <div class="text-[10px] text-slate-400">Ingresos: <strong>${Num.fmt(ingresosTotal)}€</strong></div>
-                <div class="text-[10px] text-slate-400">Albaranes OnlyOne: <strong>${Num.fmt(albsTotal)}€</strong></div>
-                <div class="text-[10px] text-slate-400">Personal Extra: <strong>${Num.fmt(personalExtraTotal)}€</strong></div>
-                <div class="text-sm font-black ${cajaNegra >= 0 ? 'text-emerald-500' : 'text-red-500'}">Caja Negra: ${Num.fmt(cajaNegra)}€</div>
-            </div>
-        </div>
-
-        <div class="mb-4">
-            <h4 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Registrar Evento</h4>
-            <div class="grid grid-cols-3 gap-2 mb-2">
-                <div>
-                    <label>Fecha</label>
-                    <input type="date" id="ev-date" value="${getISO()}" class="input-premium">
-                </div>
-                <div>
-                    <label>Tipo</label>
-                    <select id="ev-tipo" class="input-premium">
-                        <option value="Catering">Catering</option>
-                        <option value="Cocktail">Cocktail</option>
-                        <option value="Festival">Festival</option>
-                        <option value="Otro">Otro</option>
-                    </select>
-                </div>
-                <div>
-                    <label>Ingreso (€)</label>
-                    <input type="number" id="ev-ingreso" class="input-premium" step="0.01" value="0">
-                </div>
-            </div>
-
-            <div class="grid grid-cols-3 gap-2 mb-2">
-                <div>
-                    <label>Personal Extra (€)</label>
-                    <input type="number" id="ev-personal" class="input-premium" step="0.01" value="0">
-                </div>
-                <div class="col-span-2">
-                    <label>Título / Cliente</label>
-                    <input id="ev-title" class="input-premium" placeholder="Nombre del evento / cliente">
-                </div>
-            </div>
-
-            <label>Notas</label>
-            <textarea id="ev-notes" class="input-premium" rows="2" placeholder="Notas, detalles, contacto..."></textarea>
-
-            <div class="flex gap-2 mt-3">
-                <button class="btn-premium btn-action" onclick="saveEvent()">💾 Guardar Evento</button>
-                <button class="btn-ghost" onclick="clearEventForm()">Limpiar</button>
-            </div>
-        </div>
-
-        <div id="ev-list" class="mt-4">
-            <h4 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Listado de Eventos</h4>
-            ${eventosList.length ? eventosList.map(ev => `
-                <div class="bg-white p-3 rounded-lg border flex justify-between items-center mb-2">
-                    <div>
-                        <div class="font-bold text-slate-800">${clean(ev.title || ev.tipo || 'Evento')}</div>
-                        <div class="text-[10px] text-slate-400">${ev.date} · ${ev.tipo} · ${ev.notes ? clean(ev.notes).slice(0,80) : ''}</div>
-                    </div>
-                    <div class="text-right">
-                        <div class="font-black">${Num.fmt(ev.ingreso||0)}€</div>
-                        <div class="text-[10px] text-slate-400">Pers: ${Num.fmt(ev.personalExtra||0)}€</div>
-                        <div class="flex gap-1 mt-2 justify-end">
-                            <button class="btn-ghost text-[10px]" onclick="openEventCalendar('${ev.id}')">📅 Calendario</button>
-                            <button class="btn-ghost text-[10px]" onclick="printEventBudget('${ev.id}')">🖨 Presupuesto</button>
-                            <button class="btn-edit btn-icon" onclick="editEvent('${ev.id}')">✏️</button>
-                            <button class="btn-delete btn-icon" onclick="deleteEvent('${ev.id}')">🗑️</button>
-                        </div>
-                    </div>
-                </div>
-            `).join('') : '<div class="text-center p-4 text-slate-400">No hay eventos registrados</div>'}
-        </div>
-    </div>
-
-    <div class="glass-card mt-4">
-        <h4 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Albaranes · ONLYONE</h4>
-        <div class="text-[12px] font-black mb-3">Total (periodo): ${Num.fmt(albsTotal)}€</div>
-        <div class="space-y-2 max-h-48 overflow-y-auto custom-scrollbar">
-            ${albsOnlyOnePeriod.length ? albsOnlyOnePeriod.map(a => `
-                <div class="flex justify-between items-center bg-white p-2 rounded border">
-                    <div>
-                        <div class="font-bold text-slate-700">${clean(a.prov)} <span class="text-[10px] text-slate-400">(${a.date})</span></div>
-                        <div class="text-[10px] text-slate-400">Ref: ${clean(a.num || '-')}</div>
-                    </div>
-                    <div class="font-black">${Num.fmt(a.total)}€</div>
-                </div>
-            `).join('') : '<div class="text-center p-2 text-slate-400">Sin albaranes OnlyOne</div>'}
-        </div>
-    </div>
-    `;
-
-    // Llevar foco al formulario
-    document.getElementById('ev-date')?.scrollIntoView({ behavior: 'smooth' });
-}
-
-function clearEventForm() {
-    const dateEl = document.getElementById('ev-date');
-    if (dateEl) dateEl.value = getISO();
-    if (document.getElementById('ev-tipo')) document.getElementById('ev-tipo').value = 'Catering';
-    if (document.getElementById('ev-ingreso')) document.getElementById('ev-ingreso').value = '0';
-    if (document.getElementById('ev-personal')) document.getElementById('ev-personal').value = '0';
-    if (document.getElementById('ev-title')) document.getElementById('ev-title').value = '';
-    if (document.getElementById('ev-notes')) document.getElementById('ev-notes').value = '';
-    // quitar flag de edición si existe
-    if (dateEl) dateEl.dataset.editing = '';
-}
-
-function saveEvent() {
-    if (!db.eventos) db.eventos = [];
-    const dateEl = document.getElementById('ev-date');
-    const idEditing = dateEl?.dataset?.editing;
-    const ev = {
-        id: idEditing || generateID(),
-        date: document.getElementById('ev-date').value,
-        tipo: document.getElementById('ev-tipo').value,
-        ingreso: Num.parse(document.getElementById('ev-ingreso').value),
-        personalExtra: Num.parse(document.getElementById('ev-personal').value),
-        title: document.getElementById('ev-title').value || '',
-        notes: document.getElementById('ev-notes').value || '',
-        createdAt: new Date().toISOString()
-    };
-
-    if (idEditing) {
-        const idx = db.eventos.findIndex(x => x.id === idEditing);
-        if (idx >= 0) db.eventos[idx] = ev;
-    } else {
-        db.eventos.push(ev);
-    }
-
-    save("Evento guardado");
-    clearEventForm();
-    renderAdmin(document.getElementById('app'));
-    toast('✅ Evento registrado', 'success');
-}
-
-function editEvent(id) {
-    const ev = (db.eventos || []).find(e => e.id === id);
-    if (!ev) return toast('Evento no encontrado', 'error');
-    if (document.getElementById('ev-date')) document.getElementById('ev-date').value = ev.date || getISO();
-    if (document.getElementById('ev-tipo')) document.getElementById('ev-tipo').value = ev.tipo || 'Catering';
-    if (document.getElementById('ev-ingreso')) document.getElementById('ev-ingreso').value = ev.ingreso || 0;
-    if (document.getElementById('ev-personal')) document.getElementById('ev-personal').value = ev.personalExtra || 0;
-    if (document.getElementById('ev-title')) document.getElementById('ev-title').value = ev.title || '';
-    if (document.getElementById('ev-notes')) document.getElementById('ev-notes').value = ev.notes || '';
-    if (document.getElementById('ev-date')) document.getElementById('ev-date').dataset.editing = id;
-    if (document.getElementById('ev-title')) document.getElementById('ev-title').focus();
-}
-
-function deleteEvent(id) {
-    if (!confirm('¿Borrar evento?')) return;
-    db.eventos = (db.eventos || []).filter(e => e.id !== id);
-    save('Evento eliminado');
-    renderAdmin(document.getElementById('app'));
-    toast('Evento eliminado', 'info');
-}
-
-// Imprimir presupuesto (abre ventana nueva con diseño limpio y llama window.print())
-function printEventBudget(id) {
-    const ev = (db.eventos || []).find(e => e.id === id);
-    if (!ev) return toast('Evento no encontrado', 'error');
-
-    // HTML limpio para impresión (logo OnlyOne)
-    const html = `
-    <html>
-    <head>
-        <meta charset="utf-8">
-        <title>Presupuesto - ${clean(ev.title || ev.tipo)}</title>
-        <style>
-            body { font-family: Arial, sans-serif; padding: 24px; color: #0f172a; }
-            header { display:flex; justify-content:space-between; align-items:center; margin-bottom:24px; }
-            .logo { font-weight:900; color:#ec4899; font-size:22px; }
-            .muted { color:#6b7280; font-size:12px; }
-            .box { border:1px solid #e6e6e6; padding:16px; border-radius:8px; margin-bottom:12px;}
-            .big { font-size:28px; font-weight:900; }
-            .small { font-size:14px; }
-            footer { margin-top:24px; color:#6b7280; font-size:12px; }
-        </style>
-    </head>
-    <body>
-        <header>
-            <div>
-                <div class="logo">ONLYONE · Presupuesto</div>
-                <div class="muted">Evento: ${clean(ev.title || ev.tipo)}</div>
-            </div>
-            <div style="text-align:right">
-                <div class="muted">${ev.date}</div>
-                <div class="muted">${ev.tipo}</div>
-            </div>
-        </header>
-
-        <div class="box">
-            <div class="small">Ingreso esperado</div>
-            <div class="big">${Num.fmt(ev.ingreso || 0)}€</div>
-        </div>
-
-        <div class="box">
-            <div class="small">Gasto en personal extra</div>
-            <div class="big">-${Num.fmt(ev.personalExtra || 0)}€</div>
-        </div>
-
-        <div class="box">
-            <div class="small">ALBARANES ONLYONE (misma fecha)</div>
-            <div class="small">${Num.fmt(sumAlbaranesForEvent(ev.date))}€</div>
-        </div>
-
-        <div class="box">
-            <div class="small">Caja neta estimada</div>
-            <div class="big">${Num.fmt((ev.ingreso||0) - (ev.personalExtra||0) - sumAlbaranesForEvent(ev.date))}€</div>
-        </div>
-
-        <div class="box">
-            <h4>Notas</h4>
-            <div class="small">${clean(ev.notes || '')}</div>
-        </div>
-
-        <footer>Presupuesto generado por ARUME · OnlyOne</footer>
-    </body>
-    </html>
-    `;
-
-    const w = window.open('', '_blank', 'width=900,height=700');
-    w.document.write(html);
-    w.document.close();
-    setTimeout(() => { w.print(); }, 400);
-}
-
-// Suma albaranes OnlyOne que coincidan exactamente con la fecha del evento (ajustable)
-function sumAlbaranesForEvent(dateStr) {
-    if (!dateStr) return 0;
-    return (db.albaranes || []).filter(a => a.socio === 'OnlyOne' && a.date === dateStr).reduce((s,a) => s + (a.total||0), 0);
-}
-
-// Genera enlace a Google Calendar (all-day). Abre en nueva pestaña.
-function openEventCalendar(id) {
-    const ev = (db.eventos || []).find(e => e.id === id);
-    if (!ev) return toast('Evento no encontrado', 'error');
-
-    const start = (ev.date || getISO()).replace(/-/g, '');
-    const endDate = new Date((ev.date || getISO()) + 'T00:00:00');
-    endDate.setDate(endDate.getDate() + 1);
-    const end = endDate.toISOString().slice(0,10).replace(/-/g, '');
-
-    const text = encodeURIComponent(ev.title || `${ev.tipo} · OnlyOne`);
-    const details = encodeURIComponent((ev.notes || '') + `\nIngreso: ${Num.fmt(ev.ingreso||0)}€\nPersonal Extra: ${Num.fmt(ev.personalExtra||0)}€`);
-    const location = encodeURIComponent('OnlyOne / Local');
-
-    const url = `https://www.google.com/calendar/render?action=TEMPLATE&text=${text}&dates=${start}/${end}&details=${details}&location=${location}&sf=true&output=xml`;
-    window.open(url, '_blank');
-}
-/* =============================================================
-   ⚠️ MOTOR V38: CIRUJANO DE TEXTO + EXCEL INTELIGENTE ⚠️
+  /* =============================================================
+   ⚠️ MOTOR V40: SOLO PEGADO MANUAL (FIABLE Y EDITABLE) ⚠️
    ============================================================= */
 
 let tempImportMatches = []; 
 
-// 1. LECTURA DE ARCHIVO (BUSCA EL DINERO REAL)
+// 1. ELIMINAMOS LA LECTURA DE ARCHIVO (SOLO PEGADO)
 function safeImportSales(input) {
-    const file = input.files[0];
-    if (!file) return;
-    toast("⏳ Analizando a fondo...", "info");
-    const reader = new FileReader();
-    reader.onload = e => { try { processMadisaFileV38(e.target.result); } catch (err) { console.error(err); toast("Error lectura", "error"); } };
-    reader.readAsText(file, "ISO-8859-1"); 
-    input.value = ''; 
+    toast("⚠️ Función desactivada. Usa 'PEGAR VENTAS' para mayor control.", "info");
 }
 
-function processMadisaFileV38(csvText) {
-    const normalize = (str) => str ? str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim() : "";
-    const lines = csvText.split(/\r?\n/);
-    const rawDataMap = new Map(); 
-    let detectedDate = getISO(); 
-
-    // A. BUSCAR FECHA
-    for (let i = 0; i < Math.min(lines.length, 30); i++) {
-        const dateMatch = lines[i].match(/Día:\s*(\d{2})[\/\-](\d{2})[\/\-](\d{4})/i);
-        if (dateMatch) {
-            detectedDate = `${dateMatch[3]}-${dateMatch[2]}-${dateMatch[1]}`;
-            break;
-        }
-    }
-
-    // B. RASTREO DE COLUMNAS (INTELIGENTE)
-    let COL_NAME = 3; 
-    let COL_QTY = 11; 
-    let COL_TOTAL = 20; // Por defecto col 20 (Importe Bruto)
-
-    // Escanear cabeceras para confirmar
-    for(let i=0; i<Math.min(lines.length, 30); i++) {
-        if(lines[i].toLowerCase().includes('articulo')) {
-            const cols = lines[i].split(',');
-            cols.forEach((c, idx) => {
-                const h = c.replace(/"/g, '').trim().toLowerCase();
-                if(h.includes('bruto')) COL_TOTAL = idx; // ¡Clave! Busca "Bruto"
-            });
-            break;
-        }
-    }
-
-    for (let i = 0; i < lines.length; i++) {
-        const line = lines[i].trim();
-        if (line.length < 10) continue; 
-        const cols = line.split(',');
-
-        if (cols.length > COL_TOTAL) {
-            let rawName = cols[COL_NAME].replace(/^"|"$/g, '').trim(); 
-            let rawQty = parseFloat(cols[COL_QTY].replace(/^"|"$/g, '').trim());
-            let rawTotal = parseFloat(cols[COL_TOTAL].replace(/^"|"$/g, '').trim());
-
-            if (rawName && !isNaN(rawQty) && rawQty !== 0 && !isNaN(rawTotal)) {
-                const nLow = normalize(rawName);
-                if (nLow.includes('articulo') || nLow.includes('total') || nLow.includes('familia')) continue;
-
-                if (rawDataMap.has(rawName)) {
-                    let prev = rawDataMap.get(rawName);
-                    prev.q += rawQty;
-                    prev.t += rawTotal;
-                } else {
-                    rawDataMap.set(rawName, { q: rawQty, t: rawTotal });
-                }
-            }
-        }
-    }
-
-    finalizeProcessing(rawDataMap, detectedDate);
-}
-
-// 2. PEGADO MANUAL (CIRUJANO PARA TEXTO PEGADO)
+// 2. PEGADO MANUAL CON FECHA Y FORMATO FLEXIBLE
 function openPasteModal() {
     const today = getISO();
-    showModal('📋 Pegar Ventas (Modo Cirujano)', `
+    showModal('📋 Pegar Ventas (Modo Seguro)', `
         <div class="mb-4 bg-indigo-50 p-3 rounded-lg border border-indigo-100">
-            <label class="text-xs font-bold text-indigo-800 uppercase block mb-1">📅 Fecha de Venta</label>
+            <label class="text-xs font-bold text-indigo-800 uppercase block mb-1">📅 1. FECHA DE LA VENTA</label>
             <input type="date" id="paste-date" value="${today}" class="bg-white border-2 border-indigo-200 rounded-lg p-2 font-black text-center text-indigo-900 w-full outline-none focus:border-indigo-500">
         </div>
-        <label class="text-xs font-bold text-slate-500 uppercase mb-1 block">Pega aquí el texto "chorizo"</label>
-        <textarea id="paste-area" class="input-premium h-40 text-[10px] font-mono border-2 border-slate-200" placeholder="Ej: Agua2042.50..."></textarea>
-        <button class="btn-premium mt-3 w-full shadow-lg" onclick="processPastedTextV38()">🚀 DESENCRIPTAR Y PROCESAR</button>
+        
+        <label class="text-xs font-bold text-slate-500 uppercase mb-1 block">2. PEGA EL TEXTO AQUÍ (Nombre Cantidad Total)</label>
+        <textarea id="paste-area" class="input-premium h-64 text-[10px] font-mono border-2 border-slate-200 p-2 leading-tight" placeholder="Ej: Agua sin gas 20 46.75"></textarea>
+        
+        <button class="btn-premium mt-3 w-full shadow-lg bg-gradient-to-r from-indigo-600 to-blue-600" onclick="processPastedTextV40()">
+            🚀 PROCESAR Y REVISAR
+        </button>
     `);
     setTimeout(() => document.getElementById('paste-area').focus(), 100);
 }
 
-function processPastedTextV38() {
+function processPastedTextV40() {
     const rawText = document.getElementById('paste-area').value;
     const selectedDate = document.getElementById('paste-date').value;
+    
     if (!rawText.trim()) return toast("Pega algo", "error");
+    if (!selectedDate) return toast("Fecha obligatoria", "error");
 
-    const rawDataMap = new Map();
-
-    // 1. Limpieza total
-    let cleanText = rawText.replace(/[\r\n]+/g, '').trim(); 
-    
-    // 2. REGEX CIRUJANO V38:
-    // Nombre: (.+?) -> Coge lo mínimo necesario
-    // Cantidad: (\d{1,3}) -> Asume MAXIMO 3 dígitos (ej: 999). Esto evita comerse el precio.
-    // Precio: (\d+[.,]\d{2}) -> El resto es precio.
-    const regex = /(.+?)(\d{1,3})(\d+[.,]\d{2})/g;
-    
-    let m;
-    let count = 0;
-    while ((m = regex.exec(cleanText)) !== null) {
-        let name = m[1].trim(); 
-        let qty = parseFloat(m[2].replace(',', '.'));     
-        let total = parseFloat(m[3].replace(',', '.')); 
-        
-        // Filtro de seguridad
-        if (name.length > 1 && !name.match(/^\d+$/) && qty > 0) {
-             // CORRECCIÓN DE NETO A BRUTO (Estimada al 10%)
-             // El texto pegado suelen ser importes netos. Multiplicamos por 1.10 para estimar el PVP con IVA
-             // Si prefieres usar el neto, quita el "* 1.10".
-             let totalEstimado = total * 1.10; 
-
-             if(rawDataMap.has(name)) { 
-                 rawDataMap.get(name).q += qty; 
-                 rawDataMap.get(name).t += totalEstimado; 
-            } else { 
-                rawDataMap.set(name, { q: qty, t: totalEstimado }); 
-            }
-            count++;
-        }
-    }
-
-    if (count === 0) return toast("Formato no reconocido.", "error");
-
-    finalizeProcessing(rawDataMap, selectedDate);
-}
-
-// --- 3. FINALIZAR (CÁLCULO UNITARIO) ---
-function finalizeProcessing(map, dateStr) {
     const matches = []; const unknown = [];
     const normalize = (str) => str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
 
-    map.forEach((val, name) => {
-        // PRECIO UNITARIO = TOTAL / CANTIDAD
-        const unitPrice = (val.q !== 0) ? Math.abs(val.t / val.q) : 0;
+    // Limpieza básica
+    let lines = rawText.split(/\n/);
+    
+    // REGEX ROBUSTA: (Nombre...) (Espacio) (Cantidad) (Espacio) (Precio Total)
+    // Acepta puntos o comas en los números.
+    const regex = /(.+?)[\s\t]+(\d+(?:[.,]\d+)?)[\s\t]+(\d+[.,]\d{2})/;
+
+    lines.forEach(line => {
+        line = line.trim();
+        if(!line) return;
+
+        // Intentamos casar la línea
+        let m = line.match(regex);
         
-        const match = db.recetas.find(r => normalize(r.n) === normalize(name));
-        
-        if (match) {
-            let status = 'ok'; let diffMsg = '';
-            // Tolerancia de precio (mayor porque estimamos el IVA en el pegado)
-            if (unitPrice > 0 && Math.abs(match.pvp - unitPrice) > 0.15) {
-                status = 'diff';
-                diffMsg = `${Num.fmt(match.pvp)} vs ${Num.fmt(unitPrice)}`;
+        // Si falla, intentamos la versión "pegada" (por si acaso)
+        if (!m) m = line.match(/(.+?)(\d+)(\d+[.,]\d{2})$/);
+
+        if (m) {
+            let name = m[1].trim(); 
+            // Limpieza de números (replace ',' por '.')
+            let qty = parseFloat(m[2].replace(',', '.'));     
+            let total = parseFloat(m[3].replace(',', '.')); 
+
+            if (name.length > 1 && qty > 0) {
+                 // CÁLCULO PRECIO UNITARIO REAL
+                 let unitPvp = total / qty;
+
+                 matchAndPush(name, qty, unitPvp, matches, unknown, normalize);
             }
-            matches.push({ rid: match.id, n: match.n, q: val.q, realPvp: unitPrice, status: status, diffMsg: diffMsg });
-        } else {
-            unknown.push({ n: name, q: val.q, detectedPvp: unitPrice });
         }
     });
 
-    showImportModal(matches, unknown, dateStr);
+    if (matches.length === 0 && unknown.length === 0) return toast("❌ No entendí el formato. Revisa el texto.", "error");
+
+    // Abrimos el modal EDITABLE para que tú revises antes de guardar
+    showEditableImportModal([...matches, ...unknown], selectedDate);
 }
 
-// --- 4. MODAL Y GUARDADO ---
-function showImportModal(matches, unknown, defaultDate) {
-    tempImportMatches = matches; 
-    matches.sort((a,b) => (a.status === 'diff' ? -1 : 1));
+// --- 3. LÓGICA DE MATCHING ---
+function matchAndPush(name, qty, realPvp, matches, unknown, normalize) {
+    const searchName = normalize(name);
+    const r = db.recetas.find(rec => {
+        const recName = normalize(rec.n);
+        return searchName.includes(recName) || recName.includes(searchName);
+    });
 
-    const totalMoney = matches.reduce((s,m)=>s+(m.q*m.realPvp),0) + unknown.reduce((s,u)=>s+(u.q*u.detectedPvp),0);
+    if (r) {
+        let status = 'linked'; 
+        // Si el precio varía > 5 céntimos, lo marcamos (pero no bloqueamos)
+        if (realPvp > 0 && Math.abs(r.pvp - realPvp) > 0.05) { 
+            status = 'diff'; 
+        }
+        matches.push({ 
+            id: generateID(),
+            name: r.n, 
+            qty: qty, 
+            pvp: realPvp, 
+            matchId: r.id,
+            status: status 
+        });
+    } else {
+        unknown.push({ 
+            id: generateID(),
+            name: name, 
+            qty: qty, 
+            pvp: realPvp,
+            matchId: null,
+            status: 'new' 
+        });
+    }
+}
 
-    const summaryList = matches.map(m => `
-        <div class="flex justify-between items-center text-xs py-1 border-b border-slate-50 ${m.status==='diff'?'bg-red-50/50':''}">
-            <div class="truncate w-2/3"><div class="font-bold text-slate-700">${m.n}</div>
-            ${m.status==='diff' ? `<div class="text-[9px] text-red-500 font-bold">⚠️ Diferencia Precio: ${m.diffMsg}</div>` : ''}</div>
-            <span class="font-bold ${m.status==='diff'?'text-red-500 bg-red-50 border-red-100 border':'text-indigo-600 bg-indigo-50'} px-2 rounded text-[10px]">${m.q}</span>
-        </div>`).join('');
+// --- 4. MODAL EDITABLE (LA CLAVE DE LA FIABILIDAD) ---
+function showEditableImportModal(items, dateStr) {
+    tempImportMatches = items; 
 
-    const unknownHTML = unknown.map(u => `<div class="flex justify-between text-[10px] text-orange-800 py-1 border-b border-orange-100"><span class="truncate w-2/3">${u.n}</span><span class="font-bold">${u.q} · ${Num.fmt(u.detectedPvp)}€</span></div>`).join('');
+    // Ordenar: Nuevos primero, luego diferencias de precio, luego ok
+    items.sort((a,b) => {
+        if (a.status === 'new') return -1;
+        if (a.status === 'diff') return -1;
+        return 1;
+    });
 
-    showModal('📥 Confirmar Carga', `
-        <div class="bg-indigo-50 p-3 rounded-lg mb-3 text-center border border-indigo-100">
-            <div class="flex justify-between items-center mb-2">
-                <label class="text-[10px] font-bold text-indigo-400 uppercase">FECHA</label>
-                <span class="text-[10px] font-bold text-indigo-600 bg-white px-2 py-0.5 rounded border border-indigo-200">TOTAL: ${Num.fmt(totalMoney)}€</span>
+    const rowsHTML = items.map((item, index) => {
+        let statusIcon = '✅';
+        let statusClass = 'bg-white';
+        let statusText = '';
+
+        if (item.status === 'new') {
+            statusIcon = '🆕';
+            statusClass = 'bg-orange-50';
+            statusText = 'Nueva Receta';
+        } else if (item.status === 'diff') {
+            statusIcon = '⚠️';
+            statusClass = 'bg-yellow-50';
+            statusText = 'Precio Diferente';
+        }
+
+        return `
+        <div class="grid grid-cols-12 gap-1 items-center border-b border-slate-100 py-1.5 px-1 text-xs ${statusClass}">
+            <div class="col-span-1 text-center">${statusIcon}</div>
+            <div class="col-span-6">
+                <input type="text" value="${clean(item.name)}" 
+                    class="w-full bg-transparent font-bold text-slate-700 outline-none" 
+                    onchange="updateTempItem(${index}, 'name', this.value)">
+                <div class="text-[8px] text-slate-400">${statusText}</div>
             </div>
-            <input type="date" id="import-date" value="${defaultDate}" class="bg-transparent font-black text-indigo-900 text-center w-full outline-none text-lg">
+            <div class="col-span-2">
+                <input type="number" value="${item.qty}" 
+                    class="w-full bg-white border border-slate-200 rounded px-1 text-center font-bold"
+                    onchange="updateTempItem(${index}, 'qty', this.value)">
+            </div>
+            <div class="col-span-2 relative">
+                <input type="number" step="0.01" value="${item.pvp.toFixed(2)}" 
+                    class="w-full bg-white border border-slate-200 rounded px-1 text-center text-slate-500"
+                    onchange="updateTempItem(${index}, 'pvp', this.value)">
+            </div>
+            <div class="col-span-1 text-center">
+                <button class="text-red-400 font-bold px-1" onclick="removeTempItem(${index})">✕</button>
+            </div>
+        </div>`;
+    }).join('');
+
+    const totalImporte = items.reduce((sum, i) => sum + (i.qty * i.pvp), 0);
+
+    showModal('📝 Revisar Datos Antes de Guardar', `
+        <div class="bg-indigo-50 p-2 rounded-lg border border-indigo-100 mb-2 flex justify-between items-center">
+            <div>
+                <label class="text-[9px] font-bold text-indigo-400 uppercase">FECHA</label>
+                <input type="date" id="import-date-final" value="${dateStr}" class="bg-transparent font-black text-indigo-900 outline-none text-sm">
+            </div>
+            <div class="text-right">
+                <div class="text-[9px] font-bold text-slate-400 uppercase">Total Bruto</div>
+                <div class="text-lg font-black text-slate-800">${Num.fmt(totalImporte)}€</div>
+            </div>
         </div>
 
-        <div class="grid grid-cols-2 gap-2 text-center mb-2 text-xs font-bold">
-            <div class="text-emerald-600 border-b-2 border-emerald-100 pb-1">✅ ${matches.length} ENLAZADOS</div>
-            <div class="text-orange-500 border-b-2 border-orange-100 pb-1">⚠️ ${unknown.length} NUEVOS</div>
-        </div>
-        
-        <div class="bg-white border border-slate-200 rounded-lg p-2 max-h-40 overflow-y-auto custom-scrollbar shadow-inner mb-3">
-            ${summaryList || '<div class="text-center text-slate-300 text-xs py-4">Ninguna coincidencia.</div>'}
+        <div class="bg-white border border-slate-200 rounded-lg overflow-hidden mb-3 shadow-inner">
+            <div class="grid grid-cols-12 gap-1 bg-slate-50 border-b border-slate-200 py-1 px-1 text-[9px] font-black text-slate-400 uppercase text-center">
+                <div class="col-span-1"></div>
+                <div class="col-span-6 text-left pl-1">Producto</div>
+                <div class="col-span-2">Cant</div>
+                <div class="col-span-2">PVP/Ud</div>
+                <div class="col-span-1"></div>
+            </div>
+            <div class="max-h-60 overflow-y-auto custom-scrollbar">
+                ${rowsHTML}
+            </div>
         </div>
 
-        ${unknown.length > 0 ? `
-        <div class="bg-orange-50 p-2 rounded-lg border border-orange-100 mb-3">
-            <div class="text-[10px] font-bold text-orange-600 mb-1 uppercase">Productos Nuevos</div>
-            <div class="max-h-24 overflow-y-auto mb-2 bg-white/50 rounded p-1">${unknownHTML}</div>
-            <button class="btn-premium bg-gradient-to-r from-orange-400 to-orange-500 text-white w-full text-[10px] py-2" onclick='createMissingRecipesV38(${JSON.stringify(unknown)})'>
-                ✨ CREAR ${unknown.length} FICHAS
-            </button>
-        </div>` : ''}
-        
         <div class="flex gap-2">
             <button class="btn-ghost" onclick="closeModal()">Cancelar</button>
-            <button class="btn-premium flex-1 shadow-xl" onclick="commitFinalImport()">🚀 GUARDAR DATOS</button>
+            <button class="btn-premium flex-1 shadow-xl bg-gradient-to-r from-emerald-500 to-teal-500" onclick="commitSalesImport()">
+                💾 GUARDAR Y CREAR FICHAS
+            </button>
         </div>
-        ${matches.some(m => m.status === 'diff') ? `<div class="mt-2 text-center"><button class="text-[10px] text-indigo-500 font-bold underline" onclick="updatePricesBatch()">🔄 Sincronizar Precios (App = Caja)</button></div>` : ''}
     `);
 }
 
-function createMissingRecipesV38(list) {
-    if(!confirm(`¿Crear ${list.length} recetas?`)) return;
-    list.forEach(item => {
-        if(!db.recetas.find(r => r.n === item.n)) {
-            db.recetas.push({ id: generateID(), n: item.n, pvp: item.detectedPvp || 0, items: [], yield: 1, unit: 'ud', time: 0 });
+function updateTempItem(index, field, value) {
+    if (tempImportMatches[index]) {
+        if (field === 'qty' || field === 'pvp') {
+            tempImportMatches[index][field] = parseFloat(value) || 0;
+        } else {
+            tempImportMatches[index][field] = value;
         }
-    });
-    save(`Creadas ${list.length} recetas`); closeModal(); renderAdmin(document.getElementById('app'));
+        // Refrescar total visualmente (chapuza rápida: recargar modal con datos actualizados)
+        const date = document.getElementById('import-date-final').value;
+        showEditableImportModal(tempImportMatches, date);
+    }
 }
 
-// --- RESTO DE FUNCIONES IGUALES ---
-function updatePricesBatch() {
-    if(!confirm("¿Igualar precios?")) return;
-    let count = 0;
-    tempImportMatches.forEach(m => {
-        if (m.status === 'diff' && m.realPvp > 0) {
-            const r = db.recetas.find(x => x.id === m.rid);
-            if (r) { r.pvp = m.realPvp; count++; }
-        }
-    });
-    save(`Precios actualizados: ${count}`); closeModal();
+function removeTempItem(index) {
+    tempImportMatches.splice(index, 1);
+    const date = document.getElementById('import-date-final').value;
+    showEditableImportModal(tempImportMatches, date);
 }
 
-function commitFinalImport() {
-    const d = document.getElementById('import-date').value;
-    if (!d) return toast("Fecha inválida", "error");
-    const matches = tempImportMatches; 
-    if (!matches || matches.length === 0) return toast("Nada que guardar", "error");
+// --- 5. GUARDADO FINAL ---
+function commitSalesImport() {
+    const finalDate = document.getElementById('import-date-final').value;
+    if (!finalDate) return toast("Fecha obligatoria", "error");
+    if (tempImportMatches.length === 0) return toast("Lista vacía", "error");
 
-    const existingIdx = db.sales_history.findIndex(l => l.date === d);
+    // 1. Ajustar Año Fiscal (Viaje en el tiempo)
+    const year = parseInt(finalDate.split('-')[0]);
+    if (year !== fiscalYear) {
+        fiscalYear = year;
+        toast(`📅 Cambiando al año ${year}...`, "info");
+    }
+
+    // 2. Limpiar día si ya existe (para evitar duplicados al corregir)
+    const existingIdx = db.sales_history.findIndex(l => l.date === finalDate);
     if(existingIdx >= 0) db.sales_history.splice(existingIdx, 1);
 
-    let log = { id: generateID(), date: d, items: [] };
+    let log = { id: generateID(), date: finalDate, items: [] };
+    let createdCount = 0;
 
-    const importYear = parseInt(d.split('-')[0]);
-    if (importYear !== fiscalYear) { fiscalYear = importYear; toast(`📅 Viajando al año ${importYear}...`, "info"); }
+    tempImportMatches.forEach(item => {
+        let recId = item.matchId;
 
-    matches.forEach(m => {
-        log.items.push({ rid: m.rid, n: m.n, q: m.q });
-        const r = db.recetas.find(x => x.id === m.rid);
+        // A. Crear Receta si es nueva
+        if (!recId) {
+            // Última comprobación por nombre
+            const exist = db.recetas.find(r => r.n.toLowerCase() === item.name.toLowerCase());
+            if (exist) {
+                recId = exist.id;
+                // Actualizar precio si es necesario
+                if(item.pvp > 0) exist.pvp = item.pvp; 
+            } else {
+                recId = generateID();
+                db.recetas.push({
+                    id: recId,
+                    n: item.name,
+                    pvp: item.pvp,
+                    items: [], // Sin ingredientes
+                    yield: 1, unit: 'ud', time: 0
+                });
+                createdCount++;
+            }
+        } else {
+            // Actualizar precio de receta existente (Sincronización)
+            const r = db.recetas.find(x => x.id === recId);
+            if (r && item.pvp > 0) r.pvp = item.pvp;
+        }
+
+        // B. Guardar venta
+        log.items.push({ rid: recId, n: item.name, q: item.qty });
+
+        // C. Descontar Stock
+        const r = db.recetas.find(x => x.id === recId);
         if (r && r.items) {
             r.items.forEach(it => {
                 if (it.type === 'ing') {
@@ -3961,47 +3568,18 @@ function commitFinalImport() {
                     if (ing) {
                         const factor = UnitConverter.convert(1, it.unit||ing.unit, ing.unit);
                         const yieldFactor = it.merma ? (1-(it.merma/100)) : 1;
-                        ing.stock -= (it.q * factor * m.q) / yieldFactor;
-                        logStock(ing.id, (it.q * factor * m.q) / yieldFactor, 'OUT', `Venta Auto (${d})`, ing.cost);
+                        ing.stock -= (item.qty * it.q * factor) / yieldFactor;
+                        logStock(ing.id, (item.qty * it.q * factor) / yieldFactor, 'OUT', `Venta ${finalDate}`, ing.cost);
                     }
                 }
             });
         }
     });
+
     db.sales_history.push(log);
-    save(`✅ Guardado`); closeModal(); renderAdmin(document.getElementById('app'));
-}
-
-function editImport(logId) {
-    const idx = db.sales_history.findIndex(l => l.id === logId);
-    if (idx === -1) return;
-    const log = db.sales_history[idx];
-    undoImport(logId, false); 
-    const matches = log.items.map(it => {
-        const r = db.recetas.find(x => x.id === it.rid);
-        return { rid: it.rid, n: it.n, q: it.q, realPvp: r ? r.pvp : 0, status: 'ok' }; 
-    });
-    showImportModal(matches, [], log.date);
-}
-
-function undoImport(logId, confirmUser = true) {
-    if(confirmUser && !confirm("¿BORRAR CARGA?")) return;
-    const idx = db.sales_history.findIndex(l => l.id === logId);
-    if (idx === -1) return;
-    const log = db.sales_history[idx];
-    log.items.forEach(soldItem => {
-        const r = db.recetas.find(x => x.id === soldItem.rid);
-        if (r && r.items) {
-            r.items.forEach(it => {
-                if (it.type === 'ing') {
-                    const ing = db.ingredientes.find(x => x.id === it.id);
-                    if (ing) ing.stock += (it.q * UnitConverter.convert(1, it.unit||ing.unit, ing.unit) * soldItem.q) / (it.merma ? (1-(it.merma/100)) : 1);
-                }
-            });
-        }
-    });
-    db.sales_history.splice(idx, 1);
-    if(confirmUser) { save("↩ Eliminado"); renderAdmin(document.getElementById('app')); }
+    save(`✅ Guardado: ${createdCount} recetas nuevas`);
+    closeModal();
+    renderAdmin(document.getElementById('app'));
 }
 </script>
 </body>
