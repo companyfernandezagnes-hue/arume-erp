@@ -1615,13 +1615,19 @@ function downloadMonthCSV(monthIndex, monthName) {
 /* =============================================================
    ⚠️ BLOQUE 1: PANTALLA V27 (VISUAL + ALERTA COSTES) ⚠️
    ============================================================= */
+/* =============================================================
+   ⚠️ MÓDULO OMNES + IMPORTADOR EXCEL "ARUME" V3.0 (DEFINITIVO)
+   ============================================================= */
+
+// Variable temporal para la edición en vivo
+let tempImportData = [];
+
 function renderOmnes(c) {
-    // 1. HEADER Y CONTROL DE TIEMPO
+    // --- 1. CABECERA Y CONTROL DE AÑO ---
     const headerHTML = `
     <div class="flex justify-between items-center mb-4">
         <h3 class="font-bold text-slate-800 flex items-center gap-2">
-            📊 ANÁLISIS 
-            <span class="text-[10px] bg-slate-800 text-white px-2 py-0.5 rounded-full font-mono">${fiscalYear}</span>
+            📊 ANÁLISIS <span class="text-[10px] bg-slate-800 text-white px-2 py-0.5 rounded-full font-mono">${fiscalYear}</span>
         </h3>
         <div class="flex bg-slate-200 rounded-lg p-1 gap-1">
             <button class="w-8 h-8 flex items-center justify-center bg-white rounded shadow text-xs font-bold active:scale-95" onclick="fiscalYear--;renderAdmin(document.getElementById('app'))">‹</button>
@@ -1629,38 +1635,21 @@ function renderOmnes(c) {
         </div>
     </div>
     
-    <div class="flex gap-2 mb-6">
-        <label class="btn-ghost flex-1 text-[10px] cursor-pointer border bg-white shadow-sm hover:bg-indigo-50 text-indigo-600 font-bold flex justify-center items-center gap-2 group transition">
-            <span class="group-hover:scale-110 transition">📂</span> SUBIR EXCEL
-            <input type="file" class="hidden" onchange="safeImportSales(this)">
-        </label>
-        <button class="btn-premium flex-1 text-[10px] shadow-indigo-200" onclick="openPasteModal()">📋 PEGAR VENTAS</button>
+    <div class="bg-indigo-50 p-4 rounded-xl border border-indigo-100 mb-6 flex flex-col gap-2 shadow-sm">
+        <div class="flex justify-between items-center">
+            <p class="text-[10px] text-indigo-800 font-bold uppercase">📥 Cargar Datos de Caja</p>
+            <span class="text-[9px] text-indigo-400 bg-white px-2 rounded border border-indigo-100">Compatible: .xls .csv</span>
+        </div>
+        <div class="flex gap-2">
+            <label class="btn-premium flex-1 text-[10px] cursor-pointer shadow-indigo-200 bg-indigo-600 text-white flex justify-center items-center gap-2 hover:scale-[1.02] transition">
+                <span class="text-lg">📂</span> SUBIR INFORME VENTAS
+                <input type="file" class="hidden" accept=".csv, .xls, .txt" onchange="processArumeExcel(this)">
+            </label>
+            <button class="btn-ghost w-auto text-[10px] bg-white text-indigo-600 border-indigo-200" onclick="openManualSales()">📝 MANUAL</button>
+        </div>
     </div>`;
 
-    // 2. DETECTOR DE DATOS EN OTROS AÑOS
-    const yearsWithData = [...new Set(db.sales_history.map(l => parseInt(l.date.split('-')[0])))];
-    const currentHasData = yearsWithData.includes(fiscalYear);
-
-    if (yearsWithData.length > 0 && !currentHasData) {
-        c.innerHTML = `
-            ${headerHTML}
-            <div class="glass-card bg-orange-50 border-orange-200 text-center p-8 animate-fade-in">
-                <div class="text-4xl mb-2">📅</div>
-                <h3 class="font-bold text-orange-800">Estás en ${fiscalYear}</h3>
-                <p class="text-xs text-orange-600 mb-4">Tus ventas están guardadas en otros años.</p>
-                <div class="flex gap-2 justify-center flex-wrap">
-                    ${yearsWithData.map(y => `<button class="bg-white text-orange-600 border border-orange-200 px-4 py-2 rounded-lg font-bold text-xs shadow-sm hover:bg-orange-100 transition" onclick="fiscalYear=${y};renderAdmin(document.getElementById('app'))">IR AL ${y}</button>`).join('')}
-                </div>
-            </div>`;
-        return;
-    }
-
-    if (!db.recetas.length && !db.sales_history.length) {
-        c.innerHTML = `${headerHTML}<div class="glass-card text-center p-10 text-slate-400">Sin datos.<br>Sube un archivo Excel o pega las ventas para empezar.</div>`;
-        return;
-    }
-
-    // --- 3. CÁLCULOS ---
+    // --- 2. CÁLCULOS DEL MOTOR (Matriz BCG y Omnes) ---
     let totalSold = 0, totalRev = 0, totalCost = 0;
     const salesMap = {};
     
@@ -1672,20 +1661,38 @@ function renderOmnes(c) {
         });
     });
 
+    // Cruzamos con las Recetas
     const activeData = db.recetas.map(r => {
         const costObj = calcRecipe(r);
         const cost = costObj.t;
         const sales = salesMap[r.id] || 0; 
         
-        // Si no hay ventas ni precio, fuera
         if (sales === 0 && r.pvp === 0) return null;
         
         totalSold += sales;
         totalRev += sales * r.pvp;
         totalCost += sales * cost;
-        return { r, sales, cost, margin: r.pvp - cost, pvp: r.pvp, hasCost: cost > 0 };
+        
+        return { 
+            r, sales, cost, 
+            margin: r.pvp - cost, 
+            pvp: r.pvp, 
+            hasCost: cost > 0 
+        };
     }).filter(x => x !== null);
 
+    // Si no hay datos
+    if (totalSold === 0) {
+        c.innerHTML = `${headerHTML}
+        <div class="glass-card text-center p-10 border-dashed border-2 border-slate-300 opacity-60">
+            <div class="text-4xl mb-3">📄</div>
+            <h3 class="font-bold text-slate-600">Sin datos en ${fiscalYear}</h3>
+            <p class="text-xs text-slate-400 mt-2">Sube el archivo "Informe de ventas" para generar el análisis.</p>
+        </div>`;
+        return;
+    }
+
+    // Clasificación Matriz
     const avgMargin = totalSold > 0 ? (totalRev - totalCost) / totalSold : 0;
     const popLimit = (100 / (activeData.length || 1)) * 0.7;
 
@@ -1693,11 +1700,8 @@ function renderOmnes(c) {
     
     activeData.forEach(d => {
         const mix = totalSold > 0 ? (d.sales / totalSold) * 100 : 0;
-        
-        // Si el coste es 0, no podemos calcular rentabilidad real -> AVISO
-        if (!d.hasCost && d.sales > 0) {
-            m.alerts.push(d);
-        } else {
+        if (!d.hasCost && d.sales > 0) m.alerts.push(d);
+        else {
             const isPop = mix >= popLimit;
             const isRich = d.margin >= avgMargin;
             if (isPop && isRich) m.stars.push(d);
@@ -1707,73 +1711,47 @@ function renderOmnes(c) {
         }
     });
 
-    // Función auxiliar para pintar filas
-    const renderRow = (d, warn=false) => `<div class="text-[9px] text-slate-600 border-b border-slate-100 py-1 flex justify-between">
-        <span class="truncate w-2/3">${clean(d.r.n)}</span>
-        ${warn ? '<span class="text-red-500 font-bold">Sin Coste</span>' : `<span class="text-slate-400">${d.sales}ud</span>`}
+    const renderRow = (d) => `
+    <div class="text-[9px] text-slate-600 border-b border-slate-100 py-1.5 flex justify-between items-center group hover:bg-slate-50 cursor-pointer" onclick="editRec('${d.r.id}')">
+        <span class="truncate w-2/3 font-bold group-hover:text-indigo-600 transition" title="${clean(d.r.n)}">${clean(d.r.n)}</span>
+        <div class="flex flex-col text-right w-1/3">
+            <span class="text-slate-800 font-black">${d.sales} ud</span>
+            <span class="text-[8px] text-slate-400">Mg: ${Num.fmt(d.margin)}€</span>
+        </div>
     </div>`;
 
-    // --- 4. RENDERIZADO GRÁFICO ---
+    // --- 3. RENDERIZADO VISUAL ---
     c.innerHTML = `
     ${headerHTML}
 
     <div class="glass-card mb-6 border-t-4 border-indigo-500">
         <div class="flex justify-between items-center mb-4">
             <h4 class="text-xs font-black text-indigo-900 uppercase tracking-widest">🧩 Ingeniería de Menú</h4>
-            <span class="text-[9px] bg-indigo-50 text-indigo-600 px-2 py-1 rounded font-bold border border-indigo-100">Mg. Medio: ${Num.fmt(avgMargin)}€</span>
+            <span class="text-[9px] bg-indigo-50 text-indigo-600 px-2 py-1 rounded font-bold border border-indigo-100">Margen Medio: ${Num.fmt(avgMargin)}€</span>
         </div>
         
-        <div class="grid grid-cols-2 gap-2 h-64">
-            <div class="bg-yellow-50 border border-yellow-200 rounded-xl p-2 relative overflow-hidden flex flex-col hover:shadow-md transition">
-                <div class="flex justify-between items-center mb-1">
-                    <span class="text-[10px] font-black text-yellow-600">🌟 ESTRELLAS</span>
-                    <span class="text-[9px] font-black text-yellow-500 bg-white px-1.5 rounded shadow-sm">${m.stars.length}</span>
-                </div>
-                <div class="flex-1 overflow-y-auto custom-scrollbar space-y-1">
-                    ${m.stars.map(d => renderRow(d)).join('')}
-                </div>
+        <div class="grid grid-cols-2 gap-2 h-[340px]">
+            <div class="bg-yellow-50 border border-yellow-200 rounded-xl p-2 relative overflow-hidden flex flex-col shadow-sm">
+                <div class="flex justify-between items-center mb-1 border-b border-yellow-100 pb-1"><span class="text-[10px] font-black text-yellow-600">🌟 ESTRELLAS</span><span class="text-[9px] font-black text-yellow-500 bg-white px-1.5 rounded shadow-sm">${m.stars.length}</span></div>
+                <div class="flex-1 overflow-y-auto custom-scrollbar space-y-1">${m.stars.map(d => renderRow(d)).join('')}</div>
             </div>
-            
-            <div class="bg-green-50 border border-green-200 rounded-xl p-2 relative overflow-hidden flex flex-col hover:shadow-md transition">
-                <div class="flex justify-between items-center mb-1">
-                    <span class="text-[10px] font-black text-green-600">🧩 PUZZLES</span>
-                    <span class="text-[9px] font-black text-green-500 bg-white px-1.5 rounded shadow-sm">${m.puzzles.length}</span>
-                </div>
-                <div class="flex-1 overflow-y-auto custom-scrollbar space-y-1">
-                    ${m.puzzles.map(d => renderRow(d)).join('')}
-                </div>
+            <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-2 relative overflow-hidden flex flex-col shadow-sm">
+                <div class="flex justify-between items-center mb-1 border-b border-emerald-100 pb-1"><span class="text-[10px] font-black text-emerald-600">🧩 PUZZLES</span><span class="text-[9px] font-black text-emerald-500 bg-white px-1.5 rounded shadow-sm">${m.puzzles.length}</span></div>
+                <div class="flex-1 overflow-y-auto custom-scrollbar space-y-1">${m.puzzles.map(d => renderRow(d)).join('')}</div>
             </div>
-
-            <div class="bg-blue-50 border border-blue-200 rounded-xl p-2 relative overflow-hidden flex flex-col hover:shadow-md transition">
-                <div class="flex justify-between items-center mb-1">
-                    <span class="text-[10px] font-black text-blue-600">🐎 CABALLOS</span>
-                    <span class="text-[9px] font-black text-blue-400 bg-white px-1.5 rounded shadow-sm">${m.horses.length}</span>
-                </div>
-                <div class="flex-1 overflow-y-auto custom-scrollbar space-y-1">
-                    ${m.horses.map(d => renderRow(d)).join('')}
-                </div>
+            <div class="bg-blue-50 border border-blue-200 rounded-xl p-2 relative overflow-hidden flex flex-col shadow-sm">
+                <div class="flex justify-between items-center mb-1 border-b border-blue-100 pb-1"><span class="text-[10px] font-black text-blue-600">🐎 CABALLOS</span><span class="text-[9px] font-black text-blue-400 bg-white px-1.5 rounded shadow-sm">${m.horses.length}</span></div>
+                <div class="flex-1 overflow-y-auto custom-scrollbar space-y-1">${m.horses.map(d => renderRow(d)).join('')}</div>
             </div>
-
-            <div class="bg-red-50 border border-red-200 rounded-xl p-2 relative overflow-hidden flex flex-col hover:shadow-md transition">
-                <div class="flex justify-between items-center mb-1">
-                    <span class="text-[10px] font-black text-red-600">🐕 PERROS</span>
-                    <span class="text-[9px] font-black text-red-400 bg-white px-1.5 rounded shadow-sm">${m.dogs.length}</span>
-                </div>
-                <div class="flex-1 overflow-y-auto custom-scrollbar space-y-1">
-                    ${m.dogs.map(d => renderRow(d)).join('')}
-                </div>
+            <div class="bg-red-50 border border-red-200 rounded-xl p-2 relative overflow-hidden flex flex-col shadow-sm">
+                <div class="flex justify-between items-center mb-1 border-b border-red-100 pb-1"><span class="text-[10px] font-black text-red-600">🐕 PERROS</span><span class="text-[9px] font-black text-red-400 bg-white px-1.5 rounded shadow-sm">${m.dogs.length}</span></div>
+                <div class="flex-1 overflow-y-auto custom-scrollbar space-y-1">${m.dogs.map(d => renderRow(d)).join('')}</div>
             </div>
         </div>
 
         ${m.alerts.length > 0 ? `
-        <div class="mt-2 bg-orange-100 border border-orange-200 rounded-lg p-2">
-            <div class="flex justify-between items-center cursor-pointer" onclick="document.getElementById('alert-list').classList.toggle('hidden')">
-                <span class="text-[10px] font-bold text-orange-700">⚠️ ${m.alerts.length} productos sin escandallo (Coste 0)</span>
-                <span class="text-orange-500 text-xs">▼</span>
-            </div>
-            <div id="alert-list" class="hidden mt-2 max-h-32 overflow-y-auto custom-scrollbar">
-                ${m.alerts.map(d => `<div class="flex justify-between text-[9px] text-orange-800 py-1 border-b border-orange-200/50"><span>${clean(d.r.n)}</span><span onclick="editRec('${d.r.id}')" class="underline cursor-pointer">Definir</span></div>`).join('')}
-            </div>
+        <div class="mt-2 bg-orange-100 border border-orange-200 rounded-lg p-2 text-center">
+            <span class="text-[10px] font-bold text-orange-700">⚠️ ${m.alerts.length} platos vendidos sin escandallo (Coste 0)</span>
         </div>` : ''}
     </div>
 
@@ -1784,20 +1762,18 @@ function renderOmnes(c) {
     
     ${db.sales_history.length ? `
     <div class="mt-6">
-        <h4 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">📜 Historial de Importaciones</h4>
+        <h4 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">📜 Historial de Cargas</h4>
         <div class="space-y-2">
             ${db.sales_history.sort((a,b)=>b.date.localeCompare(a.date)).map(l => `
-                <div class="bg-white border border-slate-200 rounded-lg p-3 flex justify-between items-center hover:shadow-md transition cursor-pointer group" onclick="editImport('${l.id}')">
-                    <div class="flex items-center gap-3">
-                        <div class="bg-slate-100 p-2 rounded text-lg">📄</div>
+                <div class="bg-white border border-slate-200 rounded-lg p-2 flex justify-between items-center text-xs group hover:shadow-sm">
+                    <div class="flex items-center gap-2">
+                        <div class="bg-slate-100 p-1.5 rounded text-xs">📄</div>
                         <div>
-                            <div class="font-bold text-slate-700 text-xs">Ventas del ${l.date}</div>
-                            <div class="text-[10px] text-slate-400">${l.items.length} líneas procesadas</div>
+                            <div class="font-bold text-slate-700">Ventas ${l.date}</div>
+                            <div class="text-[10px] text-slate-400">${l.items.length} líneas</div>
                         </div>
                     </div>
-                    <div class="flex gap-2">
-                        <span class="text-indigo-500 text-[10px] font-bold bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-100 hover:bg-indigo-100 transition">✏️ EDITAR</span>
-                    </div>
+                    <button class="text-red-500 font-bold border border-red-100 px-3 py-1 rounded bg-red-50 hover:bg-red-500 hover:text-white transition" onclick="undoImport('${l.id}')">BORRAR</button>
                 </div>
             `).join('')}
         </div>
@@ -1805,6 +1781,281 @@ function renderOmnes(c) {
     `;
 }
 
+/* =============================================================
+   ⚠️ 4. IMPORTADOR ESPECIALIZADO ARUME (VISUAL + EDICIÓN) ⚠️
+   ============================================================= */
+
+function processArumeExcel(input) {
+    const file = input.files[0];
+    if (!file) return;
+    
+    loading(true);
+    const reader = new FileReader();
+    
+    reader.onload = e => {
+        try {
+            const content = e.target.result;
+            const result = parseArumeCSV(content);
+            if (result.items.length > 0) {
+                // Aquí abrimos el modal para que el usuario verifique y edite
+                showEditableImportModal(result.items, result.date);
+            } else {
+                toast("❌ Formato no reconocido. Usa el Excel de caja.", "error");
+            }
+        } catch (err) {
+            console.error(err);
+            toast("❌ Error crítico leyendo archivo", "error");
+        } finally {
+            loading(false);
+            input.value = ''; 
+        }
+    };
+    reader.readAsText(file, "ISO-8859-1"); 
+}
+
+function parseArumeCSV(text) {
+    // Regex especial para cortar CSV respetando comillas (ej: "Ternera, setas")
+    const splitCSV = (row) => row.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
+    
+    const lines = text.split(/\r?\n/);
+    let detectedDate = getISO();
+    const itemsMap = new Map();
+
+    // INDICES EXACTOS SEGÚN TUS ARCHIVOS (0-based)
+    // Columna 4 (D) -> Index 3: Nombre
+    // Columna 12 (L) -> Index 11: Cantidad
+    // Columna 21 (U) -> Index 20: Importe Bruto (Total)
+    const COL_NAME = 3;
+    const COL_QTY = 11;
+    const COL_TOTAL = 20;
+
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        
+        // A. Detectar Fecha (Ej: "Día: 10/01/2026")
+        const dateMatch = line.match(/(\d{2})[\/](\d{2})[\/](\d{4})/);
+        if (dateMatch) {
+            detectedDate = `${dateMatch[3]}-${dateMatch[2]}-${dateMatch[1]}`;
+        }
+
+        // B. Saltar líneas basura
+        if (!line.includes(',') || line.length < 15) continue;
+        const cols = splitCSV(line);
+        
+        // Seguridad: Asegurar que la línea es lo suficientemente larga
+        if (cols.length <= COL_TOTAL) continue;
+
+        // C. Extraer y limpiar
+        const rawName = cols[COL_NAME].replace(/"/g, '').trim();
+        const rawQty = cols[COL_QTY].replace(/"/g, '').trim();
+        const rawTotal = cols[COL_TOTAL].replace(/"/g, '').trim();
+
+        // D. Filtros (Ignorar cabeceras y totales finales)
+        if (!rawName || rawName.includes('Artículo') || rawName.includes('Total:')) continue;
+        
+        const qty = parseFloat(rawQty);
+        const total = parseFloat(rawTotal);
+
+        // E. Agregar al mapa (suma duplicados si salen en varias líneas)
+        if (!isNaN(qty) && qty !== 0) {
+            if (itemsMap.has(rawName)) {
+                const prev = itemsMap.get(rawName);
+                prev.q += qty;
+                prev.t += total;
+            } else {
+                itemsMap.set(rawName, { q: qty, t: total || 0 });
+            }
+        }
+    }
+
+    // Convertir a lista y buscar enlace con BD
+    const results = [];
+    const normalize = (s) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+
+    itemsMap.forEach((val, name) => {
+        const cleanName = normalize(name);
+        const pvpCalc = val.q !== 0 ? Math.abs(val.t / val.q) : 0; // PVP Unitario real
+        
+        const match = db.recetas.find(r => normalize(r.n) === cleanName);
+        
+        results.push({
+            id: generateID(), // ID temporal UI
+            name: name,       // Nombre original Excel
+            qty: val.q,
+            pvp: pvpCalc,
+            matchId: match ? match.id : null, 
+            status: match ? 'linked' : 'new'
+        });
+    });
+
+    return { items: results, date: detectedDate };
+}
+
+// --- VISOR EDITABLE (EL MODAL MÁGICO) ---
+function showEditableImportModal(items, dateStr) {
+    tempImportData = items; 
+
+    // Generar filas editables
+    const rowsHTML = items.map((item, index) => {
+        const isLinked = item.status === 'linked';
+        const colorClass = isLinked ? 'bg-emerald-50/50' : 'bg-orange-50/50';
+        const icon = isLinked ? '✅' : '🆕';
+        
+        return `
+        <div class="grid grid-cols-12 gap-2 items-center border-b border-slate-100 py-2 px-1 text-xs ${colorClass}">
+            <div class="col-span-1 text-center text-lg">${icon}</div>
+            <div class="col-span-5">
+                <input type="text" value="${clean(item.name)}" 
+                    class="w-full bg-transparent font-bold text-slate-700 outline-none placeholder-slate-400" 
+                    onchange="updateTempItem(${index}, 'name', this.value)">
+                ${!isLinked ? '<div class="text-[9px] text-orange-500 font-bold">Se creará nueva receta</div>' : ''}
+            </div>
+            <div class="col-span-3">
+                <input type="number" value="${item.qty}" 
+                    class="w-full bg-white border border-slate-200 rounded px-1 py-1 text-center font-bold text-slate-800 focus:ring-2 ring-indigo-200 outline-none"
+                    onchange="updateTempItem(${index}, 'qty', this.value)">
+            </div>
+            <div class="col-span-2 relative">
+                <input type="number" step="0.01" value="${item.pvp.toFixed(2)}" 
+                    class="w-full bg-white border border-slate-200 rounded px-1 py-1 text-center text-slate-500 text-[10px]"
+                    onchange="updateTempItem(${index}, 'pvp', this.value)">
+                <span class="absolute right-1 top-1.5 text-[8px] text-slate-400">€</span>
+            </div>
+            <div class="col-span-1 text-center">
+                <button class="text-red-400 hover:text-red-600 font-bold px-2" onclick="removeTempItem(${index})">✕</button>
+            </div>
+        </div>`;
+    }).join('');
+
+    const totalImporte = items.reduce((sum, i) => sum + (i.qty * i.pvp), 0);
+
+    showModal('📝 Revisar y Confirmar Carga', `
+        <div class="bg-indigo-50 p-3 rounded-xl border border-indigo-100 mb-4">
+            <div class="flex justify-between items-end mb-2">
+                <div>
+                    <label class="text-[10px] font-bold text-indigo-400 uppercase block mb-1">Fecha de Venta</label>
+                    <input type="date" id="import-date-final" value="${dateStr}" class="bg-white/50 border-b-2 border-indigo-200 font-black text-indigo-900 text-lg outline-none w-full text-center rounded-t">
+                </div>
+                <div class="text-right">
+                    <div class="text-[10px] font-bold text-slate-400 uppercase">Total Bruto</div>
+                    <div class="text-xl font-black text-slate-800">${Num.fmt(totalImporte)}€</div>
+                </div>
+            </div>
+            <div class="text-[10px] text-indigo-500 font-medium">
+                ℹ️ Puedes corregir cantidades o nombres aquí mismo antes de guardar.
+            </div>
+        </div>
+
+        <div class="bg-white border border-slate-200 rounded-xl overflow-hidden mb-4 shadow-inner">
+            <div class="grid grid-cols-12 gap-2 bg-slate-50 border-b border-slate-200 py-2 px-1 text-[9px] font-black text-slate-400 uppercase text-center tracking-wider">
+                <div class="col-span-1">Est</div>
+                <div class="col-span-5 text-left pl-1">Producto</div>
+                <div class="col-span-3">Cantidad</div>
+                <div class="col-span-2">Precio/Ud</div>
+                <div class="col-span-1"></div>
+            </div>
+            <div class="max-h-60 overflow-y-auto custom-scrollbar" id="import-grid-body">
+                ${rowsHTML}
+            </div>
+        </div>
+
+        <div class="flex gap-2 pt-2 border-t border-slate-100">
+            <button class="btn-ghost" onclick="closeModal()">Cancelar</button>
+            <button class="btn-premium shadow-xl flex-1 bg-gradient-to-r from-indigo-600 to-blue-600" onclick="commitSalesImport()">
+                🚀 PROCESAR Y ANALIZAR
+            </button>
+        </div>
+    `);
+}
+
+function updateTempItem(index, field, value) {
+    if (tempImportData[index]) {
+        if (field === 'qty' || field === 'pvp') {
+            tempImportData[index][field] = parseFloat(value) || 0;
+        } else {
+            tempImportData[index][field] = value;
+        }
+    }
+}
+
+function removeTempItem(index) {
+    tempImportData.splice(index, 1);
+    const date = document.getElementById('import-date-final').value;
+    showEditableImportModal(tempImportData, date); // Refrescar totales
+}
+
+// --- 5. GUARDADO DEFINITIVO EN DB ---
+function commitSalesImport() {
+    const finalDate = document.getElementById('import-date-final').value;
+    if (!finalDate) return toast("Fecha obligatoria", "error");
+    if (tempImportData.length === 0) return toast("Tabla vacía", "error");
+
+    // A. Ajustar Año Fiscal si el archivo es de otro año
+    const year = parseInt(finalDate.split('-')[0]);
+    if (year !== fiscalYear) fiscalYear = year;
+
+    // B. Evitar duplicados (Borrar carga previa de ese día)
+    const existingIdx = db.sales_history.findIndex(l => l.date === finalDate);
+    if (existingIdx >= 0) db.sales_history.splice(existingIdx, 1);
+
+    const log = { id: generateID(), date: finalDate, items: [] };
+    let newCount = 0;
+
+    // C. Procesar líneas
+    tempImportData.forEach(item => {
+        let recId = item.matchId;
+
+        // Si es producto nuevo, crear Receta
+        if (!recId) {
+            // Re-verificar existencia por nombre
+            const exist = db.recetas.find(r => r.n.toLowerCase() === item.name.toLowerCase());
+            if (exist) {
+                recId = exist.id;
+                // Actualizar PVP si viene del excel
+                if(item.pvp > 0) exist.pvp = item.pvp; 
+            } else {
+                recId = generateID();
+                db.recetas.push({
+                    id: recId,
+                    n: item.name,
+                    pvp: item.pvp,
+                    items: [], // Sin ingredientes aún
+                    yield: 1, unit: 'ud', time: 0
+                });
+                newCount++;
+            }
+        } else {
+            // Actualizar PVP de receta existente para que Omnes sea real
+            const r = db.recetas.find(x => x.id === recId);
+            if (r && item.pvp > 0) r.pvp = item.pvp;
+        }
+
+        // Agregar al log de ventas
+        log.items.push({ rid: recId, n: item.name, q: item.qty });
+
+        // D. Descontar Stock (Opcional pero recomendado)
+        const r = db.recetas.find(x => x.id === recId);
+        if (r && r.items) {
+            r.items.forEach(it => {
+                if (it.type === 'ing') {
+                    const ing = db.ingredientes.find(x => x.id === it.id);
+                    if (ing) {
+                        const factor = UnitConverter.convert(1, it.unit||ing.unit, ing.unit);
+                        const yieldFactor = it.merma ? (1-(it.merma/100)) : 1;
+                        const qtyOut = (item.qty * it.q * factor) / yieldFactor;
+                        ing.stock -= qtyOut;
+                    }
+                }
+            });
+        }
+    });
+
+    db.sales_history.push(log);
+    
+    save(`✅ Datos guardados (${newCount} recetas creadas)`);
+    closeModal();
+    renderAdmin(document.getElementById('app')); // Recargar para ver los gráficos
+}
 function renderOmnesPrinciples(data) {
     const prices = data.filter(d => d.pvp > 0).map(d => d.pvp).sort((a,b) => a - b);
     if(prices.length < 2) return '<div class="text-xs text-slate-400">Datos insuficientes para análisis de precios.</div>';
