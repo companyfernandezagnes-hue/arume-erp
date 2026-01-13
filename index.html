@@ -1615,18 +1615,20 @@ function downloadMonthCSV(monthIndex, monthName) {
 /* =============================================================
    ⚠️ 12. INGENIERÍA DE MENÚ (MATRIZ OMNES) ⚠️
    ============================================================= */
-
+/* =============================================================
+   ⚠️ MÓDULO OMNES V5.0 (FINAL MASTER) ⚠️
+   ============================================================= */
 function renderOmnes(c) {
     if (!db.recetas || db.recetas.length === 0) { 
-        c.innerHTML = `<div class="glass-card text-center"><h3 class="font-bold text-slate-800">No hay datos</h3><p class="text-xs text-slate-400 mb-4">Crea recetas y registra ventas primero.</p><button class="btn-premium" onclick="render('Cocina')">IR A COCINA</button></div>`; 
+        c.innerHTML = `<div class="glass-card text-center"><h3 class="font-bold text-slate-800">No hay datos</h3><p class="text-xs text-slate-400 mb-4">Crea recetas primero.</p><button class="btn-premium" onclick="render('Cocina')">IR A COCINA</button></div>`; 
         return; 
     }
 
-    // 1. Cálculos de Ingeniería (Matemáticas financieras)
+    // --- 1. CÁLCULOS MATRIZ OMNES ---
     let totalSold = 0, totalRev = 0, totalCost = 0;
     const salesMap = {};
     
-    // Sumar ventas del periodo seleccionado
+    // Filtramos solo ventas del periodo fiscal activo
     db.sales_history.filter(log => isInPeriod(log.date)).forEach(log => {
         log.items.forEach(it => {
             const rid = it.rid || db.recetas.find(r => r.n === it.n)?.id;
@@ -1635,34 +1637,24 @@ function renderOmnes(c) {
     });
 
     const data = db.recetas.map(r => {
-        const cost = calcRecipe(r).t; // Calculamos coste actual de la receta
+        const cost = calcRecipe(r).t; 
         const sales = salesMap[r.id] || 0; 
         totalSold += sales;
         totalRev += sales * r.pvp;
         totalCost += sales * cost;
-        return { r, sales, cost, margin: r.pvp - cost, pvp: r.pvp };
+        return { r, sales, cost, margin: r.pvp - cost };
     });
 
-    if (totalSold === 0) {
-        c.innerHTML = `<div class="glass-card text-center p-8 border-2 border-dashed"><h3 class="text-slate-400">Sin ventas este trimestre</h3><button class="btn-premium mt-4" onclick="editSales()">📝 REGISTRAR SERVICIO</button></div>`;
-        return;
-    }
+    const avgMargin = totalSold > 0 ? (totalRev - totalCost) / totalSold : 0;
+    const popLimit = data.length > 0 ? (100 / data.length) * 0.7 : 0; 
 
-    // Puntos de corte para la matriz
-    const avgMargin = (totalRev - totalCost) / totalSold;
-    const popLimit = (100 / data.length) * 0.7; // Regla Omnes (70% de la popularidad media)
-
-    // 2. Renderizado Visual de la Matriz
+    // Render lista Omnes
     let html = data.sort((a,b) => b.sales - a.sales).map(d => {
         if (d.sales === 0) return '';
-        const mix = (d.sales / totalSold) * 100;
-        
-        // Clasificación: Popularidad (Mix) vs Rentabilidad (Margen)
+        const mix = totalSold > 0 ? (d.sales / totalSold) * 100 : 0;
         const isPop = mix >= popLimit;
         const isRich = d.margin >= avgMargin;
-        
         let type = isPop ? (isRich ? '🌟 ESTRELLA' : '🐎 CABALLO') : (isRich ? '🧩 PUZZLE' : '🐕 PERRO');
-        // Colores visuales para identificar rápido
         let color = isPop ? (isRich ? 'border-l-4 border-yellow-400' : 'border-l-4 border-blue-400') : (isRich ? 'border-l-4 border-green-400' : 'border-l-4 border-red-400');
 
         return `
@@ -1678,18 +1670,54 @@ function renderOmnes(c) {
         </div>`;
     }).join('');
 
+    // --- 2. HISTORIAL DE IMPORTACIONES (CON BOTÓN DESHACER) ---
+    // Mostramos las últimas 5 importaciones para control visual
+    const lastImports = db.sales_history
+        .sort((a,b) => b.date.localeCompare(a.date))
+        .slice(0, 5) // Solo las 5 últimas
+        .map(log => {
+            const itemCount = log.items.reduce((acc, i) => acc + i.q, 0);
+            return `
+            <div class="flex justify-between items-center py-2 border-b border-slate-100 last:border-0 text-xs">
+                <div>
+                    <div class="font-bold text-slate-700">📅 ${log.date}</div>
+                    <div class="text-[9px] text-slate-400">${log.items.length} productos (${itemCount} uds)</div>
+                </div>
+                <button class="text-red-500 bg-red-50 border border-red-100 px-2 py-1 rounded hover:bg-red-500 hover:text-white transition font-bold" onclick="undoImport('${log.id}')">
+                    ↩ DESHACER
+                </button>
+            </div>`;
+        }).join('');
+
+    // --- 3. RENDERIZADO FINAL ---
     c.innerHTML = `
     <div class="flex justify-between items-center mb-4">
         <h3 class="font-bold text-slate-800">MATRIZ OMNES</h3>
-        <button class="btn-premium btn-action w-auto px-4 py-2 text-xs" onclick="editSales()">📝 REGISTRAR SERVICIO</button>
+        <div class="flex gap-2">
+            <label class="btn-premium w-auto px-4 py-2 text-xs shadow-indigo-200 cursor-pointer flex items-center gap-2 hover:scale-105 transition bg-indigo-600 text-white">
+                <span>📂 IMPORTAR VENTAS</span>
+                <input type="file" id="sales-csv-input" accept=".csv,.txt,.xls,.xlsx" class="hidden" onchange="safeImportSales(this)">
+            </label>
+            <button class="btn-ghost w-auto px-3 py-1 text-xs" onclick="editSales()">📝 MANUAL</button>
+        </div>
     </div>
+    
     <div class="grid grid-cols-2 gap-2 mb-4 text-center">
         <div class="bg-slate-50 p-2 rounded-lg"><div class="text-[10px] text-slate-400">Margen Medio</div><div class="font-bold">${Num.fmt(avgMargin)}€</div></div>
-        <div class="bg-slate-50 p-2 rounded-lg"><div class="text-[10px] text-slate-400">Ticket Medio</div><div class="font-bold">${Num.fmt(totalRev/totalSold)}€</div></div>
+        <div class="bg-slate-50 p-2 rounded-lg"><div class="text-[10px] text-slate-400">Ticket Medio</div><div class="font-bold">${totalSold > 0 ? Num.fmt(totalRev/totalSold) : 0}€</div></div>
     </div>
-    ${html}`;
-}
+    
+    <div class="space-y-1 mb-6">
+        ${html || '<div class="text-center p-8 border-2 border-dashed border-slate-200 rounded-xl text-slate-400 bg-slate-50">Sin ventas registradas.<br>Sube tu archivo para empezar.</div>'}
+    </div>
 
+    ${lastImports ? `
+    <div class="glass-card border-t-4 border-slate-300">
+        <h4 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">🛠️ Historial de Importaciones</h4>
+        ${lastImports}
+    </div>` : ''}
+    `;
+}
 function editSales() {
     // Modal rápido para introducir ventas del día
     if (!db.recetas.length) return toast("No hay recetas", "error");
@@ -3306,6 +3334,240 @@ if (!window.openEventCalendar) {
     window.editEvent = editEvent;
     window.deleteEvent = deleteEvent;
     window.renderEventos = function(container) { renderEventos(container); };
+}
+    /* =============================================================
+   ⚠️ MOTOR DE IMPORTACIÓN V5.0 (DEFINITIVO) ⚠️
+   ============================================================= */
+
+// 1. LECTURA SEGURA DEL ARCHIVO
+function safeImportSales(input) {
+    const file = input.files[0];
+    if (!file) return;
+    
+    toast("⏳ Analizando archivo...", "info");
+    const reader = new FileReader();
+    
+    reader.onload = e => {
+        try { processSalesText(e.target.result); } 
+        catch (err) { console.error(err); toast("❌ Error: Archivo ilegible", "error"); }
+    };
+    
+    // IMPORTANTE: Usamos ISO-8859-1 para leer bien Ñ y tildes de Excels antiguos
+    reader.readAsText(file, "ISO-8859-1"); 
+    input.value = ''; // Reset para permitir re-subir el mismo archivo si hubo error
+}
+
+// 2. PROCESAMIENTO DE TEXTO (INTELIGENCIA ARTIFICIAL BÁSICA)
+function processSalesText(csvText) {
+    // Normalizador: Quita acentos y pone minúsculas para comparar (Café == cafe)
+    const normalize = (str) => str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+    
+    const lines = csvText.split(/\r?\n/);
+    const matches = [];
+    const unknown = [];
+    
+    // A. DETECCIÓN DE FECHA
+    let detectedDate = getISO(); // Por defecto hoy
+    // Buscamos fechas tipo dd/mm/yyyy o yyyy-mm-dd en las primeras 20 líneas
+    const dateRegex = /(\d{2,4})[\/\-](\d{2})[\/\-](\d{2,4})/;
+    
+    for(let i=0; i<Math.min(lines.length, 25); i++) {
+        const dateMatch = lines[i].match(dateRegex);
+        if (dateMatch) {
+            // Lógica para saber si es Año-Mes-Día o Día-Mes-Año
+            if (dateMatch[1].length === 4) detectedDate = `${dateMatch[1]}-${dateMatch[2]}-${dateMatch[3]}`; // YYYY-MM-DD
+            else detectedDate = `${dateMatch[3]}-${dateMatch[2]}-${dateMatch[1]}`; // DD-MM-YYYY -> YYYY-MM-DD
+            break; 
+        }
+    }
+
+    // B. DETECCIÓN DEL SEPARADOR (Coma o Punto y Coma)
+    // Buscamos una línea con contenido para adivinar el formato
+    const sampleLine = lines.find(l => l.length>10 && (l.includes(';') || l.includes(','))) || "";
+    const separator = (sampleLine.split(';').length > sampleLine.split(',').length) ? ';' : ',';
+
+    // C. ESCANEO LÍNEA A LÍNEA
+    lines.forEach(line => {
+        const cleanLine = line.replace(/"/g, '').trim();
+        if (cleanLine.length < 3) return; 
+
+        const cols = cleanLine.split(separator);
+        let nameCandidate = "";
+        let qtyCandidate = 0;
+
+        cols.forEach(col => {
+            let val = col.trim();
+            if (!val) return;
+
+            // Limpieza de moneda (12.50€ -> 12.50)
+            const cleanVal = val.replace(/[€$£]/g, '').trim();
+
+            // ¿Es número?
+            if (/^-?\d+([.,]\d+)?$/.test(cleanVal)) {
+                const num = parseFloat(cleanVal.replace(',', '.'));
+                // Filtros de calidad:
+                // - No es 0
+                // - Menor de 5000 (para evitar años o códigos postales)
+                // - Aun no tenemos cantidad asignada en esta línea
+                if (num !== 0 && Math.abs(num) < 5000 && qtyCandidate === 0) {
+                    qtyCandidate = num;
+                }
+            } else if (val.length > 2 && !nameCandidate) {
+                // Si es texto, asumimos que es el nombre del producto
+                nameCandidate = val;
+            }
+        });
+
+        // D. EMPAREJAMIENTO (MATCHING)
+        if (nameCandidate && qtyCandidate > 0) {
+            const searchName = normalize(nameCandidate);
+            // Buscamos en recetas: ¿El nombre del archivo contiene la receta? o ¿La receta contiene el nombre del archivo?
+            const match = db.recetas.find(r => {
+                const recName = normalize(r.n);
+                return searchName.includes(recName) || recName.includes(searchName);
+            });
+
+            if (match) {
+                matches.push({ rid: match.id, n: match.n, excelName: nameCandidate, q: qtyCandidate });
+            } else {
+                // Lista de palabras a ignorar (cabeceras, totales, impuestos)
+                const ignored = ['total', 'familia', 'artículo', 'codigo', 'fecha', 'pagina', 'base', 'cuota', 'impuesto', 'importe', 'neto', 'bruto'];
+                if (!ignored.some(w => searchName.includes(w))) {
+                    unknown.push(`${nameCandidate} (${qtyCandidate})`);
+                }
+            }
+        }
+    });
+
+    if (matches.length === 0) return toast("❌ No encontré productos válidos.", "error");
+
+    // 3. MOSTRAR CONFIRMACIÓN
+    showImportModal(matches, unknown, detectedDate);
+}
+
+// Ventana Modal de Confirmación
+function showImportModal(matches, unknown, defaultDate) {
+    const summaryList = matches.map(m => 
+        `<div class="flex justify-between text-xs py-1 border-b border-slate-50">
+            <span class="truncate w-2/3">${m.n} <span class="text-slate-300">(${m.excelName})</span></span>
+            <span class="font-bold text-indigo-600 bg-indigo-50 px-2 rounded">${m.q}</span>
+         </div>`
+    ).join('');
+
+    showModal('📥 Confirmar Importación', `
+        <div class="bg-indigo-50 p-3 rounded-lg mb-4 text-center border border-indigo-100">
+            <label class="text-xs font-bold text-indigo-800 uppercase block mb-1">📅 Fecha de Venta</label>
+            <input type="date" id="import-date" value="${defaultDate}" class="bg-white border-2 border-indigo-200 rounded-lg p-2 text-center font-bold text-indigo-900 w-full outline-none focus:border-indigo-500 transition" onchange="checkDuplicateImport(this.value)">
+            <div id="dup-warning" class="hidden mt-2 text-[10px] bg-red-100 text-red-600 p-1 rounded font-bold animate-pulse">
+                ⚠️ ATENCIÓN: Ya importaste datos de este día. Se sumarán.
+            </div>
+        </div>
+
+        <div class="text-center mb-2 flex justify-center gap-4 text-xs font-bold text-slate-400 uppercase">
+            <span class="text-emerald-500">✅ ${matches.length} Identificados</span>
+            ${unknown.length > 0 ? `<span class="text-orange-400">⚠️ ${unknown.length} Ignorados</span>` : ''}
+        </div>
+        
+        <div class="bg-white border border-slate-200 rounded-lg p-2 max-h-48 overflow-y-auto custom-scrollbar shadow-inner mb-4">
+            ${summaryList}
+        </div>
+        
+        ${unknown.length > 0 ? `
+        <details class="mb-4">
+            <summary class="text-[10px] text-orange-500 font-bold cursor-pointer hover:text-orange-700">Ver lista de no reconocidos</summary>
+            <div class="bg-orange-50 p-2 rounded mt-1 text-[9px] font-mono text-orange-800 max-h-20 overflow-y-auto">
+                ${unknown.join('<br>')}
+            </div>
+        </details>` : ''}
+        
+        <div class="flex gap-2">
+            <button class="btn-ghost" onclick="closeModal()">Cancelar</button>
+            <button class="btn-premium flex-1 shadow-xl" onclick='commitFinalImport(${JSON.stringify(matches)})'>
+                🚀 PROCESAR Y GUARDAR
+            </button>
+        </div>
+    `);
+    
+    // Verificar fecha inicial
+    checkDuplicateImport(defaultDate);
+}
+
+function checkDuplicateImport(dateStr) {
+    const warning = document.getElementById('dup-warning');
+    if (!warning) return;
+    const exists = db.sales_history.some(log => log.date === dateStr);
+    if (exists) warning.classList.remove('hidden'); else warning.classList.add('hidden');
+}
+
+// 4. GUARDADO FINAL Y DESCUENTO DE STOCK
+function commitFinalImport(matches) {
+    const selectedDate = document.getElementById('import-date').value;
+    if (!selectedDate) return toast("Fecha inválida", "error");
+
+    let log = { id: generateID(), date: selectedDate, items: [] };
+
+    matches.forEach(m => {
+        // Guardamos registro
+        log.items.push({ rid: m.rid, n: m.n, q: m.q });
+
+        // ESCANDALLO: Descontamos ingredientes
+        const r = db.recetas.find(x => x.id === m.rid);
+        if (r && r.items) {
+            r.items.forEach(it => {
+                if (it.type === 'ing') {
+                    const ing = db.ingredientes.find(x => x.id === it.id);
+                    if (ing) {
+                        // Conversión de unidades (ej: ración -> kg)
+                        const factor = UnitConverter.convert(1, it.unit||ing.unit, ing.unit);
+                        const yieldFactor = it.merma ? (1-(it.merma/100)) : 1;
+                        const totalNeeded = (it.q * factor * m.q) / yieldFactor;
+                        
+                        ing.stock -= totalNeeded;
+                        logStock(ing.id, totalNeeded, 'OUT', `Venta Importada (${selectedDate})`, ing.cost);
+                    }
+                }
+            });
+        }
+    });
+
+    db.sales_history.push(log);
+    save(`✅ Ventas procesadas correctamente`);
+    closeModal();
+    renderAdmin(document.getElementById('app'));
+}
+
+// 5. FUNCIÓN DESHACER (UNDO)
+function undoImport(logId) {
+    if(!confirm("⚠️ ¿DESHACER IMPORTACIÓN?\n\nSe devolverá el stock al almacén.\n\n¿Seguro?")) return;
+
+    const logIndex = db.sales_history.findIndex(l => l.id === logId);
+    if (logIndex === -1) return toast("Error: Registro no encontrado", "error");
+
+    const log = db.sales_history[logIndex];
+
+    // Devolvemos Stock
+    log.items.forEach(soldItem => {
+        const r = db.recetas.find(x => x.id === soldItem.rid);
+        if (r && r.items) {
+            r.items.forEach(it => {
+                if (it.type === 'ing') {
+                    const ing = db.ingredientes.find(x => x.id === it.id);
+                    if (ing) {
+                        const factor = UnitConverter.convert(1, it.unit||ing.unit, ing.unit);
+                        const yieldFactor = it.merma ? (1-(it.merma/100)) : 1;
+                        const totalReturn = (it.q * factor * soldItem.q) / yieldFactor;
+                        
+                        ing.stock += totalReturn; // SUMA
+                        logStock(ing.id, totalReturn, 'ADJ', `UNDO Venta (${log.date})`, ing.cost);
+                    }
+                }
+            });
+        }
+    });
+
+    db.sales_history.splice(logIndex, 1);
+    save("↩ Deshecho correctamente");
+    renderAdmin(document.getElementById('app'));
 }
 </script>
 </body>
