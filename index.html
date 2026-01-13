@@ -3343,16 +3343,16 @@ function openEventCalendar(id) {
     window.open(url, '_blank');
 }
 /* =============================================================
-   ⚠️ BLOQUE 2: MOTOR V20 "AUDITOR" (TEXTO SUCIO + PRECIOS REALES) ⚠️
+   ⚠️ MOTOR V22: COLUMNA 20 + PEGADO QUIRÚRGICO ⚠️
    ============================================================= */
 
 let tempImportMatches = []; 
 
-// 1. LECTURA DE ARCHIVO (EXCEL)
+// 1. LECTURA DE ARCHIVO (EXCEL / CSV)
 function safeImportSales(input) {
     const file = input.files[0];
     if (!file) return;
-    toast("⏳ Auditando archivo...", "info");
+    toast("⏳ Leyendo archivo...", "info");
     const reader = new FileReader();
     reader.onload = e => { try { processSalesFileContent(e.target.result); } catch (err) { toast("Error lectura", "error"); } };
     reader.readAsText(file, "ISO-8859-1"); 
@@ -3365,30 +3365,35 @@ function processSalesFileContent(csvText) {
     const matches = []; const unknown = [];
     let detectedDate = getISO(); 
 
-    // COLUMNAS MADISA
-    const NAME_IDX = 3; const QTY_IDX = 11; const TOTAL_IDX = 15;
+    // ✅ CORRECCIÓN DEFINITIVA DE COLUMNAS (VERIFICADO EN 'DIA 10.XLS')
+    // Col 3: Nombre | Col 11: Cantidad | Col 20: Importe Bruto
+    const NAME_IDX = 3; 
+    const QTY_IDX = 11; 
+    const TOTAL_IDX = 20; 
 
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
+        
+        // Detectar Fecha
         const dateMatch = line.match(/Día:\s*(\d{2})[\/\-](\d{2})[\/\-](\d{4})/i);
         if (dateMatch) detectedDate = `${dateMatch[3]}-${dateMatch[2]}-${dateMatch[1]}`;
 
         if (line.length < 5) continue; 
+        
+        // Separador inteligente de comas
         const cols = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
 
-        if (cols.length > QTY_IDX) {
+        if (cols.length > TOTAL_IDX) {
             let rawName = cols[NAME_IDX].replace(/^"|"$/g, '').trim(); 
             let rawQty = parseFloat(cols[QTY_IDX].replace(/^"|"$/g, '').replace(',', '.').trim());
-            // Intenta leer total para sacar precio unitario
-            let rawTotal = 0;
-            if(cols.length > TOTAL_IDX) rawTotal = parseFloat(cols[TOTAL_IDX].replace(/^"|"$/g, '').replace(',', '.').trim());
+            let rawTotal = parseFloat(cols[TOTAL_IDX].replace(/^"|"$/g, '').replace(',', '.').trim());
 
             if (rawName.length > 1 && !isNaN(rawQty) && rawQty !== 0 && Math.abs(rawQty) < 5000) {
                 const searchName = normalize(rawName);
                 if (['articulo','cantidad','total','familia','importe'].some(b => searchName.includes(b))) continue;
                 
-                // Precio Unitario Real
-                const realUnitPvp = (rawQty !== 0 && rawTotal !== 0) ? Math.abs(rawTotal / rawQty) : 0;
+                // Calculamos PVP Unitario Real (Total / Cantidad)
+                const realUnitPvp = (rawQty !== 0) ? Math.abs(rawTotal / rawQty) : 0;
                 matchAndPush(rawName, rawQty, realUnitPvp, matches, unknown, normalize);
             }
         }
@@ -3396,11 +3401,11 @@ function processSalesFileContent(csvText) {
     showImportModal(matches, unknown, detectedDate);
 }
 
-// 2. PEGADO MANUAL (DETECTIVE DE TEXTO SUCIO)
+// 2. PEGADO MANUAL (NUEVA LÓGICA "BISTURÍ")
 function openPasteModal() {
     showModal('📋 Pegar Ventas', `
         <p class="text-xs text-slate-500 mb-2">Pega aquí el texto de Madisa:</p>
-        <textarea id="paste-area" class="input-premium h-40 text-[10px] font-mono" placeholder="Ej: Agua20..."></textarea>
+        <textarea id="paste-area" class="input-premium h-40 text-[10px] font-mono" placeholder="Ej: Agua sin gas202.34..."></textarea>
         <button class="btn-premium mt-3 w-full" onclick="processPastedText()">PROCESAR</button>
     `);
     setTimeout(() => document.getElementById('paste-area').focus(), 100);
@@ -3409,21 +3414,22 @@ function openPasteModal() {
 function processPastedText() {
     const rawText = document.getElementById('paste-area').value;
     if (!rawText.trim()) return toast("Pega algo", "error");
+
     const matches = []; const unknown = [];
     const normalize = (str) => str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
 
-    // Limpieza inteligente: Separa "Agua20" -> "Agua" "20"
-    let cleanText = rawText.replace(/(\d+)([A-ZÁÉÍÓÚÑ])/g, "$1\n$2").replace(/ArtículoCantidad Total/gi, '');
-
-    // REGEX DE FRANCOTIRADOR: (Nombre) (Cantidad > 0) (Precio Unitario)
-    // El precio suele llevar decimales o ser 0.00
-    const regex = /(.+?)([1-9]\d*)(\d+[.,]\d{2})/g;
+    // 1. Limpieza inicial: Quitamos cabeceras que se cuelan
+    let cleanText = rawText.replace(/ArtículoCantidad Total/gi, '').replace(/Total:/gi, '');
+    
+    // 2. LA FÓRMULA MAESTRA: Separa (Nombre) (Cantidad) (Precio.Decimales)
+    // Busca: Texto + NumerosEnteros + NumeroConPuntoY2Decimales
+    const regex = /(.+?)(\d+)(\d+\.\d{2})/g;
     
     let m;
     while ((m = regex.exec(cleanText)) !== null) {
-        let name = m[1].trim().replace(/Total:/gi, '').trim();
-        let qty = parseFloat(m[2]);
-        let pvp = parseFloat(m[3].replace(',', '.')); // El texto pegado suele ser PRECIO UNITARIO, no total.
+        let name = m[1].trim(); 
+        let qty = parseFloat(m[2]);     // El número del medio es la cantidad (Ej: 20)
+        let pvp = parseFloat(m[3]);     // El último número es el precio (Ej: 2.34)
 
         if (name.length > 2 && qty > 0) {
             matchAndPush(name, qty, pvp, matches, unknown, normalize);
@@ -3431,6 +3437,8 @@ function processPastedText() {
     }
 
     if (matches.length === 0 && unknown.length === 0) return toast("Formato no reconocido.", "error");
+    
+    // Usamos fecha de hoy por defecto para pegado manual
     showImportModal(matches, unknown, getISO());
 }
 
@@ -3443,20 +3451,22 @@ function matchAndPush(name, qty, realPvp, matches, unknown, normalize) {
     });
 
     if (r) {
-        // AUDITORÍA: ¿Coincide el precio de la caja con el de la App?
+        // DETECTOR DE DISCREPANCIAS DE PRECIO
         let status = 'ok';
         let diffMsg = '';
-        if (realPvp > 0 && Math.abs(r.pvp - realPvp) > 0.05) { // Margen de 5 céntimos
+        // Si la diferencia es mayor de 5 céntimos, avisamos
+        if (realPvp > 0 && Math.abs(r.pvp - realPvp) > 0.05) {
             status = 'diff';
-            diffMsg = `App:${Num.fmt(r.pvp)} vs Caja:${Num.fmt(realPvp)}`;
+            diffMsg = `${Num.fmt(r.pvp)} vs ${Num.fmt(realPvp)}`;
         }
         matches.push({ rid: r.id, n: r.n, q: qty, realPvp: realPvp, status: status, diffMsg: diffMsg });
     } else {
-        // NUEVO: Guardamos el precio detectado para crear la ficha bien
+        // Guardamos el precio detectado para crear la ficha correctamente
         unknown.push({ n: name, q: qty, detectedPvp: realPvp });
     }
 }
 
+// 3. VENTANA DE CONFIRMACIÓN (EL AUDITOR)
 function showImportModal(matches, unknown, defaultDate) {
     tempImportMatches = matches; 
 
@@ -3484,7 +3494,7 @@ function showImportModal(matches, unknown, defaultDate) {
 
     showModal('📥 Auditoría de Caja', `
         <div class="bg-indigo-50 p-2 rounded mb-3 text-center border border-indigo-100">
-            <label class="text-[10px] font-bold text-indigo-400 uppercase">Fecha</label>
+            <label class="text-[10px] font-bold text-indigo-400 uppercase">Fecha Archivo</label>
             <input type="date" id="import-date" value="${defaultDate}" class="bg-transparent font-black text-indigo-900 text-center w-full outline-none text-sm">
             <div id="dup-warning" class="hidden mt-1 text-[9px] bg-red-500 text-white rounded px-2 font-bold">⚠️ DÍA YA IMPORTADO</div>
         </div>
@@ -3502,7 +3512,7 @@ function showImportModal(matches, unknown, defaultDate) {
         <div class="bg-orange-50 p-2 rounded-lg border border-orange-100 mb-3">
             <div class="text-[10px] font-bold text-orange-600 mb-1 uppercase">Productos Nuevos (Con Precio)</div>
             <div class="max-h-24 overflow-y-auto mb-2 bg-white/50 rounded p-1">${unknownHTML}</div>
-            <button class="btn-premium bg-gradient-to-r from-orange-400 to-orange-500 text-white w-full text-[10px] py-2" onclick='createMissingRecipesV20(${JSON.stringify(unknown)})'>
+            <button class="btn-premium bg-gradient-to-r from-orange-400 to-orange-500 text-white w-full text-[10px] py-2" onclick='createMissingRecipesV22(${JSON.stringify(unknown)})'>
                 ✨ CREAR ${unknown.length} FICHAS AUTOMÁTICAS
             </button>
         </div>` : ''}
@@ -3517,7 +3527,7 @@ function showImportModal(matches, unknown, defaultDate) {
         ${matches.some(m => m.status === 'diff') ? `
         <div class="mt-3 text-center">
             <button class="text-[10px] text-indigo-500 font-bold underline" onclick="updatePricesBatch()">
-                🔄 Sincronizar Precios (App = Caja)
+                🔄 Sincronizar Precios (Poner precios de Caja en App)
             </button>
         </div>` : ''}
     `);
@@ -3525,16 +3535,16 @@ function showImportModal(matches, unknown, defaultDate) {
     checkDuplicateImport(defaultDate);
 }
 
-// 4. CREAR (V20) - USA EL PRECIO DETECTADO
-function createMissingRecipesV20(list) {
-    if(!confirm(`¿Crear ${list.length} recetas nuevas con sus precios de caja?`)) return;
+// 4. CREAR RECETAS (Con Precio Detectado)
+function createMissingRecipesV22(list) {
+    if(!confirm(`¿Crear ${list.length} recetas nuevas con sus precios?`)) return;
     let count = 0;
     list.forEach(item => {
         if(!db.recetas.find(r => r.n === item.n)) {
             db.recetas.push({
                 id: generateID(),
                 n: item.n,
-                pvp: item.detectedPvp || 0, // PRECIO EXACTO DEL TEXTO
+                pvp: item.detectedPvp || 0, // <--- LA CLAVE: PRECIO REAL
                 items: [], 
                 yield: 1, unit: 'ud', time: 0
             });
@@ -3544,12 +3554,12 @@ function createMissingRecipesV20(list) {
     save(`Creadas ${count} recetas ✅`);
     closeModal();
     renderAdmin(document.getElementById('app'));
-    toast("Fichas creadas. Vuelve a pegar el texto.", "success");
+    toast("Hecho. Vuelve a subir el archivo.", "success");
 }
 
-// 5. ACTUALIZAR PRECIOS
+// 5. ACTUALIZAR PRECIOS EN MASA
 function updatePricesBatch() {
-    if(!confirm("¿Igualar los precios de tu App a los de la Caja?")) return;
+    if(!confirm("¿Actualizar el PVP de tus recetas para que coincida con la Caja?")) return;
     let count = 0;
     tempImportMatches.forEach(m => {
         if (m.status === 'diff' && m.realPvp > 0) {
@@ -3559,7 +3569,7 @@ function updatePricesBatch() {
     });
     save(`Precios actualizados (${count}) 🔄`);
     closeModal();
-    toast("Precios sincronizados. Vuelve a pegar.", "success");
+    toast("Precios sincronizados. Sube el archivo de nuevo.", "success");
 }
 
 function checkDuplicateImport(dateStr) {
@@ -3567,7 +3577,7 @@ function checkDuplicateImport(dateStr) {
     if(w) db.sales_history.some(l => l.date === dateStr) ? w.classList.remove('hidden') : w.classList.add('hidden');
 }
 
-// 6. GUARDAR (TIME TRAVEL)
+// 6. GUARDAR (TIME TRAVEL AUTOMÁTICO)
 function commitFinalImport() {
     const d = document.getElementById('import-date').value;
     if (!d) return toast("Fecha inválida", "error");
@@ -3576,15 +3586,17 @@ function commitFinalImport() {
 
     let log = { id: generateID(), date: d, items: [] };
 
+    // Auto-viaje en el tiempo (2026)
     const importYear = parseInt(d.split('-')[0]);
     if (importYear !== fiscalYear) {
         fiscalYear = importYear;
-        toast(`📅 Visualizando año ${importYear}...`, "info");
+        toast(`📅 Viajando a ${importYear}...`, "info");
     }
 
     matches.forEach(m => {
         log.items.push({ rid: m.rid, n: m.n, q: m.q });
         
+        // Descontar Stock
         const r = db.recetas.find(x => x.id === m.rid);
         if (r && r.items) {
             r.items.forEach(it => {
@@ -3607,8 +3619,9 @@ function commitFinalImport() {
     renderAdmin(document.getElementById('app'));
 }
 
+// 7. DESHACER (LOG COMPLETO)
 function undoImport(logId) {
-    if(!confirm("⚠️ ¿DESHACER CARGA?")) return;
+    if(!confirm("⚠️ ¿DESHACER CARGA Y RECUPERAR STOCK?")) return;
     const idx = db.sales_history.findIndex(l => l.id === logId);
     if (idx === -1) return;
     const log = db.sales_history[idx];
