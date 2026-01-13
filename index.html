@@ -1616,7 +1616,7 @@ function downloadMonthCSV(monthIndex, monthName) {
    ⚠️ VISUALIZACIÓN DOBLE: ENGINEERING + OMNES (FINAL) ⚠️
    ============================================================= */
 function renderOmnes(c) {
-    // Selector de Tiempo (Para no perderse si subes datos de 2026)
+    // Selector de Tiempo
     const timeControls = `
     <div class="flex items-center justify-between bg-slate-100 p-2 rounded-lg mb-4 border border-slate-200">
         <div class="flex items-center gap-2">
@@ -1638,7 +1638,7 @@ function renderOmnes(c) {
     let totalSold = 0, totalRev = 0, totalCost = 0;
     const salesMap = {};
     
-    // Filtramos ventas del año seleccionado
+    // Filtrar solo las ventas del año/trimestre seleccionado
     db.sales_history.filter(log => isInPeriod(log.date)).forEach(log => {
         log.items.forEach(it => {
             const rid = it.rid || db.recetas.find(r => r.n === it.n)?.id;
@@ -1646,7 +1646,7 @@ function renderOmnes(c) {
         });
     });
 
-    const activeRecetas = db.recetas.filter(r => r.pvp > 0);
+    const activeRecetas = db.recetas.filter(r => r.pvp > 0 || (salesMap[r.id] > 0)); // Mostrar si tiene precio O ventas
     const data = activeRecetas.map(r => {
         const cost = calcRecipe(r).t; 
         const sales = salesMap[r.id] || 0; 
@@ -1656,17 +1656,26 @@ function renderOmnes(c) {
         return { r, sales, cost, margin: r.pvp - cost, pvp: r.pvp };
     });
 
-    // --- 1. MATRIZ ENGINEERING (ESTRELLAS/PERROS) ---
+    // --- MATRIZ ENGINEERING ---
     const avgMargin = totalSold > 0 ? (totalRev - totalCost) / totalSold : 0;
-    const popLimit = (100 / data.length) * 0.7; 
+    const popLimit = data.length > 0 ? (100 / data.length) * 0.7 : 0; 
 
     let htmlMatrix = data.sort((a,b) => b.sales - a.sales).map(d => {
         if (d.sales === 0) return '';
         const mix = totalSold > 0 ? (d.sales / totalSold) * 100 : 0;
-        const isPop = mix >= popLimit;
-        const isRich = d.margin >= avgMargin;
-        let type = isPop ? (isRich ? '🌟 ESTRELLA' : '🐎 CABALLO') : (isRich ? '🧩 PUZZLE' : '🐕 PERRO');
-        let color = isPop ? (isRich ? 'border-yellow-400' : 'border-blue-400') : (isRich ? 'border-green-400' : 'border-red-400');
+        
+        let type = '❓';
+        let color = 'border-slate-300';
+        
+        if (d.pvp === 0) {
+            type = '⚠️ SIN PRECIO';
+            color = 'border-red-500 text-red-500';
+        } else {
+            const isPop = mix >= popLimit;
+            const isRich = d.margin >= avgMargin;
+            type = isPop ? (isRich ? '🌟 ESTRELLA' : '🐎 CABALLO') : (isRich ? '🧩 PUZZLE' : '🐕 PERRO');
+            color = isPop ? (isRich ? 'border-yellow-400' : 'border-blue-400') : (isRich ? 'border-green-400' : 'border-red-400');
+        }
 
         return `
         <div class="flex justify-between items-center p-2 border-b border-slate-50 last:border-0">
@@ -1676,36 +1685,31 @@ function renderOmnes(c) {
             </div>
             <div class="text-right">
                 <div class="font-black text-xs">${d.sales} ud</div>
-                <div class="text-[9px] text-slate-400">Mg: ${Num.fmt(d.margin)}€</div>
+                <div class="text-[9px] text-slate-400">${d.pvp > 0 ? Num.fmt(d.margin)+'€ mg' : 'Falta Precio'}</div>
             </div>
         </div>`;
     }).join('');
 
-    // --- 2. PRINCIPIOS OMNES (AUDITORÍA PRECIOS) ---
-    const prices = data.map(d => d.pvp).sort((a,b) => a - b);
+    // --- OMNES ---
+    const prices = data.filter(d => d.pvp > 0).map(d => d.pvp).sort((a,b) => a - b);
     const minP = prices[0] || 0;
     const maxP = prices[prices.length - 1] || 0;
-    
-    // 1. Gama (Max <= 3x Min)
     const rangeRatio = minP > 0 ? maxP / minP : 0;
     const p1Check = rangeRatio <= 3; 
 
-    // 2. Curva (Grupo Medio > Otros)
-    const range = (maxP - minP) / 3;
-    const limitLow = minP + range;
-    const limitHigh = minP + (range * 2);
-    const groupLow = data.filter(d => d.pvp < limitLow).length;
-    const groupMid = data.filter(d => d.pvp >= limitLow && d.pvp < limitHigh).length;
-    const groupHigh = data.filter(d => d.pvp >= limitHigh).length;
-    const p2Check = groupMid >= (groupLow + groupHigh); 
+    // Historial con botón EDITAR y BORRAR
+    const lastImports = db.sales_history.sort((a,b) => b.date.localeCompare(a.date)).slice(0, 5).map(log => `
+        <div class="flex justify-between items-center py-2 border-b border-slate-100 last:border-0 text-xs">
+            <div>
+                <div class="font-bold text-slate-700">📅 ${log.date}</div>
+                <div class="text-[9px] text-slate-400">${log.items.length} productos</div>
+            </div>
+            <div class="flex gap-1">
+                <button class="text-red-500 bg-red-50 border border-red-100 px-2 py-1 rounded font-bold hover:bg-red-500 hover:text-white transition" onclick="undoImport('${log.id}')">🗑️</button>
+            </div>
+        </div>`).join('');
 
-    // 3. Demanda (Solicitado / Ofertado ~ 1)
-    const avgOffered = prices.length > 0 ? prices.reduce((a,b)=>a+b,0) / prices.length : 0;
-    const avgDemanded = totalSold > 0 ? totalRev / totalSold : 0;
-    const demandRatio = avgOffered > 0 ? avgDemanded / avgOffered : 0;
-    const p3Check = demandRatio >= 0.9 && demandRatio <= 1.0;
-
-    // --- RENDERIZADO ---
+    // --- RENDERIZADO FINAL ---
     c.innerHTML = `
     <div class="flex justify-between items-center mb-4">
         <h3 class="font-bold text-slate-800">ANÁLISIS DE VENTAS</h3>
@@ -1738,19 +1742,13 @@ function renderOmnes(c) {
 
         <div class="space-y-2">
             <div class="flex justify-between items-center text-xs border-b border-slate-100 pb-1">
-                <span class="text-slate-600">1. Amplitud Gama (Max/Min)</span>
+                <span class="text-slate-600">Amplitud Gama (Max/Min)</span>
                 <span class="font-bold ${p1Check ? 'text-emerald-500' : 'text-red-500'}">${rangeRatio.toFixed(2)} (Ideal < 3)</span>
             </div>
-            <div class="flex justify-between items-center text-xs border-b border-slate-100 pb-1">
-                <span class="text-slate-600">2. Curva Precios (Media)</span>
-                <span class="font-bold ${p2Check ? 'text-emerald-500' : 'text-red-500'}">${p2Check ? '✅ Equilibrada' : '⚠️ Desviada'}</span>
             </div>
-            <div class="flex justify-between items-center text-xs">
-                <span class="text-slate-600">3. Calidad/Precio</span>
-                <span class="font-bold ${p3Check ? 'text-emerald-500' : 'text-red-500'}">${demandRatio.toFixed(2)} (Ideal ≈ 1)</span>
-            </div>
-        </div>
     </div>
+    
+    ${lastImports ? `<div class="glass-card border-t-4 border-slate-300 mt-4"><h4 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">🛠️ Historial de Cargas</h4>${lastImports}</div>` : ''}
     `;
 }
 function commitSales() {
