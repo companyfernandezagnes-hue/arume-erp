@@ -3711,12 +3711,12 @@ function openEventCalendar(id) {
     window.open(url, '_blank');
 }
 /* =============================================================
-   ⚠️ MOTOR V27 ULTRA: AGREGADOR DE DUPLICADOS + RASTREADOR ⚠️
+   ⚠️ MOTOR V28: BULLETPROOF (PEGADO AGRESIVO + RASTREADOR) ⚠️
    ============================================================= */
 
 let tempImportMatches = []; 
 
-// 1. LECTURA DE ARCHIVO
+// 1. LECTURA DE ARCHIVO (IGUAL QUE ANTES, PERO MÁS ROBUSTO)
 function safeImportSales(input) {
     const file = input.files[0];
     if (!file) return;
@@ -3730,20 +3730,17 @@ function safeImportSales(input) {
 function processSalesFileContent(csvText) {
     const normalize = (str) => str ? str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim() : "";
     const lines = csvText.split(/\r?\n/);
-    const rawDataMap = new Map(); // MAPA AGREGADOR (Evita duplicados)
+    const rawDataMap = new Map(); 
     let detectedDate = getISO(); 
 
-    // RASTREADOR DE COLUMNAS
     let NAME_IDX = 3, QTY_IDX = 11, TOTAL_IDX = 20; 
-    let DELIMITER = ','; // Por defecto coma
+    let DELIMITER = ','; 
 
-    // Detección de delimitador (Coma o Punto y Coma)
     if (lines[0] && lines[0].includes(';') && !lines[0].includes(',')) DELIMITER = ';';
 
     for(let i=0; i<Math.min(lines.length, 30); i++) {
         const rowLower = lines[i].toLowerCase();
         if(rowLower.includes('artículo') || rowLower.includes('articulo')) {
-            // Regex para separar respetando comillas
             const cols = lines[i].split(new RegExp(`${DELIMITER}(?=(?:(?:[^"]*"){2})*[^"]*$)`));
             cols.forEach((c, idx) => {
                 const h = c.replace(/^"|"$/g, '').trim().toLowerCase();
@@ -3765,15 +3762,12 @@ function processSalesFileContent(csvText) {
 
         if (cols.length > Math.max(NAME_IDX, QTY_IDX, TOTAL_IDX)) {
             let rawName = cols[NAME_IDX].replace(/^"|"$/g, '').trim(); 
-            // Limpieza de números (Madisa usa a veces miles con punto y decimal con coma, o al revés)
-            // Asumimos formato estándar del Excel enviado: 42.5 (Punto decimal)
             let rawQty = parseFloat(cols[QTY_IDX].replace(/^"|"$/g, '').replace(',', '.').trim());
             let rawTotal = parseFloat(cols[TOTAL_IDX].replace(/^"|"$/g, '').replace(',', '.').trim());
 
             if (rawName.length > 1 && !isNaN(rawQty) && rawQty !== 0 && Math.abs(rawQty) < 5000) {
                 if (['articulo','cantidad','total','familia','importe'].some(b => normalize(rawName).includes(b))) continue;
                 
-                // AGREGACIÓN: Si ya existe, sumamos
                 if(rawDataMap.has(rawName)) {
                     let prev = rawDataMap.get(rawName);
                     prev.q += rawQty;
@@ -3785,7 +3779,6 @@ function processSalesFileContent(csvText) {
         }
     }
 
-    // PROCESAMOS EL MAPA AGREGADO
     const matches = []; const unknown = [];
     rawDataMap.forEach((val, name) => {
         const realUnitPvp = (val.q !== 0) ? Math.abs(val.t / val.q) : 0;
@@ -3795,7 +3788,7 @@ function processSalesFileContent(csvText) {
     showImportModal(matches, unknown, detectedDate);
 }
 
-// 2. PEGADO MANUAL
+// 2. PEGADO MANUAL (VERSIÓN AGRESIVA V28)
 function openPasteModal() {
     const today = getISO();
     showModal('📋 Pegar Ventas', `
@@ -3805,7 +3798,7 @@ function openPasteModal() {
         </div>
         
         <label class="text-xs font-bold text-slate-500 uppercase mb-1 block">2. Pega aquí el texto</label>
-        <textarea id="paste-area" class="input-premium h-40 text-[10px] font-mono border-2 border-slate-200" placeholder="Ej: Agua sin gas202.34..."></textarea>
+        <textarea id="paste-area" class="input-premium h-40 text-[10px] font-mono border-2 border-slate-200" placeholder="Ej: Agua sin gas 20 42.50..."></textarea>
         
         <button class="btn-premium mt-3 w-full shadow-lg" onclick="processPastedText()">🚀 PROCESAR DATOS</button>
     `);
@@ -3822,15 +3815,23 @@ function processPastedText() {
     const matches = []; const unknown = [];
     const normalize = (str) => str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
 
-    let cleanText = rawText.replace(/ArtículoCantidad Total/gi, '').replace(/Total:/gi, '');
-    const regex = /(.+?)(\d+)(\d+[.,]\d{2})/g;
-    let m;
+    // LIMPIEZA AGRESIVA: Unificamos espacios, quitamos tabulaciones, quitamos cabeceras
+    let cleanText = rawText
+        .replace(/ArtículoCantidad Total/gi, '')
+        .replace(/Total:/gi, '')
+        .replace(/\t/g, ' ') // Tabulaciones a espacios
+        .replace(/\s+/g, ' '); // Múltiples espacios a uno solo
+
+    // REGEX V28: Busca patrones repetitivos en una sola línea continua
+    // (Texto que no sea digito) (Espacio opcional) (Numero entero) (Espacio opcional) (Numero decimal)
+    const regex = /([^\d]+?)\s*(\d+)\s*(\d+[.,]\d{2})/g;
     
-    // Mapa local para agregar en el pegado también
+    // Mapa para agregar duplicados al pegar
     const pasteMap = new Map();
+    let m;
 
     while ((m = regex.exec(cleanText)) !== null) {
-        let name = m[1].trim(); 
+        let name = m[1].trim();
         let qty = parseFloat(m[2]);     
         let total = parseFloat(m[3].replace(',', '.'));
         
@@ -3845,7 +3846,21 @@ function processPastedText() {
         }
     }
     
-    if (pasteMap.size === 0) return toast("Formato no reconocido.", "error");
+    if (pasteMap.size === 0) {
+        // INTENTO DE RESCATE: Si falló la regex continua, probamos por líneas (formato lista)
+        const lines = rawText.split(/\n/);
+        lines.forEach(l => {
+             const mLine = l.match(/(.+?)\s+(\d+)\s+(\d+[.,]\d{2})/);
+             if(mLine) {
+                 let name = mLine[1].trim();
+                 let qty = parseFloat(mLine[2]);
+                 let total = parseFloat(mLine[3].replace(',', '.'));
+                 if(qty > 0) pasteMap.set(name, { q: qty, t: total });
+             }
+        });
+    }
+
+    if (pasteMap.size === 0) return toast("Formato no reconocido. Revisa el texto.", "error");
 
     pasteMap.forEach((val, name) => {
         let unitPvp = (val.q > 0) ? val.t / val.q : 0;
@@ -3855,7 +3870,7 @@ function processPastedText() {
     showImportModal(matches, unknown, selectedDate);
 }
 
-// --- C. MATCHING & AUDITORÍA ---
+// --- RESTO IGUAL QUE V27 (MATCHING, MODAL, GUARDAR) ---
 function matchAndPush(name, qty, realPvp, matches, unknown, normalize) {
     const searchName = normalize(name);
     const r = db.recetas.find(rec => {
@@ -3876,7 +3891,7 @@ function matchAndPush(name, qty, realPvp, matches, unknown, normalize) {
 
 function showImportModal(matches, unknown, defaultDate) {
     tempImportMatches = matches; 
-    matches.sort((a,b) => (a.status === 'diff' ? -1 : 1)); // Errores primero
+    matches.sort((a,b) => (a.status === 'diff' ? -1 : 1));
 
     const totalMoney = matches.reduce((s,m)=>s+(m.q*m.realPvp),0) + unknown.reduce((s,u)=>s+(u.q*u.detectedPvp),0);
 
