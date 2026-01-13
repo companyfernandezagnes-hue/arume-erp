@@ -1613,21 +1613,15 @@ function downloadMonthCSV(monthIndex, monthName) {
     a.click();
 }
 /* =============================================================
-   ⚠️ BLOQUE 1: PANTALLA V27 (VISUAL + ALERTA COSTES) ⚠️
+   ⚠️ BLOQUE 1: PANTALLA V35 (VISUAL + BOTONES RECUPERADOS) ⚠️
    ============================================================= */
-/* =============================================================
-   ⚠️ MÓDULO OMNES + IMPORTADOR EXCEL "ARUME" V3.0 (DEFINITIVO)
-   ============================================================= */
-
-// Variable temporal para la edición en vivo
-let tempImportData = [];
-
 function renderOmnes(c) {
-    // --- 1. CABECERA Y CONTROL DE AÑO ---
+    // 1. HEADER CON CONTROL DE AÑO
     const headerHTML = `
     <div class="flex justify-between items-center mb-4">
         <h3 class="font-bold text-slate-800 flex items-center gap-2">
-            📊 ANÁLISIS <span class="text-[10px] bg-slate-800 text-white px-2 py-0.5 rounded-full font-mono">${fiscalYear}</span>
+            📊 ANÁLISIS 
+            <span class="text-[10px] bg-slate-800 text-white px-2 py-0.5 rounded-full font-mono">${fiscalYear}</span>
         </h3>
         <div class="flex bg-slate-200 rounded-lg p-1 gap-1">
             <button class="w-8 h-8 flex items-center justify-center bg-white rounded shadow text-xs font-bold active:scale-95" onclick="fiscalYear--;renderAdmin(document.getElementById('app'))">‹</button>
@@ -1635,25 +1629,45 @@ function renderOmnes(c) {
         </div>
     </div>
     
-    <div class="bg-indigo-50 p-4 rounded-xl border border-indigo-100 mb-6 flex flex-col gap-2 shadow-sm">
-        <div class="flex justify-between items-center">
-            <p class="text-[10px] text-indigo-800 font-bold uppercase">📥 Cargar Datos de Caja</p>
-            <span class="text-[9px] text-indigo-400 bg-white px-2 rounded border border-indigo-100">Compatible: .xls .csv</span>
-        </div>
-        <div class="flex gap-2">
-            <label class="btn-premium flex-1 text-[10px] cursor-pointer shadow-indigo-200 bg-indigo-600 text-white flex justify-center items-center gap-2 hover:scale-[1.02] transition">
-                <span class="text-lg">📂</span> SUBIR INFORME VENTAS
-                <input type="file" class="hidden" accept=".csv, .xls, .txt" onchange="processArumeExcel(this)">
-            </label>
-            <button class="btn-ghost w-auto text-[10px] bg-white text-indigo-600 border-indigo-200" onclick="openManualSales()">📝 MANUAL</button>
-        </div>
+    <div class="grid grid-cols-2 gap-3 mb-6">
+        <label class="btn-ghost text-[10px] cursor-pointer border bg-white shadow-sm hover:bg-indigo-50 text-indigo-600 font-bold flex flex-col justify-center items-center py-3 group transition">
+            <span class="text-lg group-hover:scale-110 transition">📂</span> 
+            <span>SUBIR "DIA 10.XLS"</span>
+            <input type="file" class="hidden" accept=".csv,.xls,.txt" onchange="safeImportSales(this)">
+        </label>
+        <button class="btn-premium text-[10px] shadow-indigo-200 flex flex-col justify-center items-center py-3" onclick="openPasteModal()">
+            <span class="text-lg">📋</span> 
+            <span>PEGAR MANUAL</span>
+        </button>
     </div>`;
 
-    // --- 2. CÁLCULOS DEL MOTOR (Matriz BCG y Omnes) ---
+    // 2. DETECTOR DE DATOS "OCULTOS"
+    const yearsWithData = [...new Set(db.sales_history.map(l => parseInt(l.date.split('-')[0])))];
+    const currentHasData = yearsWithData.includes(fiscalYear);
+
+    if (yearsWithData.length > 0 && !currentHasData) {
+        c.innerHTML = `
+            ${headerHTML}
+            <div class="glass-card bg-orange-50 border-orange-200 text-center p-8 animate-fade-in">
+                <div class="text-4xl mb-2">📅</div>
+                <h3 class="font-bold text-orange-800">Estás en ${fiscalYear}</h3>
+                <p class="text-xs text-orange-600 mb-4">Pero tus datos están en otro año.</p>
+                <div class="flex gap-2 justify-center flex-wrap">
+                    ${yearsWithData.map(y => `<button class="bg-white text-orange-600 border border-orange-200 px-4 py-2 rounded-lg font-bold text-xs shadow-sm hover:bg-orange-100 transition" onclick="fiscalYear=${y};renderAdmin(document.getElementById('app'))">IR A ${y}</button>`).join('')}
+                </div>
+            </div>`;
+        return;
+    }
+
+    if (!db.recetas.length && !db.sales_history.length) {
+        c.innerHTML = `${headerHTML}<div class="glass-card text-center p-10 text-slate-400">Sin datos.<br>Usa los botones de arriba.</div>`;
+        return;
+    }
+
+    // --- 3. CÁLCULOS MATEMÁTICOS ---
     let totalSold = 0, totalRev = 0, totalCost = 0;
     const salesMap = {};
     
-    // Sumamos ventas del año actual
     db.sales_history.filter(log => isInPeriod(log.date)).forEach(log => {
         log.items.forEach(it => {
             const rid = it.rid || db.recetas.find(r => r.n === it.n)?.id;
@@ -1661,98 +1675,62 @@ function renderOmnes(c) {
         });
     });
 
-    // Cruzamos con las Recetas
     const activeData = db.recetas.map(r => {
-        const costObj = calcRecipe(r);
-        const cost = costObj.t;
+        const cost = calcRecipe(r).t; 
         const sales = salesMap[r.id] || 0; 
-        
         if (sales === 0 && r.pvp === 0) return null;
         
         totalSold += sales;
         totalRev += sales * r.pvp;
         totalCost += sales * cost;
-        
-        return { 
-            r, sales, cost, 
-            margin: r.pvp - cost, 
-            pvp: r.pvp, 
-            hasCost: cost > 0 
-        };
+        return { r, sales, cost, margin: r.pvp - cost, pvp: r.pvp };
     }).filter(x => x !== null);
 
-    // Si no hay datos
-    if (totalSold === 0) {
-        c.innerHTML = `${headerHTML}
-        <div class="glass-card text-center p-10 border-dashed border-2 border-slate-300 opacity-60">
-            <div class="text-4xl mb-3">📄</div>
-            <h3 class="font-bold text-slate-600">Sin datos en ${fiscalYear}</h3>
-            <p class="text-xs text-slate-400 mt-2">Sube el archivo "Informe de ventas" para generar el análisis.</p>
-        </div>`;
-        return;
-    }
-
-    // Clasificación Matriz
     const avgMargin = totalSold > 0 ? (totalRev - totalCost) / totalSold : 0;
     const popLimit = (100 / (activeData.length || 1)) * 0.7;
 
-    const m = { stars: [], horses: [], puzzles: [], dogs: [], alerts: [] };
+    const m = { stars: [], horses: [], puzzles: [], dogs: [] };
     
     activeData.forEach(d => {
         const mix = totalSold > 0 ? (d.sales / totalSold) * 100 : 0;
-        if (!d.hasCost && d.sales > 0) m.alerts.push(d);
-        else {
-            const isPop = mix >= popLimit;
-            const isRich = d.margin >= avgMargin;
-            if (isPop && isRich) m.stars.push(d);
-            else if (isPop && !isRich) m.horses.push(d);
-            else if (!isPop && isRich) m.puzzles.push(d);
-            else m.dogs.push(d);
-        }
+        const isPop = mix >= popLimit;
+        const isRich = d.margin >= avgMargin;
+        if (isPop && isRich) m.stars.push(d);
+        else if (isPop && !isRich) m.horses.push(d);
+        else if (!isPop && isRich) m.puzzles.push(d);
+        else m.dogs.push(d);
     });
 
-    const renderRow = (d) => `
-    <div class="text-[9px] text-slate-600 border-b border-slate-100 py-1.5 flex justify-between items-center group hover:bg-slate-50 cursor-pointer" onclick="editRec('${d.r.id}')">
-        <span class="truncate w-2/3 font-bold group-hover:text-indigo-600 transition" title="${clean(d.r.n)}">${clean(d.r.n)}</span>
-        <div class="flex flex-col text-right w-1/3">
-            <span class="text-slate-800 font-black">${d.sales} ud</span>
-            <span class="text-[8px] text-slate-400">Mg: ${Num.fmt(d.margin)}€</span>
-        </div>
-    </div>`;
+    const renderRow = (d) => `<div class="text-[9px] text-slate-600 border-b border-slate-100 py-1 flex justify-between"><span class="truncate w-2/3">${clean(d.r.n)}</span><span class="font-bold text-slate-800">${d.sales}</span></div>`;
 
-    // --- 3. RENDERIZADO VISUAL ---
+    // --- 4. RENDERIZADO GRÁFICO ---
     c.innerHTML = `
     ${headerHTML}
 
     <div class="glass-card mb-6 border-t-4 border-indigo-500">
         <div class="flex justify-between items-center mb-4">
             <h4 class="text-xs font-black text-indigo-900 uppercase tracking-widest">🧩 Ingeniería de Menú</h4>
-            <span class="text-[9px] bg-indigo-50 text-indigo-600 px-2 py-1 rounded font-bold border border-indigo-100">Margen Medio: ${Num.fmt(avgMargin)}€</span>
+            <span class="text-[9px] bg-indigo-50 text-indigo-600 px-2 py-1 rounded font-bold border border-indigo-100">Mg. Medio: ${Num.fmt(avgMargin)}€</span>
         </div>
         
-        <div class="grid grid-cols-2 gap-2 h-[340px]">
-            <div class="bg-yellow-50 border border-yellow-200 rounded-xl p-2 relative overflow-hidden flex flex-col shadow-sm">
-                <div class="flex justify-between items-center mb-1 border-b border-yellow-100 pb-1"><span class="text-[10px] font-black text-yellow-600">🌟 ESTRELLAS</span><span class="text-[9px] font-black text-yellow-500 bg-white px-1.5 rounded shadow-sm">${m.stars.length}</span></div>
-                <div class="flex-1 overflow-y-auto custom-scrollbar space-y-1">${m.stars.map(d => renderRow(d)).join('')}</div>
+        <div class="grid grid-cols-2 gap-2 h-64">
+            <div class="bg-yellow-50 border border-yellow-200 rounded-xl p-2 relative overflow-hidden flex flex-col hover:shadow-md transition">
+                <div class="flex justify-between items-center mb-1"><span class="text-[10px] font-black text-yellow-600">🌟 ESTRELLAS</span><span class="text-[9px] font-black bg-white px-1.5 rounded shadow-sm text-yellow-500">${m.stars.length}</span></div>
+                <div class="flex-1 overflow-y-auto custom-scrollbar space-y-1">${m.stars.map(renderRow).join('')}</div>
             </div>
-            <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-2 relative overflow-hidden flex flex-col shadow-sm">
-                <div class="flex justify-between items-center mb-1 border-b border-emerald-100 pb-1"><span class="text-[10px] font-black text-emerald-600">🧩 PUZZLES</span><span class="text-[9px] font-black text-emerald-500 bg-white px-1.5 rounded shadow-sm">${m.puzzles.length}</span></div>
-                <div class="flex-1 overflow-y-auto custom-scrollbar space-y-1">${m.puzzles.map(d => renderRow(d)).join('')}</div>
+            <div class="bg-green-50 border border-green-200 rounded-xl p-2 relative overflow-hidden flex flex-col hover:shadow-md transition">
+                <div class="flex justify-between items-center mb-1"><span class="text-[10px] font-black text-green-600">🧩 PUZZLES</span><span class="text-[9px] font-black bg-white px-1.5 rounded shadow-sm text-green-500">${m.puzzles.length}</span></div>
+                <div class="flex-1 overflow-y-auto custom-scrollbar space-y-1">${m.puzzles.map(renderRow).join('')}</div>
             </div>
-            <div class="bg-blue-50 border border-blue-200 rounded-xl p-2 relative overflow-hidden flex flex-col shadow-sm">
-                <div class="flex justify-between items-center mb-1 border-b border-blue-100 pb-1"><span class="text-[10px] font-black text-blue-600">🐎 CABALLOS</span><span class="text-[9px] font-black text-blue-400 bg-white px-1.5 rounded shadow-sm">${m.horses.length}</span></div>
-                <div class="flex-1 overflow-y-auto custom-scrollbar space-y-1">${m.horses.map(d => renderRow(d)).join('')}</div>
+            <div class="bg-blue-50 border border-blue-200 rounded-xl p-2 relative overflow-hidden flex flex-col hover:shadow-md transition">
+                <div class="flex justify-between items-center mb-1"><span class="text-[10px] font-black text-blue-600">🐎 CABALLOS</span><span class="text-[9px] font-black bg-white px-1.5 rounded shadow-sm text-blue-500">${m.horses.length}</span></div>
+                <div class="flex-1 overflow-y-auto custom-scrollbar space-y-1">${m.horses.map(renderRow).join('')}</div>
             </div>
-            <div class="bg-red-50 border border-red-200 rounded-xl p-2 relative overflow-hidden flex flex-col shadow-sm">
-                <div class="flex justify-between items-center mb-1 border-b border-red-100 pb-1"><span class="text-[10px] font-black text-red-600">🐕 PERROS</span><span class="text-[9px] font-black text-red-400 bg-white px-1.5 rounded shadow-sm">${m.dogs.length}</span></div>
-                <div class="flex-1 overflow-y-auto custom-scrollbar space-y-1">${m.dogs.map(d => renderRow(d)).join('')}</div>
+            <div class="bg-red-50 border border-red-200 rounded-xl p-2 relative overflow-hidden flex flex-col hover:shadow-md transition">
+                <div class="flex justify-between items-center mb-1"><span class="text-[10px] font-black text-red-600">🐕 PERROS</span><span class="text-[9px] font-black bg-white px-1.5 rounded shadow-sm text-red-500">${m.dogs.length}</span></div>
+                <div class="flex-1 overflow-y-auto custom-scrollbar space-y-1">${m.dogs.map(renderRow).join('')}</div>
             </div>
         </div>
-
-        ${m.alerts.length > 0 ? `
-        <div class="mt-2 bg-orange-100 border border-orange-200 rounded-lg p-2 text-center">
-            <span class="text-[10px] font-bold text-orange-700">⚠️ ${m.alerts.length} platos vendidos sin escandallo (Coste 0)</span>
-        </div>` : ''}
     </div>
 
     <div class="glass-card border-t-4 border-orange-500">
@@ -1770,10 +1748,13 @@ function renderOmnes(c) {
                         <div class="bg-slate-100 p-1.5 rounded text-xs">📄</div>
                         <div>
                             <div class="font-bold text-slate-700">Ventas ${l.date}</div>
-                            <div class="text-[10px] text-slate-400">${l.items.length} líneas</div>
+                            <div class="text-[10px] text-slate-400">${l.items.length} productos</div>
                         </div>
                     </div>
-                    <button class="text-red-500 font-bold border border-red-100 px-3 py-1 rounded bg-red-50 hover:bg-red-500 hover:text-white transition" onclick="undoImport('${l.id}')">BORRAR</button>
+                    <div class="flex gap-2">
+                        <button class="text-indigo-500 font-bold bg-indigo-50 px-3 py-1 rounded hover:bg-indigo-100" onclick="editImport('${l.id}')">EDITAR</button>
+                        <button class="text-red-500 font-bold bg-red-50 px-3 py-1 rounded hover:bg-red-500 hover:text-white" onclick="undoImport('${l.id}')">🗑️</button>
+                    </div>
                 </div>
             `).join('')}
         </div>
@@ -1781,6 +1762,14 @@ function renderOmnes(c) {
     `;
 }
 
+// Auxiliar Omnes
+function renderOmnesPrinciples(data) {
+    const prices = data.filter(d => d.pvp > 0).map(d => d.pvp).sort((a,b) => a - b);
+    if(prices.length < 2) return '<div class="text-xs text-slate-400">Datos insuficientes.</div>';
+    const min = prices[0], max = prices[prices.length-1];
+    const rangeRatio = min > 0 ? max/min : 0;
+    return `<div class="flex justify-between text-xs border-b border-dashed border-slate-200 pb-2"><span class="text-slate-600">Amplitud Gama (Max/Min)</span><span class="font-bold ${rangeRatio <= 3 ? 'text-emerald-600':'text-red-500'}">${rangeRatio.toFixed(2)} (Meta < 3)</span></div>`;
+}
 /* =============================================================
    ⚠️ 4. IMPORTADOR ESPECIALIZADO ARUME (VISUAL + EDICIÓN) ⚠️
    ============================================================= */
@@ -3711,111 +3700,86 @@ function openEventCalendar(id) {
     window.open(url, '_blank');
 }
 /* =============================================================
-   ⚠️ MOTOR V31: RASTREADOR POR NOMBRE DE CABECERA (INFALIBLE) ⚠️
+   ⚠️ MOTOR V35 MASTER: LECTOR MADISA OPTIMIZADO + PEGADO ⚠️
    ============================================================= */
 
 let tempImportMatches = []; 
 
-// 1. LECTURA DE ARCHIVO
+// 1. LECTURA DE ARCHIVO (OPTIMIZADA PARA DIA 10.XLS)
 function safeImportSales(input) {
     const file = input.files[0];
     if (!file) return;
-    toast("⏳ Rastreando cabeceras...", "info");
+    toast("⏳ Analizando estructura Madisa...", "info");
     const reader = new FileReader();
-    // ISO-8859-1 es vital para las tildes de "Artículo"
-    reader.onload = e => { try { processHeaderTracking(e.target.result); } catch (err) { toast("Error lectura", "error"); console.error(err); } };
+    reader.onload = e => { try { processMadisaFile(e.target.result); } catch (err) { console.error(err); toast("Error de lectura", "error"); } };
     reader.readAsText(file, "ISO-8859-1"); 
     input.value = ''; 
 }
 
-function processHeaderTracking(csvText) {
+function processMadisaFile(csvText) {
     const normalize = (str) => str ? str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim() : "";
     const lines = csvText.split(/\r?\n/);
     const rawDataMap = new Map(); 
     let detectedDate = getISO(); 
 
-    // VARIABLES DE RASTREO
-    let IDX_NAME = -1;
-    let IDX_QTY = -1;
-    let IDX_TOTAL = -1; // Buscaremos "Importe Bruto"
-    let headerFound = false;
-    let separator = ',';
-
-    // 1. DETECTAR SEPARADOR Y FECHA
-    if (lines[0] && (lines[0].match(/;/g) || []).length > (lines[0].match(/,/g) || []).length) separator = ';';
-    const splitRegex = new RegExp(`${separator}(?=(?:(?:[^"]*"){2})*[^"]*$)`);
-
-    for (let i = 0; i < Math.min(lines.length, 25); i++) {
-        const line = lines[i];
-        
-        // A. Buscar Fecha
-        const dateMatch = line.match(/(\d{2})[\/\-](\d{2})[\/\-](\d{4})/);
-        if (dateMatch) detectedDate = `${dateMatch[3]}-${dateMatch[2]}-${dateMatch[1]}`;
-
-        // B. BUSCAR CABECERAS POR NOMBRE (LA CLAVE DE LA V31)
-        const lowerLine = line.toLowerCase();
-        if ((lowerLine.includes('articulo') || lowerLine.includes('artículo')) && lowerLine.includes('importe')) {
-            const cols = line.split(splitRegex);
-            
-            cols.forEach((c, index) => {
-                const txt = c.replace(/"/g, '').trim().toLowerCase();
-                
-                if (txt === 'artículo' || txt === 'articulo') IDX_NAME = index;
-                else if (txt === 'cantidad') IDX_QTY = index; // Exacto para no confundir con "cantidad total"
-                else if (txt === 'importe bruto') IDX_TOTAL = index; // EL DATO CLAVE
-            });
-
-            if (IDX_NAME !== -1 && IDX_TOTAL !== -1) {
-                headerFound = true;
-                console.log(`✅ MAPA ENCONTRADO: Nombre[${IDX_NAME}] Cantidad[${IDX_QTY}] Total[${IDX_TOTAL}]`);
-            }
+    // --- A. DETECTAR FECHA (CRUCIAL PARA EL 2026) ---
+    for (let i = 0; i < Math.min(lines.length, 30); i++) {
+        // Busca: Día: 10/01/2026
+        const dateMatch = lines[i].match(/Día:\s*(\d{2})[\/\-](\d{2})[\/\-](\d{4})/i);
+        if (dateMatch) {
+            detectedDate = `${dateMatch[3]}-${dateMatch[2]}-${dateMatch[1]}`;
+            break;
         }
     }
 
-    // SI NO ENCUENTRA CABECERAS, USAMOS EL FALLBACK POSICIONAL (Plan B)
-    if (!headerFound) {
-        console.warn("⚠️ Cabeceras no detectadas, usando modo posicional V30");
-        IDX_NAME = 3; IDX_QTY = 11; IDX_TOTAL = 20; // Posiciones estándar Madisa
-    }
+    // --- B. INDICES FIJOS (Análisis del archivo 'dia 10.xls') ---
+    // Col 3: Artículo | Col 11: Cantidad | Col 20: Importe Bruto (Total)
+    // Usamos split(',') simple porque el archivo separa con comas vacías
+    const NAME_IDX = 3; 
+    const QTY_IDX = 11; 
+    const TOTAL_IDX = 20;
 
-    // 2. PROCESAR DATOS USANDO LOS ÍNDICES ENCONTRADOS
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i].trim();
-        if (line.length < 5) continue;
+        if (line.length < 10) continue; 
 
-        const cols = line.split(splitRegex);
-        
-        // Aseguramos que la línea tiene suficientes columnas
-        if (cols.length > Math.max(IDX_NAME, IDX_QTY, IDX_TOTAL)) {
-            let rawName = cols[IDX_NAME].replace(/^"|"$/g, '').trim();
-            let rawQtyStr = cols[IDX_QTY].replace(/^"|"$/g, '').trim();
-            let rawTotalStr = cols[IDX_TOTAL].replace(/^"|"$/g, '').trim();
+        // Split simple por comas
+        const cols = line.split(',');
 
-            const nLow = normalize(rawName);
-            // Ignorar líneas de cabecera repetidas o basura
-            if (!rawName || nLow.includes('articulo') || nLow.includes('total') || nLow.includes('familia')) continue;
+        if (cols.length > TOTAL_IDX) {
+            let rawName = cols[NAME_IDX].replace(/^"|"$/g, '').trim(); 
+            // Para cantidades y totales, quitamos comillas y espacios
+            let rawQtyStr = cols[QTY_IDX].replace(/^"|"$/g, '').trim();
+            let rawTotalStr = cols[TOTAL_IDX].replace(/^"|"$/g, '').trim();
 
-            // Limpieza de números (Soporta 1.000,00 y 1000.00)
-            let qty = parseFloat(rawQtyStr.replace(',', '.')); 
-            let total = parseFloat(rawTotalStr.replace(',', '.'));
+            if (rawName && rawQtyStr && rawTotalStr) {
+                // Filtros de cabecera
+                const nLow = normalize(rawName);
+                if (nLow.includes('articulo') || nLow.includes('total') || nLow.includes('familia')) continue;
 
-            if (!isNaN(qty) && qty !== 0) {
-                if (rawDataMap.has(rawName)) {
-                    let prev = rawDataMap.get(rawName);
-                    prev.q += qty;
-                    prev.t += (total || 0);
-                } else {
-                    rawDataMap.set(rawName, { q: qty, t: (total || 0) });
+                // Parseo numérico
+                let qty = parseFloat(rawQtyStr);
+                let total = parseFloat(rawTotalStr);
+
+                if (!isNaN(qty) && qty !== 0 && !isNaN(total)) {
+                    // SUMAR DUPLICADOS (Si sale el mismo plato dos veces)
+                    if (rawDataMap.has(rawName)) {
+                        let prev = rawDataMap.get(rawName);
+                        prev.q += qty;
+                        prev.t += total;
+                    } else {
+                        rawDataMap.set(rawName, { q: qty, t: total });
+                    }
                 }
             }
         }
     }
 
-    // 3. GENERAR RESULTADOS
+    // --- C. MATCHING ---
     const matches = []; const unknown = [];
     
     rawDataMap.forEach((val, name) => {
-        // PRECIO = IMPORTE BRUTO / CANTIDAD
+        // Calculamos Precio Unitario (Total / Cantidad)
         const unitPrice = (val.q !== 0) ? Math.abs(val.t / val.q) : 0;
         
         const match = db.recetas.find(r => normalize(r.n) === normalize(name));
@@ -3823,8 +3787,7 @@ function processHeaderTracking(csvText) {
         if (match) {
             let status = 'ok'; let diffMsg = '';
             if (unitPrice > 0 && Math.abs(match.pvp - unitPrice) > 0.05) {
-                status = 'diff';
-                diffMsg = `${Num.fmt(match.pvp)} vs ${Num.fmt(unitPrice)}`;
+                status = 'diff'; diffMsg = `${Num.fmt(match.pvp)} vs ${Num.fmt(unitPrice)}`;
             }
             matches.push({ rid: match.id, n: match.n, q: val.q, realPvp: unitPrice, status: status, diffMsg: diffMsg });
         } else {
@@ -3832,22 +3795,22 @@ function processHeaderTracking(csvText) {
         }
     });
 
-    if (matches.length === 0 && unknown.length === 0) return toast("❌ No se encontraron datos válidos.", "error");
+    if (matches.length === 0 && unknown.length === 0) return toast("❌ No pude leer los datos. ¿Es el archivo correcto?", "error");
 
     showImportModal(matches, unknown, detectedDate);
 }
 
-// 2. PEGADO MANUAL (Mantenemos el Bisturí V28 que funciona bien para texto)
+// 2. PEGADO MANUAL CON FECHA (RECUPERADO Y MEJORADO)
 function openPasteModal() {
     const today = getISO();
-    showModal('📋 Pegar Ventas', `
+    showModal('📋 Pegar Ventas Manual', `
         <div class="mb-4 bg-indigo-50 p-3 rounded-lg border border-indigo-100">
-            <label class="text-xs font-bold text-indigo-800 uppercase block mb-1">📅 1. Fecha de la Venta</label>
+            <label class="text-xs font-bold text-indigo-800 uppercase block mb-1">📅 Fecha de Venta</label>
             <input type="date" id="paste-date" value="${today}" class="bg-white border-2 border-indigo-200 rounded-lg p-2 font-black text-center text-indigo-900 w-full outline-none focus:border-indigo-500">
         </div>
-        <label class="text-xs font-bold text-slate-500 uppercase mb-1 block">2. Pega aquí el texto</label>
-        <textarea id="paste-area" class="input-premium h-40 text-[10px] font-mono border-2 border-slate-200" placeholder="Ej: Agua sin gas 20 42.50..."></textarea>
-        <button class="btn-premium mt-3 w-full shadow-lg" onclick="processPastedText()">🚀 PROCESAR DATOS</button>
+        <label class="text-xs font-bold text-slate-500 uppercase mb-1 block">Pega aquí (Nombre Cantidad Total)</label>
+        <textarea id="paste-area" class="input-premium h-40 text-[10px] font-mono border-2 border-slate-200" placeholder="Ej: Agua sin gas 20 46.75"></textarea>
+        <button class="btn-premium mt-3 w-full shadow-lg" onclick="processPastedText()">🚀 PROCESAR TEXTO</button>
     `);
     setTimeout(() => document.getElementById('paste-area').focus(), 100);
 }
@@ -3856,37 +3819,43 @@ function processPastedText() {
     const rawText = document.getElementById('paste-area').value;
     const selectedDate = document.getElementById('paste-date').value;
     if (!rawText.trim()) return toast("Pega algo", "error");
+    if (!selectedDate) return toast("Fecha obligatoria", "error");
 
     const matches = []; const unknown = [];
     const normalize = (str) => str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
 
-    let cleanText = rawText.replace(/ArtículoCantidad Total/gi, '').replace(/Total:/gi, '').replace(/\t/g, ' ').replace(/\s+/g, ' ');
-    const regex = /([^\d]+?)\s*(\d+)\s*(\d+[.,]\d{2})/g;
+    // Limpieza de texto (Tabulaciones y espacios)
+    let cleanText = rawText.replace(/\t/g, ' ').replace(/\s+/g, ' ');
+    
+    // Regex: (Todo menos dígitos) (Espacio) (Número) (Espacio) (Número con decimales)
+    const regex = /([^\d]+?)\s+(\d+(?:[.,]\d+)?)\s+(\d+[.,]\d{2})/g;
     const pasteMap = new Map();
     let m;
 
     while ((m = regex.exec(cleanText)) !== null) {
         let name = m[1].trim();
-        let qty = parseFloat(m[2]);     
+        let qty = parseFloat(m[2].replace(',', '.'));     
         let total = parseFloat(m[3].replace(',', '.'));
+        
         if (name.length > 1 && qty > 0) {
              if(pasteMap.has(name)) { pasteMap.get(name).q += qty; pasteMap.get(name).t += total; } 
              else { pasteMap.set(name, { q: qty, t: total }); }
         }
     }
     
-    // Fallback por líneas si falla regex continua
+    // Fallback línea a línea si el bloque falla
     if (pasteMap.size === 0) {
-        rawText.split(/\n/).forEach(l => {
-             const mLine = l.match(/(.+?)\s+(\d+)\s+(\d+[.,]\d{2})/);
+        const lines = rawText.split(/\n/);
+        lines.forEach(l => {
+             const mLine = l.match(/(.+?)\s+(\d+(?:[.,]\d+)?)\s+(\d+[.,]\d{2})/);
              if(mLine) {
-                 let name = mLine[1].trim(); let qty = parseFloat(mLine[2]); let total = parseFloat(mLine[3].replace(',', '.'));
+                 let name = mLine[1].trim(); let qty = parseFloat(mLine[2].replace(',', '.')); let total = parseFloat(mLine[3].replace(',', '.'));
                  if(qty > 0) pasteMap.set(name, { q: qty, t: total });
              }
         });
     }
 
-    if (pasteMap.size === 0) return toast("Formato no reconocido.", "error");
+    if (pasteMap.size === 0) return toast("No entendí el texto.", "error");
 
     pasteMap.forEach((val, name) => {
         let unitPvp = (val.q > 0) ? val.t / val.q : 0;
@@ -3896,7 +3865,7 @@ function processPastedText() {
     showImportModal(matches, unknown, selectedDate);
 }
 
-// --- COMÚN ---
+// --- RESTO IGUAL (CONFIRMACIÓN Y GUARDADO) ---
 function matchAndPush(name, qty, realPvp, matches, unknown, normalize) {
     const searchName = normalize(name);
     const r = db.recetas.find(rec => {
@@ -3953,7 +3922,7 @@ function showImportModal(matches, unknown, defaultDate) {
         <div class="bg-orange-50 p-2 rounded-lg border border-orange-100 mb-3">
             <div class="text-[10px] font-bold text-orange-600 mb-1 uppercase">Productos Nuevos (Con Precio)</div>
             <div class="max-h-24 overflow-y-auto mb-2 bg-white/50 rounded p-1">${unknownHTML}</div>
-            <button class="btn-premium bg-gradient-to-r from-orange-400 to-orange-500 text-white w-full text-[10px] py-2 shadow-orange-200 hover:scale-105 transition" onclick='createMissingRecipesV31(${JSON.stringify(unknown)})'>
+            <button class="btn-premium bg-gradient-to-r from-orange-400 to-orange-500 text-white w-full text-[10px] py-2 shadow-orange-200 hover:scale-105 transition" onclick='createMissingRecipesV35(${JSON.stringify(unknown)})'>
                 ✨ CREAR ${unknown.length} FICHAS AUTOMÁTICAS
             </button>
         </div>` : ''}
@@ -3971,7 +3940,7 @@ function showImportModal(matches, unknown, defaultDate) {
     checkDuplicateImport(defaultDate);
 }
 
-function createMissingRecipesV31(list) {
+function createMissingRecipesV35(list) {
     if(!confirm(`¿Crear ${list.length} recetas?`)) return;
     let count = 0;
     list.forEach(item => {
@@ -4011,6 +3980,7 @@ function commitFinalImport() {
 
     let log = { id: generateID(), date: d, items: [] };
 
+    // AUTO-VIAJE AL 2026 (SI DETECTA AÑO NUEVO)
     const importYear = parseInt(d.split('-')[0]);
     if (importYear !== fiscalYear) { 
         fiscalYear = importYear; 
