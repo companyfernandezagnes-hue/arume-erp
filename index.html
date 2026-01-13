@@ -1618,17 +1618,19 @@ function downloadMonthCSV(monthIndex, monthName) {
 /* =============================================================
    ⚠️ MÓDULO OMNES V5.0 (FINAL MASTER) ⚠️
    ============================================================= */
+/* =============================================================
+   ⚠️ MÓDULO OMNES (VISUAL V14) ⚠️
+   ============================================================= */
 function renderOmnes(c) {
     if (!db.recetas || db.recetas.length === 0) { 
         c.innerHTML = `<div class="glass-card text-center"><h3 class="font-bold text-slate-800">No hay datos</h3><p class="text-xs text-slate-400 mb-4">Crea recetas primero.</p><button class="btn-premium" onclick="render('Cocina')">IR A COCINA</button></div>`; 
         return; 
     }
 
-    // --- 1. CÁLCULOS MATRIZ OMNES ---
+    // --- CÁLCULOS MATRIZ ---
     let totalSold = 0, totalRev = 0, totalCost = 0;
     const salesMap = {};
     
-    // Filtramos solo ventas del periodo fiscal activo
     db.sales_history.filter(log => isInPeriod(log.date)).forEach(log => {
         log.items.forEach(it => {
             const rid = it.rid || db.recetas.find(r => r.n === it.n)?.id;
@@ -1642,13 +1644,13 @@ function renderOmnes(c) {
         totalSold += sales;
         totalRev += sales * r.pvp;
         totalCost += sales * cost;
-        return { r, sales, cost, margin: r.pvp - cost };
+        return { r, sales, cost, margin: r.pvp - cost, pvp: r.pvp };
     });
 
     const avgMargin = totalSold > 0 ? (totalRev - totalCost) / totalSold : 0;
     const popLimit = data.length > 0 ? (100 / data.length) * 0.7 : 0; 
 
-    // Render lista Omnes
+    // --- LISTADO VISUAL ---
     let html = data.sort((a,b) => b.sales - a.sales).map(d => {
         if (d.sales === 0) return '';
         const mix = totalSold > 0 ? (d.sales / totalSold) * 100 : 0;
@@ -1670,35 +1672,25 @@ function renderOmnes(c) {
         </div>`;
     }).join('');
 
-    // --- 2. HISTORIAL DE IMPORTACIONES (CON BOTÓN DESHACER) ---
-    // Mostramos las últimas 5 importaciones para control visual
-    const lastImports = db.sales_history
-        .sort((a,b) => b.date.localeCompare(a.date))
-        .slice(0, 5) // Solo las 5 últimas
-        .map(log => {
-            const itemCount = log.items.reduce((acc, i) => acc + i.q, 0);
-            return `
-            <div class="flex justify-between items-center py-2 border-b border-slate-100 last:border-0 text-xs">
-                <div>
-                    <div class="font-bold text-slate-700">📅 ${log.date}</div>
-                    <div class="text-[9px] text-slate-400">${log.items.length} productos (${itemCount} uds)</div>
-                </div>
-                <button class="text-red-500 bg-red-50 border border-red-100 px-2 py-1 rounded hover:bg-red-500 hover:text-white transition font-bold" onclick="undoImport('${log.id}')">
-                    ↩ DESHACER
-                </button>
-            </div>`;
-        }).join('');
+    // Historial de Cargas
+    const lastImports = db.sales_history.sort((a,b) => b.date.localeCompare(a.date)).slice(0, 5).map(log => `
+        <div class="flex justify-between items-center py-2 border-b border-slate-100 last:border-0 text-xs">
+            <div><div class="font-bold text-slate-700">📅 ${log.date}</div><div class="text-[9px] text-slate-400">${log.items.length} líneas</div></div>
+            <button class="text-red-500 bg-red-50 border border-red-100 px-2 py-1 rounded font-bold hover:bg-red-500 hover:text-white transition" onclick="undoImport('${log.id}')">↩ DESHACER</button>
+        </div>`).join('');
 
-    // --- 3. RENDERIZADO FINAL ---
+    // RENDERIZADO
     c.innerHTML = `
     <div class="flex justify-between items-center mb-4">
         <h3 class="font-bold text-slate-800">MATRIZ OMNES</h3>
         <div class="flex gap-2">
-            <label class="btn-premium w-auto px-4 py-2 text-xs shadow-indigo-200 cursor-pointer flex items-center gap-2 hover:scale-105 transition bg-indigo-600 text-white">
-                <span>📂 IMPORTAR VENTAS</span>
+            <label class="btn-ghost w-auto px-3 py-1 text-[10px] cursor-pointer flex items-center gap-1 border border-slate-300 bg-white hover:bg-slate-50">
+                <span>📂 ARCHIVO</span>
                 <input type="file" id="sales-csv-input" accept=".csv,.txt,.xls,.xlsx" class="hidden" onchange="safeImportSales(this)">
             </label>
-            <button class="btn-ghost w-auto px-3 py-1 text-xs" onclick="editSales()">📝 MANUAL</button>
+            <button class="btn-premium w-auto px-3 py-1 text-xs shadow-indigo-200 bg-indigo-600 text-white" onclick="openPasteModal()">
+                📋 PEGAR TEXTO
+            </button>
         </div>
     </div>
     
@@ -1708,14 +1700,10 @@ function renderOmnes(c) {
     </div>
     
     <div class="space-y-1 mb-6">
-        ${html || '<div class="text-center p-8 border-2 border-dashed border-slate-200 rounded-xl text-slate-400 bg-slate-50">Sin ventas registradas.<br>Sube tu archivo para empezar.</div>'}
+        ${html || '<div class="text-center p-8 border-2 border-dashed border-slate-200 rounded-xl text-slate-400 bg-slate-50">Sin ventas registradas.<br>Usa los botones de arriba.</div>'}
     </div>
 
-    ${lastImports ? `
-    <div class="glass-card border-t-4 border-slate-300">
-        <h4 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">🛠️ Historial de Importaciones</h4>
-        ${lastImports}
-    </div>` : ''}
+    ${lastImports ? `<div class="glass-card border-t-4 border-slate-300"><h4 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">🛠️ Historial de Cargas</h4>${lastImports}</div>` : ''}
     `;
 }
 function editSales() {
@@ -3326,109 +3314,130 @@ function openEventCalendar(id) {
     window.open(url, '_blank');
 }
 /* =============================================================
-   ⚠️ MOTOR DE IMPORTACIÓN V12 (MODO FRANCOTIRADOR - MADISA) ⚠️
+   ⚠️ MOTOR V13: ARCHIVO + PEGADO INTELIGENTE (MADISA) ⚠️
    ============================================================= */
 
-// 1. LECTOR DE ARCHIVO (Admite cualquier extensión de texto)
+// --- A. LÓGICA DE ARCHIVOS (EXCEL / CSV) ---
 function safeImportSales(input) {
     const file = input.files[0];
     if (!file) return;
-    
-    toast("🧹 Limpiando datos del archivo...", "info");
+    toast("⏳ Leyendo archivo...", "info");
     const reader = new FileReader();
     
-    reader.onload = e => {
-        try { processSalesText(e.target.result); } 
-        catch (err) { console.error(err); toast("❌ No pude leer el archivo", "error"); }
-    };
-    // Leemos en formato Windows para asegurar que las Ñ y tildes se ven bien
+    // Leemos en ISO-8859-1 para respetar las Ñ y tildes del Excel antiguo
+    reader.onload = e => { try { processSalesFileContent(e.target.result); } catch (err) { toast("Error lectura", "error"); } };
     reader.readAsText(file, "ISO-8859-1"); 
     input.value = ''; 
 }
 
-// 2. EL FILTRO PURIFICADOR (Aquí ocurre la magia)
-function processSalesText(csvText) {
-    // Normalizamos texto (quitamos acentos para comparar mejor)
+function processSalesFileContent(csvText) {
     const normalize = (str) => str ? str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim() : "";
-    
     const lines = csvText.split(/\r?\n/);
-    const matches = []; // Aquí guardaremos los vinculados
-    const unknown = []; // Aquí los nuevos para crear
-    
-    let detectedDate = getISO(); // Fecha por defecto: Hoy
+    const matches = []; const unknown = [];
+    let detectedDate = getISO(); 
 
-    // ÍNDICES FIJOS DE MADISA (Basado en tus archivos 'dia 10' y 'dia 12')
-    // Columna 3: Nombre del Artículo
-    // Columna 11: Cantidad
-    const COL_NAME = 3;
-    const COL_QTY = 11;
+    // ESTRUCTURA ESTÁNDAR MADISA (Col 3 = Nombre, Col 11 = Cantidad)
+    let nameIdx = 3; 
+    let qtyIdx = 11; 
+    let headerFound = false;
 
-    // Recorremos el archivo línea a línea
+    // FASE 1: Buscar Fecha y confirmar columnas
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
         
-        // A. DETECTAR FECHA (Busca "Día: 10/01/2026")
-        // Si la encuentra, actualiza la fecha de importación
+        // Buscar Fecha (Día: DD/MM/YYYY)
         const dateMatch = line.match(/Día:\s*(\d{2})[\/\-](\d{2})[\/\-](\d{4})/i);
-        if (dateMatch) {
-            detectedDate = `${dateMatch[3]}-${dateMatch[2]}-${dateMatch[1]}`; // Convertir a YYYY-MM-DD
+        if (dateMatch) detectedDate = `${dateMatch[3]}-${dateMatch[2]}-${dateMatch[1]}`;
+
+        // Buscar Cabeceras
+        if (!headerFound) {
+            const cols = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
+            cols.forEach((col, idx) => {
+                const txt = normalize(col.replace(/"/g, ''));
+                if (txt.includes('articulo')) nameIdx = idx;
+                if (txt === 'cantidad' || txt === 'cant') { qtyIdx = idx; headerFound = true; }
+            });
         }
+    }
 
-        // B. LIMPIEZA Y EXTRACCIÓN
-        if (line.length < 5) continue; // Saltar líneas vacías
-
-        // Truco para separar por comas pero RESPETAR nombres como "San Miguel 0,0" (que tienen coma)
+    // FASE 2: Leer Datos
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (line.length < 5) continue; 
         const cols = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
 
-        // Solo miramos si la línea tiene suficientes columnas
-        if (cols.length > COL_QTY) {
-            
-            // Extraemos y limpiamos comillas
-            let rawName = cols[COL_NAME].replace(/^"|"$/g, '').trim(); 
-            let rawQtyStr = cols[COL_QTY].replace(/^"|"$/g, '').replace(',', '.').trim();
-            let qty = parseFloat(rawQtyStr);
+        if (cols.length > qtyIdx) {
+            let rawName = cols[nameIdx] ? cols[nameIdx].replace(/^"|"$/g, '').trim() : "";
+            let rawQty = cols[qtyIdx] ? cols[qtyIdx].replace(/^"|"$/g, '').replace(',', '.').trim() : "0";
+            let qty = parseFloat(rawQty);
 
-            // --- FILTRO DE CALIDAD ---
-            // Solo aceptamos si:
-            // 1. Tiene nombre
-            // 2. La cantidad es un número válido y distinto de 0
-            // 3. No es una cabecera (ignoramos la palabra "Artículo" o "Total")
-            if (rawName.length > 1 && !isNaN(qty) && qty !== 0) {
-                
+            if (rawName.length > 1 && !isNaN(qty) && qty !== 0 && Math.abs(qty) < 5000) {
                 const searchName = normalize(rawName);
-                const basura = ['articulo', 'cantidad', 'importe', 'neto', 'bruto', 'total', 'familia'];
+                if (['articulo','cantidad','total','familia','importe'].some(b => searchName.includes(b))) continue;
                 
-                // Si NO es basura, procesamos
-                if (!basura.some(b => searchName.includes(b))) {
-                    
-                    // Buscamos pareja en Arume
-                    const match = db.recetas.find(r => {
-                        const recName = normalize(r.n);
-                        return searchName.includes(recName) || recName.includes(searchName);
-                    });
-
-                    if (match) {
-                        matches.push({ rid: match.id, n: match.n, excelName: rawName, q: qty });
-                    } else {
-                        // Si no existe, lo guardamos para el botón "Crear Fichas"
-                        unknown.push({ n: rawName, q: qty });
-                    }
-                }
+                matchAndPush(rawName, qty, matches, unknown, normalize);
             }
         }
     }
-
-    if (matches.length === 0 && unknown.length === 0) {
-        return toast("❌ El archivo no parece tener ventas válidas.", "error");
-    }
-
-    // Mostramos el resultado limpio
     showImportModal(matches, unknown, detectedDate);
 }
 
-// 3. VENTANA DE CONFIRMACIÓN Y CREACIÓN
+// --- B. LÓGICA DE PEGADO (TEXTO SUCIO) ---
+function openPasteModal() {
+    showModal('📋 Pegar Ventas (Madisa)', `
+        <p class="text-xs text-slate-500 mb-2">Copia la tabla de Madisa (Ctrl+C) y pégala aquí abajo (Ctrl+V):</p>
+        <textarea id="paste-area" class="input-premium h-40 text-[10px] font-mono" placeholder="Ej: Agua sin gas20..."></textarea>
+        <button class="btn-premium mt-3 w-full shadow-lg" onclick="processPastedText()">🚀 PROCESAR TEXTO</button>
+    `);
+    setTimeout(() => document.getElementById('paste-area').focus(), 100);
+}
+
+function processPastedText() {
+    const rawText = document.getElementById('paste-area').value;
+    if (!rawText.trim()) return toast("⚠️ Pega algo primero", "error");
+
+    const matches = []; const unknown = [];
+    const normalize = (str) => str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+
+    // Limpieza previa: separar "chorizo" si viene pegado (Agua20Cola3)
+    let cleanText = rawText.replace(/(\d+)([A-ZÁÉÍÓÚÑ])/g, "$1\n$2");
+    const lines = cleanText.split('\n');
+
+    lines.forEach(line => {
+        // Regex: (Texto cualquiera) + (Número al final)
+        const m = line.match(/(.+?)(\d+(?:[.,]\d+)?)$/);
+        if (m) {
+            let name = m[1].trim();
+            let qty = parseFloat(m[2].replace(',', '.'));
+
+            // Limpiar cabeceras pegadas accidentalmente
+            name = name.replace(/ArtículoCantidad Total/gi, '').replace(/Total:/gi, '').trim();
+
+            if (name.length > 2 && qty > 0) {
+                matchAndPush(name, qty, matches, unknown, normalize);
+            }
+        }
+    });
+
+    if (matches.length === 0 && unknown.length === 0) return toast("❌ No entendí el texto.", "error");
+    
+    showImportModal(matches, unknown, getISO());
+}
+
+// --- C. LÓGICA COMÚN: VINCULAR Y GUARDAR ---
+function matchAndPush(name, qty, matches, unknown, normalize) {
+    const searchName = normalize(name);
+    // Búsqueda Inteligente (A contiene B o B contiene A)
+    const r = db.recetas.find(rec => {
+        const recName = normalize(rec.n);
+        return searchName.includes(recName) || recName.includes(searchName);
+    });
+
+    if (r) matches.push({ rid: r.id, n: r.n, q: qty });
+    else unknown.push({ n: name, q: qty });
+}
+
 function showImportModal(matches, unknown, defaultDate) {
-    // Generar lista visual de lo que se va a importar
     const summaryList = matches.map(m => 
         `<div class="flex justify-between text-xs py-1 border-b border-slate-50">
             <span class="truncate w-2/3 font-medium text-slate-700">${m.n}</span>
@@ -3442,13 +3451,11 @@ function showImportModal(matches, unknown, defaultDate) {
          </div>`
     ).join('');
 
-    showModal('📥 Importación Limpia', `
-        <div class="bg-slate-50 p-3 rounded-lg mb-4 text-center border border-slate-200">
-            <label class="text-xs font-bold text-indigo-800 uppercase block mb-1">📅 Fecha del Archivo</label>
-            <input type="date" id="import-date" value="${defaultDate}" class="bg-white border-2 border-indigo-200 rounded-lg p-2 text-center font-bold text-indigo-900 w-full outline-none focus:border-indigo-500 transition" onchange="checkDuplicateImport(this.value)">
-            <div id="dup-warning" class="hidden mt-2 text-[10px] bg-red-100 text-red-600 p-1 rounded font-bold animate-pulse">
-                ⚠️ CUIDADO: Ya importaste este día.
-            </div>
+    showModal('📥 Confirmar Datos', `
+        <div class="bg-indigo-50 p-3 rounded-lg mb-4 text-center border border-indigo-100">
+            <label class="text-xs font-bold text-indigo-800 uppercase block mb-1">📅 Fecha</label>
+            <input type="date" id="import-date" value="${defaultDate}" class="bg-white border-2 border-indigo-200 rounded-lg p-2 text-center font-bold text-indigo-900 w-full outline-none focus:border-indigo-500" onchange="checkDuplicateImport(this.value)">
+            <div id="dup-warning" class="hidden mt-2 text-[10px] bg-red-100 text-red-600 p-1 rounded font-bold animate-pulse">⚠️ YA EXISTEN DATOS ESTE DÍA</div>
         </div>
 
         <div class="grid grid-cols-2 gap-2 text-center mb-2">
@@ -3457,78 +3464,51 @@ function showImportModal(matches, unknown, defaultDate) {
         </div>
         
         <div class="bg-white border border-slate-200 rounded-lg p-2 max-h-32 overflow-y-auto custom-scrollbar shadow-inner mb-2">
-            ${summaryList || '<div class="text-center text-slate-300 text-xs italic p-2">Nada vinculado aún.</div>'}
+            ${summaryList || '<div class="text-center text-slate-300 text-xs italic p-2">Nada vinculado.</div>'}
         </div>
 
         ${unknown.length > 0 ? `
         <div class="bg-orange-50 p-3 rounded-xl border border-orange-100 mb-4 animate-fade-in">
-            <div class="text-[10px] font-bold text-orange-600 uppercase mb-2">Productos nuevos detectados:</div>
-            <div class="max-h-20 overflow-y-auto custom-scrollbar mb-3 bg-white/50 rounded p-1">
-                ${unknownHTML}
-            </div>
-            <button class="btn-premium bg-gradient-to-r from-orange-400 to-orange-500 text-white w-full text-[10px] shadow-orange-200 hover:scale-105 transition" onclick='createMissingRecipes(${JSON.stringify(unknown)})'>
-                ✨ CREAR ESTAS ${unknown.length} RECETAS AUTOMÁTICAMENTE
-            </button>
+            <div class="text-[10px] font-bold text-orange-600 uppercase mb-2">No existen en Cocina:</div>
+            <div class="max-h-20 overflow-y-auto custom-scrollbar mb-3 bg-white/50 rounded p-1">${unknownHTML}</div>
+            <button class="btn-premium bg-gradient-to-r from-orange-400 to-orange-500 text-white w-full text-[10px] shadow-orange-200 hover:scale-105 transition" onclick='createMissingRecipes(${JSON.stringify(unknown)})'>✨ CREAR ESTAS ${unknown.length} FICHAS AUTO</button>
         </div>` : ''}
         
         <div class="flex gap-2">
             <button class="btn-ghost" onclick="closeModal()">Cancelar</button>
-            <button class="btn-premium flex-1 shadow-xl ${matches.length === 0 ? 'opacity-50 pointer-events-none' : ''}" onclick='commitFinalImport(${JSON.stringify(matches)})'>
-                🚀 PROCESAR VENTAS
-            </button>
+            <button class="btn-premium flex-1 shadow-xl" onclick='commitFinalImport(${JSON.stringify(matches)})'>🚀 PROCESAR</button>
         </div>
     `);
-    
     checkDuplicateImport(defaultDate);
 }
 
-// 4. CREAR RECETAS NUEVAS (EL BOTÓN MÁGICO)
 function createMissingRecipes(list) {
-    if(!confirm(`¿Crear ${list.length} fichas nuevas en Cocina?\n\nSe crearán con el nombre exacto del Excel.`)) return;
-    
+    if(!confirm(`¿Crear ${list.length} fichas nuevas?`)) return;
     let count = 0;
     list.forEach(item => {
-        // Evitamos crear duplicados si le das dos veces
         if(!db.recetas.find(r => r.n === item.n)) {
-            db.recetas.push({
-                id: generateID(),
-                n: item.n,          // Nombre del Excel (ej: "Agua sin gas")
-                pvp: 0,             // Precio 0 por defecto
-                items: [],          // Escandallo vacío (a rellenar luego)
-                yield: 1,
-                unit: 'ud',
-                time: 0
-            });
+            db.recetas.push({ id: generateID(), n: item.n, pvp: 0, items: [], yield: 1, unit: 'ud', time: 0 });
             count++;
         }
     });
-    
     save(`Creadas ${count} recetas ✅`);
     closeModal();
     renderAdmin(document.getElementById('app'));
-    toast("¡Listo! Vuelve a subir el archivo para procesarlas.", "success");
+    toast("¡Hecho! Vuelve a procesar.", "success");
 }
 
-// Auxiliar: Verificar si ya existe el día
 function checkDuplicateImport(dateStr) {
-    const warning = document.getElementById('dup-warning');
-    if (!warning) return;
-    const exists = db.sales_history.some(log => log.date === dateStr);
-    if (exists) warning.classList.remove('hidden'); else warning.classList.add('hidden');
+    const w = document.getElementById('dup-warning');
+    if(w) db.sales_history.some(l => l.date === dateStr) ? w.classList.remove('hidden') : w.classList.add('hidden');
 }
 
-// 5. GUARDAR DATOS (FINAL)
 function commitFinalImport(matches) {
-    const selectedDate = document.getElementById('import-date').value;
-    if (!selectedDate) return toast("Fecha inválida", "error");
-
-    let log = { id: generateID(), date: selectedDate, items: [] };
+    const d = document.getElementById('import-date').value;
+    if (!d) return toast("Fecha inválida", "error");
+    let log = { id: generateID(), date: d, items: [] };
 
     matches.forEach(m => {
-        // Guardar venta
         log.items.push({ rid: m.rid, n: m.n, q: m.q });
-
-        // Descontar Stock (si la receta tiene ingredientes)
         const r = db.recetas.find(x => x.id === m.rid);
         if (r && r.items) {
             r.items.forEach(it => {
@@ -3537,27 +3517,24 @@ function commitFinalImport(matches) {
                     if (ing) {
                         const factor = UnitConverter.convert(1, it.unit||ing.unit, ing.unit);
                         const yieldFactor = it.merma ? (1-(it.merma/100)) : 1;
-                        const totalNeeded = (it.q * factor * m.q) / yieldFactor;
-                        ing.stock -= totalNeeded;
-                        logStock(ing.id, totalNeeded, 'OUT', `Venta Auto (${selectedDate})`, ing.cost);
+                        ing.stock -= (it.q * factor * m.q) / yieldFactor;
+                        logStock(ing.id, (it.q * factor * m.q) / yieldFactor, 'OUT', `Venta Auto (${d})`, ing.cost);
                     }
                 }
             });
         }
     });
-
     db.sales_history.push(log);
-    save(`✅ Procesadas ${matches.length} líneas.`);
+    save(`✅ Ventas procesadas`);
     closeModal();
     renderAdmin(document.getElementById('app'));
 }
 
-// 6. DESHACER (POR SI ACASO)
 function undoImport(logId) {
     if(!confirm("⚠️ ¿DESHACER Y RECUPERAR STOCK?")) return;
-    const logIndex = db.sales_history.findIndex(l => l.id === logId);
-    if (logIndex === -1) return toast("Registro no encontrado", "error");
-    const log = db.sales_history[logIndex];
+    const idx = db.sales_history.findIndex(l => l.id === logId);
+    if (idx === -1) return toast("Error", "error");
+    const log = db.sales_history[idx];
 
     log.items.forEach(soldItem => {
         const r = db.recetas.find(x => x.id === soldItem.rid);
@@ -3576,9 +3553,8 @@ function undoImport(logId) {
             });
         }
     });
-
-    db.sales_history.splice(logIndex, 1);
-    save("↩ Importación cancelada");
+    db.sales_history.splice(idx, 1);
+    save("↩ Deshecho");
     renderAdmin(document.getElementById('app'));
 }
 </script>
