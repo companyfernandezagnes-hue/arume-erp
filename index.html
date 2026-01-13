@@ -3711,84 +3711,133 @@ function openEventCalendar(id) {
     window.open(url, '_blank');
 }
 /* =============================================================
-   ⚠️ MOTOR V28: BULLETPROOF (PEGADO AGRESIVO + RASTREADOR) ⚠️
+   ⚠️ MOTOR V31: RASTREADOR POR NOMBRE DE CABECERA (INFALIBLE) ⚠️
    ============================================================= */
 
 let tempImportMatches = []; 
 
-// 1. LECTURA DE ARCHIVO (IGUAL QUE ANTES, PERO MÁS ROBUSTO)
+// 1. LECTURA DE ARCHIVO
 function safeImportSales(input) {
     const file = input.files[0];
     if (!file) return;
-    toast("⏳ Analizando a fondo...", "info");
+    toast("⏳ Rastreando cabeceras...", "info");
     const reader = new FileReader();
-    reader.onload = e => { try { processSalesFileContent(e.target.result); } catch (err) { toast("Error lectura", "error"); } };
+    // ISO-8859-1 es vital para las tildes de "Artículo"
+    reader.onload = e => { try { processHeaderTracking(e.target.result); } catch (err) { toast("Error lectura", "error"); console.error(err); } };
     reader.readAsText(file, "ISO-8859-1"); 
     input.value = ''; 
 }
 
-function processSalesFileContent(csvText) {
+function processHeaderTracking(csvText) {
     const normalize = (str) => str ? str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim() : "";
     const lines = csvText.split(/\r?\n/);
     const rawDataMap = new Map(); 
     let detectedDate = getISO(); 
 
-    let NAME_IDX = 3, QTY_IDX = 11, TOTAL_IDX = 20; 
-    let DELIMITER = ','; 
+    // VARIABLES DE RASTREO
+    let IDX_NAME = -1;
+    let IDX_QTY = -1;
+    let IDX_TOTAL = -1; // Buscaremos "Importe Bruto"
+    let headerFound = false;
+    let separator = ',';
 
-    if (lines[0] && lines[0].includes(';') && !lines[0].includes(',')) DELIMITER = ';';
+    // 1. DETECTAR SEPARADOR Y FECHA
+    if (lines[0] && (lines[0].match(/;/g) || []).length > (lines[0].match(/,/g) || []).length) separator = ';';
+    const splitRegex = new RegExp(`${separator}(?=(?:(?:[^"]*"){2})*[^"]*$)`);
 
-    for(let i=0; i<Math.min(lines.length, 30); i++) {
-        const rowLower = lines[i].toLowerCase();
-        if(rowLower.includes('artículo') || rowLower.includes('articulo')) {
-            const cols = lines[i].split(new RegExp(`${DELIMITER}(?=(?:(?:[^"]*"){2})*[^"]*$)`));
-            cols.forEach((c, idx) => {
-                const h = c.replace(/^"|"$/g, '').trim().toLowerCase();
-                if(h.includes('artículo') || h.includes('articulo')) NAME_IDX = idx;
-                else if(h === 'cantidad') QTY_IDX = idx;
-                else if(h.includes('importe bruto') || h === 'total') TOTAL_IDX = idx;
+    for (let i = 0; i < Math.min(lines.length, 25); i++) {
+        const line = lines[i];
+        
+        // A. Buscar Fecha
+        const dateMatch = line.match(/(\d{2})[\/\-](\d{2})[\/\-](\d{4})/);
+        if (dateMatch) detectedDate = `${dateMatch[3]}-${dateMatch[2]}-${dateMatch[1]}`;
+
+        // B. BUSCAR CABECERAS POR NOMBRE (LA CLAVE DE LA V31)
+        const lowerLine = line.toLowerCase();
+        if ((lowerLine.includes('articulo') || lowerLine.includes('artículo')) && lowerLine.includes('importe')) {
+            const cols = line.split(splitRegex);
+            
+            cols.forEach((c, index) => {
+                const txt = c.replace(/"/g, '').trim().toLowerCase();
+                
+                if (txt === 'artículo' || txt === 'articulo') IDX_NAME = index;
+                else if (txt === 'cantidad') IDX_QTY = index; // Exacto para no confundir con "cantidad total"
+                else if (txt === 'importe bruto') IDX_TOTAL = index; // EL DATO CLAVE
             });
-            break;
+
+            if (IDX_NAME !== -1 && IDX_TOTAL !== -1) {
+                headerFound = true;
+                console.log(`✅ MAPA ENCONTRADO: Nombre[${IDX_NAME}] Cantidad[${IDX_QTY}] Total[${IDX_TOTAL}]`);
+            }
         }
     }
 
+    // SI NO ENCUENTRA CABECERAS, USAMOS EL FALLBACK POSICIONAL (Plan B)
+    if (!headerFound) {
+        console.warn("⚠️ Cabeceras no detectadas, usando modo posicional V30");
+        IDX_NAME = 3; IDX_QTY = 11; IDX_TOTAL = 20; // Posiciones estándar Madisa
+    }
+
+    // 2. PROCESAR DATOS USANDO LOS ÍNDICES ENCONTRADOS
     for (let i = 0; i < lines.length; i++) {
-        const line = lines[i];
-        const dateMatch = line.match(/Día:\s*(\d{2})[\/\-](\d{2})[\/\-](\d{4})/i);
-        if (dateMatch) detectedDate = `${dateMatch[3]}-${dateMatch[2]}-${dateMatch[1]}`;
+        const line = lines[i].trim();
+        if (line.length < 5) continue;
 
-        if (line.length < 5) continue; 
-        const cols = line.split(new RegExp(`${DELIMITER}(?=(?:(?:[^"]*"){2})*[^"]*$)`));
+        const cols = line.split(splitRegex);
+        
+        // Aseguramos que la línea tiene suficientes columnas
+        if (cols.length > Math.max(IDX_NAME, IDX_QTY, IDX_TOTAL)) {
+            let rawName = cols[IDX_NAME].replace(/^"|"$/g, '').trim();
+            let rawQtyStr = cols[IDX_QTY].replace(/^"|"$/g, '').trim();
+            let rawTotalStr = cols[IDX_TOTAL].replace(/^"|"$/g, '').trim();
 
-        if (cols.length > Math.max(NAME_IDX, QTY_IDX, TOTAL_IDX)) {
-            let rawName = cols[NAME_IDX].replace(/^"|"$/g, '').trim(); 
-            let rawQty = parseFloat(cols[QTY_IDX].replace(/^"|"$/g, '').replace(',', '.').trim());
-            let rawTotal = parseFloat(cols[TOTAL_IDX].replace(/^"|"$/g, '').replace(',', '.').trim());
+            const nLow = normalize(rawName);
+            // Ignorar líneas de cabecera repetidas o basura
+            if (!rawName || nLow.includes('articulo') || nLow.includes('total') || nLow.includes('familia')) continue;
 
-            if (rawName.length > 1 && !isNaN(rawQty) && rawQty !== 0 && Math.abs(rawQty) < 5000) {
-                if (['articulo','cantidad','total','familia','importe'].some(b => normalize(rawName).includes(b))) continue;
-                
-                if(rawDataMap.has(rawName)) {
+            // Limpieza de números (Soporta 1.000,00 y 1000.00)
+            let qty = parseFloat(rawQtyStr.replace(',', '.')); 
+            let total = parseFloat(rawTotalStr.replace(',', '.'));
+
+            if (!isNaN(qty) && qty !== 0) {
+                if (rawDataMap.has(rawName)) {
                     let prev = rawDataMap.get(rawName);
-                    prev.q += rawQty;
-                    prev.t += rawTotal;
+                    prev.q += qty;
+                    prev.t += (total || 0);
                 } else {
-                    rawDataMap.set(rawName, { q: rawQty, t: rawTotal });
+                    rawDataMap.set(rawName, { q: qty, t: (total || 0) });
                 }
             }
         }
     }
 
+    // 3. GENERAR RESULTADOS
     const matches = []; const unknown = [];
+    
     rawDataMap.forEach((val, name) => {
-        const realUnitPvp = (val.q !== 0) ? Math.abs(val.t / val.q) : 0;
-        matchAndPush(name, val.q, realUnitPvp, matches, unknown, normalize);
+        // PRECIO = IMPORTE BRUTO / CANTIDAD
+        const unitPrice = (val.q !== 0) ? Math.abs(val.t / val.q) : 0;
+        
+        const match = db.recetas.find(r => normalize(r.n) === normalize(name));
+        
+        if (match) {
+            let status = 'ok'; let diffMsg = '';
+            if (unitPrice > 0 && Math.abs(match.pvp - unitPrice) > 0.05) {
+                status = 'diff';
+                diffMsg = `${Num.fmt(match.pvp)} vs ${Num.fmt(unitPrice)}`;
+            }
+            matches.push({ rid: match.id, n: match.n, q: val.q, realPvp: unitPrice, status: status, diffMsg: diffMsg });
+        } else {
+            unknown.push({ n: name, q: val.q, detectedPvp: unitPrice });
+        }
     });
+
+    if (matches.length === 0 && unknown.length === 0) return toast("❌ No se encontraron datos válidos.", "error");
 
     showImportModal(matches, unknown, detectedDate);
 }
 
-// 2. PEGADO MANUAL (VERSIÓN AGRESIVA V28)
+// 2. PEGADO MANUAL (Mantenemos el Bisturí V28 que funciona bien para texto)
 function openPasteModal() {
     const today = getISO();
     showModal('📋 Pegar Ventas', `
@@ -3796,10 +3845,8 @@ function openPasteModal() {
             <label class="text-xs font-bold text-indigo-800 uppercase block mb-1">📅 1. Fecha de la Venta</label>
             <input type="date" id="paste-date" value="${today}" class="bg-white border-2 border-indigo-200 rounded-lg p-2 font-black text-center text-indigo-900 w-full outline-none focus:border-indigo-500">
         </div>
-        
         <label class="text-xs font-bold text-slate-500 uppercase mb-1 block">2. Pega aquí el texto</label>
         <textarea id="paste-area" class="input-premium h-40 text-[10px] font-mono border-2 border-slate-200" placeholder="Ej: Agua sin gas 20 42.50..."></textarea>
-        
         <button class="btn-premium mt-3 w-full shadow-lg" onclick="processPastedText()">🚀 PROCESAR DATOS</button>
     `);
     setTimeout(() => document.getElementById('paste-area').focus(), 100);
@@ -3808,25 +3855,13 @@ function openPasteModal() {
 function processPastedText() {
     const rawText = document.getElementById('paste-area').value;
     const selectedDate = document.getElementById('paste-date').value;
-    
     if (!rawText.trim()) return toast("Pega algo", "error");
-    if (!selectedDate) return toast("Elige una fecha", "error");
 
     const matches = []; const unknown = [];
     const normalize = (str) => str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
 
-    // LIMPIEZA AGRESIVA: Unificamos espacios, quitamos tabulaciones, quitamos cabeceras
-    let cleanText = rawText
-        .replace(/ArtículoCantidad Total/gi, '')
-        .replace(/Total:/gi, '')
-        .replace(/\t/g, ' ') // Tabulaciones a espacios
-        .replace(/\s+/g, ' '); // Múltiples espacios a uno solo
-
-    // REGEX V28: Busca patrones repetitivos en una sola línea continua
-    // (Texto que no sea digito) (Espacio opcional) (Numero entero) (Espacio opcional) (Numero decimal)
+    let cleanText = rawText.replace(/ArtículoCantidad Total/gi, '').replace(/Total:/gi, '').replace(/\t/g, ' ').replace(/\s+/g, ' ');
     const regex = /([^\d]+?)\s*(\d+)\s*(\d+[.,]\d{2})/g;
-    
-    // Mapa para agregar duplicados al pegar
     const pasteMap = new Map();
     let m;
 
@@ -3834,33 +3869,24 @@ function processPastedText() {
         let name = m[1].trim();
         let qty = parseFloat(m[2]);     
         let total = parseFloat(m[3].replace(',', '.'));
-        
-        if (name.length > 2 && qty > 0) {
-             if(pasteMap.has(name)) {
-                let prev = pasteMap.get(name);
-                prev.q += qty;
-                prev.t += total;
-            } else {
-                pasteMap.set(name, { q: qty, t: total });
-            }
+        if (name.length > 1 && qty > 0) {
+             if(pasteMap.has(name)) { pasteMap.get(name).q += qty; pasteMap.get(name).t += total; } 
+             else { pasteMap.set(name, { q: qty, t: total }); }
         }
     }
     
+    // Fallback por líneas si falla regex continua
     if (pasteMap.size === 0) {
-        // INTENTO DE RESCATE: Si falló la regex continua, probamos por líneas (formato lista)
-        const lines = rawText.split(/\n/);
-        lines.forEach(l => {
+        rawText.split(/\n/).forEach(l => {
              const mLine = l.match(/(.+?)\s+(\d+)\s+(\d+[.,]\d{2})/);
              if(mLine) {
-                 let name = mLine[1].trim();
-                 let qty = parseFloat(mLine[2]);
-                 let total = parseFloat(mLine[3].replace(',', '.'));
+                 let name = mLine[1].trim(); let qty = parseFloat(mLine[2]); let total = parseFloat(mLine[3].replace(',', '.'));
                  if(qty > 0) pasteMap.set(name, { q: qty, t: total });
              }
         });
     }
 
-    if (pasteMap.size === 0) return toast("Formato no reconocido. Revisa el texto.", "error");
+    if (pasteMap.size === 0) return toast("Formato no reconocido.", "error");
 
     pasteMap.forEach((val, name) => {
         let unitPvp = (val.q > 0) ? val.t / val.q : 0;
@@ -3870,7 +3896,7 @@ function processPastedText() {
     showImportModal(matches, unknown, selectedDate);
 }
 
-// --- RESTO IGUAL QUE V27 (MATCHING, MODAL, GUARDAR) ---
+// --- COMÚN ---
 function matchAndPush(name, qty, realPvp, matches, unknown, normalize) {
     const searchName = normalize(name);
     const r = db.recetas.find(rec => {
@@ -3897,10 +3923,8 @@ function showImportModal(matches, unknown, defaultDate) {
 
     const summaryList = matches.map(m => `
         <div class="flex justify-between items-center text-xs py-1 border-b border-slate-50 ${m.status==='diff'?'bg-red-50/50':''}">
-            <div class="truncate w-2/3">
-                <div class="font-bold text-slate-700">${m.n}</div>
-                ${m.status==='diff' ? `<div class="text-[9px] text-red-500 font-bold">⚠️ App:${m.diffMsg.split(' vs ')[0]} | Caja:${m.diffMsg.split(' vs ')[1]}</div>` : ''}
-            </div>
+            <div class="truncate w-2/3"><div class="font-bold text-slate-700">${m.n}</div>
+            ${m.status==='diff' ? `<div class="text-[9px] text-red-500 font-bold">⚠️ App:${m.diffMsg.split(' vs ')[0]} | Caja:${m.diffMsg.split(' vs ')[1]}</div>` : ''}</div>
             <span class="font-bold ${m.status==='diff'?'text-red-500 bg-red-50 border-red-100 border':'text-indigo-600 bg-indigo-50'} px-2 rounded text-[10px]">${m.q}</span>
         </div>`).join('');
 
@@ -3929,7 +3953,7 @@ function showImportModal(matches, unknown, defaultDate) {
         <div class="bg-orange-50 p-2 rounded-lg border border-orange-100 mb-3">
             <div class="text-[10px] font-bold text-orange-600 mb-1 uppercase">Productos Nuevos (Con Precio)</div>
             <div class="max-h-24 overflow-y-auto mb-2 bg-white/50 rounded p-1">${unknownHTML}</div>
-            <button class="btn-premium bg-gradient-to-r from-orange-400 to-orange-500 text-white w-full text-[10px] py-2 shadow-orange-200 hover:scale-105 transition" onclick='createMissingRecipesV27(${JSON.stringify(unknown)})'>
+            <button class="btn-premium bg-gradient-to-r from-orange-400 to-orange-500 text-white w-full text-[10px] py-2 shadow-orange-200 hover:scale-105 transition" onclick='createMissingRecipesV31(${JSON.stringify(unknown)})'>
                 ✨ CREAR ${unknown.length} FICHAS AUTOMÁTICAS
             </button>
         </div>` : ''}
@@ -3947,7 +3971,7 @@ function showImportModal(matches, unknown, defaultDate) {
     checkDuplicateImport(defaultDate);
 }
 
-function createMissingRecipesV27(list) {
+function createMissingRecipesV31(list) {
     if(!confirm(`¿Crear ${list.length} recetas?`)) return;
     let count = 0;
     list.forEach(item => {
@@ -4014,6 +4038,7 @@ function commitFinalImport() {
     save(`✅ Guardado`); closeModal(); renderAdmin(document.getElementById('app'));
 }
 
+// 7. EDITAR / DESHACER
 function editImport(logId) {
     const idx = db.sales_history.findIndex(l => l.id === logId);
     if (idx === -1) return;
