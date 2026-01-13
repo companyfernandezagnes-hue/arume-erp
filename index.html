@@ -3335,161 +3335,172 @@ if (!window.openEventCalendar) {
     window.deleteEvent = deleteEvent;
     window.renderEventos = function(container) { renderEventos(container); };
 }
-    /* =============================================================
-   ⚠️ MOTOR DE IMPORTACIÓN V5.0 (DEFINITIVO) ⚠️
+/* =============================================================
+   ⚠️ MOTOR DE IMPORTACIÓN V10 (LECTURA ROBUSTA + AUTO-CREACIÓN) ⚠️
    ============================================================= */
 
-// 1. LECTURA SEGURA DEL ARCHIVO
+// 1. LECTURA DE ARCHIVO
 function safeImportSales(input) {
     const file = input.files[0];
     if (!file) return;
-    
-    toast("⏳ Analizando archivo...", "info");
+    toast("⏳ Leyendo archivo...", "info");
     const reader = new FileReader();
-    
     reader.onload = e => {
         try { processSalesText(e.target.result); } 
         catch (err) { console.error(err); toast("❌ Error: Archivo ilegible", "error"); }
     };
-    
-    // IMPORTANTE: Usamos ISO-8859-1 para leer bien Ñ y tildes de Excels antiguos
-    reader.readAsText(file, "ISO-8859-1"); 
-    input.value = ''; // Reset para permitir re-subir el mismo archivo si hubo error
+    reader.readAsText(file); // Detectar encoding automático
+    input.value = ''; 
 }
 
-// 2. PROCESAMIENTO DE TEXTO (INTELIGENCIA ARTIFICIAL BÁSICA)
+// 2. PROCESAMIENTO INTELIGENTE
 function processSalesText(csvText) {
-    // Normalizador: Quita acentos y pone minúsculas para comparar (Café == cafe)
-    const normalize = (str) => str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
-    
+    const normalize = (str) => str ? str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim() : "";
     const lines = csvText.split(/\r?\n/);
-    const matches = [];
-    const unknown = [];
     
-    // A. DETECCIÓN DE FECHA
-    let detectedDate = getISO(); // Por defecto hoy
-    // Buscamos fechas tipo dd/mm/yyyy o yyyy-mm-dd en las primeras 20 líneas
-    const dateRegex = /(\d{2,4})[\/\-](\d{2})[\/\-](\d{2,4})/;
-    
-    for(let i=0; i<Math.min(lines.length, 25); i++) {
-        const dateMatch = lines[i].match(dateRegex);
-        if (dateMatch) {
-            // Lógica para saber si es Año-Mes-Día o Día-Mes-Año
-            if (dateMatch[1].length === 4) detectedDate = `${dateMatch[1]}-${dateMatch[2]}-${dateMatch[3]}`; // YYYY-MM-DD
-            else detectedDate = `${dateMatch[3]}-${dateMatch[2]}-${dateMatch[1]}`; // DD-MM-YYYY -> YYYY-MM-DD
-            break; 
+    let detectedDate = getISO(); 
+    let headerLineIndex = -1;
+    let nameIdx = -1;
+    let qtyIdx = -1;
+
+    // --- FASE 1: ESCANEO DE ESTRUCTURA Y FECHA ---
+    for(let i=0; i<lines.length; i++) {
+        const line = lines[i];
+        
+        // Detectar Fecha
+        const dateMatch = line.match(/Día:\s*(\d{2})[\/\-](\d{2})[\/\-](\d{4})/i);
+        if (dateMatch) detectedDate = `${dateMatch[3]}-${dateMatch[2]}-${dateMatch[1]}`;
+
+        // Detectar Columnas
+        const cols = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
+        cols.forEach((col, idx) => {
+            const txt = normalize(col.replace(/"/g, ''));
+            if (txt.includes('articulo')) nameIdx = idx;
+            if (txt === 'cantidad' || txt === 'cant') qtyIdx = idx;
+        });
+
+        if (nameIdx !== -1 && qtyIdx !== -1) {
+            headerLineIndex = i;
+            break;
         }
     }
 
-    // B. DETECCIÓN DEL SEPARADOR (Coma o Punto y Coma)
-    // Buscamos una línea con contenido para adivinar el formato
-    const sampleLine = lines.find(l => l.length>10 && (l.includes(';') || l.includes(','))) || "";
-    const separator = (sampleLine.split(';').length > sampleLine.split(',').length) ? ';' : ',';
+    if (headerLineIndex === -1) { headerLineIndex = 0; nameIdx = 3; qtyIdx = 11; }
 
-    // C. ESCANEO LÍNEA A LÍNEA
-    lines.forEach(line => {
-        const cleanLine = line.replace(/"/g, '').trim();
-        if (cleanLine.length < 3) return; 
+    // --- FASE 2: EXTRACCIÓN ---
+    const matches = [];
+    const unknown = [];
 
-        const cols = cleanLine.split(separator);
-        let nameCandidate = "";
-        let qtyCandidate = 0;
+    for (let i = headerLineIndex + 1; i < lines.length; i++) {
+        const line = lines[i];
+        if (line.length < 10) continue; 
 
-        cols.forEach(col => {
-            let val = col.trim();
-            if (!val) return;
+        const cols = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
+        let rawName = cols[nameIdx] ? cols[nameIdx].replace(/^"|"$/g, '').trim() : "";
+        let rawQty = cols[qtyIdx] ? cols[qtyIdx].replace(/^"|"$/g, '').replace(',', '.').trim() : "0";
+        const qty = parseFloat(rawQty);
 
-            // Limpieza de moneda (12.50€ -> 12.50)
-            const cleanVal = val.replace(/[€$£]/g, '').trim();
+        if (rawName && rawName.length > 2 && !isNaN(qty) && qty !== 0 && Math.abs(qty) < 5000) {
+            const searchName = normalize(rawName);
+            if (['total', 'familia', 'importe'].some(w => searchName.includes(w))) continue;
 
-            // ¿Es número?
-            if (/^-?\d+([.,]\d+)?$/.test(cleanVal)) {
-                const num = parseFloat(cleanVal.replace(',', '.'));
-                // Filtros de calidad:
-                // - No es 0
-                // - Menor de 5000 (para evitar años o códigos postales)
-                // - Aun no tenemos cantidad asignada en esta línea
-                if (num !== 0 && Math.abs(num) < 5000 && qtyCandidate === 0) {
-                    qtyCandidate = num;
-                }
-            } else if (val.length > 2 && !nameCandidate) {
-                // Si es texto, asumimos que es el nombre del producto
-                nameCandidate = val;
-            }
-        });
-
-        // D. EMPAREJAMIENTO (MATCHING)
-        if (nameCandidate && qtyCandidate > 0) {
-            const searchName = normalize(nameCandidate);
-            // Buscamos en recetas: ¿El nombre del archivo contiene la receta? o ¿La receta contiene el nombre del archivo?
             const match = db.recetas.find(r => {
                 const recName = normalize(r.n);
                 return searchName.includes(recName) || recName.includes(searchName);
             });
 
             if (match) {
-                matches.push({ rid: match.id, n: match.n, excelName: nameCandidate, q: qtyCandidate });
+                matches.push({ rid: match.id, n: match.n, excelName: rawName, q: qty });
             } else {
-                // Lista de palabras a ignorar (cabeceras, totales, impuestos)
-                const ignored = ['total', 'familia', 'artículo', 'codigo', 'fecha', 'pagina', 'base', 'cuota', 'impuesto', 'importe', 'neto', 'bruto'];
-                if (!ignored.some(w => searchName.includes(w))) {
-                    unknown.push(`${nameCandidate} (${qtyCandidate})`);
-                }
+                // Guardamos para ofrecer crearlas
+                unknown.push({ n: rawName, q: qty });
             }
         }
-    });
+    }
 
-    if (matches.length === 0) return toast("❌ No encontré productos válidos.", "error");
+    if (matches.length === 0 && unknown.length === 0) return toast("❌ No encontré datos válidos.", "error");
 
-    // 3. MOSTRAR CONFIRMACIÓN
     showImportModal(matches, unknown, detectedDate);
 }
 
-// Ventana Modal de Confirmación
+// 3. CONFIRMACIÓN Y CREACIÓN DE RECETAS
 function showImportModal(matches, unknown, defaultDate) {
     const summaryList = matches.map(m => 
         `<div class="flex justify-between text-xs py-1 border-b border-slate-50">
-            <span class="truncate w-2/3">${m.n} <span class="text-slate-300">(${m.excelName})</span></span>
+            <span class="truncate w-2/3 font-medium text-slate-700">${m.n}</span>
             <span class="font-bold text-indigo-600 bg-indigo-50 px-2 rounded">${m.q}</span>
+         </div>`
+    ).join('');
+
+    const unknownHTML = unknown.map(u => 
+        `<div class="flex justify-between text-[10px] text-orange-800 py-0.5 border-b border-orange-100">
+            <span class="truncate w-3/4">${u.n}</span><b>${u.q}</b>
          </div>`
     ).join('');
 
     showModal('📥 Confirmar Importación', `
         <div class="bg-indigo-50 p-3 rounded-lg mb-4 text-center border border-indigo-100">
-            <label class="text-xs font-bold text-indigo-800 uppercase block mb-1">📅 Fecha de Venta</label>
+            <label class="text-xs font-bold text-indigo-800 uppercase block mb-1">📅 Fecha Detectada</label>
             <input type="date" id="import-date" value="${defaultDate}" class="bg-white border-2 border-indigo-200 rounded-lg p-2 text-center font-bold text-indigo-900 w-full outline-none focus:border-indigo-500 transition" onchange="checkDuplicateImport(this.value)">
-            <div id="dup-warning" class="hidden mt-2 text-[10px] bg-red-100 text-red-600 p-1 rounded font-bold animate-pulse">
-                ⚠️ ATENCIÓN: Ya importaste datos de este día. Se sumarán.
-            </div>
+            <div id="dup-warning" class="hidden mt-2 text-[10px] bg-red-100 text-red-600 p-1 rounded font-bold animate-pulse">⚠️ YA EXISTEN DATOS ESTE DÍA</div>
         </div>
 
-        <div class="text-center mb-2 flex justify-center gap-4 text-xs font-bold text-slate-400 uppercase">
-            <span class="text-emerald-500">✅ ${matches.length} Identificados</span>
-            ${unknown.length > 0 ? `<span class="text-orange-400">⚠️ ${unknown.length} Ignorados</span>` : ''}
+        <div class="grid grid-cols-2 gap-2 text-center mb-2">
+            <div class="text-xs font-bold text-emerald-600 border-b-2 border-emerald-100 pb-1">✅ ${matches.length} VINCULADOS</div>
+            <div class="text-xs font-bold text-orange-500 border-b-2 border-orange-100 pb-1">⚠️ ${unknown.length} NUEVOS</div>
         </div>
         
-        <div class="bg-white border border-slate-200 rounded-lg p-2 max-h-48 overflow-y-auto custom-scrollbar shadow-inner mb-4">
-            ${summaryList}
+        <div class="bg-white border border-slate-200 rounded-lg p-2 max-h-32 overflow-y-auto custom-scrollbar shadow-inner mb-2">
+            ${summaryList || '<div class="text-center text-slate-300 text-xs italic p-2">Ninguna receta coincide aún.</div>'}
         </div>
-        
+
         ${unknown.length > 0 ? `
-        <details class="mb-4">
-            <summary class="text-[10px] text-orange-500 font-bold cursor-pointer hover:text-orange-700">Ver lista de no reconocidos</summary>
-            <div class="bg-orange-50 p-2 rounded mt-1 text-[9px] font-mono text-orange-800 max-h-20 overflow-y-auto">
-                ${unknown.join('<br>')}
+        <div class="bg-orange-50 p-3 rounded-xl border border-orange-100 mb-4 animate-fade-in">
+            <div class="text-[10px] font-bold text-orange-600 uppercase mb-2">No existen en Cocina:</div>
+            <div class="max-h-20 overflow-y-auto custom-scrollbar mb-3 bg-white/50 rounded p-1">
+                ${unknownHTML}
             </div>
-        </details>` : ''}
+            <button class="btn-premium bg-gradient-to-r from-orange-400 to-orange-500 text-white w-full text-[10px] shadow-orange-200 hover:scale-105 transition" onclick='createMissingRecipes(${JSON.stringify(unknown)})'>
+                ✨ CREAR ESTAS ${unknown.length} FICHAS AUTOMÁTICAMENTE
+            </button>
+        </div>` : ''}
         
         <div class="flex gap-2">
             <button class="btn-ghost" onclick="closeModal()">Cancelar</button>
-            <button class="btn-premium flex-1 shadow-xl" onclick='commitFinalImport(${JSON.stringify(matches)})'>
-                🚀 PROCESAR Y GUARDAR
+            <button class="btn-premium flex-1 shadow-xl ${matches.length === 0 ? 'opacity-50 pointer-events-none' : ''}" onclick='commitFinalImport(${JSON.stringify(matches)})'>
+                🚀 PROCESAR VINCULADOS
             </button>
         </div>
     `);
     
-    // Verificar fecha inicial
     checkDuplicateImport(defaultDate);
+}
+
+// 4. FUNCIÓN PARA CREAR RECETAS AUTOMÁTICAMENTE
+function createMissingRecipes(list) {
+    if(!confirm(`¿Crear ${list.length} recetas nuevas?\n\nSe crearán vacías. Recuerda entrar luego en COCINA para ponerles los ingredientes.`)) return;
+    
+    let count = 0;
+    list.forEach(item => {
+        // Evitamos duplicados por seguridad
+        if(!db.recetas.find(r => r.n === item.n)) {
+            db.recetas.push({
+                id: generateID(),
+                n: item.n,          // Nombre exacto del Excel
+                pvp: 0,             // Precio 0
+                items: [],          // Sin ingredientes
+                yield: 1,
+                unit: 'ud',
+                time: 0
+            });
+            count++;
+        }
+    });
+    
+    save(`Creadas ${count} fichas nuevas ✅`);
+    closeModal();
+    renderAdmin(document.getElementById('app'));
+    toast("¡Hecho! Vuelve a subir el archivo para procesarlas.", "success");
 }
 
 function checkDuplicateImport(dateStr) {
@@ -3499,7 +3510,7 @@ function checkDuplicateImport(dateStr) {
     if (exists) warning.classList.remove('hidden'); else warning.classList.add('hidden');
 }
 
-// 4. GUARDADO FINAL Y DESCUENTO DE STOCK
+// 5. GUARDADO
 function commitFinalImport(matches) {
     const selectedDate = document.getElementById('import-date').value;
     if (!selectedDate) return toast("Fecha inválida", "error");
@@ -3507,23 +3518,18 @@ function commitFinalImport(matches) {
     let log = { id: generateID(), date: selectedDate, items: [] };
 
     matches.forEach(m => {
-        // Guardamos registro
         log.items.push({ rid: m.rid, n: m.n, q: m.q });
-
-        // ESCANDALLO: Descontamos ingredientes
         const r = db.recetas.find(x => x.id === m.rid);
         if (r && r.items) {
             r.items.forEach(it => {
                 if (it.type === 'ing') {
                     const ing = db.ingredientes.find(x => x.id === it.id);
                     if (ing) {
-                        // Conversión de unidades (ej: ración -> kg)
                         const factor = UnitConverter.convert(1, it.unit||ing.unit, ing.unit);
                         const yieldFactor = it.merma ? (1-(it.merma/100)) : 1;
                         const totalNeeded = (it.q * factor * m.q) / yieldFactor;
-                        
                         ing.stock -= totalNeeded;
-                        logStock(ing.id, totalNeeded, 'OUT', `Venta Importada (${selectedDate})`, ing.cost);
+                        logStock(ing.id, totalNeeded, 'OUT', `Venta Auto (${selectedDate})`, ing.cost);
                     }
                 }
             });
@@ -3536,16 +3542,13 @@ function commitFinalImport(matches) {
     renderAdmin(document.getElementById('app'));
 }
 
-// 5. FUNCIÓN DESHACER (UNDO)
+// 6. DESHACER
 function undoImport(logId) {
     if(!confirm("⚠️ ¿DESHACER IMPORTACIÓN?\n\nSe devolverá el stock al almacén.\n\n¿Seguro?")) return;
-
     const logIndex = db.sales_history.findIndex(l => l.id === logId);
     if (logIndex === -1) return toast("Error: Registro no encontrado", "error");
-
     const log = db.sales_history[logIndex];
 
-    // Devolvemos Stock
     log.items.forEach(soldItem => {
         const r = db.recetas.find(x => x.id === soldItem.rid);
         if (r && r.items) {
@@ -3556,8 +3559,7 @@ function undoImport(logId) {
                         const factor = UnitConverter.convert(1, it.unit||ing.unit, ing.unit);
                         const yieldFactor = it.merma ? (1-(it.merma/100)) : 1;
                         const totalReturn = (it.q * factor * soldItem.q) / yieldFactor;
-                        
-                        ing.stock += totalReturn; // SUMA
+                        ing.stock += totalReturn; 
                         logStock(ing.id, totalReturn, 'ADJ', `UNDO Venta (${log.date})`, ing.cost);
                     }
                 }
