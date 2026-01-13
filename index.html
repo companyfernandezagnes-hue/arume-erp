@@ -259,6 +259,13 @@ const { createClient } = supabase;
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 /* === 2. UTILIDADES MATEMÁTICAS Y FORMATO (MEJORADO) === */
+
+// 👇👇 PEGA ESTO AQUÍ (ES LO NUEVO) 👇👇
+const secure = { 
+    enc: (data) => btoa(encodeURIComponent(JSON.stringify(data))), 
+    dec: (str) => JSON.parse(decodeURIComponent(atob(str))) 
+};
+/* === 2. UTILIDADES MATEMÁTICAS Y FORMATO (MEJORADO) === */
 const Num = {
     parse: (str) => { 
         if (!str) return 0; 
@@ -3290,13 +3297,13 @@ function saveConfig() {
     save("Configuración actualizada");
     closeModal();
 }
-  /* =============================================================
+ /* =============================================================
    ⚠️ MOTOR V40: SOLO PEGADO MANUAL (FIABLE Y EDITABLE) ⚠️
    ============================================================= */
 
 let tempImportMatches = []; 
 
-// 1. ELIMINAMOS LA LECTURA DE ARCHIVO (SOLO PEGADO)
+// 1. DESACTIVAR CARGA DE ARCHIVO
 function safeImportSales(input) {
     toast("⚠️ Función desactivada. Usa 'PEGAR VENTAS' para mayor control.", "info");
 }
@@ -3330,45 +3337,37 @@ function processPastedTextV40() {
     const matches = []; const unknown = [];
     const normalize = (str) => str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
 
-    // Limpieza básica
     let lines = rawText.split(/\n/);
     
-    // REGEX ROBUSTA: (Nombre...) (Espacio) (Cantidad) (Espacio) (Precio Total)
-    // Acepta puntos o comas en los números.
-    const regex = /(.+?)[\s\t]+(\d+(?:[.,]\d+)?)[\s\t]+(\d+[.,]\d{2})/;
+    // REGEX MEJORADA: Acepta cualquier formato de número (con punto o coma)
+    const regex = /(.+?)[\s\t]+(\d+(?:[.,]\d+)?)[\s\t]+(\d+(?:[.,]\d+)?)/;
 
     lines.forEach(line => {
         line = line.trim();
         if(!line) return;
 
-        // Intentamos casar la línea
+        // Intentar coincidencia estándar
         let m = line.match(regex);
-        
-        // Si falla, intentamos la versión "pegada" (por si acaso)
+        // Intentar coincidencia "pegada" por si acaso
         if (!m) m = line.match(/(.+?)(\d+)(\d+[.,]\d{2})$/);
 
         if (m) {
             let name = m[1].trim(); 
-            // Limpieza de números (replace ',' por '.')
-            let qty = parseFloat(m[2].replace(',', '.'));     
+            let qty = parseFloat(m[2].replace(',', '.'));      
             let total = parseFloat(m[3].replace(',', '.')); 
 
             if (name.length > 1 && qty > 0) {
-                 // CÁLCULO PRECIO UNITARIO REAL
                  let unitPvp = total / qty;
-
                  matchAndPush(name, qty, unitPvp, matches, unknown, normalize);
             }
         }
     });
 
     if (matches.length === 0 && unknown.length === 0) return toast("❌ No entendí el formato. Revisa el texto.", "error");
-
-    // Abrimos el modal EDITABLE para que tú revises antes de guardar
     showEditableImportModal([...matches, ...unknown], selectedDate);
 }
 
-// --- 3. LÓGICA DE MATCHING ---
+// 3. LÓGICA DE MATCHING
 function matchAndPush(name, qty, realPvp, matches, unknown, normalize) {
     const searchName = normalize(name);
     const r = db.recetas.find(rec => {
@@ -3378,35 +3377,17 @@ function matchAndPush(name, qty, realPvp, matches, unknown, normalize) {
 
     if (r) {
         let status = 'linked'; 
-        // Si el precio varía > 5 céntimos, lo marcamos (pero no bloqueamos)
-        if (realPvp > 0 && Math.abs(r.pvp - realPvp) > 0.05) { 
-            status = 'diff'; 
-        }
-        matches.push({ 
-            id: generateID(),
-            name: r.n, 
-            qty: qty, 
-            pvp: realPvp, 
-            matchId: r.id,
-            status: status 
-        });
+        if (realPvp > 0 && Math.abs(r.pvp - realPvp) > 0.05) status = 'diff'; 
+        matches.push({ id: generateID(), name: r.n, qty: qty, pvp: realPvp, matchId: r.id, status: status });
     } else {
-        unknown.push({ 
-            id: generateID(),
-            name: name, 
-            qty: qty, 
-            pvp: realPvp,
-            matchId: null,
-            status: 'new' 
-        });
+        unknown.push({ id: generateID(), name: name, qty: qty, pvp: realPvp, matchId: null, status: 'new' });
     }
 }
 
-// --- 4. MODAL EDITABLE (LA CLAVE DE LA FIABILIDAD) ---
+// 4. MODAL EDITABLE
 function showEditableImportModal(items, dateStr) {
     tempImportMatches = items; 
 
-    // Ordenar: Nuevos primero, luego diferencias de precio, luego ok
     items.sort((a,b) => {
         if (a.status === 'new') return -1;
         if (a.status === 'diff') return -1;
@@ -3414,38 +3395,23 @@ function showEditableImportModal(items, dateStr) {
     });
 
     const rowsHTML = items.map((item, index) => {
-        let statusIcon = '✅';
-        let statusClass = 'bg-white';
-        let statusText = '';
+        let statusIcon = '✅', statusClass = 'bg-white', statusText = '';
 
-        if (item.status === 'new') {
-            statusIcon = '🆕';
-            statusClass = 'bg-orange-50';
-            statusText = 'Nueva Receta';
-        } else if (item.status === 'diff') {
-            statusIcon = '⚠️';
-            statusClass = 'bg-yellow-50';
-            statusText = 'Precio Diferente';
-        }
+        if (item.status === 'new') { statusIcon = '🆕'; statusClass = 'bg-orange-50'; statusText = 'Nueva Receta'; } 
+        else if (item.status === 'diff') { statusIcon = '⚠️'; statusClass = 'bg-yellow-50'; statusText = 'Precio Diferente'; }
 
         return `
         <div class="grid grid-cols-12 gap-1 items-center border-b border-slate-100 py-1.5 px-1 text-xs ${statusClass}">
             <div class="col-span-1 text-center">${statusIcon}</div>
             <div class="col-span-6">
-                <input type="text" value="${clean(item.name)}" 
-                    class="w-full bg-transparent font-bold text-slate-700 outline-none" 
-                    onchange="updateTempItem(${index}, 'name', this.value)">
+                <input type="text" value="${clean(item.name)}" class="w-full bg-transparent font-bold text-slate-700 outline-none" onchange="updateTempItem(${index}, 'name', this.value)">
                 <div class="text-[8px] text-slate-400">${statusText}</div>
             </div>
             <div class="col-span-2">
-                <input type="number" value="${item.qty}" 
-                    class="w-full bg-white border border-slate-200 rounded px-1 text-center font-bold"
-                    onchange="updateTempItem(${index}, 'qty', this.value)">
+                <input type="number" value="${item.qty}" class="w-full bg-white border border-slate-200 rounded px-1 text-center font-bold" onchange="updateTempItem(${index}, 'qty', this.value)">
             </div>
             <div class="col-span-2 relative">
-                <input type="number" step="0.01" value="${item.pvp.toFixed(2)}" 
-                    class="w-full bg-white border border-slate-200 rounded px-1 text-center text-slate-500"
-                    onchange="updateTempItem(${index}, 'pvp', this.value)">
+                <input type="number" step="0.01" value="${item.pvp.toFixed(2)}" class="w-full bg-white border border-slate-200 rounded px-1 text-center text-slate-500" onchange="updateTempItem(${index}, 'pvp', this.value)">
             </div>
             <div class="col-span-1 text-center">
                 <button class="text-red-400 font-bold px-1" onclick="removeTempItem(${index})">✕</button>
@@ -3457,46 +3423,24 @@ function showEditableImportModal(items, dateStr) {
 
     showModal('📝 Revisar Datos Antes de Guardar', `
         <div class="bg-indigo-50 p-2 rounded-lg border border-indigo-100 mb-2 flex justify-between items-center">
-            <div>
-                <label class="text-[9px] font-bold text-indigo-400 uppercase">FECHA</label>
-                <input type="date" id="import-date-final" value="${dateStr}" class="bg-transparent font-black text-indigo-900 outline-none text-sm">
-            </div>
-            <div class="text-right">
-                <div class="text-[9px] font-bold text-slate-400 uppercase">Total Bruto</div>
-                <div class="text-lg font-black text-slate-800">${Num.fmt(totalImporte)}€</div>
-            </div>
+            <div><label class="text-[9px] font-bold text-indigo-400 uppercase">FECHA</label><input type="date" id="import-date-final" value="${dateStr}" class="bg-transparent font-black text-indigo-900 outline-none text-sm"></div>
+            <div class="text-right"><div class="text-[9px] font-bold text-slate-400 uppercase">Total Bruto</div><div class="text-lg font-black text-slate-800">${Num.fmt(totalImporte)}€</div></div>
         </div>
-
         <div class="bg-white border border-slate-200 rounded-lg overflow-hidden mb-3 shadow-inner">
-            <div class="grid grid-cols-12 gap-1 bg-slate-50 border-b border-slate-200 py-1 px-1 text-[9px] font-black text-slate-400 uppercase text-center">
-                <div class="col-span-1"></div>
-                <div class="col-span-6 text-left pl-1">Producto</div>
-                <div class="col-span-2">Cant</div>
-                <div class="col-span-2">PVP/Ud</div>
-                <div class="col-span-1"></div>
-            </div>
-            <div class="max-h-60 overflow-y-auto custom-scrollbar">
-                ${rowsHTML}
-            </div>
+            <div class="grid grid-cols-12 gap-1 bg-slate-50 border-b border-slate-200 py-1 px-1 text-[9px] font-black text-slate-400 uppercase text-center"><div class="col-span-1"></div><div class="col-span-6 text-left pl-1">Producto</div><div class="col-span-2">Cant</div><div class="col-span-2">PVP/Ud</div><div class="col-span-1"></div></div>
+            <div class="max-h-60 overflow-y-auto custom-scrollbar">${rowsHTML}</div>
         </div>
-
         <div class="flex gap-2">
             <button class="btn-ghost" onclick="closeModal()">Cancelar</button>
-            <button class="btn-premium flex-1 shadow-xl bg-gradient-to-r from-emerald-500 to-teal-500" onclick="commitSalesImport()">
-                💾 GUARDAR Y CREAR FICHAS
-            </button>
+            <button class="btn-premium flex-1 shadow-xl bg-gradient-to-r from-emerald-500 to-teal-500" onclick="commitSalesImport()">💾 GUARDAR Y CREAR FICHAS</button>
         </div>
     `);
 }
 
 function updateTempItem(index, field, value) {
     if (tempImportMatches[index]) {
-        if (field === 'qty' || field === 'pvp') {
-            tempImportMatches[index][field] = parseFloat(value) || 0;
-        } else {
-            tempImportMatches[index][field] = value;
-        }
-        // Refrescar total visualmente (chapuza rápida: recargar modal con datos actualizados)
+        if (field === 'qty' || field === 'pvp') tempImportMatches[index][field] = parseFloat(value) || 0;
+        else tempImportMatches[index][field] = value;
         const date = document.getElementById('import-date-final').value;
         showEditableImportModal(tempImportMatches, date);
     }
@@ -3508,20 +3452,15 @@ function removeTempItem(index) {
     showEditableImportModal(tempImportMatches, date);
 }
 
-// --- 5. GUARDADO FINAL ---
+// 5. GUARDADO FINAL
 function commitSalesImport() {
     const finalDate = document.getElementById('import-date-final').value;
     if (!finalDate) return toast("Fecha obligatoria", "error");
     if (tempImportMatches.length === 0) return toast("Lista vacía", "error");
 
-    // 1. Ajustar Año Fiscal (Viaje en el tiempo)
     const year = parseInt(finalDate.split('-')[0]);
-    if (year !== fiscalYear) {
-        fiscalYear = year;
-        toast(`📅 Cambiando al año ${year}...`, "info");
-    }
+    if (year !== fiscalYear) { fiscalYear = year; toast(`📅 Cambiando al año ${year}...`, "info"); }
 
-    // 2. Limpiar día si ya existe (para evitar duplicados al corregir)
     const existingIdx = db.sales_history.findIndex(l => l.date === finalDate);
     if(existingIdx >= 0) db.sales_history.splice(existingIdx, 1);
 
@@ -3530,36 +3469,23 @@ function commitSalesImport() {
 
     tempImportMatches.forEach(item => {
         let recId = item.matchId;
-
-        // A. Crear Receta si es nueva
         if (!recId) {
-            // Última comprobación por nombre
             const exist = db.recetas.find(r => r.n.toLowerCase() === item.name.toLowerCase());
             if (exist) {
                 recId = exist.id;
-                // Actualizar precio si es necesario
                 if(item.pvp > 0) exist.pvp = item.pvp; 
             } else {
                 recId = generateID();
-                db.recetas.push({
-                    id: recId,
-                    n: item.name,
-                    pvp: item.pvp,
-                    items: [], // Sin ingredientes
-                    yield: 1, unit: 'ud', time: 0
-                });
+                db.recetas.push({ id: recId, n: item.name, pvp: item.pvp, items: [], yield: 1, unit: 'ud', time: 0 });
                 createdCount++;
             }
         } else {
-            // Actualizar precio de receta existente (Sincronización)
             const r = db.recetas.find(x => x.id === recId);
             if (r && item.pvp > 0) r.pvp = item.pvp;
         }
 
-        // B. Guardar venta
         log.items.push({ rid: recId, n: item.name, q: item.qty });
 
-        // C. Descontar Stock
         const r = db.recetas.find(x => x.id === recId);
         if (r && r.items) {
             r.items.forEach(it => {
@@ -3568,8 +3494,9 @@ function commitSalesImport() {
                     if (ing) {
                         const factor = UnitConverter.convert(1, it.unit||ing.unit, ing.unit);
                         const yieldFactor = it.merma ? (1-(it.merma/100)) : 1;
-                        ing.stock -= (item.qty * it.q * factor) / yieldFactor;
-                        logStock(ing.id, (item.qty * it.q * factor) / yieldFactor, 'OUT', `Venta ${finalDate}`, ing.cost);
+                        const qOut = (item.qty * it.q * factor) / yieldFactor;
+                        ing.stock -= qOut;
+                        logStock(ing.id, qOut, 'OUT', `Venta ${finalDate}`, ing.cost);
                     }
                 }
             });
@@ -3581,6 +3508,10 @@ function commitSalesImport() {
     closeModal();
     renderAdmin(document.getElementById('app'));
 }
+
+// INICIALIZACIÓN DE LA APP (¡ESTO FALTABA!)
+init(); 
+
 </script>
 </body>
 </html>
