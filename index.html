@@ -3700,25 +3700,23 @@ function openEventCalendar(id) {
     window.open(url, '_blank');
 }
 /* =============================================================
-   ⚠️ MOTOR V37: PRECISIÓN TOTAL (PEGADO MANUAL + EXCEL MADISA) ⚠️
+   ⚠️ MOTOR V38: CIRUJANO DE TEXTO + EXCEL INTELIGENTE ⚠️
    ============================================================= */
 
 let tempImportMatches = []; 
 
-// ---------------------------------------------------------
-// 1. LECTURA DE ARCHIVO (MODO FRANCOTIRADOR MADISA)
-// ---------------------------------------------------------
+// 1. LECTURA DE ARCHIVO (BUSCA EL DINERO REAL)
 function safeImportSales(input) {
     const file = input.files[0];
     if (!file) return;
-    toast("⏳ Leyendo archivo Madisa...", "info");
+    toast("⏳ Analizando a fondo...", "info");
     const reader = new FileReader();
-    reader.onload = e => { try { processMadisaFileV37(e.target.result); } catch (err) { console.error(err); toast("Error de lectura", "error"); } };
+    reader.onload = e => { try { processMadisaFileV38(e.target.result); } catch (err) { console.error(err); toast("Error lectura", "error"); } };
     reader.readAsText(file, "ISO-8859-1"); 
     input.value = ''; 
 }
 
-function processMadisaFileV37(csvText) {
+function processMadisaFileV38(csvText) {
     const normalize = (str) => str ? str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim() : "";
     const lines = csvText.split(/\r?\n/);
     const rawDataMap = new Map(); 
@@ -3733,17 +3731,26 @@ function processMadisaFileV37(csvText) {
         }
     }
 
-    // B. COLUMNAS FIJAS (TU ARCHIVO DIA 10.XLS)
-    // Nombre = Col 3 | Cantidad = Col 11 | Total = Col 20
-    const COL_NAME = 3; 
-    const COL_QTY = 11; 
-    const COL_TOTAL = 20;
+    // B. RASTREO DE COLUMNAS (INTELIGENTE)
+    let COL_NAME = 3; 
+    let COL_QTY = 11; 
+    let COL_TOTAL = 20; // Por defecto col 20 (Importe Bruto)
+
+    // Escanear cabeceras para confirmar
+    for(let i=0; i<Math.min(lines.length, 30); i++) {
+        if(lines[i].toLowerCase().includes('articulo')) {
+            const cols = lines[i].split(',');
+            cols.forEach((c, idx) => {
+                const h = c.replace(/"/g, '').trim().toLowerCase();
+                if(h.includes('bruto')) COL_TOTAL = idx; // ¡Clave! Busca "Bruto"
+            });
+            break;
+        }
+    }
 
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i].trim();
         if (line.length < 10) continue; 
-
-        // Separamos por comas (formato CSV nativo de tu archivo)
         const cols = line.split(',');
 
         if (cols.length > COL_TOTAL) {
@@ -3753,10 +3760,8 @@ function processMadisaFileV37(csvText) {
 
             if (rawName && !isNaN(rawQty) && rawQty !== 0 && !isNaN(rawTotal)) {
                 const nLow = normalize(rawName);
-                // Filtramos cabeceras y totales
                 if (nLow.includes('articulo') || nLow.includes('total') || nLow.includes('familia')) continue;
 
-                // AGREGADOR: Si sale 2 veces, sumamos
                 if (rawDataMap.has(rawName)) {
                     let prev = rawDataMap.get(rawName);
                     prev.q += rawQty;
@@ -3767,113 +3772,85 @@ function processMadisaFileV37(csvText) {
             }
         }
     }
-    
+
     finalizeProcessing(rawDataMap, detectedDate);
 }
 
-// ---------------------------------------------------------
-// 2. PEGADO MANUAL (LÓGICA INVERSA PARA PRECISIÓN)
-// ---------------------------------------------------------
+// 2. PEGADO MANUAL (CIRUJANO PARA TEXTO PEGADO)
 function openPasteModal() {
     const today = getISO();
-    showModal('📋 Pegar Ventas (Modo Precisión)', `
+    showModal('📋 Pegar Ventas (Modo Cirujano)', `
         <div class="mb-4 bg-indigo-50 p-3 rounded-lg border border-indigo-100">
             <label class="text-xs font-bold text-indigo-800 uppercase block mb-1">📅 Fecha de Venta</label>
             <input type="date" id="paste-date" value="${today}" class="bg-white border-2 border-indigo-200 rounded-lg p-2 font-black text-center text-indigo-900 w-full outline-none focus:border-indigo-500">
         </div>
-        <label class="text-xs font-bold text-slate-500 uppercase mb-1 block">Pega aquí (Nombre... Cantidad... Total)</label>
-        <textarea id="paste-area" class="input-premium h-40 text-[10px] font-mono border-2 border-slate-200" placeholder="Ej: Agua sin gas2042.50..."></textarea>
-        <button class="btn-premium mt-3 w-full shadow-lg" onclick="processPastedTextV37()">🚀 PROCESAR TEXTO</button>
+        <label class="text-xs font-bold text-slate-500 uppercase mb-1 block">Pega aquí el texto "chorizo"</label>
+        <textarea id="paste-area" class="input-premium h-40 text-[10px] font-mono border-2 border-slate-200" placeholder="Ej: Agua2042.50..."></textarea>
+        <button class="btn-premium mt-3 w-full shadow-lg" onclick="processPastedTextV38()">🚀 DESENCRIPTAR Y PROCESAR</button>
     `);
     setTimeout(() => document.getElementById('paste-area').focus(), 100);
 }
 
-function processPastedTextV37() {
+function processPastedTextV38() {
     const rawText = document.getElementById('paste-area').value;
     const selectedDate = document.getElementById('paste-date').value;
-    
     if (!rawText.trim()) return toast("Pega algo", "error");
-    if (!selectedDate) return toast("Fecha obligatoria", "error");
 
     const rawDataMap = new Map();
 
-    // 1. Limpieza inicial
-    // Reemplazamos saltos de línea por espacios para tratarlo como un flujo continuo si hace falta,
-    // PERO primero intentamos procesar línea a línea que es más seguro.
-    let lines = rawText.split(/\n/);
+    // 1. Limpieza total
+    let cleanText = rawText.replace(/[\r\n]+/g, '').trim(); 
     
-    // Si solo hay una línea gigante o formato chorizo, aplicamos regex global
-    if (lines.length < 2 && rawText.length > 50) {
-        // Regex para "Chorizo": (Nombre)(Cantidad)(Total) pegados
-        // Busca: Texto + Entero + Decimal(2)
-        const regex = /(.+?)(\d+)(\d+[.,]\d{2})/g; 
-        let m;
-        while ((m = regex.exec(rawText)) !== null) {
-            addToMap(rawDataMap, m[1], m[2], m[3]);
-        }
-    } else {
-        // Procesamiento línea a línea (Más seguro)
-        lines.forEach(line => {
-            line = line.trim();
-            if(!line) return;
-            
-            // INTENTO 1: Formato Chorizo (NombreCantidadTotal)
-            // Leemos de DERECHA a IZQUIERDA
-            // El final DEBE ser un precio decimal: (\d+[.,]\d{2})$
-            // Lo anterior DEBE ser una cantidad entera: (\d+)
-            // Lo primero es el nombre: (.+?)
-            let m = line.match(/(.+?)(\d+)(\d+[.,]\d{2})$/);
-            
-            // INTENTO 2: Formato con espacios (Nombre Cantidad Total)
-            if (!m) m = line.match(/(.+?)\s+(\d+(?:[.,]\d+)?)\s+(\d+[.,]\d{2})$/);
+    // 2. REGEX CIRUJANO V38:
+    // Nombre: (.+?) -> Coge lo mínimo necesario
+    // Cantidad: (\d{1,3}) -> Asume MAXIMO 3 dígitos (ej: 999). Esto evita comerse el precio.
+    // Precio: (\d+[.,]\d{2}) -> El resto es precio.
+    const regex = /(.+?)(\d{1,3})(\d+[.,]\d{2})/g;
+    
+    let m;
+    let count = 0;
+    while ((m = regex.exec(cleanText)) !== null) {
+        let name = m[1].trim(); 
+        let qty = parseFloat(m[2].replace(',', '.'));     
+        let total = parseFloat(m[3].replace(',', '.')); 
+        
+        // Filtro de seguridad
+        if (name.length > 1 && !name.match(/^\d+$/) && qty > 0) {
+             // CORRECCIÓN DE NETO A BRUTO (Estimada al 10%)
+             // El texto pegado suelen ser importes netos. Multiplicamos por 1.10 para estimar el PVP con IVA
+             // Si prefieres usar el neto, quita el "* 1.10".
+             let totalEstimado = total * 1.10; 
 
-            if (m) {
-                addToMap(rawDataMap, m[1], m[2], m[3]);
+             if(rawDataMap.has(name)) { 
+                 rawDataMap.get(name).q += qty; 
+                 rawDataMap.get(name).t += totalEstimado; 
+            } else { 
+                rawDataMap.set(name, { q: qty, t: totalEstimado }); 
             }
-        });
+            count++;
+        }
     }
 
-    if (rawDataMap.size === 0) return toast("⚠️ No reconocí los datos. Asegúrate de copiar Nombre, Cantidad y Total.", "error");
+    if (count === 0) return toast("Formato no reconocido.", "error");
 
     finalizeProcessing(rawDataMap, selectedDate);
 }
 
-// Auxiliar para sumar al mapa
-function addToMap(map, nameStr, qtyStr, totalStr) {
-    let name = nameStr.trim();
-    // Limpiar nombre de posibles residuos como "Total:"
-    name = name.replace(/Total:?/i, '').trim();
-    
-    let qty = parseFloat(qtyStr.replace(',', '.'));
-    let total = parseFloat(totalStr.replace(',', '.'));
-
-    if (name.length > 1 && qty > 0) {
-        if (map.has(name)) {
-            let prev = map.get(name);
-            prev.q += qty;
-            prev.t += total;
-        } else {
-            map.set(name, { q: qty, t: total });
-        }
-    }
-}
-
-// --- 3. FINALIZAR PROCESAMIENTO (CÁLCULO DE PRECIOS) ---
+// --- 3. FINALIZAR (CÁLCULO UNITARIO) ---
 function finalizeProcessing(map, dateStr) {
     const matches = []; const unknown = [];
     const normalize = (str) => str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
 
     map.forEach((val, name) => {
-        // CÁLCULO CLAVE: PRECIO UNITARIO = TOTAL / CANTIDAD
-        // Esto asegura que el precio de la ficha sea el de 1 unidad.
+        // PRECIO UNITARIO = TOTAL / CANTIDAD
         const unitPrice = (val.q !== 0) ? Math.abs(val.t / val.q) : 0;
         
         const match = db.recetas.find(r => normalize(r.n) === normalize(name));
         
         if (match) {
             let status = 'ok'; let diffMsg = '';
-            // Si el precio varía más de 5 céntimos, avisamos
-            if (unitPrice > 0 && Math.abs(match.pvp - unitPrice) > 0.05) {
+            // Tolerancia de precio (mayor porque estimamos el IVA en el pegado)
+            if (unitPrice > 0 && Math.abs(match.pvp - unitPrice) > 0.15) {
                 status = 'diff';
                 diffMsg = `${Num.fmt(match.pvp)} vs ${Num.fmt(unitPrice)}`;
             }
@@ -3886,18 +3863,17 @@ function finalizeProcessing(map, dateStr) {
     showImportModal(matches, unknown, dateStr);
 }
 
-// --- 4. MODAL Y GUARDADO (EL MISMO QUE FUNCIONABA BIEN) ---
+// --- 4. MODAL Y GUARDADO ---
 function showImportModal(matches, unknown, defaultDate) {
     tempImportMatches = matches; 
     matches.sort((a,b) => (a.status === 'diff' ? -1 : 1));
 
-    // Calcular Total Monetario para verificación visual
     const totalMoney = matches.reduce((s,m)=>s+(m.q*m.realPvp),0) + unknown.reduce((s,u)=>s+(u.q*u.detectedPvp),0);
 
     const summaryList = matches.map(m => `
         <div class="flex justify-between items-center text-xs py-1 border-b border-slate-50 ${m.status==='diff'?'bg-red-50/50':''}">
             <div class="truncate w-2/3"><div class="font-bold text-slate-700">${m.n}</div>
-            ${m.status==='diff' ? `<div class="text-[9px] text-red-500 font-bold">⚠️ App:${m.diffMsg.split(' vs ')[0]} | Caja:${m.diffMsg.split(' vs ')[1]}</div>` : ''}</div>
+            ${m.status==='diff' ? `<div class="text-[9px] text-red-500 font-bold">⚠️ Diferencia Precio: ${m.diffMsg}</div>` : ''}</div>
             <span class="font-bold ${m.status==='diff'?'text-red-500 bg-red-50 border-red-100 border':'text-indigo-600 bg-indigo-50'} px-2 rounded text-[10px]">${m.q}</span>
         </div>`).join('');
 
@@ -3910,7 +3886,6 @@ function showImportModal(matches, unknown, defaultDate) {
                 <span class="text-[10px] font-bold text-indigo-600 bg-white px-2 py-0.5 rounded border border-indigo-200">TOTAL: ${Num.fmt(totalMoney)}€</span>
             </div>
             <input type="date" id="import-date" value="${defaultDate}" class="bg-transparent font-black text-indigo-900 text-center w-full outline-none text-lg">
-            <div id="dup-warning" class="hidden mt-2 text-[9px] bg-red-500 text-white rounded px-2 py-1 font-bold animate-pulse shadow-sm">⚠️ ESTE DÍA YA TIENE DATOS. SE SOBREESCRIBIRÁ.</div>
         </div>
 
         <div class="grid grid-cols-2 gap-2 text-center mb-2 text-xs font-bold">
@@ -3924,40 +3899,34 @@ function showImportModal(matches, unknown, defaultDate) {
 
         ${unknown.length > 0 ? `
         <div class="bg-orange-50 p-2 rounded-lg border border-orange-100 mb-3">
-            <div class="text-[10px] font-bold text-orange-600 mb-1 uppercase">Productos Nuevos (Con Precio)</div>
+            <div class="text-[10px] font-bold text-orange-600 mb-1 uppercase">Productos Nuevos</div>
             <div class="max-h-24 overflow-y-auto mb-2 bg-white/50 rounded p-1">${unknownHTML}</div>
-            <button class="btn-premium bg-gradient-to-r from-orange-400 to-orange-500 text-white w-full text-[10px] py-2 shadow-orange-200 hover:scale-105 transition" onclick='createMissingRecipesV37(${JSON.stringify(unknown)})'>
-                ✨ CREAR ${unknown.length} FICHAS AUTOMÁTICAS
+            <button class="btn-premium bg-gradient-to-r from-orange-400 to-orange-500 text-white w-full text-[10px] py-2" onclick='createMissingRecipesV38(${JSON.stringify(unknown)})'>
+                ✨ CREAR ${unknown.length} FICHAS
             </button>
         </div>` : ''}
         
         <div class="flex gap-2">
             <button class="btn-ghost" onclick="closeModal()">Cancelar</button>
-            <button class="btn-premium flex-1 shadow-xl" onclick="commitFinalImport()">
-                🚀 GUARDAR DATOS
-            </button>
+            <button class="btn-premium flex-1 shadow-xl" onclick="commitFinalImport()">🚀 GUARDAR DATOS</button>
         </div>
-        
-        ${matches.some(m => m.status === 'diff') ? `<div class="mt-3 text-center"><button class="text-[10px] text-indigo-500 font-bold underline" onclick="updatePricesBatch()">🔄 Sincronizar Precios (App = Caja)</button></div>` : ''}
+        ${matches.some(m => m.status === 'diff') ? `<div class="mt-2 text-center"><button class="text-[10px] text-indigo-500 font-bold underline" onclick="updatePricesBatch()">🔄 Sincronizar Precios (App = Caja)</button></div>` : ''}
     `);
-    
-    checkDuplicateImport(defaultDate);
 }
 
-function createMissingRecipesV37(list) {
+function createMissingRecipesV38(list) {
     if(!confirm(`¿Crear ${list.length} recetas?`)) return;
-    let count = 0;
     list.forEach(item => {
         if(!db.recetas.find(r => r.n === item.n)) {
             db.recetas.push({ id: generateID(), n: item.n, pvp: item.detectedPvp || 0, items: [], yield: 1, unit: 'ud', time: 0 });
-            count++;
         }
     });
-    save(`Creadas ${count} recetas`); closeModal(); renderAdmin(document.getElementById('app'));
+    save(`Creadas ${list.length} recetas`); closeModal(); renderAdmin(document.getElementById('app'));
 }
 
+// --- RESTO DE FUNCIONES IGUALES ---
 function updatePricesBatch() {
-    if(!confirm("¿Igualar precios App a Caja?")) return;
+    if(!confirm("¿Igualar precios?")) return;
     let count = 0;
     tempImportMatches.forEach(m => {
         if (m.status === 'diff' && m.realPvp > 0) {
@@ -3966,11 +3935,6 @@ function updatePricesBatch() {
         }
     });
     save(`Precios actualizados: ${count}`); closeModal();
-}
-
-function checkDuplicateImport(dateStr) {
-    const w = document.getElementById('dup-warning');
-    if(w) db.sales_history.some(l => l.date === dateStr) ? w.classList.remove('hidden') : w.classList.add('hidden');
 }
 
 function commitFinalImport() {
@@ -3985,10 +3949,7 @@ function commitFinalImport() {
     let log = { id: generateID(), date: d, items: [] };
 
     const importYear = parseInt(d.split('-')[0]);
-    if (importYear !== fiscalYear) { 
-        fiscalYear = importYear; 
-        toast(`📅 Viajando al año ${importYear}...`, "info"); 
-    }
+    if (importYear !== fiscalYear) { fiscalYear = importYear; toast(`📅 Viajando al año ${importYear}...`, "info"); }
 
     matches.forEach(m => {
         log.items.push({ rid: m.rid, n: m.n, q: m.q });
@@ -4011,7 +3972,6 @@ function commitFinalImport() {
     save(`✅ Guardado`); closeModal(); renderAdmin(document.getElementById('app'));
 }
 
-// 7. EDITAR / DESHACER
 function editImport(logId) {
     const idx = db.sales_history.findIndex(l => l.id === logId);
     if (idx === -1) return;
