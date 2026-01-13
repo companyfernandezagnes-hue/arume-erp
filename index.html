@@ -3326,105 +3326,109 @@ function openEventCalendar(id) {
     window.open(url, '_blank');
 }
 /* =============================================================
-   ⚠️ MOTOR DE IMPORTACIÓN V11 (MODO AGRESIVO / POSICIÓN FIJA) ⚠️
+   ⚠️ MOTOR DE IMPORTACIÓN V12 (MODO FRANCOTIRADOR - MADISA) ⚠️
    ============================================================= */
 
+// 1. LECTOR DE ARCHIVO (Admite cualquier extensión de texto)
 function safeImportSales(input) {
     const file = input.files[0];
     if (!file) return;
     
-    toast("🚜 Extrayendo datos a la fuerza...", "info");
+    toast("🧹 Limpiando datos del archivo...", "info");
     const reader = new FileReader();
     
     reader.onload = e => {
         try { processSalesText(e.target.result); } 
-        catch (err) { console.error(err); toast("❌ Error fatal leyendo archivo", "error"); }
+        catch (err) { console.error(err); toast("❌ No pude leer el archivo", "error"); }
     };
-    // Leemos en UTF-8 para intentar pillar bien los caracteres
-    reader.readAsText(file, "UTF-8"); 
+    // Leemos en formato Windows para asegurar que las Ñ y tildes se ven bien
+    reader.readAsText(file, "ISO-8859-1"); 
     input.value = ''; 
 }
 
+// 2. EL FILTRO PURIFICADOR (Aquí ocurre la magia)
 function processSalesText(csvText) {
+    // Normalizamos texto (quitamos acentos para comparar mejor)
     const normalize = (str) => str ? str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim() : "";
+    
     const lines = csvText.split(/\r?\n/);
+    const matches = []; // Aquí guardaremos los vinculados
+    const unknown = []; // Aquí los nuevos para crear
     
-    let detectedDate = getISO(); 
-    
-    // --- 1. DETECCIÓN DE FECHA (Escaneo en crudo) ---
-    // Buscamos en las primeras 30 líneas algo que parezca una fecha
-    for(let i=0; i<Math.min(lines.length, 30); i++) {
-        // Buscamos patrones: "10/01/2026" o "10-01-2026"
-        const dateMatch = lines[i].match(/(\d{2})[\/\-](\d{2})[\/\-](\d{4})/);
-        if (dateMatch) {
-            // Asumimos formato Día/Mes/Año que es lo normal en Madisa
-            detectedDate = `${dateMatch[3]}-${dateMatch[2]}-${dateMatch[1]}`; // Convertir a YYYY-MM-DD
-            break; 
-        }
-    }
+    let detectedDate = getISO(); // Fecha por defecto: Hoy
 
-    // --- 2. EXTRACCIÓN POR FUERZA BRUTA ---
-    const matches = [];
-    const unknown = [];
-
-    // Índices FIJOS observados en tus archivos "dia 10" y "dia 12"
-    // Columna 3: Nombre del producto
+    // ÍNDICES FIJOS DE MADISA (Basado en tus archivos 'dia 10' y 'dia 12')
+    // Columna 3: Nombre del Artículo
     // Columna 11: Cantidad
-    const NAME_IDX = 3;
-    const QTY_IDX = 11;
+    const COL_NAME = 3;
+    const COL_QTY = 11;
 
+    // Recorremos el archivo línea a línea
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
-        if (line.length < 10) continue; // Saltar líneas vacías
-
-        // Separamos por comas (formato CSV estándar)
-        // El regex complejo es para no romper nombres que tengan comas dentro (ej: "San Miguel 0,0")
-        const cols = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
         
-        // Verificamos si esta línea tiene suficientes columnas
-        if (cols.length <= QTY_IDX) continue;
+        // A. DETECTAR FECHA (Busca "Día: 10/01/2026")
+        // Si la encuentra, actualiza la fecha de importación
+        const dateMatch = line.match(/Día:\s*(\d{2})[\/\-](\d{2})[\/\-](\d{4})/i);
+        if (dateMatch) {
+            detectedDate = `${dateMatch[3]}-${dateMatch[2]}-${dateMatch[1]}`; // Convertir a YYYY-MM-DD
+        }
 
-        // Limpiamos los datos de las columnas fijas
-        let rawName = cols[NAME_IDX].replace(/^"|"$/g, '').trim(); 
-        let rawQty = cols[QTY_IDX].replace(/^"|"$/g, '').replace(',', '.').trim();
+        // B. LIMPIEZA Y EXTRACCIÓN
+        if (line.length < 5) continue; // Saltar líneas vacías
 
-        const qty = parseFloat(rawQty);
+        // Truco para separar por comas pero RESPETAR nombres como "San Miguel 0,0" (que tienen coma)
+        const cols = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
 
-        // --- FILTROS DE CALIDAD ---
-        // 1. ¿Tiene nombre? (Longitud > 2)
-        // 2. ¿Es un número válido?
-        // 3. ¿La cantidad no es 0?
-        if (rawName && rawName.length > 2 && !isNaN(qty) && qty !== 0 && Math.abs(qty) < 5000) {
+        // Solo miramos si la línea tiene suficientes columnas
+        if (cols.length > COL_QTY) {
             
-            const searchName = normalize(rawName);
-            
-            // Filtramos las cabeceras y totales que caen en esas mismas columnas
-            const garbage = ['articulo', 'cantidad', 'importe', 'neto', 'total', 'familia', 'tienda', 'empresa'];
-            if (garbage.some(g => searchName.includes(g))) continue;
+            // Extraemos y limpiamos comillas
+            let rawName = cols[COL_NAME].replace(/^"|"$/g, '').trim(); 
+            let rawQtyStr = cols[COL_QTY].replace(/^"|"$/g, '').replace(',', '.').trim();
+            let qty = parseFloat(rawQtyStr);
 
-            // --- BÚSQUEDA EN BASE DE DATOS ---
-            const match = db.recetas.find(r => {
-                const recName = normalize(r.n);
-                return searchName.includes(recName) || recName.includes(searchName);
-            });
+            // --- FILTRO DE CALIDAD ---
+            // Solo aceptamos si:
+            // 1. Tiene nombre
+            // 2. La cantidad es un número válido y distinto de 0
+            // 3. No es una cabecera (ignoramos la palabra "Artículo" o "Total")
+            if (rawName.length > 1 && !isNaN(qty) && qty !== 0) {
+                
+                const searchName = normalize(rawName);
+                const basura = ['articulo', 'cantidad', 'importe', 'neto', 'bruto', 'total', 'familia'];
+                
+                // Si NO es basura, procesamos
+                if (!basura.some(b => searchName.includes(b))) {
+                    
+                    // Buscamos pareja en Arume
+                    const match = db.recetas.find(r => {
+                        const recName = normalize(r.n);
+                        return searchName.includes(recName) || recName.includes(searchName);
+                    });
 
-            if (match) {
-                matches.push({ rid: match.id, n: match.n, excelName: rawName, q: qty });
-            } else {
-                unknown.push({ n: rawName, q: qty });
+                    if (match) {
+                        matches.push({ rid: match.id, n: match.n, excelName: rawName, q: qty });
+                    } else {
+                        // Si no existe, lo guardamos para el botón "Crear Fichas"
+                        unknown.push({ n: rawName, q: qty });
+                    }
+                }
             }
         }
     }
 
     if (matches.length === 0 && unknown.length === 0) {
-        return toast("❌ Sigo sin ver datos. ¿Seguro que es el archivo correcto?", "error");
+        return toast("❌ El archivo no parece tener ventas válidas.", "error");
     }
 
+    // Mostramos el resultado limpio
     showImportModal(matches, unknown, detectedDate);
 }
 
-// 3. INTERFAZ DE CONFIRMACIÓN
+// 3. VENTANA DE CONFIRMACIÓN Y CREACIÓN
 function showImportModal(matches, unknown, defaultDate) {
+    // Generar lista visual de lo que se va a importar
     const summaryList = matches.map(m => 
         `<div class="flex justify-between text-xs py-1 border-b border-slate-50">
             <span class="truncate w-2/3 font-medium text-slate-700">${m.n}</span>
@@ -3438,37 +3442,39 @@ function showImportModal(matches, unknown, defaultDate) {
          </div>`
     ).join('');
 
-    showModal('📥 Importación Madisa', `
+    showModal('📥 Importación Limpia', `
         <div class="bg-slate-50 p-3 rounded-lg mb-4 text-center border border-slate-200">
-            <label class="text-xs font-bold text-slate-500 uppercase block mb-1">Fecha del Archivo</label>
+            <label class="text-xs font-bold text-indigo-800 uppercase block mb-1">📅 Fecha del Archivo</label>
             <input type="date" id="import-date" value="${defaultDate}" class="bg-white border-2 border-indigo-200 rounded-lg p-2 text-center font-bold text-indigo-900 w-full outline-none focus:border-indigo-500 transition" onchange="checkDuplicateImport(this.value)">
-            <div id="dup-warning" class="hidden mt-2 text-[10px] bg-red-100 text-red-600 p-1 rounded font-bold animate-pulse">⚠️ OJO: Ya hay datos de este día</div>
+            <div id="dup-warning" class="hidden mt-2 text-[10px] bg-red-100 text-red-600 p-1 rounded font-bold animate-pulse">
+                ⚠️ CUIDADO: Ya importaste este día.
+            </div>
         </div>
 
         <div class="grid grid-cols-2 gap-2 text-center mb-2">
-            <div class="text-xs font-bold text-emerald-600 border-b-2 border-emerald-100 pb-1">✅ ${matches.length} CASADOS</div>
+            <div class="text-xs font-bold text-emerald-600 border-b-2 border-emerald-100 pb-1">✅ ${matches.length} VINCULADOS</div>
             <div class="text-xs font-bold text-orange-500 border-b-2 border-orange-100 pb-1">⚠️ ${unknown.length} NUEVOS</div>
         </div>
         
         <div class="bg-white border border-slate-200 rounded-lg p-2 max-h-32 overflow-y-auto custom-scrollbar shadow-inner mb-2">
-            ${summaryList || '<div class="text-center text-slate-300 text-xs italic p-2">Nada vinculado.</div>'}
+            ${summaryList || '<div class="text-center text-slate-300 text-xs italic p-2">Nada vinculado aún.</div>'}
         </div>
 
         ${unknown.length > 0 ? `
         <div class="bg-orange-50 p-3 rounded-xl border border-orange-100 mb-4 animate-fade-in">
-            <div class="text-[10px] font-bold text-orange-600 uppercase mb-2">Faltan en Arume:</div>
+            <div class="text-[10px] font-bold text-orange-600 uppercase mb-2">Productos nuevos detectados:</div>
             <div class="max-h-20 overflow-y-auto custom-scrollbar mb-3 bg-white/50 rounded p-1">
                 ${unknownHTML}
             </div>
             <button class="btn-premium bg-gradient-to-r from-orange-400 to-orange-500 text-white w-full text-[10px] shadow-orange-200 hover:scale-105 transition" onclick='createMissingRecipes(${JSON.stringify(unknown)})'>
-                ✨ CREAR ESTAS ${unknown.length} FICHAS AUTOMÁTICAMENTE
+                ✨ CREAR ESTAS ${unknown.length} RECETAS AUTOMÁTICAMENTE
             </button>
         </div>` : ''}
         
         <div class="flex gap-2">
             <button class="btn-ghost" onclick="closeModal()">Cancelar</button>
             <button class="btn-premium flex-1 shadow-xl ${matches.length === 0 ? 'opacity-50 pointer-events-none' : ''}" onclick='commitFinalImport(${JSON.stringify(matches)})'>
-                🚀 CONFIRMAR
+                🚀 PROCESAR VENTAS
             </button>
         </div>
     `);
@@ -3476,15 +3482,22 @@ function showImportModal(matches, unknown, defaultDate) {
     checkDuplicateImport(defaultDate);
 }
 
+// 4. CREAR RECETAS NUEVAS (EL BOTÓN MÁGICO)
 function createMissingRecipes(list) {
-    if(!confirm(`¿Crear ${list.length} fichas nuevas vacías?`)) return;
+    if(!confirm(`¿Crear ${list.length} fichas nuevas en Cocina?\n\nSe crearán con el nombre exacto del Excel.`)) return;
     
     let count = 0;
     list.forEach(item => {
+        // Evitamos crear duplicados si le das dos veces
         if(!db.recetas.find(r => r.n === item.n)) {
             db.recetas.push({
                 id: generateID(),
-                n: item.n, pvp: 0, items: [], yield: 1, unit: 'ud', time: 0
+                n: item.n,          // Nombre del Excel (ej: "Agua sin gas")
+                pvp: 0,             // Precio 0 por defecto
+                items: [],          // Escandallo vacío (a rellenar luego)
+                yield: 1,
+                unit: 'ud',
+                time: 0
             });
             count++;
         }
@@ -3493,9 +3506,10 @@ function createMissingRecipes(list) {
     save(`Creadas ${count} recetas ✅`);
     closeModal();
     renderAdmin(document.getElementById('app'));
-    toast("Recetas creadas. Vuelve a subir el archivo.", "success");
+    toast("¡Listo! Vuelve a subir el archivo para procesarlas.", "success");
 }
 
+// Auxiliar: Verificar si ya existe el día
 function checkDuplicateImport(dateStr) {
     const warning = document.getElementById('dup-warning');
     if (!warning) return;
@@ -3503,6 +3517,7 @@ function checkDuplicateImport(dateStr) {
     if (exists) warning.classList.remove('hidden'); else warning.classList.add('hidden');
 }
 
+// 5. GUARDAR DATOS (FINAL)
 function commitFinalImport(matches) {
     const selectedDate = document.getElementById('import-date').value;
     if (!selectedDate) return toast("Fecha inválida", "error");
@@ -3510,7 +3525,10 @@ function commitFinalImport(matches) {
     let log = { id: generateID(), date: selectedDate, items: [] };
 
     matches.forEach(m => {
+        // Guardar venta
         log.items.push({ rid: m.rid, n: m.n, q: m.q });
+
+        // Descontar Stock (si la receta tiene ingredientes)
         const r = db.recetas.find(x => x.id === m.rid);
         if (r && r.items) {
             r.items.forEach(it => {
@@ -3529,15 +3547,16 @@ function commitFinalImport(matches) {
     });
 
     db.sales_history.push(log);
-    save(`✅ Datos guardados`);
+    save(`✅ Procesadas ${matches.length} líneas.`);
     closeModal();
     renderAdmin(document.getElementById('app'));
 }
 
+// 6. DESHACER (POR SI ACASO)
 function undoImport(logId) {
-    if(!confirm("¿DESHACER IMPORTACIÓN Y RECUPERAR STOCK?")) return;
+    if(!confirm("⚠️ ¿DESHACER Y RECUPERAR STOCK?")) return;
     const logIndex = db.sales_history.findIndex(l => l.id === logId);
-    if (logIndex === -1) return toast("Error", "error");
+    if (logIndex === -1) return toast("Registro no encontrado", "error");
     const log = db.sales_history[logIndex];
 
     log.items.forEach(soldItem => {
@@ -3559,7 +3578,7 @@ function undoImport(logId) {
     });
 
     db.sales_history.splice(logIndex, 1);
-    save("↩ Deshecho");
+    save("↩ Importación cancelada");
     renderAdmin(document.getElementById('app'));
 }
 </script>
