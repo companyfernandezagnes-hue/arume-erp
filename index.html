@@ -3700,31 +3700,32 @@ function openEventCalendar(id) {
     window.open(url, '_blank');
 }
 /* =============================================================
-   ⚠️ MOTOR V35 MASTER: LECTOR MADISA OPTIMIZADO + PEGADO ⚠️
+   ⚠️ MOTOR V37: PRECISIÓN TOTAL (PEGADO MANUAL + EXCEL MADISA) ⚠️
    ============================================================= */
 
 let tempImportMatches = []; 
 
-// 1. LECTURA DE ARCHIVO (OPTIMIZADA PARA DIA 10.XLS)
+// ---------------------------------------------------------
+// 1. LECTURA DE ARCHIVO (MODO FRANCOTIRADOR MADISA)
+// ---------------------------------------------------------
 function safeImportSales(input) {
     const file = input.files[0];
     if (!file) return;
-    toast("⏳ Analizando estructura Madisa...", "info");
+    toast("⏳ Leyendo archivo Madisa...", "info");
     const reader = new FileReader();
-    reader.onload = e => { try { processMadisaFile(e.target.result); } catch (err) { console.error(err); toast("Error de lectura", "error"); } };
+    reader.onload = e => { try { processMadisaFileV37(e.target.result); } catch (err) { console.error(err); toast("Error de lectura", "error"); } };
     reader.readAsText(file, "ISO-8859-1"); 
     input.value = ''; 
 }
 
-function processMadisaFile(csvText) {
+function processMadisaFileV37(csvText) {
     const normalize = (str) => str ? str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim() : "";
     const lines = csvText.split(/\r?\n/);
     const rawDataMap = new Map(); 
     let detectedDate = getISO(); 
 
-    // --- A. DETECTAR FECHA (CRUCIAL PARA EL 2026) ---
+    // A. BUSCAR FECHA
     for (let i = 0; i < Math.min(lines.length, 30); i++) {
-        // Busca: Día: 10/01/2026
         const dateMatch = lines[i].match(/Día:\s*(\d{2})[\/\-](\d{2})[\/\-](\d{4})/i);
         if (dateMatch) {
             detectedDate = `${dateMatch[3]}-${dateMatch[2]}-${dateMatch[1]}`;
@@ -3732,62 +3733,149 @@ function processMadisaFile(csvText) {
         }
     }
 
-    // --- B. INDICES FIJOS (Análisis del archivo 'dia 10.xls') ---
-    // Col 3: Artículo | Col 11: Cantidad | Col 20: Importe Bruto (Total)
-    // Usamos split(',') simple porque el archivo separa con comas vacías
-    const NAME_IDX = 3; 
-    const QTY_IDX = 11; 
-    const TOTAL_IDX = 20;
+    // B. COLUMNAS FIJAS (TU ARCHIVO DIA 10.XLS)
+    // Nombre = Col 3 | Cantidad = Col 11 | Total = Col 20
+    const COL_NAME = 3; 
+    const COL_QTY = 11; 
+    const COL_TOTAL = 20;
 
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i].trim();
         if (line.length < 10) continue; 
 
-        // Split simple por comas
+        // Separamos por comas (formato CSV nativo de tu archivo)
         const cols = line.split(',');
 
-        if (cols.length > TOTAL_IDX) {
-            let rawName = cols[NAME_IDX].replace(/^"|"$/g, '').trim(); 
-            // Para cantidades y totales, quitamos comillas y espacios
-            let rawQtyStr = cols[QTY_IDX].replace(/^"|"$/g, '').trim();
-            let rawTotalStr = cols[TOTAL_IDX].replace(/^"|"$/g, '').trim();
+        if (cols.length > COL_TOTAL) {
+            let rawName = cols[COL_NAME].replace(/^"|"$/g, '').trim(); 
+            let rawQty = parseFloat(cols[COL_QTY].replace(/^"|"$/g, '').trim());
+            let rawTotal = parseFloat(cols[COL_TOTAL].replace(/^"|"$/g, '').trim());
 
-            if (rawName && rawQtyStr && rawTotalStr) {
-                // Filtros de cabecera
+            if (rawName && !isNaN(rawQty) && rawQty !== 0 && !isNaN(rawTotal)) {
                 const nLow = normalize(rawName);
+                // Filtramos cabeceras y totales
                 if (nLow.includes('articulo') || nLow.includes('total') || nLow.includes('familia')) continue;
 
-                // Parseo numérico
-                let qty = parseFloat(rawQtyStr);
-                let total = parseFloat(rawTotalStr);
-
-                if (!isNaN(qty) && qty !== 0 && !isNaN(total)) {
-                    // SUMAR DUPLICADOS (Si sale el mismo plato dos veces)
-                    if (rawDataMap.has(rawName)) {
-                        let prev = rawDataMap.get(rawName);
-                        prev.q += qty;
-                        prev.t += total;
-                    } else {
-                        rawDataMap.set(rawName, { q: qty, t: total });
-                    }
+                // AGREGADOR: Si sale 2 veces, sumamos
+                if (rawDataMap.has(rawName)) {
+                    let prev = rawDataMap.get(rawName);
+                    prev.q += rawQty;
+                    prev.t += rawTotal;
+                } else {
+                    rawDataMap.set(rawName, { q: rawQty, t: rawTotal });
                 }
             }
         }
     }
-
-    // --- C. MATCHING ---
-    const matches = []; const unknown = [];
     
-    rawDataMap.forEach((val, name) => {
-        // Calculamos Precio Unitario (Total / Cantidad)
+    finalizeProcessing(rawDataMap, detectedDate);
+}
+
+// ---------------------------------------------------------
+// 2. PEGADO MANUAL (LÓGICA INVERSA PARA PRECISIÓN)
+// ---------------------------------------------------------
+function openPasteModal() {
+    const today = getISO();
+    showModal('📋 Pegar Ventas (Modo Precisión)', `
+        <div class="mb-4 bg-indigo-50 p-3 rounded-lg border border-indigo-100">
+            <label class="text-xs font-bold text-indigo-800 uppercase block mb-1">📅 Fecha de Venta</label>
+            <input type="date" id="paste-date" value="${today}" class="bg-white border-2 border-indigo-200 rounded-lg p-2 font-black text-center text-indigo-900 w-full outline-none focus:border-indigo-500">
+        </div>
+        <label class="text-xs font-bold text-slate-500 uppercase mb-1 block">Pega aquí (Nombre... Cantidad... Total)</label>
+        <textarea id="paste-area" class="input-premium h-40 text-[10px] font-mono border-2 border-slate-200" placeholder="Ej: Agua sin gas2042.50..."></textarea>
+        <button class="btn-premium mt-3 w-full shadow-lg" onclick="processPastedTextV37()">🚀 PROCESAR TEXTO</button>
+    `);
+    setTimeout(() => document.getElementById('paste-area').focus(), 100);
+}
+
+function processPastedTextV37() {
+    const rawText = document.getElementById('paste-area').value;
+    const selectedDate = document.getElementById('paste-date').value;
+    
+    if (!rawText.trim()) return toast("Pega algo", "error");
+    if (!selectedDate) return toast("Fecha obligatoria", "error");
+
+    const rawDataMap = new Map();
+
+    // 1. Limpieza inicial
+    // Reemplazamos saltos de línea por espacios para tratarlo como un flujo continuo si hace falta,
+    // PERO primero intentamos procesar línea a línea que es más seguro.
+    let lines = rawText.split(/\n/);
+    
+    // Si solo hay una línea gigante o formato chorizo, aplicamos regex global
+    if (lines.length < 2 && rawText.length > 50) {
+        // Regex para "Chorizo": (Nombre)(Cantidad)(Total) pegados
+        // Busca: Texto + Entero + Decimal(2)
+        const regex = /(.+?)(\d+)(\d+[.,]\d{2})/g; 
+        let m;
+        while ((m = regex.exec(rawText)) !== null) {
+            addToMap(rawDataMap, m[1], m[2], m[3]);
+        }
+    } else {
+        // Procesamiento línea a línea (Más seguro)
+        lines.forEach(line => {
+            line = line.trim();
+            if(!line) return;
+            
+            // INTENTO 1: Formato Chorizo (NombreCantidadTotal)
+            // Leemos de DERECHA a IZQUIERDA
+            // El final DEBE ser un precio decimal: (\d+[.,]\d{2})$
+            // Lo anterior DEBE ser una cantidad entera: (\d+)
+            // Lo primero es el nombre: (.+?)
+            let m = line.match(/(.+?)(\d+)(\d+[.,]\d{2})$/);
+            
+            // INTENTO 2: Formato con espacios (Nombre Cantidad Total)
+            if (!m) m = line.match(/(.+?)\s+(\d+(?:[.,]\d+)?)\s+(\d+[.,]\d{2})$/);
+
+            if (m) {
+                addToMap(rawDataMap, m[1], m[2], m[3]);
+            }
+        });
+    }
+
+    if (rawDataMap.size === 0) return toast("⚠️ No reconocí los datos. Asegúrate de copiar Nombre, Cantidad y Total.", "error");
+
+    finalizeProcessing(rawDataMap, selectedDate);
+}
+
+// Auxiliar para sumar al mapa
+function addToMap(map, nameStr, qtyStr, totalStr) {
+    let name = nameStr.trim();
+    // Limpiar nombre de posibles residuos como "Total:"
+    name = name.replace(/Total:?/i, '').trim();
+    
+    let qty = parseFloat(qtyStr.replace(',', '.'));
+    let total = parseFloat(totalStr.replace(',', '.'));
+
+    if (name.length > 1 && qty > 0) {
+        if (map.has(name)) {
+            let prev = map.get(name);
+            prev.q += qty;
+            prev.t += total;
+        } else {
+            map.set(name, { q: qty, t: total });
+        }
+    }
+}
+
+// --- 3. FINALIZAR PROCESAMIENTO (CÁLCULO DE PRECIOS) ---
+function finalizeProcessing(map, dateStr) {
+    const matches = []; const unknown = [];
+    const normalize = (str) => str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+
+    map.forEach((val, name) => {
+        // CÁLCULO CLAVE: PRECIO UNITARIO = TOTAL / CANTIDAD
+        // Esto asegura que el precio de la ficha sea el de 1 unidad.
         const unitPrice = (val.q !== 0) ? Math.abs(val.t / val.q) : 0;
         
         const match = db.recetas.find(r => normalize(r.n) === normalize(name));
         
         if (match) {
             let status = 'ok'; let diffMsg = '';
+            // Si el precio varía más de 5 céntimos, avisamos
             if (unitPrice > 0 && Math.abs(match.pvp - unitPrice) > 0.05) {
-                status = 'diff'; diffMsg = `${Num.fmt(match.pvp)} vs ${Num.fmt(unitPrice)}`;
+                status = 'diff';
+                diffMsg = `${Num.fmt(match.pvp)} vs ${Num.fmt(unitPrice)}`;
             }
             matches.push({ rid: match.id, n: match.n, q: val.q, realPvp: unitPrice, status: status, diffMsg: diffMsg });
         } else {
@@ -3795,99 +3883,15 @@ function processMadisaFile(csvText) {
         }
     });
 
-    if (matches.length === 0 && unknown.length === 0) return toast("❌ No pude leer los datos. ¿Es el archivo correcto?", "error");
-
-    showImportModal(matches, unknown, detectedDate);
+    showImportModal(matches, unknown, dateStr);
 }
 
-// 2. PEGADO MANUAL CON FECHA (RECUPERADO Y MEJORADO)
-function openPasteModal() {
-    const today = getISO();
-    showModal('📋 Pegar Ventas Manual', `
-        <div class="mb-4 bg-indigo-50 p-3 rounded-lg border border-indigo-100">
-            <label class="text-xs font-bold text-indigo-800 uppercase block mb-1">📅 Fecha de Venta</label>
-            <input type="date" id="paste-date" value="${today}" class="bg-white border-2 border-indigo-200 rounded-lg p-2 font-black text-center text-indigo-900 w-full outline-none focus:border-indigo-500">
-        </div>
-        <label class="text-xs font-bold text-slate-500 uppercase mb-1 block">Pega aquí (Nombre Cantidad Total)</label>
-        <textarea id="paste-area" class="input-premium h-40 text-[10px] font-mono border-2 border-slate-200" placeholder="Ej: Agua sin gas 20 46.75"></textarea>
-        <button class="btn-premium mt-3 w-full shadow-lg" onclick="processPastedText()">🚀 PROCESAR TEXTO</button>
-    `);
-    setTimeout(() => document.getElementById('paste-area').focus(), 100);
-}
-
-function processPastedText() {
-    const rawText = document.getElementById('paste-area').value;
-    const selectedDate = document.getElementById('paste-date').value;
-    if (!rawText.trim()) return toast("Pega algo", "error");
-    if (!selectedDate) return toast("Fecha obligatoria", "error");
-
-    const matches = []; const unknown = [];
-    const normalize = (str) => str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
-
-    // Limpieza de texto (Tabulaciones y espacios)
-    let cleanText = rawText.replace(/\t/g, ' ').replace(/\s+/g, ' ');
-    
-    // Regex: (Todo menos dígitos) (Espacio) (Número) (Espacio) (Número con decimales)
-    const regex = /([^\d]+?)\s+(\d+(?:[.,]\d+)?)\s+(\d+[.,]\d{2})/g;
-    const pasteMap = new Map();
-    let m;
-
-    while ((m = regex.exec(cleanText)) !== null) {
-        let name = m[1].trim();
-        let qty = parseFloat(m[2].replace(',', '.'));     
-        let total = parseFloat(m[3].replace(',', '.'));
-        
-        if (name.length > 1 && qty > 0) {
-             if(pasteMap.has(name)) { pasteMap.get(name).q += qty; pasteMap.get(name).t += total; } 
-             else { pasteMap.set(name, { q: qty, t: total }); }
-        }
-    }
-    
-    // Fallback línea a línea si el bloque falla
-    if (pasteMap.size === 0) {
-        const lines = rawText.split(/\n/);
-        lines.forEach(l => {
-             const mLine = l.match(/(.+?)\s+(\d+(?:[.,]\d+)?)\s+(\d+[.,]\d{2})/);
-             if(mLine) {
-                 let name = mLine[1].trim(); let qty = parseFloat(mLine[2].replace(',', '.')); let total = parseFloat(mLine[3].replace(',', '.'));
-                 if(qty > 0) pasteMap.set(name, { q: qty, t: total });
-             }
-        });
-    }
-
-    if (pasteMap.size === 0) return toast("No entendí el texto.", "error");
-
-    pasteMap.forEach((val, name) => {
-        let unitPvp = (val.q > 0) ? val.t / val.q : 0;
-        matchAndPush(name, val.q, unitPvp, matches, unknown, normalize);
-    });
-
-    showImportModal(matches, unknown, selectedDate);
-}
-
-// --- RESTO IGUAL (CONFIRMACIÓN Y GUARDADO) ---
-function matchAndPush(name, qty, realPvp, matches, unknown, normalize) {
-    const searchName = normalize(name);
-    const r = db.recetas.find(rec => {
-        const recName = normalize(rec.n);
-        return searchName.includes(recName) || recName.includes(searchName);
-    });
-
-    if (r) {
-        let status = 'ok'; let diffMsg = '';
-        if (realPvp > 0 && Math.abs(r.pvp - realPvp) > 0.05) { 
-            status = 'diff'; diffMsg = `${Num.fmt(r.pvp)} vs ${Num.fmt(realPvp)}`;
-        }
-        matches.push({ rid: r.id, n: r.n, q: qty, realPvp: realPvp, status: status, diffMsg: diffMsg });
-    } else {
-        unknown.push({ n: name, q: qty, detectedPvp: realPvp });
-    }
-}
-
+// --- 4. MODAL Y GUARDADO (EL MISMO QUE FUNCIONABA BIEN) ---
 function showImportModal(matches, unknown, defaultDate) {
     tempImportMatches = matches; 
     matches.sort((a,b) => (a.status === 'diff' ? -1 : 1));
 
+    // Calcular Total Monetario para verificación visual
     const totalMoney = matches.reduce((s,m)=>s+(m.q*m.realPvp),0) + unknown.reduce((s,u)=>s+(u.q*u.detectedPvp),0);
 
     const summaryList = matches.map(m => `
@@ -3922,7 +3926,7 @@ function showImportModal(matches, unknown, defaultDate) {
         <div class="bg-orange-50 p-2 rounded-lg border border-orange-100 mb-3">
             <div class="text-[10px] font-bold text-orange-600 mb-1 uppercase">Productos Nuevos (Con Precio)</div>
             <div class="max-h-24 overflow-y-auto mb-2 bg-white/50 rounded p-1">${unknownHTML}</div>
-            <button class="btn-premium bg-gradient-to-r from-orange-400 to-orange-500 text-white w-full text-[10px] py-2 shadow-orange-200 hover:scale-105 transition" onclick='createMissingRecipesV35(${JSON.stringify(unknown)})'>
+            <button class="btn-premium bg-gradient-to-r from-orange-400 to-orange-500 text-white w-full text-[10px] py-2 shadow-orange-200 hover:scale-105 transition" onclick='createMissingRecipesV37(${JSON.stringify(unknown)})'>
                 ✨ CREAR ${unknown.length} FICHAS AUTOMÁTICAS
             </button>
         </div>` : ''}
@@ -3940,7 +3944,7 @@ function showImportModal(matches, unknown, defaultDate) {
     checkDuplicateImport(defaultDate);
 }
 
-function createMissingRecipesV35(list) {
+function createMissingRecipesV37(list) {
     if(!confirm(`¿Crear ${list.length} recetas?`)) return;
     let count = 0;
     list.forEach(item => {
@@ -3980,7 +3984,6 @@ function commitFinalImport() {
 
     let log = { id: generateID(), date: d, items: [] };
 
-    // AUTO-VIAJE AL 2026 (SI DETECTA AÑO NUEVO)
     const importYear = parseInt(d.split('-')[0]);
     if (importYear !== fiscalYear) { 
         fiscalYear = importYear; 
