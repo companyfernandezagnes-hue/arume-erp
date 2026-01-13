@@ -1613,21 +1613,28 @@ function downloadMonthCSV(monthIndex, monthName) {
     a.click();
 }
 /* =============================================================
-   ⚠️ 12. INGENIERÍA DE MENÚ (MATRIZ OMNES) ⚠️
-   ============================================================= */
-/* =============================================================
-   ⚠️ MÓDULO OMNES V5.0 (FINAL MASTER) ⚠️
-   ============================================================= */
-/* =============================================================
-   ⚠️ MÓDULO OMNES (VISUAL V14) ⚠️
+   ⚠️ VISUALIZACIÓN DOBLE: ENGINEERING + OMNES (FINAL) ⚠️
    ============================================================= */
 function renderOmnes(c) {
+    // Selector de Tiempo
+    const timeControls = `
+    <div class="flex items-center justify-between bg-slate-100 p-2 rounded-lg mb-4 border border-slate-200">
+        <div class="flex items-center gap-2">
+            <button class="w-6 h-6 flex items-center justify-center bg-white rounded shadow text-xs font-bold" onclick="fiscalYear--;renderAdmin(document.getElementById('app'))">‹</button>
+            <span class="font-black text-slate-700 text-sm tracking-widest">${fiscalYear}</span>
+            <button class="w-6 h-6 flex items-center justify-center bg-white rounded shadow text-xs font-bold" onclick="fiscalYear++;renderAdmin(document.getElementById('app'))">›</button>
+        </div>
+        <div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+            ${fiscalQuarter === 0 ? 'ANUAL' : 'TRIMESTRE ' + fiscalQuarter}
+        </div>
+    </div>`;
+
     if (!db.recetas || db.recetas.length === 0) { 
         c.innerHTML = `<div class="glass-card text-center"><h3 class="font-bold text-slate-800">No hay datos</h3><p class="text-xs text-slate-400 mb-4">Crea recetas primero.</p><button class="btn-premium" onclick="render('Cocina')">IR A COCINA</button></div>`; 
         return; 
     }
 
-    // --- CÁLCULOS MATRIZ ---
+    // --- CÁLCULOS DE DATOS ---
     let totalSold = 0, totalRev = 0, totalCost = 0;
     const salesMap = {};
     
@@ -1638,7 +1645,8 @@ function renderOmnes(c) {
         });
     });
 
-    const data = db.recetas.map(r => {
+    const activeRecetas = db.recetas.filter(r => r.pvp > 0);
+    const data = activeRecetas.map(r => {
         const cost = calcRecipe(r).t; 
         const sales = salesMap[r.id] || 0; 
         totalSold += sales;
@@ -1647,83 +1655,110 @@ function renderOmnes(c) {
         return { r, sales, cost, margin: r.pvp - cost, pvp: r.pvp };
     });
 
-    const avgMargin = totalSold > 0 ? (totalRev - totalCost) / totalSold : 0;
-    const popLimit = data.length > 0 ? (100 / data.length) * 0.7 : 0; 
+    if(data.length === 0) {
+        c.innerHTML = `<div class="glass-card text-center p-8 text-slate-400">Sin datos para analizar.</div>`;
+        return;
+    }
 
-    // --- LISTADO VISUAL ---
-    let html = data.sort((a,b) => b.sales - a.sales).map(d => {
+    // --- ANÁLISIS 1: MENU ENGINEERING (MATRIZ) ---
+    const avgMargin = totalSold > 0 ? (totalRev - totalCost) / totalSold : 0;
+    const popLimit = (100 / data.length) * 0.7; 
+
+    let htmlMatrix = data.sort((a,b) => b.sales - a.sales).map(d => {
         if (d.sales === 0) return '';
         const mix = totalSold > 0 ? (d.sales / totalSold) * 100 : 0;
+        
+        // CLASIFICACIÓN (ESTRELLAS / PERROS)
         const isPop = mix >= popLimit;
         const isRich = d.margin >= avgMargin;
         let type = isPop ? (isRich ? '🌟 ESTRELLA' : '🐎 CABALLO') : (isRich ? '🧩 PUZZLE' : '🐕 PERRO');
         let color = isPop ? (isRich ? 'border-l-4 border-yellow-400' : 'border-l-4 border-blue-400') : (isRich ? 'border-l-4 border-green-400' : 'border-l-4 border-red-400');
 
         return `
-        <div class="bg-white p-3 rounded-xl shadow-sm mb-2 flex justify-between items-center ${color}">
+        <div class="flex justify-between items-center p-2 border-b border-slate-50 last:border-0">
             <div class="flex-1">
-                <div class="font-bold text-slate-700 text-sm">${clean(d.r.n)}</div>
-                <div class="text-[10px] font-bold text-slate-400">${type}</div>
+                <div class="text-xs font-bold text-slate-700">${clean(d.r.n)}</div>
+                <div class="text-[9px] font-bold text-slate-500 mt-0.5 ${color} pl-1">${type}</div>
             </div>
             <div class="text-right">
-                <div class="font-black text-slate-800">${d.sales} <span class="text-[9px] font-normal text-slate-400">ut</span></div>
-                <div class="text-[10px] text-slate-500">Mg: ${Num.fmt(d.margin)}€</div>
+                <div class="font-black text-xs">${d.sales} ud</div>
+                <div class="text-[9px] text-slate-400">Mg: ${Num.fmt(d.margin)}€</div>
             </div>
         </div>`;
     }).join('');
 
-    // Historial de Cargas
-    const lastImports = db.sales_history.sort((a,b) => b.date.localeCompare(a.date)).slice(0, 5).map(log => `
-        <div class="flex justify-between items-center py-2 border-b border-slate-100 last:border-0 text-xs">
-            <div><div class="font-bold text-slate-700">📅 ${log.date}</div><div class="text-[9px] text-slate-400">${log.items.length} líneas</div></div>
-            <button class="text-red-500 bg-red-50 border border-red-100 px-2 py-1 rounded font-bold hover:bg-red-500 hover:text-white transition" onclick="undoImport('${log.id}')">↩ DESHACER</button>
-        </div>`).join('');
+    // --- ANÁLISIS 2: PRINCIPIOS OMNES (PRECIOS) ---
+    const prices = data.map(d => d.pvp).sort((a,b) => a - b);
+    const minP = prices[0] || 0;
+    const maxP = prices[prices.length - 1] || 0;
+    
+    // 1. Gama (Max/Min <= 3)
+    const rangeRatio = minP > 0 ? maxP / minP : 0;
+    const p1Check = rangeRatio <= 3; 
 
-    // RENDERIZADO
+    // 2. Curva (Grupo Medio > Otros)
+    const range = (maxP - minP) / 3;
+    const limitLow = minP + range;
+    const limitHigh = minP + (range * 2);
+    const groupLow = data.filter(d => d.pvp < limitLow).length;
+    const groupMid = data.filter(d => d.pvp >= limitLow && d.pvp < limitHigh).length;
+    const groupHigh = data.filter(d => d.pvp >= limitHigh).length;
+    const p2Check = groupMid >= (groupLow + groupHigh); 
+
+    // 3. Demanda (Solicitado / Ofertado ~ 1)
+    const avgOffered = prices.length > 0 ? prices.reduce((a,b)=>a+b,0) / prices.length : 0;
+    const avgDemanded = totalSold > 0 ? totalRev / totalSold : 0;
+    const demandRatio = avgOffered > 0 ? avgDemanded / avgOffered : 0;
+    const p3Check = demandRatio >= 0.9 && demandRatio <= 1.0;
+
+    // --- RENDERIZADO ---
     c.innerHTML = `
     <div class="flex justify-between items-center mb-4">
-        <h3 class="font-bold text-slate-800">MATRIZ OMNES</h3>
+        <h3 class="font-bold text-slate-800">ANÁLISIS DE VENTAS</h3>
         <div class="flex gap-2">
-            <label class="btn-ghost w-auto px-3 py-1 text-[10px] cursor-pointer flex items-center gap-1 border border-slate-300 bg-white hover:bg-slate-50">
+            <label class="btn-ghost w-auto px-3 py-1 text-[10px] cursor-pointer flex items-center gap-1 border border-slate-300 bg-white">
                 <span>📂 ARCHIVO</span>
                 <input type="file" id="sales-csv-input" accept=".csv,.txt,.xls,.xlsx" class="hidden" onchange="safeImportSales(this)">
             </label>
-            <button class="btn-premium w-auto px-3 py-1 text-xs shadow-indigo-200 bg-indigo-600 text-white" onclick="openPasteModal()">
-                📋 PEGAR TEXTO
-            </button>
+            <button class="btn-premium w-auto px-3 py-1 text-xs shadow-indigo-200 bg-indigo-600 text-white" onclick="openPasteModal()">📋 PEGAR</button>
         </div>
     </div>
     
-    <div class="grid grid-cols-2 gap-2 mb-4 text-center">
-        <div class="bg-slate-50 p-2 rounded-lg"><div class="text-[10px] text-slate-400">Margen Medio</div><div class="font-bold">${Num.fmt(avgMargin)}€</div></div>
-        <div class="bg-slate-50 p-2 rounded-lg"><div class="text-[10px] text-slate-400">Ticket Medio</div><div class="font-bold">${totalSold > 0 ? Num.fmt(totalRev/totalSold) : 0}€</div></div>
-    </div>
-    
-    <div class="space-y-1 mb-6">
-        ${html || '<div class="text-center p-8 border-2 border-dashed border-slate-200 rounded-xl text-slate-400 bg-slate-50">Sin ventas registradas.<br>Usa los botones de arriba.</div>'}
+    ${timeControls}
+
+    <div class="glass-card mb-4 border-t-4 border-indigo-500">
+        <div class="flex justify-between items-center mb-2">
+            <h4 class="text-xs font-black text-indigo-800 uppercase tracking-widest">🧩 Menu Engineering</h4>
+            <span class="text-[9px] bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded font-bold">Rentabilidad</span>
+        </div>
+        <div class="max-h-60 overflow-y-auto custom-scrollbar bg-white rounded-xl border border-slate-100 p-1">
+            ${htmlMatrix || '<div class="p-4 text-center text-xs text-slate-300">Sube ventas para ver la matriz</div>'}
+        </div>
     </div>
 
-    ${lastImports ? `<div class="glass-card border-t-4 border-slate-300"><h4 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">🛠️ Historial de Cargas</h4>${lastImports}</div>` : ''}
+    <div class="glass-card border-t-4 border-orange-500">
+        <div class="flex justify-between items-center mb-3">
+            <h4 class="text-xs font-black text-orange-800 uppercase tracking-widest">⚖️ Principios Omnes</h4>
+            <span class="text-[9px] bg-orange-100 text-orange-600 px-2 py-0.5 rounded font-bold">Precios</span>
+        </div>
+
+        <div class="space-y-2">
+            <div class="flex justify-between items-center text-xs border-b border-slate-100 pb-1">
+                <span class="text-slate-600">1. Amplitud Gama (Max/Min)</span>
+                <span class="font-bold ${p1Check ? 'text-emerald-500' : 'text-red-500'}">${rangeRatio.toFixed(2)} (Ideal < 3)</span>
+            </div>
+            <div class="flex justify-between items-center text-xs border-b border-slate-100 pb-1">
+                <span class="text-slate-600">2. Curva Precios (Media)</span>
+                <span class="font-bold ${p2Check ? 'text-emerald-500' : 'text-red-500'}">${p2Check ? '✅ Equilibrada' : '⚠️ Desviada'}</span>
+            </div>
+            <div class="flex justify-between items-center text-xs">
+                <span class="text-slate-600">3. Calidad/Precio</span>
+                <span class="font-bold ${p3Check ? 'text-emerald-500' : 'text-red-500'}">${demandRatio.toFixed(2)} (Ideal ≈ 1)</span>
+            </div>
+        </div>
+    </div>
     `;
 }
-function editSales() {
-    // Modal rápido para introducir ventas del día
-    if (!db.recetas.length) return toast("No hay recetas", "error");
-    const list = db.recetas.map(r => `
-        <div class="flex justify-between items-center py-2 border-b">
-            <span class="text-sm font-medium w-1/2">${clean(r.n)}</span>
-            <input type="number" min="0" placeholder="0" id="sale-${r.id}" class="bg-slate-50 border rounded-lg w-20 text-center py-2 font-bold focus:bg-white outline-none">
-        </div>`).join('');
-        
-    showModal('Registro de Ventas', `
-        <div class="bg-blue-50 p-3 rounded-lg text-blue-800 text-xs mb-4">
-            Introduce las ventas de hoy para descontar stock y calcular Omnes.
-        </div>
-        <div class="max-h-[50vh] overflow-y-auto pr-1 mb-4">${list}</div>
-        <button class="btn-premium btn-action" onclick="commitSales()">PROCESAR Y GUARDAR</button>
-    `);
-}
-
 function commitSales() {
     let log = { id: generateID(), date: getTS(), items: [] };
     let hasData = false;
@@ -3314,18 +3349,29 @@ function openEventCalendar(id) {
     window.open(url, '_blank');
 }
 /* =============================================================
-   ⚠️ MOTOR V13: ARCHIVO + PEGADO INTELIGENTE (MADISA) ⚠️
+   ⚠️ MOTOR V16: ARCHIVO + PEGADO + TIME TRAVEL + ROBUST MATCH ⚠️
    ============================================================= */
 
-// --- A. LÓGICA DE ARCHIVOS (EXCEL / CSV) ---
+// Variable global de seguridad para evitar fallos de memoria
+let tempImportMatches = []; 
+
+// --- A. LÓGICA DE ARCHIVOS (LECTURA MADISA) ---
 function safeImportSales(input) {
     const file = input.files[0];
     if (!file) return;
-    toast("⏳ Leyendo archivo...", "info");
+    
+    toast("⏳ Analizando archivo...", "info");
     const reader = new FileReader();
     
-    // Leemos en ISO-8859-1 para respetar las Ñ y tildes del Excel antiguo
-    reader.onload = e => { try { processSalesFileContent(e.target.result); } catch (err) { toast("Error lectura", "error"); } };
+    // Leemos en formato Windows-1252 para que las tildes del Excel antiguo salgan bien
+    reader.onload = e => { 
+        try { 
+            processSalesFileContent(e.target.result); 
+        } catch (err) { 
+            console.error(err);
+            toast("❌ Error leyendo archivo", "error"); 
+        } 
+    };
     reader.readAsText(file, "ISO-8859-1"); 
     input.value = ''; 
 }
@@ -3333,59 +3379,59 @@ function safeImportSales(input) {
 function processSalesFileContent(csvText) {
     const normalize = (str) => str ? str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim() : "";
     const lines = csvText.split(/\r?\n/);
-    const matches = []; const unknown = [];
+    const matches = []; 
+    const unknown = [];
     let detectedDate = getISO(); 
 
-    // ESTRUCTURA ESTÁNDAR MADISA (Col 3 = Nombre, Col 11 = Cantidad)
-    let nameIdx = 3; 
-    let qtyIdx = 11; 
-    let headerFound = false;
+    // ESTRUCTURA FIJA MADISA (Columna 3 = Nombre, Columna 11 = Cantidad)
+    // Basado en tus archivos 'dia 10.xls' y 'dia 12.xls'
+    const NAME_IDX = 3; 
+    const QTY_IDX = 11; 
 
-    // FASE 1: Buscar Fecha y confirmar columnas
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
         
-        // Buscar Fecha (Día: DD/MM/YYYY)
+        // 1. Detectar Fecha (Ej: "Día: 10/01/2026")
         const dateMatch = line.match(/Día:\s*(\d{2})[\/\-](\d{2})[\/\-](\d{4})/i);
-        if (dateMatch) detectedDate = `${dateMatch[3]}-${dateMatch[2]}-${dateMatch[1]}`;
-
-        // Buscar Cabeceras
-        if (!headerFound) {
-            const cols = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
-            cols.forEach((col, idx) => {
-                const txt = normalize(col.replace(/"/g, ''));
-                if (txt.includes('articulo')) nameIdx = idx;
-                if (txt === 'cantidad' || txt === 'cant') { qtyIdx = idx; headerFound = true; }
-            });
+        if (dateMatch) {
+            // Convertimos a formato ISO (YYYY-MM-DD) para el sistema
+            detectedDate = `${dateMatch[3]}-${dateMatch[2]}-${dateMatch[1]}`;
         }
-    }
 
-    // FASE 2: Leer Datos
-    for (let i = 0; i < lines.length; i++) {
-        const line = lines[i];
-        if (line.length < 5) continue; 
+        // 2. Extraer Datos
+        if (line.length < 5) continue; // Saltar líneas vacías
+
+        // Separamos por comas pero respetando comillas (ej: "San Miguel 0,0")
         const cols = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
 
-        if (cols.length > qtyIdx) {
-            let rawName = cols[nameIdx] ? cols[nameIdx].replace(/^"|"$/g, '').trim() : "";
-            let rawQty = cols[qtyIdx] ? cols[qtyIdx].replace(/^"|"$/g, '').replace(',', '.').trim() : "0";
+        if (cols.length > QTY_IDX) {
+            // Limpiamos comillas extra
+            let rawName = cols[NAME_IDX].replace(/^"|"$/g, '').trim(); 
+            let rawQty = cols[QTY_IDX].replace(/^"|"$/g, '').replace(',', '.').trim();
             let qty = parseFloat(rawQty);
 
+            // Filtro de calidad (evitar basura y cabeceras)
             if (rawName.length > 1 && !isNaN(qty) && qty !== 0 && Math.abs(qty) < 5000) {
                 const searchName = normalize(rawName);
+                // Palabras prohibidas (cabeceras del Excel)
                 if (['articulo','cantidad','total','familia','importe'].some(b => searchName.includes(b))) continue;
                 
                 matchAndPush(rawName, qty, matches, unknown, normalize);
             }
         }
     }
+
+    if (matches.length === 0 && unknown.length === 0) {
+        return toast("❌ No encontré datos válidos. Revisa el archivo.", "error");
+    }
+
     showImportModal(matches, unknown, detectedDate);
 }
 
 // --- B. LÓGICA DE PEGADO (TEXTO SUCIO) ---
 function openPasteModal() {
-    showModal('📋 Pegar Ventas (Madisa)', `
-        <p class="text-xs text-slate-500 mb-2">Copia la tabla de Madisa (Ctrl+C) y pégala aquí abajo (Ctrl+V):</p>
+    showModal('📋 Pegar Ventas', `
+        <p class="text-xs text-slate-500 mb-2">Pega aquí el texto de Madisa (Ctrl+V):</p>
         <textarea id="paste-area" class="input-premium h-40 text-[10px] font-mono" placeholder="Ej: Agua sin gas20..."></textarea>
         <button class="btn-premium mt-3 w-full shadow-lg" onclick="processPastedText()">🚀 PROCESAR TEXTO</button>
     `);
@@ -3399,35 +3445,33 @@ function processPastedText() {
     const matches = []; const unknown = [];
     const normalize = (str) => str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
 
-    // Limpieza previa: separar "chorizo" si viene pegado (Agua20Cola3)
-    let cleanText = rawText.replace(/(\d+)([A-ZÁÉÍÓÚÑ])/g, "$1\n$2");
-    const lines = cleanText.split('\n');
+    // Limpieza "Agua20" -> "Agua\n20" (si viene pegado)
+    let cleanText = rawText.replace(/(\d+)([A-ZÁÉÍÓÚÑ])/g, "$1\n$2"); 
+    cleanText = cleanText.replace(/ArtículoCantidad Total/gi, ''); 
 
-    lines.forEach(line => {
-        // Regex: (Texto cualquiera) + (Número al final)
-        const m = line.match(/(.+?)(\d+(?:[.,]\d+)?)$/);
-        if (m) {
-            let name = m[1].trim();
-            let qty = parseFloat(m[2].replace(',', '.'));
+    // Regex: Busca (Texto) seguido de (Número) al final de línea
+    const regex = /([^\d\n]+)(\d+(?:[.,]\d+)?)/g;
+    let m;
+    while ((m = regex.exec(cleanText)) !== null) {
+        let name = m[1].trim();
+        let qty = parseFloat(m[2].replace(',', '.'));
+        name = name.replace(/Total:/gi, '').trim(); 
 
-            // Limpiar cabeceras pegadas accidentalmente
-            name = name.replace(/ArtículoCantidad Total/gi, '').replace(/Total:/gi, '').trim();
-
-            if (name.length > 2 && qty > 0) {
-                matchAndPush(name, qty, matches, unknown, normalize);
-            }
+        if (name.length > 2 && qty > 0) {
+            matchAndPush(name, qty, matches, unknown, normalize);
         }
-    });
+    }
 
-    if (matches.length === 0 && unknown.length === 0) return toast("❌ No entendí el texto.", "error");
+    if (matches.length === 0 && unknown.length === 0) return toast("❌ No detecté datos.", "error");
     
+    // Usamos fecha de hoy por defecto en pegado manual
     showImportModal(matches, unknown, getISO());
 }
 
-// --- C. LÓGICA COMÚN: VINCULAR Y GUARDAR ---
+// --- C. LOGICA COMÚN (VINCULAR, CREAR, GUARDAR) ---
 function matchAndPush(name, qty, matches, unknown, normalize) {
     const searchName = normalize(name);
-    // Búsqueda Inteligente (A contiene B o B contiene A)
+    // Búsqueda inteligente bidireccional
     const r = db.recetas.find(rec => {
         const recName = normalize(rec.n);
         return searchName.includes(recName) || recName.includes(searchName);
@@ -3438,9 +3482,11 @@ function matchAndPush(name, qty, matches, unknown, normalize) {
 }
 
 function showImportModal(matches, unknown, defaultDate) {
+    tempImportMatches = matches; // Guardar en memoria global
+
     const summaryList = matches.map(m => 
         `<div class="flex justify-between text-xs py-1 border-b border-slate-50">
-            <span class="truncate w-2/3 font-medium text-slate-700">${m.n}</span>
+            <span class="truncate w-2/3 text-slate-700">${m.n}</span>
             <span class="font-bold text-indigo-600 bg-indigo-50 px-2 rounded">${m.q}</span>
          </div>`
     ).join('');
@@ -3451,32 +3497,32 @@ function showImportModal(matches, unknown, defaultDate) {
          </div>`
     ).join('');
 
-    showModal('📥 Confirmar Datos', `
+    showModal('📥 Confirmar Importación', `
         <div class="bg-indigo-50 p-3 rounded-lg mb-4 text-center border border-indigo-100">
-            <label class="text-xs font-bold text-indigo-800 uppercase block mb-1">📅 Fecha</label>
-            <input type="date" id="import-date" value="${defaultDate}" class="bg-white border-2 border-indigo-200 rounded-lg p-2 text-center font-bold text-indigo-900 w-full outline-none focus:border-indigo-500" onchange="checkDuplicateImport(this.value)">
-            <div id="dup-warning" class="hidden mt-2 text-[10px] bg-red-100 text-red-600 p-1 rounded font-bold animate-pulse">⚠️ YA EXISTEN DATOS ESTE DÍA</div>
+            <label class="text-xs font-bold text-indigo-800 uppercase block mb-1">📅 Fecha Venta</label>
+            <input type="date" id="import-date" value="${defaultDate}" class="bg-white border-2 border-indigo-200 rounded-lg p-2 text-center font-bold text-indigo-900 w-full outline-none" onchange="checkDuplicateImport(this.value)">
+            <div id="dup-warning" class="hidden mt-2 text-[10px] bg-red-100 text-red-600 p-1 rounded font-bold animate-pulse">⚠️ DÍA YA REGISTRADO</div>
         </div>
 
         <div class="grid grid-cols-2 gap-2 text-center mb-2">
-            <div class="text-xs font-bold text-emerald-600 border-b-2 border-emerald-100 pb-1">✅ ${matches.length} VINCULADOS</div>
-            <div class="text-xs font-bold text-orange-500 border-b-2 border-orange-100 pb-1">⚠️ ${unknown.length} NUEVOS</div>
+            <div class="text-xs font-bold text-emerald-600 border-b-2 border-emerald-100">✅ ${matches.length} CASADOS</div>
+            <div class="text-xs font-bold text-orange-500 border-b-2 border-orange-100">⚠️ ${unknown.length} NUEVOS</div>
         </div>
         
         <div class="bg-white border border-slate-200 rounded-lg p-2 max-h-32 overflow-y-auto custom-scrollbar shadow-inner mb-2">
-            ${summaryList || '<div class="text-center text-slate-300 text-xs italic p-2">Nada vinculado.</div>'}
+            ${summaryList || '<div class="text-center text-slate-300 text-xs">Nada vinculado.</div>'}
         </div>
 
         ${unknown.length > 0 ? `
-        <div class="bg-orange-50 p-3 rounded-xl border border-orange-100 mb-4 animate-fade-in">
-            <div class="text-[10px] font-bold text-orange-600 uppercase mb-2">No existen en Cocina:</div>
+        <div class="bg-orange-50 p-3 rounded-xl border border-orange-100 mb-4">
+            <div class="text-[10px] font-bold text-orange-600 uppercase mb-2">Faltan en Cocina:</div>
             <div class="max-h-20 overflow-y-auto custom-scrollbar mb-3 bg-white/50 rounded p-1">${unknownHTML}</div>
-            <button class="btn-premium bg-gradient-to-r from-orange-400 to-orange-500 text-white w-full text-[10px] shadow-orange-200 hover:scale-105 transition" onclick='createMissingRecipes(${JSON.stringify(unknown)})'>✨ CREAR ESTAS ${unknown.length} FICHAS AUTO</button>
+            <button class="btn-premium bg-gradient-to-r from-orange-400 to-orange-500 text-white w-full text-[10px] shadow-orange-200 hover:scale-105 transition" onclick='createMissingRecipes(${JSON.stringify(unknown)})'>✨ CREAR FICHAS AUTO</button>
         </div>` : ''}
         
         <div class="flex gap-2">
             <button class="btn-ghost" onclick="closeModal()">Cancelar</button>
-            <button class="btn-premium flex-1 shadow-xl" onclick='commitFinalImport(${JSON.stringify(matches)})'>🚀 PROCESAR</button>
+            <button class="btn-premium flex-1 shadow-xl" onclick="commitFinalImport()">🚀 PROCESAR Y GUARDAR</button>
         </div>
     `);
     checkDuplicateImport(defaultDate);
@@ -3486,6 +3532,7 @@ function createMissingRecipes(list) {
     if(!confirm(`¿Crear ${list.length} fichas nuevas?`)) return;
     let count = 0;
     list.forEach(item => {
+        // Evitamos duplicados
         if(!db.recetas.find(r => r.n === item.n)) {
             db.recetas.push({ id: generateID(), n: item.n, pvp: 0, items: [], yield: 1, unit: 'ud', time: 0 });
             count++;
@@ -3494,7 +3541,7 @@ function createMissingRecipes(list) {
     save(`Creadas ${count} recetas ✅`);
     closeModal();
     renderAdmin(document.getElementById('app'));
-    toast("¡Hecho! Vuelve a procesar.", "success");
+    toast("Recetas creadas. Vuelve a importar.", "success");
 }
 
 function checkDuplicateImport(dateStr) {
@@ -3502,13 +3549,31 @@ function checkDuplicateImport(dateStr) {
     if(w) db.sales_history.some(l => l.date === dateStr) ? w.classList.remove('hidden') : w.classList.add('hidden');
 }
 
-function commitFinalImport(matches) {
+// --- GUARDIÁN FINAL (CON TIME TRAVEL) ---
+function commitFinalImport() {
     const d = document.getElementById('import-date').value;
     if (!d) return toast("Fecha inválida", "error");
+    
+    // Leemos de la variable global (más seguro)
+    const matches = tempImportMatches; 
+    
+    if (!matches || matches.length === 0) return toast("No hay datos para guardar", "error");
+
     let log = { id: generateID(), date: d, items: [] };
 
+    // 🕒 AUTO-CORRECCIÓN DE AÑO FISCAL
+    // Si la venta es de 2026, la app cambia al año 2026 automáticamente
+    const importYear = parseInt(d.split('-')[0]);
+    if (importYear !== fiscalYear) {
+        fiscalYear = importYear;
+        toast(`📅 Cambiando vista al año ${importYear}...`, "info");
+    }
+
     matches.forEach(m => {
+        // Guardamos registro de venta
         log.items.push({ rid: m.rid, n: m.n, q: m.q });
+
+        // Descontamos Stock
         const r = db.recetas.find(x => x.id === m.rid);
         if (r && r.items) {
             r.items.forEach(it => {
@@ -3524,14 +3589,16 @@ function commitFinalImport(matches) {
             });
         }
     });
+
     db.sales_history.push(log);
-    save(`✅ Ventas procesadas`);
+    save(`✅ Guardado correctamente`);
     closeModal();
     renderAdmin(document.getElementById('app'));
 }
 
+// Función Deshacer (Misma de siempre)
 function undoImport(logId) {
-    if(!confirm("⚠️ ¿DESHACER Y RECUPERAR STOCK?")) return;
+    if(!confirm("⚠️ ¿DESHACER CARGA Y RECUPERAR STOCK?")) return;
     const idx = db.sales_history.findIndex(l => l.id === logId);
     if (idx === -1) return toast("Error", "error");
     const log = db.sales_history[idx];
