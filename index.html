@@ -1615,11 +1615,8 @@ function downloadMonthCSV(monthIndex, monthName) {
 /* =============================================================
    ⚠️ VISUALIZACIÓN DOBLE: ENGINEERING + OMNES (FINAL) ⚠️
    ============================================================= */
-/* =============================================================
-   ⚠️ BLOQUE 1: PANTALLA DE ANÁLISIS (V19 - COMPLETA) ⚠️
-   ============================================================= */
 function renderOmnes(c) {
-    // 1. CONTROL DE TIEMPO (Vital para ver datos de 2026)
+    // Selector de Tiempo (Para no perderse si subes datos de 2026)
     const timeControls = `
     <div class="flex items-center justify-between bg-slate-100 p-2 rounded-lg mb-4 border border-slate-200">
         <div class="flex items-center gap-2">
@@ -1637,11 +1634,11 @@ function renderOmnes(c) {
         return; 
     }
 
-    // --- 2. CÁLCULOS DE DATOS ---
+    // --- CÁLCULOS ---
     let totalSold = 0, totalRev = 0, totalCost = 0;
     const salesMap = {};
     
-    // Filtramos solo las ventas del año/trimestre seleccionado
+    // Filtramos ventas del año seleccionado
     db.sales_history.filter(log => isInPeriod(log.date)).forEach(log => {
         log.items.forEach(it => {
             const rid = it.rid || db.recetas.find(r => r.n === it.n)?.id;
@@ -1659,32 +1656,13 @@ function renderOmnes(c) {
         return { r, sales, cost, margin: r.pvp - cost, pvp: r.pvp };
     });
 
-    if(data.length === 0) {
-        c.innerHTML = `
-        <div class="flex justify-between items-center mb-4"><h3 class="font-bold text-slate-800">ANÁLISIS</h3></div>
-        ${timeControls}
-        <div class="glass-card text-center p-8 text-slate-400">
-            <p>No hay ventas registradas en ${fiscalYear}.</p>
-            <p class="text-xs mt-2">Sube un archivo o pega las ventas abajo.</p>
-        </div>
-        <div class="flex gap-2 mt-4">
-            <label class="btn-ghost w-auto px-3 py-1 text-[10px] cursor-pointer flex items-center gap-1 border border-slate-300 bg-white">
-                <span>📂 ARCHIVO</span>
-                <input type="file" id="sales-csv-input" accept=".csv,.txt,.xls,.xlsx" class="hidden" onchange="safeImportSales(this)">
-            </label>
-            <button class="btn-premium w-auto px-3 py-1 text-xs shadow-indigo-200 bg-indigo-600 text-white" onclick="openPasteModal()">📋 PEGAR</button>
-        </div>`;
-        return;
-    }
-
-    // --- 3. ANÁLISIS 1: INGENIERÍA DE MENÚ (MATRIZ) ---
+    // --- 1. MATRIZ ENGINEERING (ESTRELLAS/PERROS) ---
     const avgMargin = totalSold > 0 ? (totalRev - totalCost) / totalSold : 0;
     const popLimit = (100 / data.length) * 0.7; 
 
     let htmlMatrix = data.sort((a,b) => b.sales - a.sales).map(d => {
         if (d.sales === 0) return '';
         const mix = totalSold > 0 ? (d.sales / totalSold) * 100 : 0;
-        
         const isPop = mix >= popLimit;
         const isRich = d.margin >= avgMargin;
         let type = isPop ? (isRich ? '🌟 ESTRELLA' : '🐎 CABALLO') : (isRich ? '🧩 PUZZLE' : '🐕 PERRO');
@@ -1694,7 +1672,7 @@ function renderOmnes(c) {
         <div class="flex justify-between items-center p-2 border-b border-slate-50 last:border-0">
             <div class="flex-1">
                 <div class="text-xs font-bold text-slate-700">${clean(d.r.n)}</div>
-                <div class="text-[9px] font-bold text-slate-400 border-l-4 ${color} pl-1">${type}</div>
+                <div class="text-[9px] font-bold text-slate-500 mt-0.5 border-l-4 ${color} pl-1">${type}</div>
             </div>
             <div class="text-right">
                 <div class="font-black text-xs">${d.sales} ud</div>
@@ -1703,7 +1681,7 @@ function renderOmnes(c) {
         </div>`;
     }).join('');
 
-    // --- 4. ANÁLISIS 2: PRINCIPIOS OMNES (PRECIOS) ---
+    // --- 2. PRINCIPIOS OMNES (AUDITORÍA PRECIOS) ---
     const prices = data.map(d => d.pvp).sort((a,b) => a - b);
     const minP = prices[0] || 0;
     const maxP = prices[prices.length - 1] || 0;
@@ -1727,17 +1705,7 @@ function renderOmnes(c) {
     const demandRatio = avgOffered > 0 ? avgDemanded / avgOffered : 0;
     const p3Check = demandRatio >= 0.9 && demandRatio <= 1.0;
 
-    // --- 5. HISTORIAL DE CARGAS (SEGURIDAD) ---
-    const lastImports = db.sales_history.sort((a,b) => b.date.localeCompare(a.date)).slice(0, 5).map(log => `
-        <div class="flex justify-between items-center py-2 border-b border-slate-100 last:border-0 text-xs">
-            <div>
-                <div class="font-bold text-slate-700">📅 ${log.date}</div>
-                <div class="text-[9px] text-slate-400">${log.items.length} productos procesados</div>
-            </div>
-            <button class="text-red-500 bg-red-50 border border-red-100 px-2 py-1 rounded font-bold hover:bg-red-500 hover:text-white transition" onclick="undoImport('${log.id}')">↩ DESHACER</button>
-        </div>`).join('');
-
-    // --- RENDERIZADO FINAL ---
+    // --- RENDERIZADO ---
     c.innerHTML = `
     <div class="flex justify-between items-center mb-4">
         <h3 class="font-bold text-slate-800">ANÁLISIS DE VENTAS</h3>
@@ -1756,10 +1724,6 @@ function renderOmnes(c) {
         <div class="flex justify-between items-center mb-2">
             <h4 class="text-xs font-black text-indigo-800 uppercase tracking-widest">🧩 Matriz Ingeniería</h4>
             <span class="text-[9px] bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded font-bold">Rentabilidad</span>
-        </div>
-        <div class="grid grid-cols-2 gap-2 mb-2 text-center">
-            <div class="bg-slate-50 p-2 rounded"><div class="text-[9px] text-slate-400">Margen Medio</div><div class="font-bold text-xs">${Num.fmt(avgMargin)}€</div></div>
-            <div class="bg-slate-50 p-2 rounded"><div class="text-[9px] text-slate-400">Ticket Medio</div><div class="font-bold text-xs">${Num.fmt(avgDemanded)}€</div></div>
         </div>
         <div class="max-h-60 overflow-y-auto custom-scrollbar bg-white rounded-xl border border-slate-100 p-1">
             ${htmlMatrix || '<div class="p-4 text-center text-xs text-slate-300">Sube ventas para ver la matriz</div>'}
@@ -1787,8 +1751,6 @@ function renderOmnes(c) {
             </div>
         </div>
     </div>
-
-    ${lastImports ? `<div class="glass-card border-t-4 border-slate-300 mt-4"><h4 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">🛠️ Historial de Cargas</h4>${lastImports}</div>` : ''}
     `;
 }
 function commitSales() {
@@ -3381,13 +3343,12 @@ function openEventCalendar(id) {
     window.open(url, '_blank');
 }
 /* =============================================================
-   ⚠️ BLOQUE 2: MOTOR V19 "AUDITOR" (IMPORTACIÓN + AUDITORÍA) ⚠️
+   ⚠️ BLOQUE 2: MOTOR V20 "AUDITOR" (TEXTO SUCIO + PRECIOS REALES) ⚠️
    ============================================================= */
 
-// Variable de memoria global (evita fallos al pulsar botones)
 let tempImportMatches = []; 
 
-// 1. LECTURA DE ARCHIVO (Lee Nombre, Cantidad y PRECIO TOTAL)
+// 1. LECTURA DE ARCHIVO (EXCEL)
 function safeImportSales(input) {
     const file = input.files[0];
     if (!file) return;
@@ -3404,15 +3365,11 @@ function processSalesFileContent(csvText) {
     const matches = []; const unknown = [];
     let detectedDate = getISO(); 
 
-    // COLUMNAS FIJAS MADISA
-    const NAME_IDX = 3; 
-    const QTY_IDX = 11; 
-    const TOTAL_IDX = 15; // <-- CLAVE: Columna del Importe Total (€)
+    // COLUMNAS MADISA
+    const NAME_IDX = 3; const QTY_IDX = 11; const TOTAL_IDX = 15;
 
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
-        
-        // 1. Detectar Fecha
         const dateMatch = line.match(/Día:\s*(\d{2})[\/\-](\d{2})[\/\-](\d{4})/i);
         if (dateMatch) detectedDate = `${dateMatch[3]}-${dateMatch[2]}-${dateMatch[1]}`;
 
@@ -3422,20 +3379,16 @@ function processSalesFileContent(csvText) {
         if (cols.length > QTY_IDX) {
             let rawName = cols[NAME_IDX].replace(/^"|"$/g, '').trim(); 
             let rawQty = parseFloat(cols[QTY_IDX].replace(/^"|"$/g, '').replace(',', '.').trim());
-            
-            // Leemos el total para calcular el precio real
+            // Intenta leer total para sacar precio unitario
             let rawTotal = 0;
-            if (cols.length > TOTAL_IDX) {
-                rawTotal = parseFloat(cols[TOTAL_IDX].replace(/^"|"$/g, '').replace(',', '.').trim());
-            }
+            if(cols.length > TOTAL_IDX) rawTotal = parseFloat(cols[TOTAL_IDX].replace(/^"|"$/g, '').replace(',', '.').trim());
 
             if (rawName.length > 1 && !isNaN(rawQty) && rawQty !== 0 && Math.abs(rawQty) < 5000) {
                 const searchName = normalize(rawName);
                 if (['articulo','cantidad','total','familia','importe'].some(b => searchName.includes(b))) continue;
                 
-                // Precio unitario detectado en la caja
-                const realUnitPvp = (rawQty !== 0) ? Math.abs(rawTotal / rawQty) : 0;
-
+                // Precio Unitario Real
+                const realUnitPvp = (rawQty !== 0 && rawTotal !== 0) ? Math.abs(rawTotal / rawQty) : 0;
                 matchAndPush(rawName, rawQty, realUnitPvp, matches, unknown, normalize);
             }
         }
@@ -3443,7 +3396,7 @@ function processSalesFileContent(csvText) {
     showImportModal(matches, unknown, detectedDate);
 }
 
-// 2. PEGADO MANUAL (Simplificado)
+// 2. PEGADO MANUAL (DETECTIVE DE TEXTO SUCIO)
 function openPasteModal() {
     showModal('📋 Pegar Ventas', `
         <p class="text-xs text-slate-500 mb-2">Pega aquí el texto de Madisa:</p>
@@ -3452,28 +3405,36 @@ function openPasteModal() {
     `);
     setTimeout(() => document.getElementById('paste-area').focus(), 100);
 }
+
 function processPastedText() {
     const rawText = document.getElementById('paste-area').value;
     if (!rawText.trim()) return toast("Pega algo", "error");
     const matches = []; const unknown = [];
     const normalize = (str) => str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
 
+    // Limpieza inteligente: Separa "Agua20" -> "Agua" "20"
     let cleanText = rawText.replace(/(\d+)([A-ZÁÉÍÓÚÑ])/g, "$1\n$2").replace(/ArtículoCantidad Total/gi, '');
-    const regex = /([^\d\n]+)(\d+(?:[.,]\d+)?)/g;
+
+    // REGEX DE FRANCOTIRADOR: (Nombre) (Cantidad > 0) (Precio Unitario)
+    // El precio suele llevar decimales o ser 0.00
+    const regex = /(.+?)([1-9]\d*)(\d+[.,]\d{2})/g;
+    
     let m;
     while ((m = regex.exec(cleanText)) !== null) {
         let name = m[1].trim().replace(/Total:/gi, '').trim();
-        let qty = parseFloat(m[2].replace(',', '.'));
+        let qty = parseFloat(m[2]);
+        let pvp = parseFloat(m[3].replace(',', '.')); // El texto pegado suele ser PRECIO UNITARIO, no total.
+
         if (name.length > 2 && qty > 0) {
-            // En pegado no tenemos precio total fiable, asumimos 0 para auditoría
-            matchAndPush(name, qty, 0, matches, unknown, normalize);
+            matchAndPush(name, qty, pvp, matches, unknown, normalize);
         }
     }
-    if (matches.length === 0 && unknown.length === 0) return toast("Sin datos", "error");
+
+    if (matches.length === 0 && unknown.length === 0) return toast("Formato no reconocido.", "error");
     showImportModal(matches, unknown, getISO());
 }
 
-// --- LÓGICA DE AUDITORÍA (MATCHING) ---
+// --- C. AUDITORÍA Y MATCHING ---
 function matchAndPush(name, qty, realPvp, matches, unknown, normalize) {
     const searchName = normalize(name);
     const r = db.recetas.find(rec => {
@@ -3482,34 +3443,35 @@ function matchAndPush(name, qty, realPvp, matches, unknown, normalize) {
     });
 
     if (r) {
-        // DETECTOR DE PRECIOS DIFERENTES
+        // AUDITORÍA: ¿Coincide el precio de la caja con el de la App?
         let status = 'ok';
         let diffMsg = '';
-        if (realPvp > 0 && Math.abs(r.pvp - realPvp) > 0.10) {
+        if (realPvp > 0 && Math.abs(r.pvp - realPvp) > 0.05) { // Margen de 5 céntimos
             status = 'diff';
-            diffMsg = `(App: ${Num.fmt(r.pvp)}€ / Caja: ${Num.fmt(realPvp)}€)`;
+            diffMsg = `App:${Num.fmt(r.pvp)} vs Caja:${Num.fmt(realPvp)}`;
         }
         matches.push({ rid: r.id, n: r.n, q: qty, realPvp: realPvp, status: status, diffMsg: diffMsg });
     } else {
-        // Si es nuevo, guardamos el precio detectado
+        // NUEVO: Guardamos el precio detectado para crear la ficha bien
         unknown.push({ n: name, q: qty, detectedPvp: realPvp });
     }
 }
 
-// --- INTERFAZ DE CONFIRMACIÓN (EL AUDITOR) ---
 function showImportModal(matches, unknown, defaultDate) {
     tempImportMatches = matches; 
 
     const summaryList = matches.map(m => {
         let color = "text-indigo-600 bg-indigo-50";
-        if (m.status === 'diff') color = "text-red-600 bg-red-50 border border-red-200"; // Alerta Roja
+        if (m.status === 'diff') color = "text-red-600 bg-red-50 border border-red-200";
 
         return `<div class="flex justify-between items-center text-xs py-1.5 border-b border-slate-50">
             <div class="truncate w-2/3">
                 <div class="font-bold text-slate-700">${m.n}</div>
                 ${m.status === 'diff' ? `<div class="text-[9px] text-red-500 font-bold animate-pulse">⚠️ ${m.diffMsg}</div>` : ''}
             </div>
-            <span class="font-bold ${color} px-2 py-0.5 rounded">${m.q}</span>
+            <div class="text-right">
+                <span class="font-bold ${color} px-2 py-0.5 rounded">${m.q}</span>
+            </div>
          </div>`
     }).join('');
 
@@ -3522,7 +3484,7 @@ function showImportModal(matches, unknown, defaultDate) {
 
     showModal('📥 Auditoría de Caja', `
         <div class="bg-indigo-50 p-2 rounded mb-3 text-center border border-indigo-100">
-            <label class="text-[10px] font-bold text-indigo-400 uppercase">Fecha Archivo</label>
+            <label class="text-[10px] font-bold text-indigo-400 uppercase">Fecha</label>
             <input type="date" id="import-date" value="${defaultDate}" class="bg-transparent font-black text-indigo-900 text-center w-full outline-none text-sm">
             <div id="dup-warning" class="hidden mt-1 text-[9px] bg-red-500 text-white rounded px-2 font-bold">⚠️ DÍA YA IMPORTADO</div>
         </div>
@@ -3540,7 +3502,7 @@ function showImportModal(matches, unknown, defaultDate) {
         <div class="bg-orange-50 p-2 rounded-lg border border-orange-100 mb-3">
             <div class="text-[10px] font-bold text-orange-600 mb-1 uppercase">Productos Nuevos (Con Precio)</div>
             <div class="max-h-24 overflow-y-auto mb-2 bg-white/50 rounded p-1">${unknownHTML}</div>
-            <button class="btn-premium bg-gradient-to-r from-orange-400 to-orange-500 text-white w-full text-[10px] py-2" onclick='createMissingRecipesV18(${JSON.stringify(unknown)})'>
+            <button class="btn-premium bg-gradient-to-r from-orange-400 to-orange-500 text-white w-full text-[10px] py-2" onclick='createMissingRecipesV20(${JSON.stringify(unknown)})'>
                 ✨ CREAR ${unknown.length} FICHAS AUTOMÁTICAS
             </button>
         </div>` : ''}
@@ -3551,11 +3513,11 @@ function showImportModal(matches, unknown, defaultDate) {
                 🚀 CONFIRMAR Y GUARDAR
             </button>
         </div>
-        
+
         ${matches.some(m => m.status === 'diff') ? `
-        <div class="mt-2 text-center">
+        <div class="mt-3 text-center">
             <button class="text-[10px] text-indigo-500 font-bold underline" onclick="updatePricesBatch()">
-                🔄 Actualizar precios en App (Sincronizar con Caja)
+                🔄 Sincronizar Precios (App = Caja)
             </button>
         </div>` : ''}
     `);
@@ -3563,16 +3525,16 @@ function showImportModal(matches, unknown, defaultDate) {
     checkDuplicateImport(defaultDate);
 }
 
-// 4. CREAR RECETAS CON PRECIO REAL
-function createMissingRecipesV18(list) {
-    if(!confirm(`¿Crear ${list.length} recetas nuevas con sus precios?`)) return;
+// 4. CREAR (V20) - USA EL PRECIO DETECTADO
+function createMissingRecipesV20(list) {
+    if(!confirm(`¿Crear ${list.length} recetas nuevas con sus precios de caja?`)) return;
     let count = 0;
     list.forEach(item => {
         if(!db.recetas.find(r => r.n === item.n)) {
             db.recetas.push({
                 id: generateID(),
                 n: item.n,
-                pvp: item.detectedPvp || 0, // PRECIO REAL DEL ARCHIVO
+                pvp: item.detectedPvp || 0, // PRECIO EXACTO DEL TEXTO
                 items: [], 
                 yield: 1, unit: 'ud', time: 0
             });
@@ -3582,12 +3544,12 @@ function createMissingRecipesV18(list) {
     save(`Creadas ${count} recetas ✅`);
     closeModal();
     renderAdmin(document.getElementById('app'));
-    toast("Hecho. Vuelve a subir el archivo.", "success");
+    toast("Fichas creadas. Vuelve a pegar el texto.", "success");
 }
 
-// 5. ACTUALIZAR PRECIOS EN MASA (SINCRONIZACIÓN)
+// 5. ACTUALIZAR PRECIOS
 function updatePricesBatch() {
-    if(!confirm("¿Actualizar el PVP de tus recetas para que coincida con la Caja?")) return;
+    if(!confirm("¿Igualar los precios de tu App a los de la Caja?")) return;
     let count = 0;
     tempImportMatches.forEach(m => {
         if (m.status === 'diff' && m.realPvp > 0) {
@@ -3597,7 +3559,7 @@ function updatePricesBatch() {
     });
     save(`Precios actualizados (${count}) 🔄`);
     closeModal();
-    toast("Precios sincronizados. Sube el archivo de nuevo.", "success");
+    toast("Precios sincronizados. Vuelve a pegar.", "success");
 }
 
 function checkDuplicateImport(dateStr) {
@@ -3614,17 +3576,15 @@ function commitFinalImport() {
 
     let log = { id: generateID(), date: d, items: [] };
 
-    // Auto-viaje en el tiempo (2026)
     const importYear = parseInt(d.split('-')[0]);
     if (importYear !== fiscalYear) {
         fiscalYear = importYear;
-        toast(`📅 Viajando a ${importYear}...`, "info");
+        toast(`📅 Visualizando año ${importYear}...`, "info");
     }
 
     matches.forEach(m => {
         log.items.push({ rid: m.rid, n: m.n, q: m.q });
         
-        // Descontar Stock
         const r = db.recetas.find(x => x.id === m.rid);
         if (r && r.items) {
             r.items.forEach(it => {
@@ -3652,8 +3612,6 @@ function undoImport(logId) {
     const idx = db.sales_history.findIndex(l => l.id === logId);
     if (idx === -1) return;
     const log = db.sales_history[idx];
-
-    // Devolver stock
     log.items.forEach(soldItem => {
         const r = db.recetas.find(x => x.id === soldItem.rid);
         if (r && r.items) {
