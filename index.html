@@ -983,56 +983,128 @@ function checkDuplicate() {
     else alert.classList.add('hidden');
 }
 /* =============================================================
-   ⚠️ MOTOR INTELIGENTE V3.0 (Anti-Bloqueo & Stock Safe) ⚠️
+   ⚠️ MOTOR INTELIGENTE V5.0 (DETECTIVE MATEMÁTICO) ⚠️
    ============================================================= */
+
+/* --- 1. DETECTIVE DE PATRONES (Busca si A * B = C) --- */
+function detectLinePattern(line) {
+    // Limpieza: quitamos monedas y espacios dobles
+    let clean = line.replace(/[€$£"]/g, '').replace(/\s{2,}/g, ' ').trim();
+    
+    // Extraer TODOS los números de la línea (positivos y negativos)
+    const rawNumbers = clean.match(/(-?\d+([.,]\d+)?)/g);
+    
+    // Si no hay números, no es una línea válida
+    if (!rawNumbers || rawNumbers.length < 1) return null;
+
+    // Convertimos a números reales para operar
+    const nums = rawNumbers.map(n => Num.parse(n));
+    
+    let q = 1, p = 0;
+    let foundMath = false;
+
+    // --- ESTRATEGIA A: VERIFICACIÓN MATEMÁTICA ---
+    // Si hay al menos 3 números, comprobamos si (Cant * Precio = Total)
+    if (nums.length >= 3) {
+        // Asumimos que el total suele estar al final
+        const total = nums[nums.length - 1]; 
+        
+        // Probamos todas las parejas posibles para ver si multiplican
+        for (let i = 0; i < nums.length - 1; i++) {
+            for (let j = i + 1; j < nums.length - 1; j++) {
+                // Margen de error de 0.05 céntimos por redondeos
+                if (Math.abs((nums[i] * nums[j]) - total) < 0.05) {
+                    // ¡BINGO! Hemos encontrado la lógica
+                    // Normalmente el número más pequeño o entero es la cantidad
+                    if (nums[i] < nums[j] && nums[i] < 100) { q = nums[i]; p = nums[j]; }
+                    else { q = nums[j]; p = nums[i]; }
+                    
+                    foundMath = true;
+                    break;
+                }
+            }
+            if (foundMath) break;
+        }
+    }
+
+    // --- ESTRATEGIA B: POSICIÓN (Si falla la matemática) ---
+    if (!foundMath) {
+        if (nums.length >= 2) {
+            q = nums[0]; // El primero suele ser cantidad
+            // Si el último es mucho mayor que el penúltimo, asumimos Último=Total, Penúltimo=Precio
+            // Si no, asumimos Penúltimo=Precio Unitario
+            p = nums[nums.length >= 3 ? nums.length - 2 : 1]; 
+        } else {
+            q = nums[0]; p = 0;
+        }
+    }
+
+    // LIMPIEZA DEL NOMBRE
+    // Quitamos los números que hemos "usado" para dejar el texto limpio
+    let name = clean;
+    [q, p, (q*p)].forEach(val => {
+        if(val > 0) {
+            // Regex para quitar solo ese número exacto
+            name = name.replace(new RegExp(`\\b${String(val).replace('.', '[.,]')}\\b`, ''), '');
+        }
+    });
+    
+    // DETECTAR UNIDAD (kg, l, ud...)
+    let unit = 'ud';
+    const uMatch = clean.match(/\b(kg|kilo|gr|g|l|litro|ml|cl|oz|lb|caja|pack|botella|uds|ud|unid|barril|lata)\b/i);
+    if (uMatch) {
+        unit = UnitConverter.normalize(uMatch[0]);
+        name = name.replace(uMatch[0], ''); // Quitamos la unidad del nombre
+    }
+
+    return { 
+        name: name.replace(/[^\w\sñÑáéíóúÁÉÍÓÚ%\-]/g, '').trim(), // Limpieza final de símbolos raros
+        q, p, d: 0, t: null, unit 
+    };
+}
+
+/* --- 2. PARSEADOR PRINCIPAL (ALBARANES) --- */
 function parseAlb() {
     const txtInput = document.getElementById('alb-input');
     const txt = txtInput.value;
     
     if (!txt.trim()) return toast("⚠️ El área de texto está vacía", "error");
 
-    if (txt.length > 5000) loading(true);
+    loading(true); 
 
     setTimeout(() => {
         try {
             const lines = txt.split(/\r?\n/).filter(l => l.trim().length > 2);
             let count = 0;
-            let warnings = 0;
 
+            // Mapa optimizado para búsqueda rápida
             const ingMap = db.ingredientes.map(i => ({
-                id: i.id, n: i.n.toLowerCase(), unit: i.unit, cost: i.cost, tax: 10, ref: i
+                id: i.id, n: i.n.toLowerCase(), unit: i.unit, cost: i.cost, tax: i.tax || 10, ref: i
             }));
 
             lines.forEach(rawLine => {
-                // 1. Limpieza (Mantenemos puntos decimales y quitamos monedas)
-                let cleanLine = rawLine.replace(/[€$£"]/g, '').replace(/\s{2,}/g, ' ').trim();
-                if (!/\d/.test(cleanLine)) return;
+                // Usamos el detective V5.0
+                const result = detectLinePattern(rawLine);
 
-                // 2. Detección de Patrones
-                const result = detectLinePattern(cleanLine);
-
-                if (result) {
+                if (result && result.name.length > 1) {
                     const match = findBestMatchOptimized(result.name, ingMap);
                     
                     let finalUnit = result.unit;
                     let finalQty = result.q;
+                    // IVA: Si es producto nuevo, intentamos adivinarlo por nombre
+                    let finalTax = match ? (match.ref.tax || 10) : guessTax(result.name);
                     let status = 'new';
-                    
-                    // Prioridad de IVA: 1. El que viene en el texto, 2. El del stock, 3. Adivinado
-                    let finalTax = result.t !== null ? result.t : guessTax(result.name); 
 
                     if (match) {
                         status = 'linked';
-                        // Si el texto NO traía IVA, usamos el del stock. Si traía (ej: 10), respetamos el del texto.
-                        if (result.t === null) finalTax = match.ref.tax || finalTax;
-
+                        // Conversión automática de unidades si difieren (ej: Compras Cajas -> Stock Unidades)
                         if (match.unit !== finalUnit) {
                             const converted = tryConvertUnits(finalQty, finalUnit, match.unit);
                             if (converted !== null) {
                                 finalQty = converted;
-                                finalUnit = match.unit;
+                                finalUnit = match.unit; // Normalizamos a la unidad del stock
                             } else {
-                                status = 'conflict';
+                                status = 'conflict'; // Avisamos si no sabemos convertir
                             }
                         }
                     }
@@ -1042,111 +1114,30 @@ function parseAlb() {
                         q: parseFloat(finalQty) || 0,
                         p: parseFloat(result.p) || 0,
                         unit: finalUnit,
-                        d: parseFloat(result.d) || 0, // AHORA LEE EL DESCUENTO
-                        tax: parseFloat(finalTax),    // AHORA LEE EL IVA EXACTO
+                        d: 0, 
+                        tax: parseFloat(finalTax),
                         status: status,
                         originalUnit: result.unit 
                     });
                     count++;
-                } else {
-                    warnings++;
                 }
             });
 
             if (count > 0) {
-                txtInput.value = '';
+                txtInput.value = ''; 
                 renderAlbGrid();
-                toast(`✅ ${count} líneas importadas perfectamente.`, "success");
+                toast(`✅ ${count} líneas leídas correctamente.`, "success");
             } else {
-                toast("❌ No pude entender el formato.", "error");
+                toast("❌ No pude leer nada. Revisa el formato.", "error");
             }
 
         } catch (e) {
             console.error(e);
-            toast("⚠️ Error interno.", "error");
+            toast("⚠️ Error interno al leer.", "error");
         } finally {
             loading(false); 
         }
-    }, 10);
-}
-/* --- AUXILIAR: DETECTIVE DE PATRONES V3.2 (Definitivo: Negativos + Limpieza) --- */
-function detectLinePattern(line) {
-    // 1. REGEX MEJORADO: Detecta positivos (10.50) y negativos (-2.00)
-    const numbers = line.match(/(-?\d+[.,]\d+|-?\d+)/g);
-    
-    // CASO A: Formato Tabular Completo (Tu Prompt IA: NOMBRE | UNIDAD | Q | P | D | T)
-    // Se activa si detecta al menos 4 bloques numéricos
-    if (numbers && numbers.length >= 4) {
-        const nLen = numbers.length;
-        
-        // Mapeo inverso (de atrás hacia adelante es más seguro)
-        const valTax = Num.parse(numbers[nLen - 1]);   // Último: IVA
-        const valDto = Num.parse(numbers[nLen - 2]);   // Penúltimo: Descuento
-        const valPrice = Num.parse(numbers[nLen - 3]); // Antepenúltimo: Precio
-        const valQty = Num.parse(numbers[nLen - 4]);   // Cuarto por el final: Cantidad
-
-        // Limpieza del nombre: Quitamos esos números específicos de la cadena
-        let namePart = line;
-        [numbers[nLen-1], numbers[nLen-2], numbers[nLen-3], numbers[nLen-4]].forEach(n => {
-            namePart = namePart.replace(n, '');
-        });
-        
-        // Detectar y extraer unidad (KG, L, BARRIL...)
-        let unit = 'ud';
-        // Añadido 'barril', 'lata', 'botella' a la lista de detección
-        const unitMatch = namePart.match(/\b(kg|kilo|gr|g|l|litro|ml|cl|oz|lb|caja|pack|botella|uds|ud|unid|barril|lata)\b/i);
-        if (unitMatch) {
-            unit = UnitConverter.normalize(unitMatch[0]);
-            namePart = namePart.replace(unitMatch[0], ''); // Quitamos la unidad del nombre para que quede limpio
-        }
-
-        return { 
-            // Limpieza final: quita puntuación rara y espacios dobles
-            name: namePart.replace(/[^\w\sñÑáéíóúÁÉÍÓÚ+-]/g, '').replace(/\s{2,}/g, ' ').trim(),
-            q: valQty, 
-            p: valPrice, 
-            d: valDto, 
-            t: valTax,
-            unit: unit 
-        };
-    }
-
-    // CASO B: Formato Multiplicador "N x Producto" (Notas manuales)
-    const multiplier = line.match(/^(-?\d+([.,]\d+)?)\s*[xX*]\s+(.+)/);
-    if (multiplier) {
-        return { 
-            q: Num.parse(multiplier[1]), 
-            p: 0, d: 0, t: null, 
-            name: multiplier[3].trim(), 
-            unit: 'ud' 
-        };
-    }
-
-    // CASO C: Formato Simple (Solo Cantidad y Precio)
-    // Fallback por si la IA se salta columnas
-    if (numbers && numbers.length >= 1) {
-        let name = line;
-        numbers.forEach(n => name = name.replace(n, ''));
-        
-        let detectedUnit = 'ud';
-        const unitMatch = line.match(/\b(kg|kilo|gr|g|l|litro|ml|cl|oz|lb|caja|pack|botella|uds|ud|unid|barril)\b/i);
-        if (unitMatch) detectedUnit = UnitConverter.normalize(unitMatch[0]);
-
-        let q = Num.parse(numbers[0]);
-        let p = 0;
-        
-        if (numbers.length >= 2) {
-             p = Num.parse(numbers[1]);
-        }
-
-        return { 
-            q, p, d: 0, t: null, 
-            name: name.replace(/[^\w\sñÑáéíóúÁÉÍÓÚ]/g, '').replace(/\s{2,}/g, ' ').trim(), 
-            unit: detectedUnit 
-        };
-    }
-
-    return null;
+    }, 50); 
 }
 /* --- AUXILIAR: BUSCADOR OPTIMIZADO --- */
 function findBestMatchOptimized(txt, map) {
@@ -3371,82 +3362,68 @@ function processPastedTextV40() {
     const rawText = document.getElementById('paste-area').value;
     let selectedDate = document.getElementById('paste-date').value;
 
-    if (!rawText.trim()) return toast("⚠️ Pega primero el contenido del Excel", "error");
+    if (!rawText.trim()) return toast("⚠️ Pega primero los datos", "error");
 
     const matches = [];
     const unknown = [];
     const normalize = (str) => str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
 
-    // 1. DETECTOR DE FECHA INTELIGENTE
-    // Busca patrones como "Día: 10/01/2026" dentro del texto pegado
+    // 1. BUSCAR FECHA EN TODO EL TEXTO (Patrón: "Día: 10/01/2026")
     const dateMatch = rawText.match(/Día:\s*(\d{2})[\/.-](\d{2})[\/.-](\d{4})/);
     if (dateMatch) {
-        selectedDate = `${dateMatch[3]}-${dateMatch[2]}-${dateMatch[1]}`; // Convertir a YYYY-MM-DD
+        selectedDate = `${dateMatch[3]}-${dateMatch[2]}-${dateMatch[1]}`;
         document.getElementById('paste-date').value = selectedDate;
-        toast(`📅 Fecha detectada en el Excel: ${dateMatch[1]}/${dateMatch[2]}`, "success");
+        toast(`📅 Fecha encontrada: ${dateMatch[1]}/${dateMatch[2]}`, "success");
     }
 
     const lines = rawText.split(/\n/);
 
     lines.forEach(line => {
-        // Limpieza: quitamos comillas y espacios extremos
+        // Limpiar comillas del CSV
         let cleanLine = line.replace(/"/g, '').trim();
+        
+        // Ignorar basura
+        if (!cleanLine || cleanLine.length < 5 || cleanLine.includes("Informe") || cleanLine.includes("Artículo") || cleanLine.startsWith(",,,")) return;
 
-        // Filtros: ignorar cabeceras y líneas vacías del informe
-        if (!cleanLine || 
-            cleanLine.includes("Informe de ventas") || 
-            cleanLine.includes("Parámetros") || 
-            cleanLine.includes("Artículo") || 
-            cleanLine.startsWith(",,,")) return;
-
-        // ESTRATEGIA: Dividir por comas o tabuladores y eliminar huecos vacíos
-        // Tu CSV tiene estructura: ,,,Nombre,,,,,,0.0,,Qty,,Neto,,,,IVA,,,Bruto...
-        let parts = cleanLine.split(/[\t,]+/).filter(p => p.trim() !== '');
-
-        // Necesitamos al menos Nombre, Cantidad y Precio (3 elementos)
-        if (parts.length >= 3) {
-            const name = parts[0].trim(); // El primer elemento válido es el Nombre
+        // ESTRATEGIA: "Romper" la línea por huecos grandes (muchas comas o tabs)
+        // Tu archivo suele tener: NOMBRE ,,,,,, CANTIDAD ... TOTAL
+        
+        // 1. Extraemos todos los números (incluyendo decimales con punto o coma)
+        // Convertimos comas decimales a puntos para JS
+        const numbers = cleanLine.match(/-?\d+([.,]\d+)?/g);
+        
+        if (numbers && numbers.length >= 2) {
+            // 2. Extraer Nombre: Es todo lo que hay antes del primer bloque numérico denso
+            // Pero cuidado con "Coca Cola 33cl".
+            // Mejor estrategia: Split por separadores de columna reales (tabs o comas múltiples)
+            const parts = cleanLine.split(/[\t,]+/).filter(p => p.trim() !== '');
             
-            // BUSCADOR DE DATOS POR POSICIÓN RELATIVA
-            // En tu archivo, el Total Bruto suele ser uno de los últimos valores grandes
-            // La Cantidad suele ser el primer número decimal después del nombre
-            
-            // Intentamos parsear todos los números de la línea
-            const numbers = parts.slice(1).map(p => Num.parse(p));
-            
-            // Asumimos estructura estándar de tu reporte:
-            // numbers[0] -> Suele ser 0.0 (Clientes)
-            // numbers[1] -> CANTIDAD
-            // ...
-            // numbers[4] o similar -> TOTAL BRUTO
-            
-            // Método seguro: Buscamos la Cantidad (idx 1) y el Total Bruto (suele ser mayor que el neto)
-            const qty = numbers[1]; 
-            // Buscamos el Bruto (normalmente el valor más alto de la línea o posición fija)
-            // En tu CSV snippet: 46.75 es el índice 4 de los números (aprox)
-            // Para asegurar, cogemos el valor que está 2 posiciones antes del final de la parte numérica útil
-            // O simplemente usamos la lógica de PVP = Total / Cantidad
-            
-            // En tu snippet específico: ..., 4.25 (IVA), 46.75 (Bruto), 1.45 (%), ...
-            // El Bruto es el valor justo después del IVA.
-            
-            // Vamos a usar una lógica de "fuerza bruta inteligente":
-            // Si encontramos un total y una cantidad válidos
-            const total = numbers.find(n => n > 0 && n > qty); // El total suele ser mayor que la cantidad (salvo cosas muy baratas)
-            
-            if (qty > 0 && name.length > 2) {
-                // Si no encontramos total claro, usamos 0 (se marcará como DIFF para revisar)
-                const finalTotal = total || 0;
-                const unitPvp = finalTotal > 0 ? finalTotal / qty : 0;
+            // Si hay al menos Nombre, Cantidad y Total
+            if (parts.length >= 3) {
+                const name = parts[0].trim();
                 
-                matchAndPush(name, qty, unitPvp, matches, unknown, normalize);
+                // Parseamos los números de la línea
+                const numsInLine = parts.slice(1).map(p => Num.parse(p));
+                
+                // HEURÍSTICA ARUME:
+                // La Cantidad suele ser el primer número positivo (a veces hay un 0.0 antes de clientes)
+                let qty = numsInLine.find(n => n > 0 && n < 10000); 
+                // El Total Bruto suele ser el último número de la línea
+                let total = numsInLine[numsInLine.length - 1];
+
+                // Si por alguna razón el parser falló, intentamos posiciones fijas relativas al final
+                if (!total) total = numsInLine[numsInLine.length - 2]; // A veces hay un % al final
+
+                if (qty > 0 && name.length > 2) {
+                    // Calculamos PVP unitario real
+                    const unitPvp = total > 0 ? (total / qty) : 0;
+                    matchAndPush(name, qty, unitPvp, matches, unknown, normalize);
+                }
             }
         }
     });
 
-    if (matches.length === 0 && unknown.length === 0) {
-        return toast("❌ No se encontraron datos válidos. Copia todo el Excel.", "error");
-    }
+    if (matches.length === 0 && unknown.length === 0) return toast("❌ No pude leer nada. Asegúrate de copiar desde el Nombre hasta el Total.", "error");
 
     showEditableImportModal([...matches, ...unknown], selectedDate);
 }
@@ -3578,7 +3555,190 @@ function commitSalesImport() {
     closeModal();
     renderAdmin(document.getElementById('app'));
 }
+/* =============================================================
+   ⚠️ MÓDULO EVENTOS PRO (CALENDARIO + FINANZAS) ⚠️
+   ============================================================= */
+function renderEventos(c) {
+    // 1. Preparar datos del calendario
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+    const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+    const firstDayIndex = new Date(currentYear, currentMonth, 1).getDay(); // 0 dom, 1 lun...
+    
+    // Ajustar para que semana empiece en Lunes (Español)
+    const startOffset = firstDayIndex === 0 ? 6 : firstDayIndex - 1;
 
+    // Filtramos eventos futuros y pasados
+    const events = db.eventos || [];
+    events.sort((a,b) => a.date.localeCompare(b.date));
+
+    // Generar días del calendario
+    let calendarHTML = '';
+    for (let i = 0; i < startOffset; i++) calendarHTML += `<div class="h-10"></div>`; // Huecos vacíos
+    
+    for (let d = 1; d <= daysInMonth; d++) {
+        const dateStr = `${currentYear}-${String(currentMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+        const evsOfDay = events.filter(e => e.date === dateStr);
+        const hasEvent = evsOfDay.length > 0;
+        const isToday = d === now.getDate();
+        
+        calendarHTML += `
+        <div class="h-14 border border-slate-100 rounded-lg p-1 relative flex flex-col items-center justify-center cursor-pointer hover:bg-indigo-50 transition ${isToday ? 'bg-indigo-100 ring-2 ring-indigo-300' : 'bg-white'}" onclick="addNewEvent('${dateStr}')">
+            <span class="text-[10px] font-bold ${isToday ? 'text-indigo-700' : 'text-slate-400'}">${d}</span>
+            ${hasEvent ? `<div class="w-2 h-2 rounded-full bg-pink-500 mt-1"></div>` : ''}
+        </div>`;
+    }
+
+    // Listado de próximos eventos
+    const upcoming = events.filter(e => e.date >= getISO()).slice(0, 5);
+
+    c.innerHTML = `
+    <div class="glass-card">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="font-bold text-slate-800 flex items-center gap-2">📅 CALENDARIO</h3>
+            <button class="btn-premium w-auto px-3 py-2 text-xs bg-pink-600 shadow-pink-200" onclick="addNewEvent('${getISO()}')">+ NUEVO</button>
+        </div>
+
+        <div class="mb-6">
+            <div class="grid grid-cols-7 gap-1 text-center mb-1">
+                <div class="text-[9px] font-bold text-slate-400">L</div>
+                <div class="text-[9px] font-bold text-slate-400">M</div>
+                <div class="text-[9px] font-bold text-slate-400">X</div>
+                <div class="text-[9px] font-bold text-slate-400">J</div>
+                <div class="text-[9px] font-bold text-slate-400">V</div>
+                <div class="text-[9px] font-bold text-slate-400">S</div>
+                <div class="text-[9px] font-bold text-slate-400">D</div>
+            </div>
+            <div class="grid grid-cols-7 gap-1">
+                ${calendarHTML}
+            </div>
+        </div>
+
+        <h4 class="text-xs font-bold text-slate-500 uppercase mb-3">Próximos Eventos</h4>
+        <div class="space-y-2">
+            ${upcoming.length ? upcoming.map(e => `
+                <div class="bg-white p-3 rounded-xl border-l-4 border-pink-500 shadow-sm flex justify-between items-center" onclick="editEvent('${e.id}')">
+                    <div>
+                        <div class="font-bold text-slate-800 text-sm">${clean(e.n)}</div>
+                        <div class="text-[10px] text-slate-400">📅 ${e.date} · 👥 ${e.pax} pax</div>
+                    </div>
+                    <div class="text-right">
+                        <div class="font-black text-pink-600 text-sm">${Num.fmt(e.total)}€</div>
+                        <div class="text-[9px] ${e.paid ? 'text-emerald-500 font-bold' : 'text-orange-400'}">${e.paid ? 'PAGADO' : 'PENDIENTE'}</div>
+                    </div>
+                </div>
+            `).join('') : '<div class="text-center text-slate-400 text-xs py-4">No hay eventos próximos</div>'}
+        </div>
+        
+        <button class="btn-ghost mt-4 text-xs" onclick="viewAllEvents()">VER TODO EL HISTORIAL</button>
+    </div>`;
+}
+
+function addNewEvent(date) {
+    editEvent(null, date);
+}
+
+function editEvent(id, dateDefault) {
+    const e = id ? db.eventos.find(x => x.id === id) : { 
+        id: generateID(), n: '', date: dateDefault || getISO(), pax: 0, price: 0, deposit: 0, menu: '', paid: false, personalExtra: 0 
+    };
+
+    showModal(id ? 'Editar Evento' : 'Nuevo Evento', `
+        <label>Nombre del Cliente / Evento</label>
+        <input id="ev-n" value="${clean(e.n)}" class="input-premium mb-2" placeholder="Ej: Cumpleaños María">
+        
+        <div class="grid grid-cols-2 gap-2 mb-2">
+            <div><label>Fecha</label><input type="date" id="ev-d" value="${e.date}" class="input-premium"></div>
+            <div><label>Nº Personas</label><input type="number" id="ev-pax" value="${e.pax}" class="input-premium text-center"></div>
+        </div>
+
+        <div class="bg-pink-50 p-3 rounded-xl border border-pink-100 mb-2">
+            <div class="grid grid-cols-2 gap-2">
+                <div><label>Precio Menú (€)</label><input type="number" id="ev-price" value="${e.price}" class="input-premium text-center" onchange="calcEvTotal()"></div>
+                <div><label>Señal / Depósito</label><input type="number" id="ev-dep" value="${e.deposit}" class="input-premium text-center"></div>
+            </div>
+            <div class="mt-2 flex justify-between items-center border-t border-pink-200 pt-2">
+                <span class="text-xs font-bold text-pink-800 uppercase">Total Previsto</span>
+                <span id="ev-tot" class="font-black text-xl text-pink-600">${Num.fmt(e.pax * e.price)}€</span>
+            </div>
+        </div>
+
+        <label>Coste Personal Extra (Si aplica)</label>
+        <input type="number" id="ev-staff" value="${e.personalExtra || 0}" class="input-premium mb-2" placeholder="0">
+
+        <label>Notas / Menú Elegido</label>
+        <textarea id="ev-menu" class="input-premium mb-4 h-20 text-xs">${clean(e.menu)}</textarea>
+
+        <div class="flex items-center gap-2 mb-4 bg-slate-50 p-2 rounded-lg">
+            <input type="checkbox" id="ev-paid" class="w-5 h-5 accent-emerald-500" ${e.paid ? 'checked' : ''}>
+            <label for="ev-paid" class="mb-0 text-slate-700">Evento Finalizado y Cobrado</label>
+        </div>
+
+        <div class="flex gap-2">
+            <button class="btn-premium flex-1 bg-pink-600" onclick="saveEvent('${e.id}')">GUARDAR</button>
+            ${id ? `<button class="btn-ghost w-auto text-red-500" onclick="delEvent('${e.id}')">🗑️</button>` : ''}
+        </div>
+    `);
+}
+
+function calcEvTotal() {
+    const pax = parseFloat(document.getElementById('ev-pax').value) || 0;
+    const price = parseFloat(document.getElementById('ev-price').value) || 0;
+    document.getElementById('ev-tot').innerText = Num.fmt(pax * price) + '€';
+}
+
+function saveEvent(id) {
+    const n = document.getElementById('ev-n').value;
+    if(!n) return toast("Falta nombre", "error");
+
+    const pax = parseFloat(document.getElementById('ev-pax').value) || 0;
+    const price = parseFloat(document.getElementById('ev-price').value) || 0;
+    const total = pax * price;
+
+    const ev = {
+        id, n,
+        date: document.getElementById('ev-d').value,
+        pax: pax,
+        price: price,
+        deposit: parseFloat(document.getElementById('ev-dep').value) || 0,
+        personalExtra: parseFloat(document.getElementById('ev-staff').value) || 0,
+        menu: document.getElementById('ev-menu').value,
+        paid: document.getElementById('ev-paid').checked,
+        total: total,
+        ingreso: document.getElementById('ev-paid').checked ? total : (parseFloat(document.getElementById('ev-dep').value) || 0)
+    };
+
+    if(!db.eventos) db.eventos = [];
+    const idx = db.eventos.findIndex(x => x.id === id);
+    if(idx >= 0) db.eventos[idx] = ev; else db.eventos.push(ev);
+
+    save("Evento guardado");
+    closeModal();
+    renderEventos(document.getElementById('adm-c')); // Refrescar solo el contenedor
+}
+
+function delEvent(id) {
+    if(confirm("¿Borrar evento?")) {
+        db.eventos = db.eventos.filter(x => x.id !== id);
+        save("Evento eliminado");
+        closeModal();
+        renderEventos(document.getElementById('adm-c'));
+    }
+}
+function viewAllEvents() {
+    const list = db.eventos.sort((a,b) => b.date.localeCompare(a.date));
+    showModal('Historial Eventos', `
+        <div class="space-y-2 max-h-[60vh] overflow-y-auto">
+            ${list.map(e => `
+                <div class="border-b pb-2 mb-2" onclick="closeModal();editEvent('${e.id}')">
+                    <div class="flex justify-between font-bold text-sm"><span>${clean(e.n)}</span><span>${e.date}</span></div>
+                    <div class="flex justify-between text-xs text-slate-500"><span>${e.pax} pax</span><span>${Num.fmt(e.total)}€</span></div>
+                </div>
+            `).join('')}
+        </div>
+    `);
+}
 // INICIALIZACIÓN DE LA APP
 init(); 
 
