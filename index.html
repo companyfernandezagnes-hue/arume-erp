@@ -888,6 +888,20 @@ function renderAlbaranes(c) {
                          `<option value="OnlyOne">🍸 ONLYONE (Pau)</option>` +
                          listaSociosSegura.map(s => `<option value="${s}">${s}</option>`).join('');
     
+    // --- 1. DEFINIMOS LA CHULETA DE AYUDA (NUEVO) ---
+    const helpTip = `
+    <div class="text-[9px] text-indigo-500 bg-indigo-50 p-2 rounded border border-indigo-100 mb-2 flex items-start gap-2">
+        <span class="text-lg">💡</span>
+        <div>
+            <span class="font-bold">FORMATO DE PEGADO:</span> Copia líneas con este orden exacto:
+            <div class="font-mono bg-white px-1 rounded mt-1 text-slate-600 border border-indigo-100 shadow-sm">
+                Nombre &nbsp; Cantidad &nbsp; Precio &nbsp; (Dto) &nbsp; (IVA)
+            </div>
+            <div class="opacity-70 mt-0.5 italic">Ej: "Solomillo 5.5 22.90"</div>
+        </div>
+    </div>`;
+
+    // --- 2. RENDERIZAMOS EL HTML (CON EL TIP INCLUIDO) ---
     c.innerHTML = `
     <div class="glass-card border-l-4 border-indigo-500" id="alb-form-anchor">
         <h3 class="font-bold text-slate-700 text-sm mb-4 uppercase">Nuevo / Editar Albarán</h3>
@@ -906,7 +920,10 @@ function renderAlbaranes(c) {
         <div id="dup-alert" class="hidden text-[10px] text-red-500 font-bold mb-2 text-center bg-red-50 p-1 rounded">⚠️ FACTURA DUPLICADA</div>
 
         <datalist id="ing-list">${ingOptions}</datalist>
-        <textarea id="alb-input" rows="2" class="input-premium font-mono text-xs mb-2" placeholder="Pegar aquí: Producto TAB Cantidad TAB Precio..."></textarea>
+        
+        ${helpTip}
+        
+        <textarea id="alb-input" rows="2" class="input-premium font-mono text-xs mb-2" placeholder="Pegar aquí..."></textarea>
         
         <div class="flex gap-2 mb-4">
             <button class="btn-ghost" onclick="parseAlb()">🪄 LEER TEXTO</button>
@@ -1622,54 +1639,45 @@ function downloadMonthCSV(monthIndex, monthName) {
 /* =============================================================
    📊 MÓDULO INGENIERÍA DE MENÚ (OMNES) - CORREGIDO
    ============================================================= */
+/* =============================================================
+   📊 MÓDULO OMNES AVANZADO (MATRIZ + MARGEN REAL)
+   ============================================================= */
 function renderOmnes(c) {
-    // 1. HEADER CON CONTROL DE AÑO
+    // 1. CABECERA CON NAVEGACIÓN
     const headerHTML = `
     <div class="flex justify-between items-center mb-4">
         <h3 class="font-bold text-slate-800 flex items-center gap-2">
-            📊 ANÁLISIS 
-            <span class="text-[10px] bg-slate-800 text-white px-2 py-0.5 rounded-full font-mono">${fiscalYear}</span>
+            📊 MENU ENGINEERING 
+            <span class="bg-indigo-600 text-white px-2 py-0.5 rounded text-[10px] tracking-widest font-black">${fiscalYear}</span>
         </h3>
-        <div class="flex bg-slate-200 rounded-lg p-1 gap-1">
-            <button class="w-8 h-8 flex items-center justify-center bg-white rounded shadow text-xs font-bold active:scale-95" onclick="fiscalYear--;renderAdmin(document.getElementById('app'))">‹</button>
-            <button class="w-8 h-8 flex items-center justify-center bg-white rounded shadow text-xs font-bold active:scale-95" onclick="fiscalYear++;renderAdmin(document.getElementById('app'))">›</button>
+        <div class="flex bg-slate-100 p-1 rounded-lg gap-1">
+             <button class="w-8 h-8 flex items-center justify-center bg-white rounded shadow-sm text-xs font-bold hover:text-indigo-600 active:scale-95 transition" onclick="fiscalYear--;renderAdmin(document.getElementById('app'))">‹</button>
+             <button class="w-8 h-8 flex items-center justify-center bg-white rounded shadow-sm text-xs font-bold hover:text-indigo-600 active:scale-95 transition" onclick="fiscalYear++;renderAdmin(document.getElementById('app'))">›</button>
         </div>
     </div>
-    
     <div class="mb-6">
-        <button class="btn-premium text-[11px] shadow-indigo-200 flex flex-col justify-center items-center py-4 bg-indigo-600" onclick="openPasteModal()">
-            <span class="text-xl mb-1">📋</span> 
-            <span>PEGAR VENTAS DE CAJA (MODO SEGURO)</span>
+        <button class="btn-premium py-3 text-xs w-full bg-slate-800 text-white shadow-lg shadow-slate-300 flex items-center justify-center gap-2" onclick="openPasteModal()">
+            <span>📋</span> PEGAR VENTAS (IMPORTADOR)
         </button>
     </div>`;
 
-    // 2. DETECTOR DE DATOS
-    const yearsWithData = [...new Set(db.sales_history.map(l => parseInt(l.date.split('-')[0])))];
-    const currentHasData = yearsWithData.includes(fiscalYear);
-
-    if (yearsWithData.length > 0 && !currentHasData) {
-        c.innerHTML = `
-            ${headerHTML}
-            <div class="glass-card bg-orange-50 border-orange-200 text-center p-8 animate-fade-in">
-                <div class="text-4xl mb-2">📅</div>
-                <h3 class="font-bold text-orange-800">Estás en ${fiscalYear}</h3>
-                <p class="text-xs text-orange-600 mb-4">Pero tus datos guardados están en otros años.</p>
-                <div class="flex gap-2 justify-center flex-wrap">
-                    ${yearsWithData.map(y => `<button class="bg-white text-orange-600 border border-orange-200 px-4 py-2 rounded-lg font-bold text-xs shadow-sm hover:bg-orange-100 transition" onclick="fiscalYear=${y};renderAdmin(document.getElementById('app'))">IR A ${y}</button>`).join('')}
-                </div>
-            </div>`;
+    // 2. COMPROBACIÓN DE DATOS
+    if (!db.sales_history.length) {
+        c.innerHTML = `${headerHTML}
+        <div class="p-8 text-center border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50">
+            <div class="text-4xl mb-2 opacity-50">📉</div>
+            <p class="text-sm text-slate-400 font-bold">No hay datos de ventas en ${fiscalYear}.</p>
+            <p class="text-xs text-slate-400 mt-1">Usa el botón negro de arriba para pegar tu Excel.</p>
+        </div>`;
         return;
     }
 
-    if (!db.recetas.length && !db.sales_history.length) {
-        c.innerHTML = `${headerHTML}<div class="glass-card text-center p-10 text-slate-400 border-2 border-dashed">Sin datos.<br>Carga ventas usando el botón de arriba.</div>`;
-        return;
-    }
-
-    // 3. CÁLCULOS MATEMÁTICOS
-    let totalSold = 0, totalRev = 0, totalCost = 0;
+    // 3. MOTOR DE CÁLCULO (MARGEN DE CONTRIBUCIÓN)
+    let totalQtySold = 0;
+    let totalMarginGenerated = 0;
     const salesMap = {};
-    
+
+    // Agrupar ventas
     db.sales_history.filter(log => isInPeriod(log.date)).forEach(log => {
         log.items.forEach(it => {
             const rid = it.rid || db.recetas.find(r => r.n === it.n)?.id;
@@ -1677,68 +1685,109 @@ function renderOmnes(c) {
         });
     });
 
-    const activeData = db.recetas.map(r => {
+    // Crear Dataset Enriquecido
+    const dataset = db.recetas.map(r => {
+        const sales = salesMap[r.id] || 0;
+        if (sales === 0) return null;
+
         const cost = calcRecipe(r).t; 
-        const sales = salesMap[r.id] || 0; 
-        if (sales === 0 && r.pvp === 0) return null;
-        
-        totalSold += sales;
-        totalRev += sales * r.pvp;
-        totalCost += sales * cost;
-        return { r, sales, cost, margin: r.pvp - cost, pvp: r.pvp };
+        const marginUnit = r.pvp - cost; 
+        const totalMargin = marginUnit * sales; // ESTA ES LA CLAVE: Margen total que deja el plato
+
+        totalQtySold += sales;
+        totalMarginGenerated += totalMargin;
+
+        return { r, sales, cost, pvp: r.pvp, marginUnit, totalMargin };
     }).filter(x => x !== null);
 
-    const avgMargin = totalSold > 0 ? (totalRev - totalCost) / totalSold : 0;
-    const popLimit = (100 / (activeData.length || 1)) * 0.7;
+    if (dataset.length === 0) {
+        c.innerHTML = `${headerHTML}<div class="p-4 bg-orange-50 text-orange-600 rounded border border-orange-200 text-xs font-bold">⚠️ Hay historial de ventas, pero no coinciden con las recetas activas. Revisa los nombres en Cocina.</div>`;
+        return;
+    }
 
-    const m = { stars: [], horses: [], puzzles: [], dogs: [] };
-    
-    activeData.forEach(d => {
-        const mix = totalSold > 0 ? (d.sales / totalSold) * 100 : 0;
-        const isPop = mix >= popLimit;
-        const isRich = d.margin >= avgMargin;
-        if (isPop && isRich) m.stars.push(d);
-        else if (isPop && !isRich) m.horses.push(d);
-        else if (!isPop && isRich) m.puzzles.push(d);
-        else m.dogs.push(d);
+    // 4. CLASIFICACIÓN (MATRIZ DE BOSTON)
+    const avgMargin = totalMarginGenerated / totalQtySold; // Eje Y
+    const fairShare = (100 / dataset.length) * 0.7;        // Eje X (Popularidad Teórica Ajustada)
+
+    const matrix = { stars: [], plowhorses: [], puzzles: [], dogs: [] };
+    dataset.forEach(d => {
+        const mix = (d.sales / totalQtySold) * 100;
+        const isPopular = mix >= fairShare;
+        const isProfitable = d.marginUnit >= avgMargin;
+
+        if (isPopular && isProfitable) matrix.stars.push(d);      
+        else if (isPopular && !isProfitable) matrix.plowhorses.push(d); 
+        else if (!isPopular && isProfitable) matrix.puzzles.push(d);    
+        else matrix.dogs.push(d);                                       
     });
 
-    const renderRow = (d) => `<div class="text-[9px] text-slate-600 border-b border-slate-100 py-1 flex justify-between"><span class="truncate w-2/3">${clean(d.r.n)}</span><span class="font-bold text-slate-800">${d.sales}</span></div>`;
+    // Helper para pintar las mini-listas dentro de los cuadrantes
+    const miniList = (list) => list.sort((a,b)=>b.totalMargin-a.totalMargin).map(d => 
+        `<div class="flex justify-between text-[9px] border-b border-black/5 py-1.5 last:border-0 items-center group cursor-help" title="Margen Total: ${Num.fmt(d.totalMargin)}€">
+            <span class="truncate w-2/3 font-medium text-slate-700 group-hover:text-black transition">${clean(d.r.n)}</span>
+            <span class="font-bold opacity-60 bg-white/60 px-1.5 rounded">${d.sales}</span>
+        </div>`).join('');
 
-    // 4. RENDERIZADO GRÁFICO
+    // 5. RENDERIZADO (GRID VISUAL)
     c.innerHTML = `
     ${headerHTML}
 
-    <div class="glass-card mb-6 border-t-4 border-indigo-500">
-        <div class="flex justify-between items-center mb-4">
-            <h4 class="text-xs font-black text-indigo-900 uppercase tracking-widest">🧩 Matriz de Rentabilidad</h4>
-            <span class="text-[9px] bg-indigo-50 text-indigo-600 px-2 py-1 rounded font-bold border border-indigo-100">Mg. Medio: ${Num.fmt(avgMargin)}€</span>
-        </div>
+    <div class="flex justify-between text-[9px] font-bold text-slate-400 mb-2 uppercase tracking-wider px-1">
+        <span>Rentabilidad Media: ${Num.fmt(avgMargin)}€</span>
+        <span>Popularidad Obj: ${fairShare.toFixed(1)}%</span>
+    </div>
+
+    <div class="grid grid-cols-2 gap-2 mb-4 h-96">
         
-        <div class="grid grid-cols-2 gap-2 h-64">
-            <div class="bg-yellow-50 border border-yellow-200 rounded-xl p-2 relative overflow-hidden flex flex-col">
-                <div class="flex justify-between items-center mb-1"><span class="text-[10px] font-black text-yellow-600">🌟 ESTRELLAS</span><span class="text-[9px] font-black bg-white px-1.5 rounded shadow-sm text-yellow-500">${m.stars.length}</span></div>
-                <div class="flex-1 overflow-y-auto custom-scrollbar">${m.stars.map(renderRow).join('')}</div>
-            </div>
-            <div class="bg-green-50 border border-green-200 rounded-xl p-2 relative overflow-hidden flex flex-col">
-                <div class="flex justify-between items-center mb-1"><span class="text-[10px] font-black text-green-600">🧩 PUZZLES</span><span class="text-[9px] font-black bg-white px-1.5 rounded shadow-sm text-green-500">${m.puzzles.length}</span></div>
-                <div class="flex-1 overflow-y-auto custom-scrollbar">${m.puzzles.map(renderRow).join('')}</div>
-            </div>
-            <div class="bg-blue-50 border border-blue-200 rounded-xl p-2 relative overflow-hidden flex flex-col">
-                <div class="flex justify-between items-center mb-1"><span class="text-[10px] font-black text-blue-600">🐎 CABALLOS</span><span class="text-[9px] font-black bg-white px-1.5 rounded shadow-sm text-blue-500">${m.horses.length}</span></div>
-                <div class="flex-1 overflow-y-auto custom-scrollbar">${m.horses.map(renderRow).join('')}</div>
-            </div>
-            <div class="bg-red-50 border border-red-200 rounded-xl p-2 relative overflow-hidden flex flex-col">
-                <div class="flex justify-between items-center mb-1"><span class="text-[10px] font-black text-red-600">🐕 PERROS</span><span class="text-[9px] font-black bg-white px-1.5 rounded shadow-sm text-red-500">${m.dogs.length}</span></div>
-                <div class="flex-1 overflow-y-auto custom-scrollbar">${m.dogs.map(renderRow).join('')}</div>
-            </div>
+        <div class="bg-gradient-to-br from-yellow-50 to-amber-100 rounded-xl p-3 border border-yellow-200 relative overflow-hidden flex flex-col shadow-sm">
+            <div class="absolute -right-3 -top-3 text-7xl opacity-10 grayscale">🌟</div>
+            <h4 class="font-black text-amber-700 text-[10px] uppercase mb-2 flex justify-between items-center border-b border-amber-200 pb-1">
+                ESTRELLAS <span class="bg-white px-1.5 rounded shadow-sm text-amber-600">${matrix.stars.length}</span>
+            </h4>
+            <div class="flex-1 overflow-y-auto custom-scrollbar pr-1 relative z-10">${miniList(matrix.stars)}</div>
+        </div>
+
+        <div class="bg-gradient-to-br from-emerald-50 to-teal-100 rounded-xl p-3 border border-emerald-200 relative overflow-hidden flex flex-col shadow-sm">
+            <div class="absolute -right-3 -top-3 text-7xl opacity-10 grayscale">🧩</div>
+            <h4 class="font-black text-emerald-700 text-[10px] uppercase mb-2 flex justify-between items-center border-b border-emerald-200 pb-1">
+                PUZZLES <span class="bg-white px-1.5 rounded shadow-sm text-emerald-600">${matrix.puzzles.length}</span>
+            </h4>
+            <div class="flex-1 overflow-y-auto custom-scrollbar pr-1 relative z-10">${miniList(matrix.puzzles)}</div>
+        </div>
+
+        <div class="bg-gradient-to-br from-blue-50 to-indigo-100 rounded-xl p-3 border border-blue-200 relative overflow-hidden flex flex-col shadow-sm">
+            <div class="absolute -right-3 -top-3 text-7xl opacity-10 grayscale">🐎</div>
+            <h4 class="font-black text-blue-700 text-[10px] uppercase mb-2 flex justify-between items-center border-b border-blue-200 pb-1">
+                CABALLOS <span class="bg-white px-1.5 rounded shadow-sm text-blue-600">${matrix.plowhorses.length}</span>
+            </h4>
+            <div class="flex-1 overflow-y-auto custom-scrollbar pr-1 relative z-10">${miniList(matrix.plowhorses)}</div>
+        </div>
+
+        <div class="bg-gradient-to-br from-red-50 to-pink-100 rounded-xl p-3 border border-red-200 relative overflow-hidden flex flex-col shadow-sm">
+            <div class="absolute -right-3 -top-3 text-7xl opacity-10 grayscale">🐕</div>
+            <h4 class="font-black text-red-700 text-[10px] uppercase mb-2 flex justify-between items-center border-b border-red-200 pb-1">
+                PERROS <span class="bg-white px-1.5 rounded shadow-sm text-red-600">${matrix.dogs.length}</span>
+            </h4>
+            <div class="flex-1 overflow-y-auto custom-scrollbar pr-1 relative z-10">${miniList(matrix.dogs)}</div>
         </div>
     </div>
 
+    <div class="glass-card flex justify-around text-center py-4 mb-6 shadow-md border-0 bg-slate-800 text-white">
+        <div>
+            <div class="text-[9px] text-slate-400 uppercase font-bold">Margen Total</div>
+            <div class="text-xl font-black text-emerald-400">${Num.fmt(totalMarginGenerated)}€</div>
+        </div>
+        <div>
+            <div class="text-[9px] text-slate-400 uppercase font-bold">Ticket Medio (PVP)</div>
+            <div class="text-xl font-black text-indigo-400">${Num.fmt((totalMarginGenerated/totalQtySold) + dataset.reduce((a,b)=>a+b.cost*b.sales,0)/totalQtySold)}€</div>
+        </div>
+    </div>
+    
     <div class="glass-card border-t-4 border-orange-500">
         <h4 class="text-xs font-black text-orange-800 uppercase tracking-widest mb-3">⚖️ Análisis de Precios (Omnes)</h4>
-        ${renderOmnesPrinciples(activeData)}
-    </div>`;
+        ${renderOmnesPrinciples(dataset)}
+    </div>
+    `;
 }
 // Auxiliar Omnes
 function renderOmnesPrinciples(data) {
@@ -3282,58 +3331,125 @@ function safeImportSales(input) {
 // 2. PEGADO MANUAL CON FECHA Y FORMATO FLEXIBLE
 function openPasteModal() {
     const today = getISO();
-    showModal('📋 Pegar Ventas (Modo Seguro)', `
-        <div class="mb-4 bg-indigo-50 p-3 rounded-lg border border-indigo-100">
-            <label class="text-xs font-bold text-indigo-800 uppercase block mb-1">📅 1. FECHA DE LA VENTA</label>
-            <input type="date" id="paste-date" value="${today}" class="bg-white border-2 border-indigo-200 rounded-lg p-2 font-black text-center text-indigo-900 w-full outline-none focus:border-indigo-500">
+    
+    // INSTRUCCIONES VISUALES (TU "PROMPT") PARA NO EQUIVOCARSE NUNCA
+    const instructions = `
+    <div class="bg-blue-50 border-l-4 border-blue-500 p-3 mb-4 rounded-r-lg shadow-sm">
+        <div class="font-bold text-blue-800 text-xs flex items-center gap-2 mb-1">
+            <span>💡 INSTRUCCIONES DE COPIADO</span>
+        </div>
+        <p class="text-[10px] text-blue-700 leading-relaxed">
+            1. Abre tu archivo <b>.xls</b> o <b>.csv</b>.<br>
+            2. Selecciona las filas de productos (puedes incluir la fecha "Día:..." para detección auto).<br>
+            3. <b>COPIA</b> y <b>PEGA</b> abajo.<br>
+            <span class="opacity-70 italic">* El sistema limpiará las columnas vacías automáticamente.</span>
+        </p>
+    </div>`;
+
+    showModal('📋 Importar Ventas (Modo Seguro)', `
+        ${instructions}
+        
+        <div class="mb-4 bg-white p-2 rounded-xl border border-slate-200 shadow-sm flex justify-between items-center">
+            <label class="text-[10px] font-black text-slate-400 uppercase ml-2">📅 FECHA DE VENTA</label>
+            <input type="date" id="paste-date" value="${today}" class="bg-indigo-50 border border-indigo-100 rounded-lg px-3 py-1 font-black text-indigo-700 outline-none text-sm">
         </div>
         
-        <label class="text-xs font-bold text-slate-500 uppercase mb-1 block">2. PEGA EL TEXTO AQUÍ (Nombre Cantidad Total)</label>
-        <textarea id="paste-area" class="input-premium h-64 text-[10px] font-mono border-2 border-slate-200 p-2 leading-tight" placeholder="Ej: Agua sin gas 20 46.75"></textarea>
+        <textarea id="paste-area" class="input-premium h-48 text-[10px] font-mono border-2 border-slate-200 p-2 leading-tight focus:border-indigo-500 transition" placeholder="Pega aquí el contenido de tu Excel..."></textarea>
         
-        <button class="btn-premium mt-3 w-full shadow-lg bg-gradient-to-r from-indigo-600 to-blue-600" onclick="processPastedTextV40()">
-            🚀 PROCESAR Y REVISAR
+        <button class="btn-premium mt-3 w-full shadow-xl bg-gradient-to-r from-indigo-600 to-blue-600 hover:to-indigo-500 transform active:scale-95 transition" onclick="processPastedTextV40()">
+            🚀 ANALIZAR DATOS
         </button>
     `);
+    
+    // Auto-foco para pegar rápido
     setTimeout(() => document.getElementById('paste-area').focus(), 100);
 }
-
+/* =============================================================
+   ⚠️ NUEVO PROCESADOR DE TEXTO (OPTIMIZADO PARA TU EXCEL) ⚠️
+   ============================================================= */
 function processPastedTextV40() {
     const rawText = document.getElementById('paste-area').value;
-    const selectedDate = document.getElementById('paste-date').value;
-    
-    if (!rawText.trim()) return toast("Pega algo", "error");
-    if (!selectedDate) return toast("Fecha obligatoria", "error");
+    let selectedDate = document.getElementById('paste-date').value;
 
-    const matches = []; const unknown = [];
+    if (!rawText.trim()) return toast("⚠️ Pega primero el contenido del Excel", "error");
+
+    const matches = [];
+    const unknown = [];
     const normalize = (str) => str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
 
-    let lines = rawText.split(/\n/);
-    const regex = /(.+?)[\s\t]+(\d+(?:[.,]\d+)?)[\s\t]+(\d+(?:[.,]\d+)?)/;
+    // 1. DETECTOR DE FECHA INTELIGENTE
+    // Busca patrones como "Día: 10/01/2026" dentro del texto pegado
+    const dateMatch = rawText.match(/Día:\s*(\d{2})[\/.-](\d{2})[\/.-](\d{4})/);
+    if (dateMatch) {
+        selectedDate = `${dateMatch[3]}-${dateMatch[2]}-${dateMatch[1]}`; // Convertir a YYYY-MM-DD
+        document.getElementById('paste-date').value = selectedDate;
+        toast(`📅 Fecha detectada en el Excel: ${dateMatch[1]}/${dateMatch[2]}`, "success");
+    }
+
+    const lines = rawText.split(/\n/);
 
     lines.forEach(line => {
-        line = line.trim();
-        if(!line) return;
+        // Limpieza: quitamos comillas y espacios extremos
+        let cleanLine = line.replace(/"/g, '').trim();
 
-        let m = line.match(regex);
-        if (!m) m = line.match(/(.+?)(\d+)(\d+[.,]\d{2})$/);
+        // Filtros: ignorar cabeceras y líneas vacías del informe
+        if (!cleanLine || 
+            cleanLine.includes("Informe de ventas") || 
+            cleanLine.includes("Parámetros") || 
+            cleanLine.includes("Artículo") || 
+            cleanLine.startsWith(",,,")) return;
 
-        if (m) {
-            let name = m[1].trim(); 
-            let qty = parseFloat(m[2].replace(',', '.'));      
-            let total = parseFloat(m[3].replace(',', '.')); 
+        // ESTRATEGIA: Dividir por comas o tabuladores y eliminar huecos vacíos
+        // Tu CSV tiene estructura: ,,,Nombre,,,,,,0.0,,Qty,,Neto,,,,IVA,,,Bruto...
+        let parts = cleanLine.split(/[\t,]+/).filter(p => p.trim() !== '');
 
-            if (name.length > 1 && qty > 0) {
-                 let unitPvp = total / qty;
-                 matchAndPush(name, qty, unitPvp, matches, unknown, normalize);
+        // Necesitamos al menos Nombre, Cantidad y Precio (3 elementos)
+        if (parts.length >= 3) {
+            const name = parts[0].trim(); // El primer elemento válido es el Nombre
+            
+            // BUSCADOR DE DATOS POR POSICIÓN RELATIVA
+            // En tu archivo, el Total Bruto suele ser uno de los últimos valores grandes
+            // La Cantidad suele ser el primer número decimal después del nombre
+            
+            // Intentamos parsear todos los números de la línea
+            const numbers = parts.slice(1).map(p => Num.parse(p));
+            
+            // Asumimos estructura estándar de tu reporte:
+            // numbers[0] -> Suele ser 0.0 (Clientes)
+            // numbers[1] -> CANTIDAD
+            // ...
+            // numbers[4] o similar -> TOTAL BRUTO
+            
+            // Método seguro: Buscamos la Cantidad (idx 1) y el Total Bruto (suele ser mayor que el neto)
+            const qty = numbers[1]; 
+            // Buscamos el Bruto (normalmente el valor más alto de la línea o posición fija)
+            // En tu CSV snippet: 46.75 es el índice 4 de los números (aprox)
+            // Para asegurar, cogemos el valor que está 2 posiciones antes del final de la parte numérica útil
+            // O simplemente usamos la lógica de PVP = Total / Cantidad
+            
+            // En tu snippet específico: ..., 4.25 (IVA), 46.75 (Bruto), 1.45 (%), ...
+            // El Bruto es el valor justo después del IVA.
+            
+            // Vamos a usar una lógica de "fuerza bruta inteligente":
+            // Si encontramos un total y una cantidad válidos
+            const total = numbers.find(n => n > 0 && n > qty); // El total suele ser mayor que la cantidad (salvo cosas muy baratas)
+            
+            if (qty > 0 && name.length > 2) {
+                // Si no encontramos total claro, usamos 0 (se marcará como DIFF para revisar)
+                const finalTotal = total || 0;
+                const unitPvp = finalTotal > 0 ? finalTotal / qty : 0;
+                
+                matchAndPush(name, qty, unitPvp, matches, unknown, normalize);
             }
         }
     });
 
-    if (matches.length === 0 && unknown.length === 0) return toast("❌ No entendí el formato.", "error");
+    if (matches.length === 0 && unknown.length === 0) {
+        return toast("❌ No se encontraron datos válidos. Copia todo el Excel.", "error");
+    }
+
     showEditableImportModal([...matches, ...unknown], selectedDate);
 }
-
 // 3. LÓGICA DE MATCHING
 function matchAndPush(name, qty, realPvp, matches, unknown, normalize) {
     const searchName = normalize(name);
