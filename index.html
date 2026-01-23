@@ -885,8 +885,8 @@ function renderAlbaranes(c) {
     // Lista de socios segura
     const listaSociosSegura = db.listaSocios || ['Jeronimo', 'Pedro', 'Pau', 'Agnes'];
     const socioOptions = `<option value="Arume" selected>🏠 ARUME</option>` + 
-                         `<option value="OnlyOne">🍸 ONLYONE (Pau)</option>` +
-                         listaSociosSegura.map(s => `<option value="${s}">${s}</option>`).join('');
+                          `<option value="OnlyOne">🍸 ONLYONE (Pau)</option>` +
+                          listaSociosSegura.map(s => `<option value="${s}">${s}</option>`).join('');
     
     // --- 1. DEFINIMOS LA CHULETA DE AYUDA (NUEVO) ---
     const helpTip = `
@@ -901,23 +901,37 @@ function renderAlbaranes(c) {
         </div>
     </div>`;
 
-    // --- 2. RENDERIZAMOS EL HTML (CON EL TIP INCLUIDO) ---
+    // --- 2. RENDERIZAMOS EL HTML (CON EL TIP INCLUIDO Y EL AVISO INTELIGENTE) ---
     c.innerHTML = `
     <div class="glass-card border-l-4 border-indigo-500" id="alb-form-anchor">
-        <h3 class="font-bold text-slate-700 text-sm mb-4 uppercase">Nuevo / Editar Albarán</h3>
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="font-bold text-slate-700 text-sm uppercase">Nuevo / Editar Albarán</h3>
+            <span class="text-[9px] bg-indigo-50 text-indigo-400 px-2 py-1 rounded border border-indigo-100 font-bold">PRO MODE</span>
+        </div>
         
-        <div class="grid grid-cols-4 gap-2 mb-3">
+        <div class="grid grid-cols-4 gap-2 mb-1">
             <div class="col-span-1">
                 <label>Socio</label>
                 <select id="alb-socio" class="input-premium px-1 text-sm font-bold text-indigo-600">
                     ${socioOptions}
                 </select>
             </div>
-            <div class="col-span-1"><label>Proveedor</label><input list="prov-list" id="alb-prov" class="input-premium px-1 text-sm" placeholder="..." onchange="checkDuplicate()"><datalist id="prov-list">${provOptions}</datalist></div>
-            <div class="col-span-1"><label>Ref / Fra</label><input id="alb-num" class="input-premium px-1 text-sm font-mono" onkeyup="checkDuplicate()" placeholder="Ref..."></div>
-            <div class="col-span-1"><label>Fecha</label><input type="date" id="alb-date" value="${getISO()}" class="input-premium px-1 text-sm"></div>
+            <div class="col-span-1">
+                <label>Proveedor</label>
+                <input list="prov-list" id="alb-prov" class="input-premium px-1 text-sm" placeholder="..." oninput="checkDuplicate()">
+                <datalist id="prov-list">${provOptions}</datalist>
+            </div>
+            <div class="col-span-1">
+                <label>Ref / Fra</label>
+                <input id="alb-num" class="input-premium px-1 text-sm font-mono font-bold text-slate-700 transition-colors duration-300" oninput="checkDuplicate()" placeholder="Ref...">
+            </div>
+            <div class="col-span-1">
+                <label>Fecha</label>
+                <input type="date" id="alb-date" value="${getISO()}" class="input-premium px-1 text-sm">
+            </div>
         </div>
-        <div id="dup-alert" class="hidden text-[10px] text-red-500 font-bold mb-2 text-center bg-red-50 p-1 rounded">⚠️ FACTURA DUPLICADA</div>
+
+        <div id="dup-status" class="hidden mb-4"></div>
 
         <datalist id="ing-list">${ingOptions}</datalist>
         
@@ -973,14 +987,58 @@ function renderAlbaranes(c) {
                 </div>
             </div>`).join('') : '<div class="text-center p-4 text-slate-400">Sin registros</div>'}
     </div>`;
+    
     renderAlbGrid();
 }
 function checkDuplicate() {
-    const num = document.getElementById('alb-num').value.trim();
-    const prov = document.getElementById('alb-prov').value.trim();
-    const alert = document.getElementById('dup-alert');
-    if(num && prov && db.albaranes.some(a => a.num === num && a.prov === prov)) alert.classList.remove('hidden');
-    else alert.classList.add('hidden');
+    const refInput = document.getElementById('alb-num');
+    const provInput = document.getElementById('alb-prov');
+    const statusDiv = document.getElementById('dup-status');
+
+    // Limpieza de datos
+    const ref = refInput.value.trim().toLowerCase();
+    const prov = provInput.value.trim().toLowerCase();
+
+    // Si faltan datos, limpiamos visuales y salimos
+    if (!ref || !prov) {
+        statusDiv.innerHTML = ''; 
+        statusDiv.className = 'hidden';
+        refInput.classList.remove('border-red-500', 'bg-red-50', 'border-emerald-500', 'bg-emerald-50', 'animate-pulse');
+        return;
+    }
+
+    // Buscamos si existe
+    const existingAlb = db.albaranes.find(a => 
+        (a.num || '').toString().trim().toLowerCase() === ref && 
+        (a.prov || '').toString().trim().toLowerCase() === prov
+    );
+
+    statusDiv.classList.remove('hidden');
+
+    if (existingAlb) {
+        // --- 🛑 DUPLICADO ---
+        refInput.classList.remove('border-emerald-500', 'bg-emerald-50');
+        refInput.classList.add('border-red-500', 'bg-red-50', 'animate-pulse');
+
+        statusDiv.className = 'mt-2 p-3 bg-red-100 border-l-4 border-red-500 rounded text-xs flex justify-between items-center shadow-sm animate-bounce';
+        statusDiv.innerHTML = `
+            <div>
+                <div class="font-bold text-red-700">⛔ FACTURA REPETIDA</div>
+                <div class="text-red-500">Ya existe desde el ${existingAlb.date}</div>
+            </div>
+            <button class="bg-white text-red-600 border border-red-200 px-3 py-1 rounded-lg font-bold hover:bg-red-50 transition shadow-sm" onclick="viewAlbDetails('${existingAlb.id}')">
+                👁️ VER ORIGINAL
+            </button>
+        `;
+    } else {
+        // --- ✅ DISPONIBLE ---
+        refInput.classList.remove('border-red-500', 'bg-red-50', 'animate-pulse');
+        refInput.classList.add('border-emerald-500', 'bg-emerald-50');
+
+        statusDiv.className = 'mt-1 text-[10px] font-bold text-emerald-600 flex items-center gap-1 pl-1';
+        statusDiv.innerHTML = `<span>✅</span> Referencia disponible`;
+    }
+}
 }
 /* =============================================================
    ⚠️ MOTOR INTELIGENTE V5.0 (DETECTIVE MATEMÁTICO) ⚠️
