@@ -249,11 +249,17 @@
     </div>
 <script>
 /* =============================================================
-   ⚠️ 1. CONFIGURACIÓN DEL MOTOR (SUPABASE) ⚠️
+   ⚠️ 1. CONFIGURACIÓN DEL MOTOR (SUPABASE & FINANZAS) ⚠️
    ============================================================= */
 const SUPABASE_URL = "https://awbgboucnbsuzojocbuy.supabase.co"; 
 const SUPABASE_KEY = "sb_publishable_drOQ5PsFA8eox_aRTXNATQ_5kibM6ST";
-const CONFIG = { COST_HOUR: 15 };
+
+// 🔥 CONFIGURACIÓN DE COSTES FIJOS (AQUÍ ESTÁ LA CLAVE) 🔥
+const CONFIG = { 
+    COST_HOUR: 15,           // Coste hora cocinero
+    FIXED_COST_MONTH: 40000, // TUS GASTOS FIJOS TOTALES (Alquiler, Luz, Personal...)
+    EST_MONTHLY_SALES: 2500  // Raciones promedio que vendes al mes
+};
 
 // Inicializamos el cliente (El puente con la nube)
 const { createClient } = supabase;
