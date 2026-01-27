@@ -2204,7 +2204,7 @@ const recipeCache = new Map();
 function clearCache() { recipeCache.clear(); }
 
 function calcRecipe(r, visited = new Set()) {
-    // Inicializamos alérgenos (los propios de la receta si tuviera)
+    // Inicializamos alérgenos (los propios de la receta si tuviera + los heredados)
     let activeAllergens = new Set(r.alg || []);
 
     if (!r) return { t: 0, foodCost: 0, laborCost: 0, fixedCost: 0, allergens: [] };
@@ -2482,14 +2482,14 @@ function viewRec(id) {
     // Iconos de alérgenos detectados automáticamente
     const algIcons = (c.allergens || []).map(k => {
         const a = ALLERGENS.find(x=>x.k===k);
-        return a ? `<span title="${a.k}" class="text-lg cursor-help">${a.i}</span>` : '';
+        return a ? `<span title="${a.k}" class="text-2xl cursor-help drop-shadow-sm">${a.i}</span>` : '';
     }).join(' ');
 
     showModal(clean(r.n), `
         <div class="flex justify-between items-start mb-4">
             <div class="bg-white border border-slate-200 p-2 rounded-lg shadow-sm text-center min-w-[80px]">
                 <div class="text-[8px] uppercase font-bold text-slate-400">Alérgenos</div>
-                <div class="flex gap-1 justify-center mt-1">${algIcons || '<span class="text-xs text-emerald-500">Libre</span>'}</div>
+                <div class="flex gap-1 justify-center mt-1 min-h-[24px]">${algIcons || '<span class="text-xs text-emerald-500 font-bold">Libre</span>'}</div>
             </div>
             
             <div class="bg-indigo-50 border border-indigo-100 p-2 rounded-lg flex-1 ml-2">
@@ -2537,7 +2537,7 @@ function viewRec(id) {
         
         <div class="grid grid-cols-2 gap-2 mt-4">
             <button class="btn-premium bg-indigo-600 shadow-indigo-200 py-3" onclick="openCookMode('${id}')">👨‍🍳 MODO COCINA</button>
-            <button class="btn-ghost border-slate-300 text-slate-600" onclick="printLabel('${id}')">🏷️ ETIQUETA FIFO</button>
+            <button class="btn-ghost border-slate-300 text-slate-600 font-bold" onclick="printLabel('${id}')">🏷️ ETIQUETA FIFO</button>
         </div>
         <div class="flex gap-2 mt-2">
             <button class="btn-ghost flex-1 text-[10px]" onclick="window.print()">🖨️ FICHA A4</button>
@@ -2557,7 +2557,6 @@ function viewRec(id) {
         }
     };
 }
-
 // --- FUNCIÓN AUXILIAR PARA ESCALAR CANTIDADES EN TIEMPO REAL ---
 window.updateRecQuantities = function(factor, id) {
     const r = db.recetas.find(x=>x.id===id);
@@ -3964,6 +3963,44 @@ function initChart() {
             }
         }
     });
+}
+    // --- GENERADOR DE ETIQUETAS FIFO (CADUCIDAD) ---
+function printLabel(id) {
+    const r = db.recetas.find(x => x.id === id);
+    if (!r) return;
+    
+    const today = new Date();
+    const expiry = new Date();
+    expiry.setDate(today.getDate() + 3); // Caducidad estándar 3 días (Modificable a mano en la etiqueta si se quiere)
+    
+    // Calcular alérgenos al vuelo para la etiqueta
+    const c = calcRecipe(r);
+    const algs = (c.allergens || []).map(k => ALLERGENS.find(x=>x.k===k)?.i).join('  ');
+
+    const w = window.open('', '', 'width=400,height=400');
+    w.document.write(`
+        <html>
+        <head>
+            <style>
+                body { font-family: sans-serif; padding: 15px; border: 3px solid black; width: 300px; text-align: center; }
+                h1 { margin: 0 0 10px 0; font-size: 22px; text-transform: uppercase; line-height: 1.1; }
+                .row { display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 14px; border-bottom: 1px dashed #ccc; padding-bottom: 5px; }
+                .alg { font-size: 24px; margin: 15px 0; font-weight: bold; }
+                .warn { font-size: 10px; font-weight: bold; text-transform: uppercase; margin-top: 10px; }
+                .user { font-size: 10px; margin-top: 5px; color: #666; }
+            </style>
+        </head>
+        <body>
+            <h1>${clean(r.n)}</h1>
+            <div class="row"><span>ELABORADO:</span> <b>${today.toLocaleDateString()}</b></div>
+            <div class="row"><span>CADUCIDAD:</span> <b>${expiry.toLocaleDateString()}</b></div>
+            <div class="alg">${algs || 'SIN ALÉRGENOS'}</div>
+            <div class="warn">MANTENER REFRIGERADO 0-4ºC</div>
+            <div class="user">Resp: ${currentUser ? currentUser.n : 'Cocina'}</div>
+            <script>window.print(); window.close();<\/script>
+        </body>
+        </html>
+    `);
 }
 // INICIALIZACIÓN DE LA APP
 init(); 
