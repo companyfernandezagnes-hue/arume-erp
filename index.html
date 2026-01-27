@@ -539,7 +539,6 @@ function render(v) {
 /* =============================================================
    ⚠️ 10. MÓDULO DE ADMINISTRACIÓN Y GESTIÓN ⚠️
    ============================================================= */
-
 /* === WIDGET DE ALERTAS DE STOCK === */
 function getStockAlerts() {
     // Filtramos productos por debajo del mínimo definido
@@ -588,11 +587,12 @@ function getStockAlerts() {
         <button class="w-full mt-3 btn-whatsapp text-[10px] py-2" onclick="sendWhatsApp()">📞 GENERAR PEDIDO AUTO</button>
     </div>`;
 }
-let myChart = null; // Variable global para el gráfico
+
+let myChart = null; // Variable global para el gráfico (UNA SOLA VEZ)
+
 /* =============================================================
    ⚠️ DASHBOARD V8: CONTROL DE SOCIOS Y PERSONAL (LABOR COST) ⚠️
    ============================================================= */
-let myChart = null; 
 
 function renderAdmin(app) {
     // 1. DATA SAFEGUARDS
@@ -611,7 +611,7 @@ function renderAdmin(app) {
 
     // === B. SEPARACIÓN EXTRICTA: RESTAURANTE VS SOCIOS ===
     let costeMateriaPrima = 0; 
-    let gastosSocios = {};     
+    let gastosSocios = {};      
     let totalSocios = 0;
 
     // Recorremos TODOS los albaranes del periodo seleccionado
@@ -762,7 +762,7 @@ function renderAdmin(app) {
         <div class="grid grid-cols-2 gap-3 mb-6">
             <div class="bg-white p-3 rounded-2xl border border-slate-100 shadow-sm">
                 <div class="text-[9px] font-bold text-slate-400 uppercase mb-1">Labor Cost (Personal)</div>
-                <div class="text-2xl font-black ${primeStatus}">${laborCostPct.toFixed(1)}%</div>
+                <div class="text-2xl font-black ${colorLabor}">${laborCostPct.toFixed(1)}%</div>
                 <div class="text-[8px] text-slate-400 mt-1">
                     Gasto: ${Num.fmt(totalPersonal)}€<br>Meta: < 35%
                 </div>
