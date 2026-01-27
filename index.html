@@ -588,67 +588,30 @@ function getStockAlerts() {
         <button class="w-full mt-3 btn-whatsapp text-[10px] py-2" onclick="sendWhatsApp()">📞 GENERAR PEDIDO AUTO</button>
     </div>`;
 }
-/* =============================================================
-   ⚠️ DASHBOARD CEO "DIAMOND" V4.0 (Analytics & KPIs Reales) ⚠️
-   ============================================================= */
+let myChart = null; // Variable global para el gráfico
+
 function renderAdmin(app) {
     // 1. DATA SAFEGUARDS
     if (!db.gastos_fijos) db.gastos_fijos = [];
     if (!db.eventos) db.eventos = [];
 
-    // === 2. CÁLCULO DE INGRESOS ===
-    const ventasCaja = db.diario
-        .filter(d => isInPeriod(d.date))
-        .reduce((a, b) => a + (b.total || 0), 0);
-
-    const ingresosEventos = db.eventos
-        .filter(e => isInPeriod(e.date))
-        .reduce((a, b) => a + (Num.parse(b.ingreso) || 0), 0);
-
-    const totalRevenue = ventasCaja + ingresosEventos;
-
-    // === 3. CÁLCULO DE GASTOS (REALIDAD OPERATIVA) ===
+    // Cálculos básicos KPIs (Igual que antes pero optimizado)
+    const totalRevenue = db.diario.filter(d => isInPeriod(d.date)).reduce((a, b) => a + (b.total || 0), 0);
+    const totalCompras = db.albaranes.filter(a => isInPeriod(a.date)).reduce((a, b) => a + (b.total || 0), 0);
     
-    // A. COMPRAS (Solo Arume)
-    const totalCompras = db.albaranes
-        .filter(a => isInPeriod(a.date) && (!a.socio || a.socio === 'Arume'))
-        .reduce((a, b) => a + (b.total || 0), 0);
-
-    // B. ESTRUCTURA (FIJOS)
-    const totalFijos = db.gastos_fijos
-        .filter(g => isInPeriod(g.date))
-        .reduce((a, b) => a + (b.amount || 0), 0);
-
-    // C. PERSONAL EXTRA
-    const totalPersonalExtra = db.eventos
-        .filter(e => isInPeriod(e.date))
-        .reduce((a, b) => a + (Num.parse(b.personalExtra) || 0), 0);
-
-    // D. MERMAS
-    const totalMermas = db.mermas
-        .filter(m => isInPeriod(m.date))
-        .reduce((a, b) => a + (m.loss || 0), 0);
-
-    // === 4. KPIs ===
-    const totalGastos = totalCompras + totalFijos + totalPersonalExtra;
-    const netProfit = totalRevenue - totalGastos;
+    // Calculamos gastos fijos del periodo seleccionado (Trimestre o Año)
+    const monthlyFixed = db.gastos_fijos.reduce((a,b) => a + (b.freq==='mensual'?b.amount:b.amount/3), 0);
+    const multiplier = fiscalQuarter === 0 ? 12 : 3; // 12 meses o 3 meses
+    const totalFijos = monthlyFixed * multiplier;
+    
+    const netProfit = totalRevenue - totalCompras - totalFijos;
     const profitMargin = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0;
-    const foodCostPct = totalRevenue > 0 ? (totalCompras / totalRevenue) * 100 : 0;
     
+    // Colores dinámicos
     const healthColor = netProfit > 0 ? 'text-emerald-500' : 'text-red-500';
     const marginColor = profitMargin > 15 ? 'bg-emerald-100 text-emerald-700' : (profitMargin > 0 ? 'bg-orange-100 text-orange-700' : 'bg-red-100 text-red-700');
-    const fcAlert = foodCostPct > 35 ? 'text-red-500 animate-pulse' : 'text-slate-600';
 
-    // Gastos Socios (Aparte)
-    const gastosSocios = {};
-    let totalSocios = 0;
-    db.albaranes.filter(a => isInPeriod(a.date) && a.socio && a.socio !== 'Arume').forEach(a => {
-        if (!gastosSocios[a.socio]) gastosSocios[a.socio] = 0;
-        gastosSocios[a.socio] += a.total;
-        totalSocios += a.total;
-    });
-
-    // === 5. RENDERIZADO ===
+    // Selector de Trimestre
     const qCtrl = `
     <div class="flex items-center justify-between bg-white p-2 rounded-2xl shadow-sm mb-4 border border-slate-100">
         <div class="flex items-center gap-2 bg-slate-100 rounded-lg px-2 py-1">
@@ -680,111 +643,32 @@ function renderAdmin(app) {
     </div>
     
     ${activeAdminTab === 'dash' ? `
-        <div class="glass-card bg-slate-900 text-white mb-6 border-none shadow-2xl relative overflow-hidden p-6">
-            <div class="absolute -top-6 -right-6 w-32 h-32 bg-white/5 rounded-full blur-2xl"></div>
-            
-            <div class="flex justify-between items-start mb-2">
-                <h3 class="text-[10px] uppercase font-bold opacity-50 mb-1 tracking-[0.2em]">EBITDA (Beneficio Operativo)</h3>
-                <span class="${marginColor} px-2 py-0.5 rounded text-[10px] font-black tracking-wide">MARGEN ${profitMargin.toFixed(1)}%</span>
-            </div>
-            
-            <div class="text-5xl font-black ${healthColor} tracking-tighter mb-6">${Num.fmt(netProfit)}€</div>
-            
-            <div class="grid grid-cols-2 gap-8 border-t border-white/10 pt-4">
-                <div>
-                    <div class="text-[9px] opacity-50 uppercase font-bold mb-1">Ingresos Totales</div>
-                    <div class="text-xl font-bold text-emerald-300">▲ ${Num.fmt(totalRevenue)}€</div>
-                </div>
-                <div class="text-right">
-                    <div class="text-[9px] opacity-50 uppercase font-bold mb-1">Gastos Operativos</div>
-                    <div class="text-xl font-bold text-red-300">▼ ${Num.fmt(totalGastos)}€</div>
-                </div>
-            </div>
-        </div>
-
         <div class="grid grid-cols-2 gap-3 mb-6">
-            <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm relative overflow-hidden">
-                <div class="absolute top-0 right-0 p-2 text-slate-100 text-4xl font-black -z-0">🛒</div>
-                <h4 class="text-[9px] font-bold text-slate-400 uppercase tracking-tight z-10 relative">Food Cost</h4>
-                <div class="text-lg font-black text-slate-800 z-10 relative">-${Num.fmt(totalCompras)}€</div>
-                <div class="text-[10px] font-bold ${fcAlert} mt-1 z-10 relative">${foodCostPct.toFixed(1)}% sobre ventas</div>
+            <div class="glass-card bg-slate-900 text-white border-none p-4 relative overflow-hidden">
+                <div class="absolute -top-6 -right-6 w-24 h-24 bg-white/10 rounded-full blur-xl"></div>
+                <div class="text-[9px] opacity-50 uppercase font-bold mb-1 tracking-widest">Beneficio Neto</div>
+                <div class="text-3xl font-black ${healthColor} relative z-10">${Num.fmt(netProfit)}€</div>
+                <div class="text-[9px] text-slate-400 mt-1 relative z-10">Tras pagar estructura</div>
             </div>
-
-            <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm relative overflow-hidden">
-                <div class="absolute top-0 right-0 p-2 text-slate-100 text-4xl font-black -z-0">💡</div>
-                <h4 class="text-[9px] font-bold text-slate-400 uppercase tracking-tight z-10 relative">Estructura Fija</h4>
-                <div class="text-lg font-black text-slate-800 z-10 relative">-${Num.fmt(totalFijos)}€</div>
-            </div>
-        </div>
-
-        <div class="glass-card mb-6">
-            <h4 class="text-xs font-black text-slate-800 uppercase tracking-widest mb-4">Distribución del Gasto</h4>
-            
-            <div class="mb-3">
-                <div class="flex justify-between text-[10px] font-bold text-slate-500 mb-1">
-                    <span>Materia Prima</span>
-                    <span>${Num.fmt(totalCompras)}€</span>
-                </div>
-                <div class="w-full bg-slate-100 rounded-full h-2">
-                    <div class="bg-blue-500 h-2 rounded-full" style="width: ${Math.min((totalCompras/totalRevenue)*100, 100)}%"></div>
-                </div>
-            </div>
-
-            <div class="mb-3">
-                <div class="flex justify-between text-[10px] font-bold text-slate-500 mb-1">
-                    <span>Gastos Fijos</span>
-                    <span>${Num.fmt(totalFijos)}€</span>
-                </div>
-                <div class="w-full bg-slate-100 rounded-full h-2">
-                    <div class="bg-purple-500 h-2 rounded-full" style="width: ${Math.min((totalFijos/totalRevenue)*100, 100)}%"></div>
-                </div>
-            </div>
-
-            <div class="mb-1">
-                <div class="flex justify-between text-[10px] font-bold text-slate-500 mb-1">
-                    <span>Personal Extra</span>
-                    <span>${Num.fmt(totalPersonalExtra)}€</span>
-                </div>
-                <div class="w-full bg-slate-100 rounded-full h-2">
-                    <div class="bg-orange-400 h-2 rounded-full" style="width: ${Math.min((totalPersonalExtra/totalRevenue)*100, 100)}%"></div>
-                </div>
+            <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-center">
+                <div class="text-[9px] text-slate-400 uppercase font-bold mb-1 tracking-widest">Margen Real</div>
+                <div class="text-3xl font-black text-slate-700">${profitMargin.toFixed(1)}%</div>
+                <div class="text-[9px] ${marginColor} px-2 py-0.5 rounded inline-block w-max font-bold mt-1">EBITDA</div>
             </div>
         </div>
 
-        ${totalSocios > 0 ? `
-        <div class="bg-indigo-50 border border-indigo-100 p-4 rounded-2xl shadow-sm mb-6">
-            <div class="flex justify-between items-center mb-3">
-                <h3 class="text-xs font-black text-indigo-700 uppercase tracking-widest flex items-center gap-2">
-                    <span>👤</span> CUENTAS SOCIOS
-                </h3>
-                <span class="font-black text-indigo-700 text-lg">${Num.fmt(totalSocios)}€</span>
-            </div>
-            <div class="divide-y divide-indigo-100">
-                ${Object.entries(gastosSocios).map(([socio, amount]) => `
-                    <div class="flex justify-between items-center py-2">
-                        <span class="text-xs font-bold text-indigo-900">${socio}</span>
-                        <span class="text-xs font-bold text-indigo-600">${Num.fmt(amount)}€</span>
-                    </div>
-                `).join('')}
-            </div>
-            <div class="mt-3 text-[9px] text-indigo-400 text-center font-bold bg-white/50 p-1 rounded">
-                ℹ️ Estos gastos NO se restan del beneficio del restaurante
-            </div>
-        </div>` : ''}
-
-        ${getStockAlerts()}
-        
-        ${totalMermas > 0 ? `
-        <div class="bg-red-50 border border-red-100 p-3 rounded-xl flex justify-between items-center shadow-sm">
-            <div class="flex items-center gap-2">
-                <span class="text-lg">🗑️</span>
-                <div>
-                    <div class="text-[10px] font-bold text-red-400 uppercase">Mermas Registradas</div>
-                    <div class="font-black text-red-700 text-sm">-${Num.fmt(totalMermas)}€</div>
+        <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm mb-6 relative">
+            <div class="flex justify-between items-center mb-4">
+                <h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Evolución Ingresos vs Gastos</h4>
+                <div class="flex items-center gap-2 text-[9px] font-bold">
+                    <span class="flex items-center gap-1 text-emerald-600"><span class="w-2 h-2 rounded-full bg-emerald-500"></span> VENTAS</span>
+                    <span class="flex items-center gap-1 text-red-500"><span class="w-2 h-2 rounded-full bg-red-500"></span> GASTOS (+40k)</span>
                 </div>
             </div>
-            <button class="text-[10px] font-bold text-red-500 underline" onclick="render('Stock')">Ver detalle</button>
-        </div>` : ''}
+            <div class="h-64">
+                <canvas id="financeChart"></canvas>
+            </div>
+        </div>
 
         <div class="glass-card mt-8">
             <h4 class="text-[10px] font-bold text-slate-400 uppercase mb-4 tracking-widest">Zona de Control</h4>
@@ -804,6 +688,7 @@ function renderAdmin(app) {
     ` : ''}
     <div id="adm-c"></div>`;
 
+    // Renderizar sub-módulos
     const c = document.getElementById('adm-c');
     if (activeAdminTab === 'fijos') renderGastosFijos(c);
     if (activeAdminTab === 'albs') renderAlbaranes(c);
@@ -811,6 +696,11 @@ function renderAdmin(app) {
     if (activeAdminTab === 'omnes') renderOmnes(c);
     if (activeAdminTab === 'prov') renderProvs(c);
     if (activeAdminTab === 'eventos') renderEventos(c);
+
+    // INICIALIZAR GRÁFICO SI ESTAMOS EN DASH
+    if (activeAdminTab === 'dash') {
+        setTimeout(initChart, 100); // Llamamos a la función que dibuja el gráfico
+    }
 }
 // --- SUB-MÓDULO: PROVEEDORES (CON BOTÓN IMPORTAR) ---
 function renderProvs(c) { 
@@ -2306,8 +2196,7 @@ function filterRec(txt) {
     const filtered = db.recetas.filter(r => r.n.toLowerCase().includes(txt.toLowerCase()));
     document.getElementById('rec-grid').innerHTML = renderRecGrid(filtered); 
 }
-
-// --- MOTOR DE CÁLCULO DE COSTES (RECURSIVO) ---
+// --- MOTOR DE CÁLCULO DE COSTES (CON GASTOS FIJOS INTEGRADOS) ---
 const recipeCache = new Map();
 
 function clearCache() {
@@ -2315,17 +2204,11 @@ function clearCache() {
 }
 
 function calcRecipe(r, visited = new Set()) {
-    if (!r) return { t: 0 };
+    if (!r) return { t: 0, foodCost: 0, laborCost: 0, fixedCost: 0 };
     
     // Consultar caché para velocidad
-    if (recipeCache.has(r.id)) {
-        return recipeCache.get(r.id); 
-    }
-
-    if (visited.has(r.id)) { 
-        console.warn("Bucle infinito detectado en receta:", r.n); 
-        return { t: 0 }; 
-    }
+    if (recipeCache.has(r.id)) return recipeCache.get(r.id);
+    if (visited.has(r.id)) return { t: 0 }; // Evitar bucles infinitos
     visited.add(r.id);
 
     let totalIngredientsCost = 0;
@@ -2336,7 +2219,7 @@ function calcRecipe(r, visited = new Set()) {
         if (it.type === 'ing') {
             const i = db.ingredientes.find(x => x.id === it.id);
             if (i) {
-                // Si el ingrediente existe, calculamos
+                // Convertir unidad usada en receta a unidad de compra
                 const qtyInBaseUnit = UnitConverter.convert(it.q, it.unit || i.unit, i.unit);
                 totalIngredientsCost += (qtyInBaseUnit * i.cost) / yieldFactor;
             }
@@ -2344,9 +2227,10 @@ function calcRecipe(r, visited = new Set()) {
             const sub = db.recetas.find(x => x.id === it.id);
             if (sub) {
                 // Recursividad: calcular coste de la sub-receta
-                const subFullCost = calcRecipe(sub, new Set(visited)).t;
-                const subYield = sub.yield || 1; 
-                const costPerUnit = subFullCost / subYield;
+                const subFull = calcRecipe(sub, new Set(visited));
+                const subCost = subFull.t; // Coste total de la sub-receta
+                const subYield = sub.yield || 1;
+                const costPerUnit = subCost / subYield;
                 
                 // Normalizar unidades (ej: litros de salsa a raciones)
                 const qtyNormalized = UnitConverter.convert(it.q, it.unit, sub.unit || 'rac');
@@ -2355,18 +2239,30 @@ function calcRecipe(r, visited = new Set()) {
         }
     });
 
-    // Factor de corrección profesional (3% mermas ocultas/sal/aceite)
-    const seasoningFactor = 1.03; 
-    totalIngredientsCost = totalIngredientsCost * seasoningFactor;
+    // 1. Coste Materia Prima (añadimos un 3% de seguridad por mermas ocultas/sal/aceite)
+    const foodCost = totalIngredientsCost * 1.03;
 
-    // Mano de obra (Calculada según tiempo)
-    const laborCost = ((r.time || 0) / 60) * (CONFIG.COST_HOUR || 15);
+    // 2. Coste Mano de Obra (Tiempo elaboración)
+    const laborCost = ((r.time || 0) / 60) * CONFIG.COST_HOUR;
+
+    // 3. REPARTO GASTOS FIJOS (La mochila de los 40.000€)
+    // Dividimos los 40.000€ entre los platos estimados al mes.
+    // Si vendes 2500 platos, cada plato carga con 16€ de estructura.
+    const fixedCostPerDish = CONFIG.FIXED_COST_MONTH / CONFIG.EST_MONTHLY_SALES;
+
+    const totalReal = foodCost + laborCost + fixedCostPerDish;
     
-    const result = { t: totalIngredientsCost + laborCost };
+    // Devolvemos el desglose para poder pintarlo luego en el semáforo
+    const result = { 
+        t: totalReal, 
+        foodCost: foodCost, 
+        laborCost: laborCost,
+        fixedCost: fixedCostPerDish 
+    };
+    
     recipeCache.set(r.id, result);
     return result;
 }
-
 // --- CÁLCULO DE MÁXIMO PRODUCIBLE (STOCK) ---
 function calcMaxProd(r, visited = new Set()) {
     if (!r || !r.items || !r.items.length) return Infinity;
@@ -2396,19 +2292,15 @@ function calcMaxProd(r, visited = new Set()) {
 
     return minRatio === Infinity ? 0 : Math.floor(minRatio);
 }
-
-// --- EDICIÓN Y CREACIÓN ---
 function editRec(id) {
     const r = id ? db.recetas.find(x => x.id === id) : { id: generateID(), n: '', pvp: 0, time: 15, items: [], inst: '', yield: 1, unit: 'rac' }; 
-    
-    // Clonamos para no editar la referencia original hasta guardar
     tempItems = JSON.parse(JSON.stringify(r.items || []));
 
     showModal('Ficha Técnica & Escandallo', `
         <div class="grid grid-cols-12 gap-3 mb-2">
             <div class="col-span-8">
-                <label>Nombre Receta / Semielaborado</label>
-                <input id="er-n" value="${clean(r.n)}" class="input-premium font-bold" placeholder="Ej: Salsa Boloñesa">
+                <label>Nombre Receta</label>
+                <input id="er-n" value="${clean(r.n)}" class="input-premium font-bold" placeholder="Ej: Vinagreta Algas">
             </div>
             <div class="col-span-4">
                 <label>PVP Venta (€)</label>
@@ -2416,54 +2308,53 @@ function editRec(id) {
             </div>
         </div>
 
-        <div class="bg-emerald-50 p-3 rounded-xl border border-emerald-100 mb-4 flex items-center gap-3">
-            <div class="bg-emerald-100 p-2 rounded-full text-xl">⚖️</div>
-            <div class="flex-1">
-                <label class="text-emerald-800 font-bold">Rendimiento (¿Cuánto produce?)</label>
-                <div class="flex gap-2">
-                    <input id="er-yield" type="number" value="${r.yield || 1}" class="input-premium text-center font-bold text-emerald-900">
-                    <select id="er-unit" class="input-premium bg-white w-24">
-                        <option ${r.unit==='rac'?'selected':''}>rac</option>
-                        <option ${r.unit==='l'?'selected':''}>l</option>
-                        <option ${r.unit==='kg'?'selected':''}>kg</option>
-                        <option ${r.unit==='ud'?'selected':''}>ud</option>
-                    </select>
-                </div>
+        <div class="bg-indigo-50 p-4 rounded-xl border border-indigo-100 mb-6 shadow-inner relative z-50">
+            <label class="mb-2 text-indigo-800 font-bold flex items-center gap-2">🔍 Añadir Ingrediente / Sub-receta</label>
+            
+            <input type="text" id="smart-search" 
+                class="w-full p-3 rounded-lg border-2 border-indigo-200 font-bold text-slate-700 focus:border-indigo-500 focus:outline-none bg-white mb-2" 
+                placeholder="Escribe para buscar (ej: Soja, Salsa...)" 
+                onkeyup="runSmartSearch(this.value)" autocomplete="off">
+            
+            <div id="search-results" class="hidden absolute top-[85px] left-4 right-4 bg-white border border-slate-200 rounded-xl shadow-2xl max-h-56 overflow-y-auto z-[60]"></div>
+
+            <div id="add-controls" class="hidden flex gap-2 items-center bg-white p-2 rounded-lg border border-slate-200 mt-2">
+                <div class="font-black text-indigo-900 flex-1 truncate px-2 text-xs" id="sel-name"></div>
+                <input id="er-q" type="number" class="input-premium w-20 text-center border-indigo-200" placeholder="Cant.">
+                <select id="er-u" class="input-premium w-20 text-xs bg-slate-100 font-bold"></select>
+                <button class="bg-indigo-600 text-white rounded-lg w-10 h-10 font-bold shadow-lg hover:bg-indigo-700 active:scale-95 transition" onclick="addItemFromSearch()">+</button>
             </div>
-            <div class="w-1/3">
+        </div>
+
+        <div class="flex justify-between px-2 text-[10px] font-bold text-slate-400 uppercase mb-1">
+            <span>Escandallo</span><span>Cantidad</span>
+        </div>
+        <div id="er-list" class="max-h-40 overflow-y-auto custom-scrollbar bg-white rounded-lg border border-slate-200 p-1 mb-4"></div>
+
+        <div class="flex gap-2">
+            <div class="flex-1">
+                 <label>Rendimiento</label>
+                 <div class="flex gap-1">
+                    <input id="er-yield" type="number" value="${r.yield || 1}" class="input-premium text-center">
+                    <select id="er-unit" class="input-premium w-20"><option>rac</option><option>l</option><option>kg</option><option>ud</option></select>
+                 </div>
+            </div>
+            <div class="flex-1">
                  <label>Tiempo (min)</label>
                  <input id="er-time" type="number" value="${r.time}" class="input-premium text-center">
             </div>
         </div>
 
-        <div class="bg-slate-50 p-3 rounded-xl border mb-4">
-            <label class="mb-2 text-indigo-600 font-bold">Añadir Ingrediente o Sub-Receta</label>
-            <div class="flex gap-2 mb-2">
-                <select id="er-sel" class="input-premium text-sm flex-1" onchange="updUnit()"></select>
-                <input id="er-q" type="number" class="input-premium w-20 text-center" placeholder="Cant">
-                <select id="er-u" class="input-premium w-20 text-xs bg-slate-200"></select>
-                <button class="bg-indigo-600 text-white rounded-lg w-10 font-bold shadow-lg hover:bg-indigo-700 transition active:scale-95" onclick="addItem()">+</button>
-            </div>
-            
-            <div class="flex justify-between px-2 text-[10px] font-bold text-slate-400 uppercase mb-1">
-                <span>Producto</span><span>Cantidad</span>
-            </div>
-            <div id="er-list" class="max-h-40 overflow-y-auto custom-scrollbar bg-white rounded-lg border border-slate-200 p-1"></div>
-        </div>
-
-        <label>Instrucciones de Elaboración</label>
-        <textarea id="er-inst" class="input-premium mb-4 font-normal text-sm" rows="3" placeholder="Paso a paso...">${clean(r.inst)}</textarea>
+        <label class="mt-4">Instrucciones</label>
+        <textarea id="er-inst" class="input-premium mb-4 text-sm" rows="2">${clean(r.inst)}</textarea>
         
         <div class="flex gap-2">
             <button class="btn-premium flex-1" onclick="saveRec('${r.id}')">💾 GUARDAR FICHA</button>
             ${id ? `<button class="btn-ghost w-auto text-red-500" onclick="delRec('${id}')">🗑️</button>` : ''}
         </div>
     `);
-
-    renderRecTypes();
     renderRecItems();
 }
-
 function renderRecTypes() {
     const sel = document.getElementById('er-sel');
     if(!sel) return;
@@ -2578,67 +2469,65 @@ function delRec(id) {
         render('Cocina'); 
     } 
 }
-
 function viewRec(id) {
     const r = db.recetas.find(x=>x.id===id); if(!r)return;
-    
-    // Función local para actualizar la vista al cambiar el multiplicador
-    const updateView = (f) => {
-        const h = r.items.map(it => {
-            let n="?", q = it.q * f;
-            if(it.type==='ing'){ const i=db.ingredientes.find(x=>x.id===it.id); if(i)n=i.n; } 
-            else { const s=db.recetas.find(x=>x.id===it.id); if(s)n="🥣 "+s.n; }
-            
-            return `
-            <li class="flex justify-between py-2 border-b border-slate-50 last:border-0">
-                <span class="text-slate-600">${n}</span>
-                <span class="font-bold text-indigo-600 font-mono">${Num.fmt(q)} ${it.unit}</span>
-            </li>`;
-        }).join('');
-        document.getElementById('v-list').innerHTML = h;
-    };
-    
-    const c = calcRecipe(r);
+    const c = calcRecipe(r); // Aquí ya viene el coste fijo incluido
+
+    // Análisis de Rentabilidad (Semáforo)
+    const beneficio = r.pvp - c.t;
+    const esRentable = beneficio > 0;
+    const colorClass = esRentable ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800 animate-pulse';
+    const mensaje = esRentable ? '✅ RENTABLE' : '🚨 PÉRDIDAS (Sube PVP)';
+
     showModal(clean(r.n), `
-        <div class="flex justify-between text-center mb-4 bg-slate-50 p-3 rounded-xl border border-slate-100">
-            <div class="flex-1 border-r border-slate-200">
-                <h6 class="text-[10px] text-slate-400 uppercase font-bold">Coste Producción</h6>
-                <b class="text-slate-800 text-lg">${Num.fmt(c.t)}€</b>
+        <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 mb-4">
+            <div class="grid grid-cols-3 gap-2 text-center mb-3">
+                <div>
+                    <div class="text-[9px] uppercase font-bold text-slate-400">Materia Prima</div>
+                    <div class="font-bold text-slate-700">${Num.fmt(c.foodCost)}€</div>
+                </div>
+                <div>
+                    <div class="text-[9px] uppercase font-bold text-indigo-400">Estructura (${Num.fmt(CONFIG.FIXED_COST_MONTH)}€)</div>
+                    <div class="font-bold text-indigo-600">${Num.fmt(c.fixedCost)}€</div>
+                </div>
+                <div>
+                    <div class="text-[9px] uppercase font-bold text-slate-400">Mano Obra</div>
+                    <div class="font-bold text-slate-700">${Num.fmt(c.laborCost)}€</div>
+                </div>
             </div>
-            <div class="flex-1">
-                <h6 class="text-[10px] text-slate-400 uppercase font-bold">PVP Venta</h6>
-                <b class="text-slate-800 text-lg">${Num.fmt(r.pvp)}€</b>
-            </div>
-        </div>
-        
-        <div class="bg-indigo-600 p-4 rounded-xl mb-4 flex items-center justify-between text-white shadow-lg shadow-indigo-200">
-            <div>
-                <div class="text-xs font-bold opacity-80">PRODUCCIÓN PARA</div>
-                <div class="text-xs opacity-60">Calculadora automática</div>
-            </div>
-            <div class="flex items-center gap-2 bg-white/20 p-1 rounded-lg">
-                <input type="number" value="1" class="w-16 text-center font-bold text-xl bg-transparent outline-none text-white placeholder-white/50" oninput="document.getElementById('calc-factor').innerText = this.value; window.updateRecCalc(this.value)">
-                <span class="font-bold text-sm">x Raciones</span>
+            <div class="border-t border-slate-200 pt-2 flex justify-between items-end">
+                <div class="text-xs text-slate-500 font-bold">Coste Total Real</div>
+                <div class="text-xl font-black text-slate-800">${Num.fmt(c.t)}€</div>
             </div>
         </div>
 
-        <h6 class="text-xs font-bold text-slate-400 uppercase mb-2">Ingredientes Requeridos</h6>
-        <ul id="v-list" class="text-sm mb-6 bg-white border border-slate-100 rounded-xl p-3 shadow-sm max-h-40 overflow-y-auto"></ul>
-        
-        <h6 class="text-xs font-bold text-slate-400 uppercase mb-2">Instrucciones</h6>
-        <p class="text-sm text-slate-600 bg-yellow-50 p-4 rounded-xl border border-yellow-100 mb-6 italic leading-relaxed">
-            ${clean(r.inst) || 'Sin instrucciones definidas.'}
-        </p>
+        <div class="flex justify-between items-center mb-4 ${colorClass} p-3 rounded-xl border border-white shadow-sm">
+            <div>
+                <div class="text-[10px] uppercase font-bold opacity-70">PVP Venta</div>
+                <div class="text-2xl font-black">${Num.fmt(r.pvp)}€</div>
+            </div>
+            <div class="text-right">
+                <div class="text-[10px] uppercase font-bold opacity-70">Beneficio Neto</div>
+                <div class="text-xl font-black">${Num.fmt(beneficio)}€</div>
+                <div class="text-[9px] font-bold">${mensaje}</div>
+            </div>
+        </div>
+
+        <h6 class="text-xs font-bold text-slate-400 uppercase mb-2">Ingredientes</h6>
+        <ul class="text-sm mb-4 bg-white border border-slate-100 rounded-xl p-2 max-h-40 overflow-y-auto">
+            ${r.items.map(it => {
+                 let n="?", q=it.q;
+                 if(it.type==='ing'){ const i=db.ingredientes.find(x=>x.id===it.id); if(i)n=i.n; } 
+                 else { const s=db.recetas.find(x=>x.id===it.id); if(s)n="🥣 "+s.n; }
+                 return `<li class="flex justify-between py-1 border-b border-slate-50 last:border-0"><span class="text-slate-600">${n}</span><span class="font-bold text-indigo-600 font-mono">${Num.fmt(q)} ${it.unit}</span></li>`;
+            }).join('')}
+        </ul>
         
         <div class="flex gap-2">
             <button class="btn-ghost flex-1" onclick="window.print()">🖨️ IMPRIMIR</button>
-            <button class="btn-premium flex-1" onclick="editRec('${id}')">EDITAR FICHA</button>
+            <button class="btn-premium flex-1" onclick="editRec('${id}')">EDITAR</button>
         </div>
     `);
-
-    // Asignamos la función al objeto global window temporalmente para que el input funcione
-    window.updateRecCalc = updateView;
-    updateView(1); // Render inicial
 }
     /* === MÓDULO DE ESTRUCTURA (GASTOS FIJOS) === */
 function renderGastosFijos(c) {
@@ -3803,6 +3692,156 @@ function viewAllEvents() {
             `).join('')}
         </div>
     `);
+}
+    /* =============================================================
+   ⚠️ NUEVAS FUNCIONES AUXILIARES (BUSCADOR Y GRÁFICOS) ⚠️
+   ============================================================= */
+
+// --- 1. LÓGICA DEL BUSCADOR INTELIGENTE (GOOGLE STYLE) ---
+let selectedItem = null;
+
+function runSmartSearch(txt) {
+    const res = document.getElementById('search-results');
+    if (!res) return;
+    
+    if (txt.length < 2) { res.classList.add('hidden'); return; }
+
+    const matchesIng = db.ingredientes.filter(i => i.n.toLowerCase().includes(txt.toLowerCase()));
+    const matchesRec = db.recetas.filter(r => r.n.toLowerCase().includes(txt.toLowerCase()));
+
+    if (!matchesIng.length && !matchesRec.length) { res.classList.add('hidden'); return; }
+
+    let html = '';
+    // Sub-recetas primero
+    if (matchesRec.length) {
+        html += `<div class="bg-indigo-50 px-3 py-1 text-[9px] font-bold text-indigo-500 uppercase tracking-widest sticky top-0">🍲 Semielaborados</div>`;
+        html += matchesRec.map(r => `
+            <div class="p-3 border-b border-indigo-50 hover:bg-indigo-50 cursor-pointer flex justify-between items-center group" onclick="selectSearchResult('${r.id}', '${clean(r.n)}', 'rec', '${r.unit}')">
+                <span class="font-bold text-indigo-900">${clean(r.n)}</span>
+                <span class="text-[10px] bg-white px-2 py-1 rounded text-indigo-400 border border-indigo-100">Rend: ${r.yield} ${r.unit}</span>
+            </div>`).join('');
+    }
+    // Ingredientes
+    if (matchesIng.length) {
+        html += `<div class="bg-slate-50 px-3 py-1 text-[9px] font-bold text-slate-500 uppercase tracking-widest sticky top-0">📦 Materia Prima</div>`;
+        html += matchesIng.map(i => `
+            <div class="p-3 border-b border-slate-50 hover:bg-slate-50 cursor-pointer flex justify-between items-center" onclick="selectSearchResult('${i.id}', '${clean(i.n)}', 'ing', '${i.unit}')">
+                <span class="font-medium text-slate-700">${clean(i.n)}</span>
+                <span class="text-[10px] text-slate-400">${Num.fmt(i.cost)}€/${i.unit}</span>
+            </div>`).join('');
+    }
+    res.innerHTML = html;
+    res.classList.remove('hidden');
+}
+
+function selectSearchResult(id, name, type, unit) {
+    selectedItem = { id, type };
+    document.getElementById('smart-search').value = '';
+    document.getElementById('search-results').classList.add('hidden');
+    document.getElementById('add-controls').classList.remove('hidden');
+    document.getElementById('add-controls').classList.add('flex');
+    document.getElementById('sel-name').innerText = (type === 'rec' ? '🍲 ' : '📦 ') + name;
+    
+    const opts = (type === 'rec') ? ['rac', 'l', 'kg', 'ud'] : ['kg', 'g', 'l', 'ml', 'cl', 'ud', 'oz'];
+    document.getElementById('er-u').innerHTML = opts.map(u => `<option ${u === unit ? 'selected' : ''}>${u}</option>`).join('');
+    document.getElementById('er-q').focus();
+}
+
+function addItemFromSearch() {
+    if (!selectedItem) return;
+    const q = parseFloat(document.getElementById('er-q').value);
+    if (q > 0) {
+        tempItems.push({ type: selectedItem.type, id: selectedItem.id, q: q, unit: document.getElementById('er-u').value, merma: 0 });
+        renderRecItems();
+        document.getElementById('add-controls').classList.add('hidden');
+        document.getElementById('smart-search').focus();
+    } else { toast("Cantidad inválida", "error"); }
+}
+
+// --- 2. LÓGICA DEL GRÁFICO FINANCIERO (CHART.JS) ---
+function initChart() {
+    const ctx = document.getElementById('financeChart');
+    if (!ctx) return;
+    
+    // Destruir gráfico previo si existe para evitar errores de redibujado
+    if (myChart) { myChart.destroy(); }
+
+    // Generar datos últimos 6 meses
+    const labels = [], dataIng = [], dataGas = [];
+    
+    // Gastos fijos MENSUALES
+    const fixedMonthly = CONFIG.FIXED_COST_MONTH;
+
+    for (let i = 5; i >= 0; i--) {
+        const d = new Date(); d.setMonth(d.getMonth() - i);
+        const m = d.getMonth() + 1, y = d.getFullYear();
+        labels.push(d.toLocaleString('es-ES', { month: 'short' }));
+
+        // Sumar ingresos del mes
+        const ing = db.diario.filter(x => x.date.includes(`${y}-${String(m).padStart(2,'0')}`)).reduce((a,b)=>a+b.total,0);
+        
+        // Sumar compras del mes
+        const gas = db.albaranes.filter(x => x.date.includes(`${y}-${String(m).padStart(2,'0')}`)).reduce((a,b)=>a+b.total,0);
+        
+        dataIng.push(ing);
+        dataGas.push(gas + fixedMonthly); // Sumamos los 40k automáticamente
+    }
+
+    myChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [
+                { 
+                    label: 'Ingresos', 
+                    data: dataIng, 
+                    borderColor: '#10b981', 
+                    backgroundColor: 'rgba(16, 185, 129, 0.1)', 
+                    fill: true, 
+                    tension: 0.3,
+                    pointRadius: 4
+                },
+                { 
+                    label: 'Gastos (Inc. Estructura)', 
+                    data: dataGas, 
+                    borderColor: '#ef4444', 
+                    borderDash: [5,5], 
+                    fill: false, 
+                    tension: 0.3,
+                    pointRadius: 0
+                }
+            ]
+        },
+        options: {
+            responsive: true, 
+            maintainAspectRatio: false,
+            interaction: {
+                mode: 'index',
+                intersect: false,
+            },
+            plugins: { 
+                legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10 } } },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return context.dataset.label + ': ' + Num.fmt(context.parsed.y) + '€';
+                        }
+                    }
+                }
+            },
+            scales: { 
+                y: { 
+                    beginAtZero: true,
+                    grid: { color: '#f1f5f9' },
+                    ticks: { font: { size: 9 } }
+                },
+                x: {
+                    grid: { display: false },
+                    ticks: { font: { size: 9 } }
+                }
+            }
+        }
+    });
 }
 // INICIALIZACIÓN DE LA APP
 init(); 
