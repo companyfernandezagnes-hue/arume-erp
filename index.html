@@ -589,29 +589,75 @@ function getStockAlerts() {
     </div>`;
 }
 let myChart = null; // Variable global para el gráfico
+/* =============================================================
+   ⚠️ DASHBOARD V8: CONTROL DE SOCIOS Y PERSONAL (LABOR COST) ⚠️
+   ============================================================= */
+let myChart = null; 
 
 function renderAdmin(app) {
     // 1. DATA SAFEGUARDS
     if (!db.gastos_fijos) db.gastos_fijos = [];
     if (!db.eventos) db.eventos = [];
 
-    // Cálculos básicos KPIs (Igual que antes pero optimizado)
-    const totalRevenue = db.diario.filter(d => isInPeriod(d.date)).reduce((a, b) => a + (b.total || 0), 0);
-    const totalCompras = db.albaranes.filter(a => isInPeriod(a.date)).reduce((a, b) => a + (b.total || 0), 0);
+    // === A. CALCULAR INGRESOS ===
+    const ventasCaja = db.diario.filter(d => isInPeriod(d.date)).reduce((a, b) => a + (b.total || 0), 0);
+    const ingresosEventos = db.eventos.filter(e => isInPeriod(e.date)).reduce((a, b) => a + (Num.parse(b.ingreso) || 0), 0);
+    const totalRevenue = ventasCaja + ingresosEventos;
     
-    // Calculamos gastos fijos del periodo seleccionado (Trimestre o Año)
-    const monthlyFixed = db.gastos_fijos.reduce((a,b) => a + (b.freq==='mensual'?b.amount:b.amount/3), 0);
-    const multiplier = fiscalQuarter === 0 ? 12 : 3; // 12 meses o 3 meses
-    const totalFijos = monthlyFixed * multiplier;
-    
-    const netProfit = totalRevenue - totalCompras - totalFijos;
-    const profitMargin = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0;
-    
-    // Colores dinámicos
-    const healthColor = netProfit > 0 ? 'text-emerald-500' : 'text-red-500';
-    const marginColor = profitMargin > 15 ? 'bg-emerald-100 text-emerald-700' : (profitMargin > 0 ? 'bg-orange-100 text-orange-700' : 'bg-red-100 text-red-700');
+    // Ticket Medio
+    const totalPax = db.diario.filter(d => isInPeriod(d.date)).reduce((a,b) => a + (b.pax || 0), 0) + 
+                     db.eventos.filter(e => isInPeriod(e.date)).reduce((a,b) => a + (e.pax || 0), 0);
+    const ticketMedio = totalPax > 0 ? totalRevenue / totalPax : 0;
 
-    // Selector de Trimestre
+    // === B. SEPARACIÓN EXTRICTA: RESTAURANTE VS SOCIOS ===
+    let costeMateriaPrima = 0; 
+    let gastosSocios = {};     
+    let totalSocios = 0;
+
+    // Recorremos TODOS los albaranes del periodo seleccionado
+    db.albaranes.filter(a => isInPeriod(a.date)).forEach(a => {
+        // Normalizamos el texto para evitar errores de mayúsculas/minúsculas
+        const socio = (a.socio || 'Arume').trim();
+        
+        if (socio === 'Arume' || socio === 'Restaurante') {
+            costeMateriaPrima += a.total;
+        } else {
+            // Es un socio
+            if (!gastosSocios[socio]) gastosSocios[socio] = 0;
+            gastosSocios[socio] += a.total;
+            totalSocios += a.total;
+        }
+    });
+
+    // === C. ESTRUCTURA Y PERSONAL (LABOR COST) ===
+    const monthlyFixed = db.gastos_fijos.reduce((a,b) => a + (b.freq==='mensual'?b.amount:b.amount/3), 0);
+    const multiplier = fiscalQuarter === 0 ? 12 : 3; 
+    const totalFijos = monthlyFixed * multiplier;
+
+    // Personal: Asumimos un 40% de los gastos fijos como nóminas + el personal extra de eventos
+    const personalFijoEstimado = totalFijos * 0.4; 
+    const personalExtra = db.eventos.filter(e => isInPeriod(e.date)).reduce((a, b) => a + (Num.parse(b.personalExtra) || 0), 0);
+    const totalPersonal = personalFijoEstimado + personalExtra;
+    
+    // Labor Cost % (Objetivo: < 35%)
+    const laborCostPct = totalRevenue > 0 ? (totalPersonal / totalRevenue) * 100 : 0;
+
+    // === D. KPIs FINANCIEROS ===
+    const margenBruto = totalRevenue - costeMateriaPrima;
+    const margenBrutoPct = totalRevenue > 0 ? (margenBruto / totalRevenue) * 100 : 0; // % Food Profit
+
+    // Gastos Operativos Totales (Sin Socios)
+    const gastosOperativos = totalFijos + personalExtra;
+    const beneficioNeto = margenBruto - gastosOperativos;
+    
+    const margenContribucion = totalRevenue > 0 ? margenBruto / totalRevenue : 0;
+    const breakEven = margenContribucion > 0 ? (totalFijos / margenContribucion) : 0;
+
+    // Colores de estado
+    const colorNeto = beneficioNeto > 0 ? 'text-emerald-400' : 'text-red-400';
+    const colorLabor = laborCostPct > 35 ? 'text-red-500' : 'text-emerald-600';
+
+    // Selector de Fecha
     const qCtrl = `
     <div class="flex items-center justify-between bg-white p-2 rounded-2xl shadow-sm mb-4 border border-slate-100">
         <div class="flex items-center gap-2 bg-slate-100 rounded-lg px-2 py-1">
@@ -634,50 +680,122 @@ function renderAdmin(app) {
     
     <div class="flex gap-2 mb-6 bg-white p-1 rounded-2xl shadow-sm border border-slate-100 overflow-x-auto no-scrollbar">
         <button class="flex-1 min-w-[90px] py-2.5 rounded-xl font-bold text-[10px] transition ${activeAdminTab==='dash'?'bg-slate-800 text-white shadow-md':'text-slate-500 hover:bg-slate-50'}" onclick="activeAdminTab='dash';renderAdmin(document.getElementById('app'))">📊 DASHBOARD</button>
-        <button class="flex-1 min-w-[90px] py-2.5 rounded-xl font-bold text-[10px] transition ${activeAdminTab==='eventos'?'bg-pink-600 text-white shadow-md':'text-slate-500 hover:bg-slate-50'}" onclick="activeAdminTab='eventos';renderAdmin(document.getElementById('app'))">🍸 EVENTOS</button>
         <button class="flex-1 min-w-[90px] py-2.5 rounded-xl font-bold text-[10px] transition ${activeAdminTab==='albs'?'bg-slate-800 text-white shadow-md':'text-slate-500 hover:bg-slate-50'}" onclick="activeAdminTab='albs';renderAdmin(document.getElementById('app'))">📦 COMPRAS</button>
-        <button class="flex-1 min-w-[90px] py-2.5 rounded-xl font-bold text-[10px] transition ${activeAdminTab==='fijos'?'bg-slate-800 text-white shadow-md':'text-slate-500 hover:bg-slate-50'}" onclick="activeAdminTab='fijos';renderAdmin(document.getElementById('app'))">🏠 FIJOS</button>
         <button class="flex-1 min-w-[90px] py-2.5 rounded-xl font-bold text-[10px] transition ${activeAdminTab==='facturas'?'bg-slate-800 text-white shadow-md':'text-slate-500 hover:bg-slate-50'}" onclick="activeAdminTab='facturas';renderAdmin(document.getElementById('app'))">📄 FACTURAS</button>
+        <button class="flex-1 min-w-[90px] py-2.5 rounded-xl font-bold text-[10px] transition ${activeAdminTab==='fijos'?'bg-slate-800 text-white shadow-md':'text-slate-500 hover:bg-slate-50'}" onclick="activeAdminTab='fijos';renderAdmin(document.getElementById('app'))">🏠 FIJOS</button>
         <button class="flex-1 min-w-[90px] py-2.5 rounded-xl font-bold text-[10px] transition ${activeAdminTab==='prov'?'bg-slate-800 text-white shadow-md':'text-slate-500 hover:bg-slate-50'}" onclick="activeAdminTab='prov';renderAdmin(document.getElementById('app'))">📒 PROV</button>
         <button class="flex-1 min-w-[90px] py-2.5 rounded-xl font-bold text-[10px] transition ${activeAdminTab==='omnes'?'bg-slate-800 text-white shadow-md':'text-slate-500 hover:bg-slate-50'}" onclick="activeAdminTab='omnes';renderAdmin(document.getElementById('app'))">🍽️ MENU</button>
+        <button class="flex-1 min-w-[90px] py-2.5 rounded-xl font-bold text-[10px] transition ${activeAdminTab==='eventos'?'bg-pink-600 text-white shadow-md':'text-slate-500 hover:bg-slate-50'}" onclick="activeAdminTab='eventos';renderAdmin(document.getElementById('app'))">🍸 EVENTOS</button>
     </div>
     
     ${activeAdminTab === 'dash' ? `
-        <div class="grid grid-cols-2 gap-3 mb-6">
-            <div class="glass-card bg-slate-900 text-white border-none p-4 relative overflow-hidden">
-                <div class="absolute -top-6 -right-6 w-24 h-24 bg-white/10 rounded-full blur-xl"></div>
-                <div class="text-[9px] opacity-50 uppercase font-bold mb-1 tracking-widest">Beneficio Neto</div>
-                <div class="text-3xl font-black ${healthColor} relative z-10">${Num.fmt(netProfit)}€</div>
-                <div class="text-[9px] text-slate-400 mt-1 relative z-10">Tras pagar estructura</div>
+        
+        <div class="glass-card bg-slate-900 text-white mb-6 border-none shadow-2xl p-5 relative overflow-hidden">
+            <div class="absolute -top-10 -right-10 w-40 h-40 bg-white/10 rounded-full blur-3xl"></div>
+            
+            <div class="relative z-10">
+                <div class="flex justify-between items-end mb-2">
+                    <div class="text-[10px] opacity-60 uppercase font-bold tracking-widest">Resultado Operativo</div>
+                    <div class="text-[10px] font-bold bg-white/10 px-2 py-1 rounded">Ticket Ø: ${Num.fmt(ticketMedio)}€</div>
+                </div>
+                <div class="text-5xl font-black ${colorNeto} tracking-tighter mb-4">${Num.fmt(beneficioNeto)}€</div>
+                
+                <div class="grid grid-cols-3 gap-2 border-t border-white/10 pt-3">
+                    <div>
+                        <div class="text-[8px] opacity-50 uppercase">Ventas</div>
+                        <div class="text-sm font-bold text-emerald-300">${Num.fmt(totalRevenue)}€</div>
+                    </div>
+                    <div>
+                        <div class="text-[8px] opacity-50 uppercase">Food Cost</div>
+                        <div class="text-sm font-bold text-red-300">-${Num.fmt(costeMateriaPrima)}€</div>
+                    </div>
+                    <div class="text-right">
+                        <div class="text-[8px] opacity-50 uppercase">Operativos</div>
+                        <div class="text-sm font-bold text-orange-300">-${Num.fmt(gastosOperativos)}€</div>
+                    </div>
+                </div>
             </div>
-            <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-center">
-                <div class="text-[9px] text-slate-400 uppercase font-bold mb-1 tracking-widest">Margen Real</div>
-                <div class="text-3xl font-black text-slate-700">${profitMargin.toFixed(1)}%</div>
-                <div class="text-[9px] ${marginColor} px-2 py-0.5 rounded inline-block w-max font-bold mt-1">EBITDA</div>
+        </div>
+
+        <div class="bg-gradient-to-r from-purple-50 to-white border-l-4 border-purple-600 p-4 rounded-r-xl shadow-md mb-6 relative overflow-hidden">
+            <div class="flex justify-between items-center mb-3 relative z-10">
+                <div>
+                    <h3 class="text-xs font-black text-purple-900 uppercase tracking-widest flex items-center gap-2">
+                        <span>👔</span> CUENTA SOCIOS (Retiros)
+                    </h3>
+                    <p class="text-[9px] text-purple-500 font-bold mt-0.5">Gastos privados fuera del negocio</p>
+                </div>
+                <div class="text-right">
+                    <span class="block font-black text-purple-700 text-xl">${Num.fmt(totalSocios)}€</span>
+                </div>
+            </div>
+
+            ${totalSocios > 0 ? `
+            <div class="bg-white/80 rounded-lg border border-purple-100 overflow-hidden backdrop-blur-sm relative z-10">
+                <table class="w-full text-[10px]">
+                    <thead class="bg-purple-100/50 text-purple-900">
+                        <tr>
+                            <th class="p-2 text-left">Socio</th>
+                            <th class="p-2 text-right">Importe</th>
+                            <th class="p-2 text-right">% Total</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-purple-50">
+                        ${Object.entries(gastosSocios).map(([socio, amount]) => `
+                            <tr>
+                                <td class="p-2 font-bold text-slate-700">${socio}</td>
+                                <td class="p-2 text-right font-mono text-purple-700 font-bold">${Num.fmt(amount)}€</td>
+                                <td class="p-2 text-right text-slate-400">${((amount/totalSocios)*100).toFixed(0)}%</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>
+            ` : `
+            <div class="text-center py-2 border-2 border-dashed border-purple-200 rounded-lg bg-white/50">
+                <div class="text-xs font-bold text-purple-400">Sin movimientos de socios</div>
+                <div class="text-[9px] text-purple-300">En este periodo (${fiscalQuarter === 0 ? 'Año' : fiscalQuarter + 'T'})</div>
+            </div>
+            `}
+        </div>
+
+        <div class="grid grid-cols-2 gap-3 mb-6">
+            <div class="bg-white p-3 rounded-2xl border border-slate-100 shadow-sm">
+                <div class="text-[9px] font-bold text-slate-400 uppercase mb-1">Labor Cost (Personal)</div>
+                <div class="text-2xl font-black ${primeStatus}">${laborCostPct.toFixed(1)}%</div>
+                <div class="text-[8px] text-slate-400 mt-1">
+                    Gasto: ${Num.fmt(totalPersonal)}€<br>Meta: < 35%
+                </div>
+            </div>
+            <div class="bg-white p-3 rounded-2xl border border-slate-100 shadow-sm">
+                <div class="text-[9px] font-bold text-slate-400 uppercase mb-1">Obj. Break Even</div>
+                <div class="text-lg font-black text-slate-800">${Num.fmt(breakEven)}€</div>
+                <div class="w-full bg-slate-100 h-1.5 rounded-full mt-2 overflow-hidden">
+                    <div class="bg-indigo-500 h-full rounded-full" style="width: ${Math.min((totalRevenue/breakEven)*100, 100)}%"></div>
+                </div>
+                <div class="text-[8px] text-indigo-500 font-bold mt-1 text-right">${((totalRevenue/breakEven)*100).toFixed(0)}% Alcanzado</div>
             </div>
         </div>
 
         <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm mb-6 relative">
             <div class="flex justify-between items-center mb-4">
-                <h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Evolución Ingresos vs Gastos</h4>
+                <h4 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Tendencia Financiera</h4>
                 <div class="flex items-center gap-2 text-[9px] font-bold">
-                    <span class="flex items-center gap-1 text-emerald-600"><span class="w-2 h-2 rounded-full bg-emerald-500"></span> VENTAS</span>
-                    <span class="flex items-center gap-1 text-red-500"><span class="w-2 h-2 rounded-full bg-red-500"></span> GASTOS (+40k)</span>
+                    <span class="text-emerald-600">● Ingresos</span>
+                    <span class="text-red-500">● Coste Negocio</span>
                 </div>
             </div>
-            <div class="h-64">
+            <div class="h-56">
                 <canvas id="financeChart"></canvas>
             </div>
         </div>
 
         <div class="glass-card mt-8">
             <h4 class="text-[10px] font-bold text-slate-400 uppercase mb-4 tracking-widest">Zona de Control</h4>
-            
             <div class="grid grid-cols-2 gap-2 mb-2">
                 <button class="btn-ghost text-[10px] border-slate-200" onclick="editConfig()">⚙️ DATOS FISCALES</button>
                 <button class="btn-ghost text-[10px]" onclick="downloadBackup()">💾 BACKUP</button>
             </div>
-            
             <div class="grid grid-cols-2 gap-2 mb-4">
                  <button class="btn-ghost text-indigo-600 text-[10px]" onclick="document.getElementById('backup-input').click()">📤 RESTAURAR</button>
                  <button class="btn-ghost text-emerald-600 font-black border-emerald-200 bg-emerald-50 text-[10px]" onclick="forceCloudDownload()">☁️ SINCRO</button>
@@ -697,9 +815,9 @@ function renderAdmin(app) {
     if (activeAdminTab === 'prov') renderProvs(c);
     if (activeAdminTab === 'eventos') renderEventos(c);
 
-    // INICIALIZAR GRÁFICO SI ESTAMOS EN DASH
+    // Inicializar gráfico si estamos en la pestaña principal
     if (activeAdminTab === 'dash') {
-        setTimeout(initChart, 100); // Llamamos a la función que dibuja el gráfico
+        setTimeout(initChart, 100);
     }
 }
 // --- SUB-MÓDULO: PROVEEDORES (CON BOTÓN IMPORTAR) ---
