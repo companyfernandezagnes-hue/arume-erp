@@ -2196,68 +2196,66 @@ function filterRec(txt) {
     const filtered = db.recetas.filter(r => r.n.toLowerCase().includes(txt.toLowerCase()));
     document.getElementById('rec-grid').innerHTML = renderRecGrid(filtered); 
 }
-// --- MOTOR DE CÁLCULO DE COSTES (CON GASTOS FIJOS INTEGRADOS) ---
+/* =============================================================
+   🧠 MOTOR DE CÁLCULO V.FINAL (Costes Reales + Alérgenos Recursivos)
+   ============================================================= */
 const recipeCache = new Map();
 
-function clearCache() {
-    recipeCache.clear();
-}
+function clearCache() { recipeCache.clear(); }
 
 function calcRecipe(r, visited = new Set()) {
-    if (!r) return { t: 0, foodCost: 0, laborCost: 0, fixedCost: 0 };
+    // Inicializamos alérgenos (los propios de la receta si tuviera)
+    let activeAllergens = new Set(r.alg || []);
+
+    if (!r) return { t: 0, foodCost: 0, laborCost: 0, fixedCost: 0, allergens: [] };
     
-    // Consultar caché para velocidad
     if (recipeCache.has(r.id)) return recipeCache.get(r.id);
-    if (visited.has(r.id)) return { t: 0 }; // Evitar bucles infinitos
+    if (visited.has(r.id)) return { t: 0, allergens: [] }; 
     visited.add(r.id);
 
     let totalIngredientsCost = 0;
 
     (r.items || []).forEach(it => {
-        const yieldFactor = it.merma ? (1 - (it.merma / 100)) : 1;
+        const merma = it.merma || 0;
+        const yieldFactor = 1 - (merma / 100); 
         
         if (it.type === 'ing') {
             const i = db.ingredientes.find(x => x.id === it.id);
             if (i) {
-                // Convertir unidad usada en receta a unidad de compra
                 const qtyInBaseUnit = UnitConverter.convert(it.q, it.unit || i.unit, i.unit);
-                totalIngredientsCost += (qtyInBaseUnit * i.cost) / yieldFactor;
+                totalIngredientsCost += (qtyInBaseUnit / yieldFactor) * i.cost;
+                // 🔥 HERENCIA DE ALÉRGENOS: Si el ingrediente tiene, la receta los hereda
+                if(i.alg) i.alg.forEach(a => activeAllergens.add(a));
             }
         } else if (it.type === 'rec') {
             const sub = db.recetas.find(x => x.id === it.id);
             if (sub) {
-                // Recursividad: calcular coste de la sub-receta
-                const subFull = calcRecipe(sub, new Set(visited));
-                const subCost = subFull.t; // Coste total de la sub-receta
+                const subFull = calcRecipe(sub, new Set(visited)); // Recursividad
+                const subCost = subFull.t; 
                 const subYield = sub.yield || 1;
                 const costPerUnit = subCost / subYield;
                 
-                // Normalizar unidades (ej: litros de salsa a raciones)
                 const qtyNormalized = UnitConverter.convert(it.q, it.unit, sub.unit || 'rac');
-                totalIngredientsCost += qtyNormalized * costPerUnit;
+                totalIngredientsCost += (qtyNormalized / yieldFactor) * costPerUnit;
+                
+                // 🔥 HERENCIA DE SUB-RECETAS: Heredamos los alérgenos de la salsa/relleno
+                if(subFull.allergens) subFull.allergens.forEach(a => activeAllergens.add(a));
             }
         }
     });
 
-    // 1. Coste Materia Prima (añadimos un 3% de seguridad por mermas ocultas/sal/aceite)
-    const foodCost = totalIngredientsCost * 1.03;
-
-    // 2. Coste Mano de Obra (Tiempo elaboración)
+    // Cálculos Financieros
+    const foodCost = totalIngredientsCost * 1.03; // +3% Mermas ocultas
     const laborCost = ((r.time || 0) / 60) * CONFIG.COST_HOUR;
-
-    // 3. REPARTO GASTOS FIJOS (La mochila de los 40.000€)
-    // Dividimos los 40.000€ entre los platos estimados al mes.
-    // Si vendes 2500 platos, cada plato carga con 16€ de estructura.
     const fixedCostPerDish = CONFIG.FIXED_COST_MONTH / CONFIG.EST_MONTHLY_SALES;
-
     const totalReal = foodCost + laborCost + fixedCostPerDish;
     
-    // Devolvemos el desglose para poder pintarlo luego en el semáforo
     const result = { 
         t: totalReal, 
-        foodCost: foodCost, 
-        laborCost: laborCost,
-        fixedCost: fixedCostPerDish 
+        foodCost, 
+        laborCost, 
+        fixedCost: fixedCostPerDish,
+        allergens: Array.from(activeAllergens) // Convertimos Set a Array para usarlo luego
     };
     
     recipeCache.set(r.id, result);
@@ -2469,66 +2467,190 @@ function delRec(id) {
         render('Cocina'); 
     } 
 }
+/* =============================================================
+   👁️ VISOR DE RECETA "MICHELIN STAR" (Gestión + Operativa)
+   ============================================================= */
 function viewRec(id) {
     const r = db.recetas.find(x=>x.id===id); if(!r)return;
-    const c = calcRecipe(r); // Aquí ya viene el coste fijo incluido
+    const c = calcRecipe(r);
 
-    // Análisis de Rentabilidad (Semáforo)
+    // Semáforo Financiero
     const beneficio = r.pvp - c.t;
     const esRentable = beneficio > 0;
     const colorClass = esRentable ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800 animate-pulse';
-    const mensaje = esRentable ? '✅ RENTABLE' : '🚨 PÉRDIDAS (Sube PVP)';
+    
+    // Iconos de alérgenos detectados automáticamente
+    const algIcons = (c.allergens || []).map(k => {
+        const a = ALLERGENS.find(x=>x.k===k);
+        return a ? `<span title="${a.k}" class="text-lg cursor-help">${a.i}</span>` : '';
+    }).join(' ');
 
     showModal(clean(r.n), `
-        <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 mb-4">
-            <div class="grid grid-cols-3 gap-2 text-center mb-3">
-                <div>
-                    <div class="text-[9px] uppercase font-bold text-slate-400">Materia Prima</div>
-                    <div class="font-bold text-slate-700">${Num.fmt(c.foodCost)}€</div>
-                </div>
-                <div>
-                    <div class="text-[9px] uppercase font-bold text-indigo-400">Estructura (${Num.fmt(CONFIG.FIXED_COST_MONTH)}€)</div>
-                    <div class="font-bold text-indigo-600">${Num.fmt(c.fixedCost)}€</div>
-                </div>
-                <div>
-                    <div class="text-[9px] uppercase font-bold text-slate-400">Mano Obra</div>
-                    <div class="font-bold text-slate-700">${Num.fmt(c.laborCost)}€</div>
+        <div class="flex justify-between items-start mb-4">
+            <div class="bg-white border border-slate-200 p-2 rounded-lg shadow-sm text-center min-w-[80px]">
+                <div class="text-[8px] uppercase font-bold text-slate-400">Alérgenos</div>
+                <div class="flex gap-1 justify-center mt-1">${algIcons || '<span class="text-xs text-emerald-500">Libre</span>'}</div>
+            </div>
+            
+            <div class="bg-indigo-50 border border-indigo-100 p-2 rounded-lg flex-1 ml-2">
+                <div class="text-[9px] font-bold text-indigo-400 uppercase mb-1">🎯 Objetivo de Venta</div>
+                <div class="flex items-center gap-2">
+                    <span class="text-[9px] text-indigo-800">Si vendo a:</span>
+                    <input type="number" value="${r.pvp}" class="w-16 text-center font-bold bg-white border border-indigo-200 rounded text-xs" 
+                    oninput="calcTargetMargin(this.value, ${c.t})">
+                    <span class="text-[9px] text-indigo-800">Margen: <span id="target-margin" class="font-black">${((1 - c.t/r.pvp)*100).toFixed(0)}%</span></span>
                 </div>
             </div>
-            <div class="border-t border-slate-200 pt-2 flex justify-between items-end">
-                <div class="text-xs text-slate-500 font-bold">Coste Total Real</div>
-                <div class="text-xl font-black text-slate-800">${Num.fmt(c.t)}€</div>
-            </div>
+        </div>
+
+        <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 mb-4 text-xs">
+            <div class="flex justify-between mb-1"><span>🥦 Materia Prima (FC)</span> <b>${Num.fmt(c.foodCost)}€</b></div>
+            <div class="flex justify-between mb-1"><span>👨‍🍳 Mano de Obra</span> <b>${Num.fmt(c.laborCost)}€</b></div>
+            <div class="flex justify-between mb-1 border-b border-slate-200 pb-1"><span>💡 Estructura (${Num.fmt(CONFIG.FIXED_COST_MONTH)})</span> <b>${Num.fmt(c.fixedCost)}€</b></div>
+            <div class="flex justify-between mt-1 text-sm text-slate-800"><span>TOTAL COSTE REAL</span> <b class="font-black">${Num.fmt(c.t)}€</b></div>
         </div>
 
         <div class="flex justify-between items-center mb-4 ${colorClass} p-3 rounded-xl border border-white shadow-sm">
             <div>
-                <div class="text-[10px] uppercase font-bold opacity-70">PVP Venta</div>
+                <div class="text-[10px] uppercase font-bold opacity-70">PVP Actual</div>
                 <div class="text-2xl font-black">${Num.fmt(r.pvp)}€</div>
             </div>
             <div class="text-right">
                 <div class="text-[10px] uppercase font-bold opacity-70">Beneficio Neto</div>
                 <div class="text-xl font-black">${Num.fmt(beneficio)}€</div>
-                <div class="text-[9px] font-bold">${mensaje}</div>
             </div>
         </div>
 
-        <h6 class="text-xs font-bold text-slate-400 uppercase mb-2">Ingredientes</h6>
-        <ul class="text-sm mb-4 bg-white border border-slate-100 rounded-xl p-2 max-h-40 overflow-y-auto">
-            ${r.items.map(it => {
-                 let n="?", q=it.q;
-                 if(it.type==='ing'){ const i=db.ingredientes.find(x=>x.id===it.id); if(i)n=i.n; } 
-                 else { const s=db.recetas.find(x=>x.id===it.id); if(s)n="🥣 "+s.n; }
-                 return `<li class="flex justify-between py-1 border-b border-slate-50 last:border-0"><span class="text-slate-600">${n}</span><span class="font-bold text-indigo-600 font-mono">${Num.fmt(q)} ${it.unit}</span></li>`;
-            }).join('')}
-        </ul>
+        <div class="bg-slate-800 text-white p-3 rounded-xl mb-4 flex items-center justify-between shadow-lg">
+            <div>
+                <div class="text-[10px] font-bold text-slate-400 uppercase">Producir para</div>
+                <div class="font-bold text-lg">📝 Escandallo</div>
+            </div>
+            <div class="flex items-center gap-2 bg-white/10 p-1 rounded-lg">
+                <input type="number" value="1" id="scale-factor" class="w-12 text-center font-bold text-lg bg-transparent outline-none text-white" oninput="updateRecQuantities(this.value, '${id}')">
+                <span class="text-xs font-bold opacity-70 pr-2">${r.unit}</span>
+            </div>
+        </div>
+
+        <h6 class="text-xs font-bold text-slate-400 uppercase mb-2">Ingredientes (Peso Neto)</h6>
+        <ul id="rec-ing-list" class="text-sm mb-4 bg-white border border-slate-100 rounded-xl p-2 max-h-40 overflow-y-auto custom-scrollbar"></ul>
         
-        <div class="flex gap-2">
-            <button class="btn-ghost flex-1" onclick="window.print()">🖨️ IMPRIMIR</button>
-            <button class="btn-premium flex-1" onclick="editRec('${id}')">EDITAR</button>
+        <div class="grid grid-cols-2 gap-2 mt-4">
+            <button class="btn-premium bg-indigo-600 shadow-indigo-200 py-3" onclick="openCookMode('${id}')">👨‍🍳 MODO COCINA</button>
+            <button class="btn-ghost border-slate-300 text-slate-600" onclick="printLabel('${id}')">🏷️ ETIQUETA FIFO</button>
+        </div>
+        <div class="flex gap-2 mt-2">
+            <button class="btn-ghost flex-1 text-[10px]" onclick="window.print()">🖨️ FICHA A4</button>
+            <button class="btn-premium flex-1 py-2 text-xs" onclick="editRec('${id}')">EDITAR DATOS</button>
         </div>
     `);
+    
+    updateRecQuantities(1, id);
+    
+    // Exponer función para la calculadora inversa
+    window.calcTargetMargin = (pvp, cost) => {
+        const m = pvp > 0 ? ((1 - cost/pvp)*100) : 0;
+        const el = document.getElementById('target-margin');
+        if(el) {
+            el.innerText = m.toFixed(0) + '%';
+            el.className = m > 15 ? 'font-black text-emerald-600' : 'font-black text-red-500';
+        }
+    };
 }
+
+// --- FUNCIÓN AUXILIAR PARA ESCALAR CANTIDADES EN TIEMPO REAL ---
+window.updateRecQuantities = function(factor, id) {
+    const r = db.recetas.find(x=>x.id===id);
+    if(!r) return;
+    
+    const list = document.getElementById('rec-ing-list');
+    if(!list) return;
+
+    list.innerHTML = r.items.map(it => {
+        let n="?", q = it.q * factor;
+        let brutoInfo = "";
+        
+        // Calcular Peso Bruto si hay merma (Lo que el cocinero debe coger del almacén)
+        if(it.merma > 0) {
+            const qBruto = q / (1 - (it.merma/100));
+            brutoInfo = `<span class="text-[9px] text-red-400 font-bold ml-1">(Bruto: ${Num.fmt(qBruto)} ${it.unit})</span>`;
+        }
+
+        if(it.type==='ing'){ const i=db.ingredientes.find(x=>x.id===it.id); if(i)n=i.n; } 
+        else { const s=db.recetas.find(x=>x.id===it.id); if(s)n="🥣 "+s.n; }
+        
+        return `
+        <li class="flex justify-between py-2 border-b border-slate-50 last:border-0 items-center">
+            <span class="text-slate-700 font-medium">${n} ${brutoInfo}</span>
+            <span class="font-black text-slate-900 font-mono bg-slate-100 px-2 py-0.5 rounded">${Num.fmt(q)} ${it.unit}</span>
+        </li>`;
+    }).join('');
+};
+
+// --- MODO COCINA (PANTALLA COMPLETA "BULLI STYLE") ---
+window.openCookMode = function(id) {
+    const r = db.recetas.find(x=>x.id===id);
+    const factor = document.getElementById('scale-factor').value || 1;
+    
+    const content = `
+    <div class="fixed inset-0 bg-white z-[999] flex flex-col overflow-hidden">
+        <div class="bg-slate-900 text-white p-6 flex justify-between items-center shadow-xl">
+            <div>
+                <h1 class="text-3xl font-black tracking-tight">${clean(r.n)}</h1>
+                <p class="text-slate-400 font-bold text-lg mt-1">Producción: <span class="text-white">${factor}</span> raciones / unidades</p>
+            </div>
+            <button onclick="closeModal()" class="bg-white/10 text-white px-6 py-3 rounded-xl font-bold hover:bg-red-500 transition">✕ SALIR</button>
+        </div>
+        
+        <div class="flex-1 flex overflow-hidden">
+            <div class="w-1/3 bg-slate-50 p-6 overflow-y-auto border-r border-slate-200">
+                <h3 class="text-slate-400 font-black uppercase tracking-widest mb-6 border-b border-slate-200 pb-2">Mise en Place </h3>
+                <div class="space-y-4">
+                    ${r.items.map(it => {
+                        let n="?"; 
+                        if(it.type==='ing'){ const i=db.ingredientes.find(x=>x.id===it.id); if(i)n=i.n; } 
+                        else { const s=db.recetas.find(x=>x.id===it.id); if(s)n="🥣 "+s.n; }
+                        
+                        const qNeto = it.q * factor;
+                        const qBruto = it.merma > 0 ? qNeto / (1-(it.merma/100)) : qNeto;
+                        
+                        return `
+                        <div class="flex items-center gap-4">
+                            <input type="checkbox" class="w-6 h-6 accent-emerald-500 cursor-pointer">
+                            <div>
+                                <div class="text-2xl font-black text-slate-800">${Num.fmt(qBruto)} <span class="text-sm text-slate-500">${it.unit}</span></div>
+                                <div class="font-bold text-slate-600 text-lg">${n}</div>
+                                ${it.merma > 0 ? `<div class="text-xs text-red-400 font-bold">Merma ${it.merma}% (Neto: ${Num.fmt(qNeto)})</div>` : ''}
+                            </div>
+                        </div>`;
+                    }).join('')}
+                </div>
+            </div>
+            
+            <div class="w-2/3 p-8 overflow-y-auto bg-white">
+                <h3 class="text-slate-400 font-black uppercase tracking-widest mb-6 border-b border-slate-200 pb-2">Elaboración</h3>
+                <div class="prose prose-xl text-slate-700 leading-relaxed font-serif">
+                    ${clean(r.inst).split('\n').map(line => line.trim() ? `<p class="mb-4 p-4 hover:bg-yellow-50 rounded-xl transition border-l-4 border-transparent hover:border-yellow-400">${line}</p>` : '').join('')}
+                </div>
+                ${!r.inst ? '<div class="text-center text-slate-300 text-2xl font-bold mt-20">Sin instrucciones escritas</div>' : ''}
+            </div>
+        </div>
+    </div>`;
+    
+    // Inyectamos esto directamente en el body para tapar todo
+    const el = document.createElement('div');
+    el.innerHTML = content;
+    document.body.appendChild(el);
+    
+    // Sobrescribimos closeModal temporalmente para destruir esta vista
+    const oldClose = window.closeModal;
+    window.closeModal = function() {
+        el.remove();
+        window.closeModal = oldClose; // Restaurar
+        // Volver a abrir el modal normal
+        viewRec(id);
+    };
+};
     /* === MÓDULO DE ESTRUCTURA (GASTOS FIJOS) === */
 function renderGastosFijos(c) {
     const list = db.gastos_fijos || [];
