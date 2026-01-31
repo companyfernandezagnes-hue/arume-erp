@@ -2480,175 +2480,271 @@ function calcMaxProd(r, visited = new Set()) {
 
     return minRatio === Infinity ? 0 : Math.floor(minRatio);
 }
+/* =============================================================
+   👨‍🍳 FICHA DE RECETA INTELIGENTE V6.0 (Mermas + IA + Rentabilidad)
+   ============================================================= */
+
+// --- FUNCIÓN PRINCIPAL DE EDICIÓN ---
 function editRec(id) {
-    const r = id ? db.recetas.find(x => x.id === id) : { id: generateID(), n: '', pvp: 0, time: 15, items: [], inst: '', yield: 1, unit: 'rac' }; 
+    // 1. Cargar datos base o crear receta nueva
+    const r = id ? db.recetas.find(x => x.id === id) : { id: generateID(), n: '', pvp: 0, time: 15, items: [], yield: 1, inst: '', type: 'cocina' };
     tempItems = JSON.parse(JSON.stringify(r.items || []));
 
-    showModal('Ficha Técnica & Escandallo', `
-        <div class="grid grid-cols-12 gap-3 mb-2">
-            <div class="col-span-8">
-                <label>Nombre Receta</label>
-                <input id="er-n" value="${clean(r.n)}" class="input-premium font-bold" placeholder="Ej: Vinagreta Algas">
-            </div>
-            <div class="col-span-4">
-                <label>PVP Venta (€)</label>
-                <input id="er-pvp" type="number" value="${r.pvp}" class="input-premium text-center">
-            </div>
-        </div>
+    // 2. --- EL CEREBRO FINANCIERO (Cálculo en tiempo real) ---
+    
+    let costeMP = 0; // Coste Materia Prima Total
 
-        <div class="bg-indigo-50 p-4 rounded-xl border border-indigo-100 mb-6 shadow-inner relative z-50">
-            <label class="mb-2 text-indigo-800 font-bold flex items-center gap-2">🔍 Añadir Ingrediente / Sub-receta</label>
+    tempItems.forEach(it => {
+        // Determinamos si es Ingrediente o Sub-receta para buscar su coste base
+        let baseCost = 0;
+        let baseUnit = 'ud';
+
+        if (it.type === 'ing') {
+            const i = db.ingredientes.find(x => x.id === it.id);
+            if(i) { baseCost = i.cost; baseUnit = i.unit; }
+        } else if (it.type === 'rec') { // Soporte para sub-recetas
+            const sub = db.recetas.find(x => x.id === it.id);
+            if(sub) { 
+                const subCalc = calcRecipe(sub); 
+                baseCost = subCalc.t / (sub.yield || 1); 
+                baseUnit = sub.unit || 'rac';
+            }
+        }
+
+        if (baseCost > 0) {
+            // Factor de Conversión de Unidades
+            const convFactor = UnitConverter.convert(1, it.unit || baseUnit, baseUnit);
             
-            <input type="text" id="smart-search" 
-                class="w-full p-3 rounded-lg border-2 border-indigo-200 font-bold text-slate-700 focus:border-indigo-500 focus:outline-none bg-white mb-2" 
-                placeholder="Escribe para buscar (ej: Soja, Salsa...)" 
-                onkeyup="runSmartSearch(this.value)" autocomplete="off">
+            // Factor de MERMA (El secreto de la rentabilidad)
+            // Si merma es 20%, pagamos por 100g pero usamos 80g. El coste sube.
+            const mermaFactor = 1 - ((it.merma || 0) / 100);
             
-            <div id="search-results" class="hidden absolute top-[85px] left-4 right-4 bg-white border border-slate-200 rounded-xl shadow-2xl max-h-56 overflow-y-auto z-[60]"></div>
+            // Coste Real de esta línea = Cantidad * FactorUnidad * CosteBase / FactorMerma
+            costeMP += (it.q * convFactor * baseCost) / mermaFactor;
+        }
+    });
 
-            <div id="add-controls" class="hidden flex gap-2 items-center bg-white p-2 rounded-lg border border-slate-200 mt-2">
-                <div class="font-black text-indigo-900 flex-1 truncate px-2 text-xs" id="sel-name"></div>
-                <input id="er-q" type="number" class="input-premium w-20 text-center border-indigo-200" placeholder="Cant.">
-                <select id="er-u" class="input-premium w-20 text-xs bg-slate-100 font-bold"></select>
-                <button class="bg-indigo-600 text-white rounded-lg w-10 h-10 font-bold shadow-lg hover:bg-indigo-700 active:scale-95 transition" onclick="addItemFromSearch()">+</button>
+    const raciones = parseFloat(r.yield) || 1;
+    const costeMP_Racion = costeMP / raciones;
+
+    // B. Coste Personal (Tiempo es dinero)
+    const costePersonal = ((r.time || 0) / 60) * CONFIG.COST_HOUR;
+
+    // C. Coste Estructura (La Mochila del Alquiler/Luz)
+    let mochilaFija = CONFIG.FIXED_COST_MONTH / CONFIG.EST_MONTHLY_SALES;
+    
+    // Si es "Barra" (refresco), le quitamos peso porque no gasta cocina
+    if (r.type === 'barra') mochilaFija = mochilaFija * 0.10; // Solo carga un 10%
+
+    // D. COSTE TOTAL REAL
+    const costeTotal = costeMP_Racion + costePersonal + mochilaFija;
+
+    // E. Precios Sugeridos (Objetivos de Beneficio)
+    const pMinimo = costeTotal;               // Cubrir gastos (0% beneficio)
+    const pIdeal = costeTotal / 0.85;         // Ganar 15% Limpio
+    const pPremium = costeTotal / 0.75;       // Ganar 25% Limpio
+
+    // --- RENDERIZADO DEL MODAL ---
+
+    showModal('🧠 Diseñador de Rentabilidad', `
+        <div class="mb-4 flex justify-between items-start">
+            <div class="flex-1 mr-2">
+                <label class="text-[10px] font-bold text-slate-400 uppercase">Nombre Plato</label>
+                <input id="er-n" value="${clean(r.n)}" class="input-premium font-bold text-lg" placeholder="Ej: Solomillo...">
+            </div>
+            <div class="bg-indigo-50 p-1 rounded-lg border border-indigo-100 flex text-[9px]">
+                <label class="cursor-pointer px-2 py-1 rounded ${r.type!=='barra'?'bg-white shadow text-indigo-700 font-bold':''}">
+                    <input type="radio" name="rec-type" value="cocina" class="hidden" ${r.type!=='barra'?'checked':''} onchange="saveRec('${r.id}', true)"> 🍳 Cocina
+                </label>
+                <label class="cursor-pointer px-2 py-1 rounded ${r.type==='barra'?'bg-white shadow text-pink-600 font-bold':''}">
+                    <input type="radio" name="rec-type" value="barra" class="hidden" ${r.type==='barra'?'checked':''} onchange="saveRec('${r.id}', true)"> 🍺 Barra
+                </label>
             </div>
         </div>
 
-        <div class="flex justify-between px-2 text-[10px] font-bold text-slate-400 uppercase mb-1">
-            <span>Escandallo</span><span>Cantidad</span>
-        </div>
-        <div id="er-list" class="max-h-40 overflow-y-auto custom-scrollbar bg-white rounded-lg border border-slate-200 p-1 mb-4"></div>
-
-        <div class="flex gap-2">
-            <div class="flex-1">
-                 <label>Rendimiento</label>
-                 <div class="flex gap-1">
-                    <input id="er-yield" type="number" value="${r.yield || 1}" class="input-premium text-center">
-                    <select id="er-unit" class="input-premium w-20"><option>rac</option><option>l</option><option>kg</option><option>ud</option></select>
-                 </div>
+        <div class="bg-white border border-slate-200 rounded-xl p-3 mb-4 shadow-sm relative">
+            <div class="flex justify-between mb-2">
+                <label class="text-xs font-black text-indigo-800 uppercase">🛒 1. Escandallo (Ingredientes)</label>
+                <div class="text-[10px] text-slate-500">Coste MP Total: <b>${Num.fmt(costeMP)}€</b></div>
             </div>
-            <div class="flex-1">
-                 <label>Tiempo (min)</label>
-                 <input id="er-time" type="number" value="${r.time}" class="input-premium text-center">
+            
+            <input type="text" id="smart-search" class="w-full bg-slate-50 border border-slate-200 rounded p-2 text-xs font-bold mb-2 outline-none focus:border-indigo-400" placeholder="🔍 Añadir ingrediente..." onkeyup="runSmartSearch(this.value)" autocomplete="off">
+            <div id="search-results" class="hidden absolute top-20 left-3 right-3 bg-white border rounded-xl shadow-2xl max-h-40 overflow-y-auto z-50"></div>
+
+            <div id="add-controls" class="hidden flex gap-1 items-center bg-indigo-50 p-1 rounded mb-2 shadow-inner">
+                <div class="flex-1 truncate px-2 text-[10px] font-bold text-indigo-900" id="sel-name"></div>
+                <input id="er-q" type="number" class="w-12 text-center text-xs border rounded p-1 font-bold" placeholder="Cant">
+                <span id="sel-unit-text" class="text-[9px] font-bold text-slate-500 w-6">ud</span>
+                <select id="er-u" class="hidden"></select>
+                <button class="bg-indigo-600 text-white rounded w-6 h-6 flex items-center justify-center font-bold shadow-md hover:bg-indigo-700" onclick="addItemFromSearch()">+</button>
+            </div>
+
+            <div id="er-list" class="min-h-[40px] max-h-48 overflow-y-auto custom-scrollbar space-y-1"></div>
+        </div>
+
+        <div class="flex justify-between items-center mb-4 px-2">
+            <label class="text-[10px] font-bold text-slate-500 uppercase">⏱️ Tiempo Cocinado</label>
+            <div class="flex items-center gap-2">
+                <input id="er-time" type="number" value="${r.time}" class="w-12 text-center font-bold border-b-2 border-orange-300 outline-none" onchange="saveRec('${r.id}', true)">
+                <span class="text-xs text-orange-500 font-bold">minutos</span>
             </div>
         </div>
 
-        <label class="mt-4">Instrucciones</label>
-        <textarea id="er-inst" class="input-premium mb-4 text-sm" rows="2">${clean(r.inst)}</textarea>
+        <div class="bg-slate-900 text-white p-4 rounded-xl shadow-xl mb-4 relative overflow-hidden">
+            <div class="absolute -right-4 -top-4 w-20 h-20 bg-white/10 rounded-full blur-xl"></div>
+            
+            <div class="flex justify-between items-end mb-3 border-b border-white/10 pb-2">
+                <div>
+                    <div class="text-[10px] opacity-60 uppercase font-bold">Coste Real Total</div>
+                    <div class="text-lg font-mono text-yellow-400">${Num.fmt(costeTotal)}€ <span class="text-[9px] opacity-50">/ración</span></div>
+                </div>
+                <div class="text-right">
+                    <label class="text-[10px] opacity-60 uppercase font-bold block">Precio Carta (IVA inc)</label>
+                    <input id="er-pvp" type="number" value="${r.pvp}" class="w-20 bg-white text-slate-900 font-black text-center text-lg rounded py-1 outline-none focus:ring-2 ring-emerald-400">
+                </div>
+            </div>
+
+            <div class="grid grid-cols-3 gap-2 text-center">
+                <div class="bg-white/5 p-2 rounded border border-white/10 hover:bg-white/10 transition cursor-help" title="Cubres gastos pero trabajas gratis">
+                    <div class="text-[8px] text-red-300 uppercase font-bold">Mínimo</div>
+                    <div class="font-mono text-sm">${Num.fmt(pMinimo)}€</div>
+                </div>
+                <div class="bg-emerald-500/20 p-2 rounded border border-emerald-500/50 hover:bg-emerald-500/30 transition shadow-lg shadow-emerald-900/20 cursor-pointer" onclick="document.getElementById('er-pvp').value='${pIdeal.toFixed(2)}'" title="Clic para aplicar (15% beneficio)">
+                    <div class="text-[8px] text-emerald-300 uppercase font-black">⭐ IDEAL</div>
+                    <div class="font-mono text-lg font-bold text-white">${Num.fmt(pIdeal)}€</div>
+                </div>
+                <div class="bg-purple-500/20 p-2 rounded border border-purple-500/50 hover:bg-purple-500/30 transition cursor-pointer" onclick="document.getElementById('er-pvp').value='${pPremium.toFixed(2)}'" title="Clic para aplicar (25% beneficio)">
+                    <div class="text-[8px] text-purple-300 uppercase font-bold">Premium</div>
+                    <div class="font-mono text-sm">${Num.fmt(pPremium)}€</div>
+                </div>
+            </div>
+            <div class="text-[8px] text-center mt-2 opacity-40 italic">
+                *Incluye Mermas, Personal y Estructura (${r.type==='barra'?'10%':'100%'})
+            </div>
+        </div>
+
+        <label class="text-[10px] font-bold text-slate-500 uppercase mb-1 block">📝 Elaboración (Para el equipo)</label>
+        <textarea id="er-inst" class="input-premium h-20 text-xs leading-relaxed border-dashed" placeholder="Pasos clave para que salga siempre igual...">${clean(r.inst)}</textarea>
         
+        <div class="flex justify-end mt-1 mb-4">
+            <div class="flex items-center gap-2">
+                <span class="text-[10px] text-slate-400">Raciones:</span>
+                <input id="er-yield" type="number" value="${r.yield || 1}" class="w-10 text-center text-xs border rounded bg-slate-50" onchange="saveRec('${r.id}', true)">
+            </div>
+        </div>
+
         <div class="flex gap-2">
-            <button class="btn-premium flex-1" onclick="saveRec('${r.id}')">💾 GUARDAR FICHA</button>
-            ${id ? `<button class="btn-ghost w-auto text-red-500" onclick="delRec('${id}')">🗑️</button>` : ''}
+            <button class="btn-premium flex-1 bg-slate-800 text-white shadow-lg" onclick="saveRec('${r.id}')">GUARDAR</button>
+            ${id ? `<button class="btn-ghost w-auto text-red-400" onclick="delRec('${id}')">🗑️</button>` : ''}
         </div>
     `);
+    
     renderRecItems();
 }
-function renderRecTypes() {
-    const sel = document.getElementById('er-sel');
-    if(!sel) return;
-    
-    const ings = db.ingredientes
-        .sort((a,b)=>a.n.localeCompare(b.n))
-        .map(i=>`<option value="${i.id}" data-t="ing">📦 ${clean(i.n)}</option>`)
-        .join('');
-    
-    const recs = db.recetas
-        .sort((a,b)=>a.n.localeCompare(b.n))
-        .map(r=>`<option value="${r.id}" data-t="rec">🍲 SUB: ${clean(r.n)}</option>`)
-        .join('');
-    
-    sel.innerHTML = `<optgroup label="--- SEMIELABORADOS ---">${recs}</optgroup><optgroup label="--- MATERIA PRIMA ---">${ings}</optgroup>`;
-    updUnit();
-}
 
-function updUnit() {
-    const sel = document.getElementById('er-sel'); 
-    const uSel = document.getElementById('er-u');
-    if(!sel || !uSel) return;
-
-    const opt = sel.options[sel.selectedIndex];
-    const type = opt ? opt.dataset.t : 'ing';
-    
-    let opts = [];
-    if(type === 'rec') {
-        opts = ['rac', 'l', 'kg']; 
-    } else {
-        opts = ['kg', 'g', 'l', 'ml', 'cl', 'ud', 'oz', 'lb', 'mg'];
-    }
-    
-    uSel.innerHTML = opts.map(u => `<option>${u}</option>`).join('');
-}
-
-function addItem() {
-    const sel = document.getElementById('er-sel'); 
-    if(!sel) return;
-    
-    const type = sel.options[sel.selectedIndex].dataset.t;
-    const q = parseFloat(document.getElementById('er-q').value);
-    
-    if(q > 0) { 
-        tempItems.push({
-            type, 
-            id: sel.value, 
-            q, 
-            unit: document.getElementById('er-u').value, 
-            merma: 0
-        }); 
-        renderRecItems();
-        // Limpiar input cantidad para agilizar
-        document.getElementById('er-q').value = '';
-        document.getElementById('er-q').focus();
-    } else {
-        toast("Cantidad inválida", "error");
-    }
-}
-
+// --- RENDERIZADO DE LA LISTA DE INGREDIENTES CON MERMA ---
 function renderRecItems() {
     const el = document.getElementById('er-list');
     if(!el) return;
 
-    el.innerHTML = tempItems.map((it,i) => {
-        let n="?", icon="📦"; 
-        if(it.type==='ing'){ const x=db.ingredientes.find(z=>z.id===it.id); if(x)n=x.n; } 
-        else { const x=db.recetas.find(z=>z.id===it.id); if(x){n=x.n; icon="🍲";} }
+    el.innerHTML = tempItems.map((it, i) => {
+        let n = "?";
+        if(it.type === 'ing'){ 
+            const x = db.ingredientes.find(z => z.id === it.id); 
+            if(x) n = x.n; 
+        } else { 
+            const x = db.recetas.find(z => z.id === it.id); 
+            if(x) n = "🍲 " + x.n; 
+        }
         
+        // Estilo visual para la merma (si es >0 se pone naranja)
+        const mermaStyle = it.merma > 0 ? "text-orange-600 font-bold bg-orange-50 border-orange-200" : "text-slate-400 border-slate-200";
+
         return `
-        <div class="flex justify-between py-2 border-b border-slate-50 last:border-0 text-sm items-center hover:bg-slate-50 px-2 rounded">
-            <div class="flex items-center">
-                <span class="mr-2 text-xs">${icon}</span>
-                <span class="font-medium text-slate-700">${n}</span>
+        <div class="flex justify-between items-center py-2 border-b border-slate-50 last:border-0 hover:bg-slate-50 px-2 rounded group transition">
+            <div class="flex-1">
+                <div class="font-bold text-slate-700 text-xs">${n}</div>
+                <div class="text-[9px] text-slate-400">Cantidad Neta: <b>${it.q} ${it.unit}</b></div>
             </div>
-            <div class="flex items-center gap-3">
-                <span class="font-bold text-slate-900">${it.q} ${it.unit}</span>
-                <button class="text-red-400 hover:text-red-600 font-bold" onclick="tempItems.splice(${i},1);renderRecItems()">✕</button>
+            
+            <div class="flex items-center gap-2">
+                <div class="flex flex-col items-center w-12" title="% que se tira a la basura (pieles, espinas...)">
+                    <input type="number" value="${it.merma || 0}" 
+                        class="w-full text-center text-[10px] border rounded p-1 outline-none focus:ring-1 focus:ring-orange-400 ${mermaStyle}" 
+                        placeholder="0" 
+                        onchange="tempItems[${i}].merma=parseFloat(this.value); saveRec('${db.recetas.find(r => r.id === tempItems[0]?.id)?.id || ''}', true)">
+                    <span class="text-[7px] text-slate-400 uppercase tracking-tighter">MERMA %</span>
+                </div>
+
+                <button class="text-slate-300 hover:text-red-500 font-bold px-2 transition text-xs" onclick="tempItems.splice(${i},1); saveRec('', true)">✕</button>
             </div>
         </div>`;
     }).join('');
 }
 
-function saveRec(id) {
+// --- AÑADIR DESDE BUSCADOR ---
+function addItemFromSearch() {
+    const selName = document.getElementById('sel-name').innerText;
+    if (!selName) return; 
+
+    const q = parseFloat(document.getElementById('er-q').value);
+    
+    if (q > 0 && selectedItem) {
+        tempItems.push({
+            type: selectedItem.type,
+            id: selectedItem.id,
+            q: q,
+            unit: document.getElementById('sel-unit-text').innerText, 
+            merma: 0 // Por defecto 0% merma
+        });
+
+        // Limpieza UI para seguir añadiendo rápido
+        document.getElementById('er-q').value = '';
+        document.getElementById('smart-search').value = '';
+        document.getElementById('smart-search').focus();
+        document.getElementById('add-controls').classList.add('hidden');
+        document.getElementById('add-controls').classList.remove('flex');
+        
+        // Recalculamos al vuelo
+        saveRec(db.recetas.find(r => r.id === tempItems[0]?.id)?.id || '', true);
+    } else {
+        toast("Falta la cantidad", "error");
+    }
+}
+
+// --- GUARDAR RECETA ---
+function saveRec(id, isQuickUpdate = false) {
     const n = document.getElementById('er-n').value; 
-    if(!n) return toast("Falta nombre", "error");
+    if(!n && !isQuickUpdate) return toast("Falta nombre", "error");
+
+    const type = document.querySelector('input[name="rec-type"]:checked')?.value || 'cocina';
 
     const r = { 
-        id, n, 
+        id, 
+        n: n || 'Nueva Receta', 
+        type, 
         pvp: parseFloat(document.getElementById('er-pvp').value) || 0, 
         time: parseFloat(document.getElementById('er-time').value) || 0,
         yield: parseFloat(document.getElementById('er-yield').value) || 1,
-        unit: document.getElementById('er-unit').value,
-        items: [...tempItems], // Copia segura
+        unit: 'rac', 
+        items: [...tempItems], 
         inst: document.getElementById('er-inst').value 
     };
 
     const idx = db.recetas.findIndex(x => x.id === id);
     if(idx >= 0) db.recetas[idx] = r; else db.recetas.push(r);
     
-    clearCache(); 
-    save("Ficha Técnica Guardada ✅"); 
-    closeModal(); 
-    render('Cocina');
+    if (isQuickUpdate) {
+        editRec(id); // Recarga para ver nuevos precios
+    } else {
+        clearCache(); 
+        save("Guardado ✅"); 
+        closeModal(); 
+        render('Cocina');
+    }
 }
 
+// --- BORRAR RECETA ---
 function delRec(id) { 
     if(confirm("¿Borrar receta definitivamente?")) { 
         db.recetas = db.recetas.filter(x => x.id !== id); 
