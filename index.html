@@ -256,52 +256,51 @@
 const SUPABASE_URL = "https://awbgboucnbsuzojocbuy.supabase.co"; 
 const SUPABASE_KEY = "sb_publishable_drOQ5PsFA8eox_aRTXNATQ_5kibM6ST";
 /* =============================================================
-   ⚠️ 1. CONFIGURACIÓN DEL MOTOR FINANCIERO AUTOMÁTICO ⚠️
+   ⚠️ 1. CONFIGURACIÓN DEL MOTOR FINANCIERO ⚠️
    ============================================================= */
 const CONFIG = { 
     COST_HOUR: 15, // Precio hora empleado
     
-    // GASTOS FIJOS INTELIGENTES: Calcula el peso mensual real
+    // GASTOS FIJOS: Suma lo que hay en la pestaña "Fijos" o usa 4000€
     get FIXED_COST_MONTH() {
-        if (!db.gastos_fijos || db.gastos_fijos.length === 0) return 4000; // Valor seguridad
-
+        if (!db.gastos_fijos || db.gastos_fijos.length === 0) return 4000; 
         return db.gastos_fijos.reduce((acc, g) => {
-            let mensualizado = 0;
+            let m = 0;
             switch(g.freq) {
-                case 'mensual': mensualizado = g.amount; break;
-                case 'trimestral': mensualizado = g.amount / 3; break;
-                case 'semestral': mensualizado = g.amount / 6; break;
-                case 'anual': mensualizado = g.amount / 12; break;
-                default: mensualizado = g.amount;
+                case 'mensual': m = g.amount; break;
+                case 'trimestral': m = g.amount / 3; break;
+                case 'anual': m = g.amount / 12; break;
+                default: m = g.amount;
             }
-            return acc + mensualizado;
+            return acc + m;
         }, 0);
     },
 
-    // VENTAS ESTIMADAS (Para repartir el gasto fijo por plato)
+    // VENTAS ESTIMADAS: EL SECRETO PARA QUE EL PRECIO NO SE DISPARE
     get EST_MONTHLY_SALES() {
         const logs = db.sales_history || [];
-        if (logs.length === 0) return 2500; // Valor defecto
+        // Si no hay datos reales, asumimos 3000 ventas/mes (Barra + Cocina)
+        // Así la "mochila" de gastos fijos por plato es pequeña (ej: 3€ en vez de 80€)
+        if (logs.length === 0) return 3000; 
         
-        // Media real de los últimos 3 registros de ventas
         const totalItems = logs.slice(-3).reduce((acc, log) => {
             return acc + log.items.reduce((a, b) => a + b.q, 0);
         }, 0);
-        return Math.max(totalItems / 3, 500); 
+        
+        return Math.max(totalItems / 3, 3000); 
     }
 };
+
 // Inicializamos el cliente (El puente con la nube)
 const { createClient } = supabase;
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 /* === 2. UTILIDADES MATEMÁTICAS Y FORMATO (MEJORADO) === */
-
-// 👇👇 PEGA ESTO AQUÍ (ES LO NUEVO) 👇👇
 const secure = { 
     enc: (data) => btoa(encodeURIComponent(JSON.stringify(data))), 
     dec: (str) => JSON.parse(decodeURIComponent(atob(str))) 
 };
-/* === 2. UTILIDADES MATEMÁTICAS Y FORMATO (MEJORADO) === */
+
 const Num = {
     parse: (str) => { 
         if (!str) return 0; 
@@ -1099,82 +1098,50 @@ function checkDuplicate() {
 /* =============================================================
    ⚠️ MOTOR INTELIGENTE V5.0 (DETECTIVE MATEMÁTICO) ⚠️
    ============================================================= */
-
-/* --- 1. DETECTIVE DE PATRONES (Busca si A * B = C) --- */
+/* --- 1. DETECTIVE DE PATRONES (CORREGIDO: Respeta "Caja" y "Pack") --- */
 function detectLinePattern(line) {
-    // Limpieza: quitamos monedas y espacios dobles
+    // 1. Limpieza básica
     let clean = line.replace(/[€$£"]/g, '').replace(/\s{2,}/g, ' ').trim();
     
-    // Extraer TODOS los números de la línea (positivos y negativos)
+    // 2. Extraer números
     const rawNumbers = clean.match(/(-?\d+([.,]\d+)?)/g);
-    
-    // Si no hay números, no es una línea válida
     if (!rawNumbers || rawNumbers.length < 1) return null;
 
-    // Convertimos a números reales para operar
     const nums = rawNumbers.map(n => Num.parse(n));
-    
     let q = 1, p = 0;
-    let foundMath = false;
-
-    // --- ESTRATEGIA A: VERIFICACIÓN MATEMÁTICA ---
-    // Si hay al menos 3 números, comprobamos si (Cant * Precio = Total)
-    if (nums.length >= 3) {
-        // Asumimos que el total suele estar al final
-        const total = nums[nums.length - 1]; 
-        
-        // Probamos todas las parejas posibles para ver si multiplican
-        for (let i = 0; i < nums.length - 1; i++) {
-            for (let j = i + 1; j < nums.length - 1; j++) {
-                // Margen de error de 0.05 céntimos por redondeos
-                if (Math.abs((nums[i] * nums[j]) - total) < 0.05) {
-                    // ¡BINGO! Hemos encontrado la lógica
-                    // Normalmente el número más pequeño o entero es la cantidad
-                    if (nums[i] < nums[j] && nums[i] < 100) { q = nums[i]; p = nums[j]; }
-                    else { q = nums[j]; p = nums[i]; }
-                    
-                    foundMath = true;
-                    break;
-                }
-            }
-            if (foundMath) break;
-        }
-    }
-
-    // --- ESTRATEGIA B: POSICIÓN (Si falla la matemática) ---
-    if (!foundMath) {
-        if (nums.length >= 2) {
-            q = nums[0]; // El primero suele ser cantidad
-            // Si el último es mucho mayor que el penúltimo, asumimos Último=Total, Penúltimo=Precio
-            // Si no, asumimos Penúltimo=Precio Unitario
-            p = nums[nums.length >= 3 ? nums.length - 2 : 1]; 
-        } else {
-            q = nums[0]; p = 0;
-        }
-    }
-
-    // LIMPIEZA DEL NOMBRE
-    // Quitamos los números que hemos "usado" para dejar el texto limpio
-    let name = clean;
-    [q, p, (q*p)].forEach(val => {
-        if(val > 0) {
-            // Regex para quitar solo ese número exacto
-            name = name.replace(new RegExp(`\\b${String(val).replace('.', '[.,]')}\\b`, ''), '');
-        }
-    });
     
-    // DETECTAR UNIDAD (kg, l, ud...)
+    // 3. Estrategia de Posición (Cantidad suele ser el primero)
+    if (nums.length >= 2) {
+        q = nums[0]; 
+        // Si hay 3 números, el del medio suele ser precio unitario. Si hay 2, el último es total/precio.
+        p = nums.length >= 3 ? nums[nums.length - 2] : nums[nums.length - 1]; 
+    } else {
+        q = nums[0];
+    }
+
+    // 4. LIMPIEZA INTELIGENTE DEL NOMBRE
+    let name = clean;
+    // Quitamos solo los números que hemos identificado como Cantidad y Precio
+    [q, p].forEach(val => {
+        if(val > 0) name = name.replace(new RegExp(`\\b${String(val).replace('.', '[.,]')}\\b`, ''), '');
+    });
+
+    // 5. DETECTAR UNIDAD (Pero NO borramos "Caja" del nombre)
     let unit = 'ud';
-    const uMatch = clean.match(/\b(kg|kilo|gr|g|l|litro|ml|cl|oz|lb|caja|pack|botella|uds|ud|unid|barril|lata)\b/i);
+    // Solo borramos unidades de medida física para limpiar el texto (kg, litros...)
+    // ¡IMPORTANTE! Aquí NO incluimos 'caja' ni 'pack' para que se queden en el nombre
+    const simpleUnits = /\b(kg|kilo|gr|g|l|litro|ml|cl|oz|lb)\b/i;
+    const uMatch = name.match(simpleUnits);
+    
     if (uMatch) {
         unit = UnitConverter.normalize(uMatch[0]);
-        name = name.replace(uMatch[0], ''); // Quitamos la unidad del nombre
+        name = name.replace(uMatch[0], ''); // Quitamos 'kg' o 'l', pero dejamos 'Caja'
     }
 
-    return { 
-        name: name.replace(/[^\w\sñÑáéíóúÁÉÍÓÚ%\-]/g, '').trim(), // Limpieza final de símbolos raros
-        q, p, d: 0, t: null, unit 
-    };
+    // Limpieza final de símbolos raros
+    name = name.replace(/[^\w\sñÑáéíóúÁÉÍÓÚ%\-()]/g, '').trim();
+
+    return { name, q, p, d: 0, t: null, unit };
 }
 /* --- 2. PARSEADOR PRINCIPAL (ALBARANES) CON DETECCIÓN DE PACKS --- */
 function parseAlb() {
@@ -1773,47 +1740,47 @@ function downloadMonthCSV(monthIndex, monthName) {
     a.click();
 }
 /* =============================================================
-   📊 MÓDULO INGENIERÍA DE MENÚ (OMNES) - CORREGIDO
-   ============================================================= */
-/* =============================================================
-   📊 MÓDULO OMNES AVANZADO (MATRIZ + MARGEN REAL)
+   📊 MÓDULO OMNES (CON GESTIÓN DE DATOS)
    ============================================================= */
 function renderOmnes(c) {
-    // 1. CABECERA CON NAVEGACIÓN
+    // A. CABECERA CON GESTIÓN
     const headerHTML = `
     <div class="flex justify-between items-center mb-4">
         <h3 class="font-bold text-slate-800 flex items-center gap-2">
-            📊 MENU ENGINEERING 
-            <span class="bg-indigo-600 text-white px-2 py-0.5 rounded text-[10px] tracking-widest font-black">${fiscalYear}</span>
+            📊 MENU ENGINEERING <span class="bg-indigo-600 text-white px-2 rounded text-[10px]">${fiscalYear}</span>
         </h3>
-        <div class="flex bg-slate-100 p-1 rounded-lg gap-1">
-             <button class="w-8 h-8 flex items-center justify-center bg-white rounded shadow-sm text-xs font-bold hover:text-indigo-600 active:scale-95 transition" onclick="fiscalYear--;renderAdmin(document.getElementById('app'))">‹</button>
-             <button class="w-8 h-8 flex items-center justify-center bg-white rounded shadow-sm text-xs font-bold hover:text-indigo-600 active:scale-95 transition" onclick="fiscalYear++;renderAdmin(document.getElementById('app'))">›</button>
+        <div class="flex gap-2">
+             <button class="btn-ghost px-3 py-1 text-[10px] border-slate-300" onclick="manageSalesData()">⚙️ GESTIONAR DATOS</button>
+             
+             <div class="flex bg-slate-100 p-1 rounded-lg gap-1">
+                 <button class="w-8 h-8 flex items-center justify-center bg-white rounded font-bold" onclick="fiscalYear--;renderAdmin(document.getElementById('app'))">‹</button>
+                 <button class="w-8 h-8 flex items-center justify-center bg-white rounded font-bold" onclick="fiscalYear++;renderAdmin(document.getElementById('app'))">›</button>
+            </div>
         </div>
     </div>
+    
     <div class="mb-6">
-        <button class="btn-premium py-3 text-xs w-full bg-slate-800 text-white shadow-lg shadow-slate-300 flex items-center justify-center gap-2" onclick="openPasteModal()">
-            <span>📋</span> PEGAR VENTAS (IMPORTADOR)
+        <button class="btn-premium py-3 text-xs w-full bg-slate-800 text-white shadow-lg flex items-center justify-center gap-2" onclick="openPasteModal()">
+            <span>📋</span> PEGAR VENTAS NUEVAS
         </button>
     </div>`;
 
-    // 2. COMPROBACIÓN DE DATOS
-    if (!db.sales_history.length) {
+    // B. COMPROBACIÓN SI HAY DATOS
+    if (!db.sales_history || db.sales_history.length === 0) {
         c.innerHTML = `${headerHTML}
         <div class="p-8 text-center border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50">
             <div class="text-4xl mb-2 opacity-50">📉</div>
-            <p class="text-sm text-slate-400 font-bold">No hay datos de ventas en ${fiscalYear}.</p>
-            <p class="text-xs text-slate-400 mt-1">Usa el botón negro de arriba para pegar tu Excel.</p>
+            <p class="text-sm text-slate-400 font-bold">Sin datos de ventas.</p>
+            <p class="text-xs text-slate-400 mt-1">Pega el Excel de tu TPV o caja para empezar.</p>
         </div>`;
         return;
     }
 
-    // 3. MOTOR DE CÁLCULO (MARGEN DE CONTRIBUCIÓN)
+    // C. CÁLCULOS (Igual que antes)
     let totalQtySold = 0;
     let totalMarginGenerated = 0;
     const salesMap = {};
 
-    // Agrupar ventas
     db.sales_history.filter(log => isInPeriod(log.date)).forEach(log => {
         log.items.forEach(it => {
             const rid = it.rid || db.recetas.find(r => r.n === it.n)?.id;
@@ -1821,117 +1788,113 @@ function renderOmnes(c) {
         });
     });
 
-    // Crear Dataset Enriquecido
     const dataset = db.recetas.map(r => {
         const sales = salesMap[r.id] || 0;
         if (sales === 0) return null;
-
         const cost = calcRecipe(r).t; 
         const marginUnit = r.pvp - cost; 
-        const totalMargin = marginUnit * sales; // ESTA ES LA CLAVE: Margen total que deja el plato
-
+        const totalMargin = marginUnit * sales;
         totalQtySold += sales;
         totalMarginGenerated += totalMargin;
-
         return { r, sales, cost, pvp: r.pvp, marginUnit, totalMargin };
     }).filter(x => x !== null);
 
+    // D. RENDERIZADO VISUAL
     if (dataset.length === 0) {
-        c.innerHTML = `${headerHTML}<div class="p-4 bg-orange-50 text-orange-600 rounded border border-orange-200 text-xs font-bold">⚠️ Hay historial de ventas, pero no coinciden con las recetas activas. Revisa los nombres en Cocina.</div>`;
+        c.innerHTML = `${headerHTML}<div class="p-4 bg-orange-50 text-orange-600 rounded text-xs font-bold">⚠️ Hay ventas cargadas, pero no coinciden con los nombres de tus Recetas. Revisa en "Gestionar Datos".</div>`;
         return;
     }
 
-    // 4. CLASIFICACIÓN (MATRIZ DE BOSTON)
-    const avgMargin = totalMarginGenerated / totalQtySold; // Eje Y
-    const fairShare = (100 / dataset.length) * 0.7;        // Eje X (Popularidad Teórica Ajustada)
-
+    // Clasificación Matriz
+    const avgMargin = totalMarginGenerated / totalQtySold;
+    const fairShare = (100 / dataset.length) * 0.7;
     const matrix = { stars: [], plowhorses: [], puzzles: [], dogs: [] };
+    
     dataset.forEach(d => {
         const mix = (d.sales / totalQtySold) * 100;
         const isPopular = mix >= fairShare;
         const isProfitable = d.marginUnit >= avgMargin;
-
         if (isPopular && isProfitable) matrix.stars.push(d);      
         else if (isPopular && !isProfitable) matrix.plowhorses.push(d); 
         else if (!isPopular && isProfitable) matrix.puzzles.push(d);    
-        else matrix.dogs.push(d);                                       
+        else matrix.dogs.push(d);                                
     });
 
-    // Helper para pintar las mini-listas dentro de los cuadrantes
     const miniList = (list) => list.sort((a,b)=>b.totalMargin-a.totalMargin).map(d => 
-        `<div class="flex justify-between text-[9px] border-b border-black/5 py-1.5 last:border-0 items-center group cursor-help" title="Margen Total: ${Num.fmt(d.totalMargin)}€">
-            <span class="truncate w-2/3 font-medium text-slate-700 group-hover:text-black transition">${clean(d.r.n)}</span>
+        `<div class="flex justify-between text-[9px] border-b border-black/5 py-1.5">
+            <span class="truncate w-2/3 font-medium text-slate-700">${clean(d.r.n)}</span>
             <span class="font-bold opacity-60 bg-white/60 px-1.5 rounded">${d.sales}</span>
         </div>`).join('');
 
-    // 5. RENDERIZADO (GRID VISUAL)
     c.innerHTML = `
     ${headerHTML}
-
-    <div class="flex justify-between text-[9px] font-bold text-slate-400 mb-2 uppercase tracking-wider px-1">
-        <span>Rentabilidad Media: ${Num.fmt(avgMargin)}€</span>
-        <span>Popularidad Obj: ${fairShare.toFixed(1)}%</span>
-    </div>
-
     <div class="grid grid-cols-2 gap-2 mb-4 h-96">
-        
-        <div class="bg-gradient-to-br from-yellow-50 to-amber-100 rounded-xl p-3 border border-yellow-200 relative overflow-hidden flex flex-col shadow-sm">
-            <div class="absolute -right-3 -top-3 text-7xl opacity-10 grayscale">🌟</div>
-            <h4 class="font-black text-amber-700 text-[10px] uppercase mb-2 flex justify-between items-center border-b border-amber-200 pb-1">
-                ESTRELLAS <span class="bg-white px-1.5 rounded shadow-sm text-amber-600">${matrix.stars.length}</span>
-            </h4>
-            <div class="flex-1 overflow-y-auto custom-scrollbar pr-1 relative z-10">${miniList(matrix.stars)}</div>
+        <div class="bg-amber-50 rounded-xl p-3 border border-amber-200 flex flex-col">
+            <h4 class="font-black text-amber-700 text-[10px] uppercase mb-2">🌟 ESTRELLAS (${matrix.stars.length})</h4>
+            <div class="flex-1 overflow-y-auto custom-scrollbar">${miniList(matrix.stars)}</div>
         </div>
-
-        <div class="bg-gradient-to-br from-emerald-50 to-teal-100 rounded-xl p-3 border border-emerald-200 relative overflow-hidden flex flex-col shadow-sm">
-            <div class="absolute -right-3 -top-3 text-7xl opacity-10 grayscale">🧩</div>
-            <h4 class="font-black text-emerald-700 text-[10px] uppercase mb-2 flex justify-between items-center border-b border-emerald-200 pb-1">
-                PUZZLES <span class="bg-white px-1.5 rounded shadow-sm text-emerald-600">${matrix.puzzles.length}</span>
-            </h4>
-            <div class="flex-1 overflow-y-auto custom-scrollbar pr-1 relative z-10">${miniList(matrix.puzzles)}</div>
+        <div class="bg-emerald-50 rounded-xl p-3 border border-emerald-200 flex flex-col">
+            <h4 class="font-black text-emerald-700 text-[10px] uppercase mb-2">🧩 PUZZLES (${matrix.puzzles.length})</h4>
+            <div class="flex-1 overflow-y-auto custom-scrollbar">${miniList(matrix.puzzles)}</div>
         </div>
-
-        <div class="bg-gradient-to-br from-blue-50 to-indigo-100 rounded-xl p-3 border border-blue-200 relative overflow-hidden flex flex-col shadow-sm">
-            <div class="absolute -right-3 -top-3 text-7xl opacity-10 grayscale">🐎</div>
-            <h4 class="font-black text-blue-700 text-[10px] uppercase mb-2 flex justify-between items-center border-b border-blue-200 pb-1">
-                CABALLOS <span class="bg-white px-1.5 rounded shadow-sm text-blue-600">${matrix.plowhorses.length}</span>
-            </h4>
-            <div class="flex-1 overflow-y-auto custom-scrollbar pr-1 relative z-10">${miniList(matrix.plowhorses)}</div>
+        <div class="bg-indigo-50 rounded-xl p-3 border border-indigo-200 flex flex-col">
+            <h4 class="font-black text-blue-700 text-[10px] uppercase mb-2">🐎 CABALLOS (${matrix.plowhorses.length})</h4>
+            <div class="flex-1 overflow-y-auto custom-scrollbar">${miniList(matrix.plowhorses)}</div>
         </div>
-
-        <div class="bg-gradient-to-br from-red-50 to-pink-100 rounded-xl p-3 border border-red-200 relative overflow-hidden flex flex-col shadow-sm">
-            <div class="absolute -right-3 -top-3 text-7xl opacity-10 grayscale">🐕</div>
-            <h4 class="font-black text-red-700 text-[10px] uppercase mb-2 flex justify-between items-center border-b border-red-200 pb-1">
-                PERROS <span class="bg-white px-1.5 rounded shadow-sm text-red-600">${matrix.dogs.length}</span>
-            </h4>
-            <div class="flex-1 overflow-y-auto custom-scrollbar pr-1 relative z-10">${miniList(matrix.dogs)}</div>
+        <div class="bg-red-50 rounded-xl p-3 border border-red-200 flex flex-col">
+            <h4 class="font-black text-red-700 text-[10px] uppercase mb-2">🐕 PERROS (${matrix.dogs.length})</h4>
+            <div class="flex-1 overflow-y-auto custom-scrollbar">${miniList(matrix.dogs)}</div>
         </div>
     </div>
-
-    <div class="glass-card flex justify-around text-center py-4 mb-6 shadow-md border-0 bg-slate-800 text-white">
-        <div>
-            <div class="text-[9px] text-slate-400 uppercase font-bold">Margen Total</div>
-            <div class="text-xl font-black text-emerald-400">${Num.fmt(totalMarginGenerated)}€</div>
-        </div>
-        <div>
-            <div class="text-[9px] text-slate-400 uppercase font-bold">Ticket Medio (PVP)</div>
-            <div class="text-xl font-black text-indigo-400">${Num.fmt((totalMarginGenerated/totalQtySold) + dataset.reduce((a,b)=>a+b.cost*b.sales,0)/totalQtySold)}€</div>
-        </div>
-    </div>
-    
-    <div class="glass-card border-t-4 border-orange-500">
-        <h4 class="text-xs font-black text-orange-800 uppercase tracking-widest mb-3">⚖️ Análisis de Precios (Omnes)</h4>
-        ${renderOmnesPrinciples(dataset)}
-    </div>
-    `;
+    <div class="glass-card bg-slate-800 text-white text-center py-4">
+        <div class="text-[10px] uppercase font-bold text-slate-400">Beneficio Bruto Total</div>
+        <div class="text-2xl font-black text-emerald-400">${Num.fmt(totalMarginGenerated)}€</div>
+    </div>`;
 }
-// Auxiliar Omnes
-function renderOmnesPrinciples(data) {
-    const prices = data.filter(d => d.pvp > 0).map(d => d.pvp).sort((a,b) => a - b);
-    if(prices.length < 2) return '<div class="text-xs text-slate-400">Datos insuficientes.</div>';
-    const min = prices[0], max = prices[prices.length-1];
-    const rangeRatio = min > 0 ? max/min : 0;
-    return `<div class="flex justify-between text-xs border-b border-dashed border-slate-200 pb-2"><span class="text-slate-600">Amplitud Gama (Max/Min)</span><span class="font-bold ${rangeRatio <= 3 ? 'text-emerald-600':'text-red-500'}">${rangeRatio.toFixed(2)} (Meta < 3)</span></div>`;
+
+// --- NUEVA FUNCIÓN: GESTOR DE DATOS DE VENTAS ---
+function manageSalesData() {
+    const logs = db.sales_history.sort((a,b) => b.date.localeCompare(a.date));
+    
+    const logsHTML = logs.map((l, i) => `
+        <div class="flex justify-between items-center bg-white p-3 rounded-lg border border-slate-100 mb-2">
+            <div>
+                <div class="font-bold text-slate-700 text-sm">📅 ${l.date}</div>
+                <div class="text-[10px] text-slate-400">${l.items.length} productos cargados</div>
+            </div>
+            <button class="text-red-500 bg-red-50 px-3 py-1 rounded text-xs font-bold hover:bg-red-500 hover:text-white transition" onclick="deleteSalesLog('${l.id}')">🗑️ BORRAR</button>
+        </div>
+    `).join('');
+
+    showModal('⚙️ Gestión de Datos de Ventas', `
+        <div class="text-xs text-slate-500 mb-4 bg-blue-50 p-3 rounded border border-blue-100">
+            Aquí puedes borrar cargas de ventas antiguas o erróneas para limpiar las estadísticas.
+        </div>
+        
+        <div class="max-h-60 overflow-y-auto custom-scrollbar mb-4 bg-slate-50 p-2 rounded-xl">
+            ${logs.length ? logsHTML : '<div class="text-center text-slate-400 py-4">No hay datos cargados</div>'}
+        </div>
+
+        <button class="w-full btn-ghost text-red-600 border-red-200" onclick="deleteAllSales()">⚠️ BORRAR TODO EL HISTORIAL</button>
+    `);
+}
+
+function deleteSalesLog(id) {
+    if(confirm("¿Borrar esta carga de ventas?")) {
+        db.sales_history = db.sales_history.filter(l => l.id !== id);
+        save("Datos eliminados");
+        manageSalesData(); // Refrescar modal
+        renderAdmin(document.getElementById('app')); // Refrescar fondo
+    }
+}
+
+function deleteAllSales() {
+    if(confirm("¿ESTÁS SEGURA? Se borrarán TODAS las estadísticas de ventas.")) {
+        db.sales_history = [];
+        save("Historial reseteado por completo");
+        closeModal();
+        renderAdmin(document.getElementById('app'));
+    }
 }
 /* =============================================================
    ⚠️ 4. IMPORTADOR ESPECIALIZADO ARUME (VISUAL + EDICIÓN) ⚠️
