@@ -194,7 +194,9 @@
         <h1 class="text-2xl font-black text-slate-900 tracking-tighter">ARUME <span class="text-emerald-500">PRO</span></h1>
         <p class="text-[9px] text-slate-400 font-bold tracking-widest uppercase">Sistema Cloud Supabase</p>
     </div>
-
+<button onclick="openAIAssistant()" class="mr-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-3 py-1.5 rounded-lg text-[10px] font-bold shadow-md hover:scale-105 transition flex items-center gap-1 animate-pulse" style="border: 1px solid rgba(255,255,255,0.2);">
+    <span>🤖</span> IA AUDIT
+</button>
     <div class="contenedor-menu">
         <button onclick="mostrarOpciones()" class="btn-principal" style="padding: 8px 16px; font-size: 12px; background: #0f172a;">
             ⚙️ Opciones ▼
@@ -253,14 +255,41 @@
    ============================================================= */
 const SUPABASE_URL = "https://awbgboucnbsuzojocbuy.supabase.co"; 
 const SUPABASE_KEY = "sb_publishable_drOQ5PsFA8eox_aRTXNATQ_5kibM6ST";
-
-// 🔥 CONFIGURACIÓN DE COSTES FIJOS (AQUÍ ESTÁ LA CLAVE) 🔥
+/* =============================================================
+   ⚠️ 1. CONFIGURACIÓN DEL MOTOR FINANCIERO AUTOMÁTICO ⚠️
+   ============================================================= */
 const CONFIG = { 
-    COST_HOUR: 15,           // Coste hora cocinero
-    FIXED_COST_MONTH: 40000, // TUS GASTOS FIJOS TOTALES (Alquiler, Luz, Personal...)
-    EST_MONTHLY_SALES: 2500  // Raciones promedio que vendes al mes
-};
+    COST_HOUR: 15, // Precio hora empleado
+    
+    // GASTOS FIJOS INTELIGENTES: Calcula el peso mensual real
+    get FIXED_COST_MONTH() {
+        if (!db.gastos_fijos || db.gastos_fijos.length === 0) return 4000; // Valor seguridad
 
+        return db.gastos_fijos.reduce((acc, g) => {
+            let mensualizado = 0;
+            switch(g.freq) {
+                case 'mensual': mensualizado = g.amount; break;
+                case 'trimestral': mensualizado = g.amount / 3; break;
+                case 'semestral': mensualizado = g.amount / 6; break;
+                case 'anual': mensualizado = g.amount / 12; break;
+                default: mensualizado = g.amount;
+            }
+            return acc + mensualizado;
+        }, 0);
+    },
+
+    // VENTAS ESTIMADAS (Para repartir el gasto fijo por plato)
+    get EST_MONTHLY_SALES() {
+        const logs = db.sales_history || [];
+        if (logs.length === 0) return 2500; // Valor defecto
+        
+        // Media real de los últimos 3 registros de ventas
+        const totalItems = logs.slice(-3).reduce((acc, log) => {
+            return acc + log.items.reduce((a, b) => a + b.q, 0);
+        }, 0);
+        return Math.max(totalItems / 3, 500); 
+    }
+};
 // Inicializamos el cliente (El puente con la nube)
 const { createClient } = supabase;
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -292,7 +321,6 @@ function clean(str) {
 const generateID = () => Math.random().toString(36).substr(2, 9);
 const getISO = () => new Date().toLocaleDateString('en-CA');
 const getTS = () => new Date().toLocaleString('es-ES');
-
 /* === 3. CONVERSOR DE UNIDADES INTELIGENTE (MEJORADO) === */
 const UnitConverter = {
     normalize: (u) => {
@@ -321,10 +349,23 @@ const UnitConverter = {
             const factorDestino = (toG[to] || toMl[to]);
             if (factorDestino) return valInBase / factorDestino;
         }
-        return q; 
+        return q;
     }
 };
 
+// --- DETECTIVE DE PACKS (FUNCIÓN INDEPENDIENTE) ---
+function detectPackSize(name) {
+    if (!name) return 1;
+    // Regex: Busca números seguidos de 'x', o palabras clave como caja/pack seguidas de número
+    const regex = /(\d+)\s*[xX]|(?:Caja|Pack|Bulto)\s*de\s*(\d+)|(?:Caja|Pack|Bulto)\s*(\d+)/i;
+    const match = name.match(regex);
+    
+    if (match) {
+        // Devuelve el primer número que encuentre
+        return parseInt(match[1] || match[2] || match[3]) || 1;
+    }
+    return 1; // Si no encuentra nada, asume que es 1 unidad
+}
 /* === 4. ESTRUCTURA DE LA BASE DE DATOS === */
 const DB_INIT = { 
     users: [
@@ -1135,8 +1176,7 @@ function detectLinePattern(line) {
         q, p, d: 0, t: null, unit 
     };
 }
-
-/* --- 2. PARSEADOR PRINCIPAL (ALBARANES) --- */
+/* --- 2. PARSEADOR PRINCIPAL (ALBARANES) CON DETECCIÓN DE PACKS --- */
 function parseAlb() {
     const txtInput = document.getElementById('alb-input');
     const txt = txtInput.value;
@@ -1156,7 +1196,6 @@ function parseAlb() {
             }));
 
             lines.forEach(rawLine => {
-                // Usamos el detective V5.0
                 const result = detectLinePattern(rawLine);
 
                 if (result && result.name.length > 1) {
@@ -1164,22 +1203,31 @@ function parseAlb() {
                     
                     let finalUnit = result.unit;
                     let finalQty = result.q;
-                    // IVA: Si es producto nuevo, intentamos adivinarlo por nombre
+                    // IVA: Si es producto nuevo, intentamos adivinarlo
                     let finalTax = match ? (match.ref.tax || 10) : guessTax(result.name);
                     let status = 'new';
 
+                    // --- DETECTIVE DE PACKS ---
+                    const detectedFactor = detectPackSize(result.name);
+                    // Si ya existe en DB usamos su config, si no, usamos lo detectado en texto
+                    let finalConv = match ? (match.ref.conv || 1) : detectedFactor;
+
                     if (match) {
                         status = 'linked';
-                        // Conversión automática de unidades si difieren (ej: Compras Cajas -> Stock Unidades)
-                        if (match.unit !== finalUnit) {
+                        // Si la unidad del albarán es distinta a la del stock, intentamos convertir
+                        if (match.unit !== finalUnit && finalUnit !== 'caja' && finalUnit !== 'pack') {
                             const converted = tryConvertUnits(finalQty, finalUnit, match.unit);
                             if (converted !== null) {
                                 finalQty = converted;
-                                finalUnit = match.unit; // Normalizamos a la unidad del stock
+                                finalUnit = match.unit; 
                             } else {
-                                status = 'conflict'; // Avisamos si no sabemos convertir
+                                status = 'conflict'; 
                             }
                         }
+                        // Si detectamos que es un pack, avisamos visualmente
+                        if (finalConv > 1) status = 'pack_detected';
+                    } else if (finalConv > 1) {
+                        status = 'pack_detected'; // Nuevo producto detectado como pack
                     }
 
                     tempItems.push({
@@ -1190,7 +1238,10 @@ function parseAlb() {
                         d: 0, 
                         tax: parseFloat(finalTax),
                         status: status,
-                        originalUnit: result.unit 
+                        originalUnit: result.unit,
+                        // GUARDAMOS EL FACTOR DETECTADO
+                        conv: finalConv, 
+                        packDetected: detectedFactor > 1
                     });
                     count++;
                 }
@@ -1199,7 +1250,7 @@ function parseAlb() {
             if (count > 0) {
                 txtInput.value = ''; 
                 renderAlbGrid();
-                toast(`✅ ${count} líneas leídas correctamente.`, "success");
+                toast(`✅ ${count} líneas leídas. Revisar Cajas/Packs.`, "success");
             } else {
                 toast("❌ No pude leer nada. Revisa el formato.", "error");
             }
@@ -1339,7 +1390,7 @@ function renderAlbGrid() {
     document.getElementById('alb-total').innerText = Num.fmt(safeTotal) + '€';
 }
 /* =============================================================
-   ⚠️ COMMIT INTELIGENTE V4.0 (Aprende IVA y Proveedores) ⚠️
+   ⚠️ COMMIT INTELIGENTE V5.0 (Gestión de Cajas y Precios) ⚠️
    ============================================================= */
 function commitAlb() {
     if (!tempItems.length) return toast("Albarán vacío", "error");
@@ -1349,7 +1400,6 @@ function commitAlb() {
     const provName = document.getElementById('alb-prov').value.trim();
     const date = document.getElementById('alb-date').value;
     const num = document.getElementById('alb-num').value.trim() || `A-${Date.now().toString().slice(-6)}`;
-    // NUEVO: Recoger notas
     const notes = document.getElementById('alb-notes').value.trim();
     
     if (!provName || !date) return toast("Faltan datos (Proveedor o Fecha)", "error");
@@ -1367,29 +1417,51 @@ function commitAlb() {
     tempItems.forEach(it => {
         const cleanName = it.n.trim();
         let ing = db.ingredientes.find(x => x.n.toLowerCase() === cleanName.toLowerCase());
-        const netPrice = it.p * (1 - (it.d || 0) / 100);
-        const lineBase = it.q * netPrice;
-        const lineTax = lineBase * (it.tax / 100);
-
+        
+        // Precio que pone en el albarán (por la CAJA entera o unidad de compra)
+        const priceInInvoice = it.p * (1 - (it.d || 0) / 100);
+        
         if (!ing) { 
+            // Si es nuevo, usamos el factor que haya detectado el parseAlb
             ing = { 
-                id: generateID(), n: cleanName, stock: 0, cost: netPrice, unit: it.unit, fam: 'General', min: 0,
-                tax: it.tax, lastProv: provName 
+                id: generateID(), n: cleanName, stock: 0, cost: priceInInvoice, 
+                unit: it.unit, fam: 'General', min: 0, 
+                tax: it.tax, lastProv: provName, conv: it.conv || 1, packUnit: 'Ud' 
             }; 
             db.ingredientes.push(ing); 
-        } else {
-            if (Math.abs(ing.cost - netPrice) > 0.01) ing.lastCost = ing.cost;
-            const totalVal = (ing.stock * ing.cost) + (it.q * netPrice);
-            const totalQty = ing.stock + it.q;
-            if (totalQty > 0) ing.cost = totalVal / totalQty;
-            else if (it.q > 0) ing.cost = netPrice;
-            ing.tax = it.tax; ing.lastProv = provName; 
-        }
+        } 
 
-        ing.stock += it.q;
-        logStock(ing.id, it.q, 'IN', `Alb: ${num} (${clean(provName)})`, netPrice);
-        subtotal += lineBase;
-        taxes += lineTax;
+        // === CÁLCULO INTELIGENTE DE CONVERSIÓN ===
+        // Prioridad: 1. Lo que diga la ficha (ing.conv) 2. Lo que diga la línea importada (it.conv) 3. 1 por defecto
+        const factor = ing.conv || it.conv || 1; 
+        
+        const qtyReal = it.q * factor;           // Ej: 1 caja * 24 = 24 botellas
+        const costReal = priceInInvoice / factor;// Ej: 24€ caja / 24 = 1€ botella
+
+        // Actualizamos precio medio ponderado
+        if (Math.abs(ing.cost - costReal) > 0.01) ing.lastCost = ing.cost;
+        
+        const totalVal = (ing.stock * ing.cost) + (qtyReal * costReal);
+        const totalQty = ing.stock + qtyReal;
+        
+        if (totalQty > 0) ing.cost = totalVal / totalQty;
+        else if (qtyReal > 0) ing.cost = costReal;
+
+        ing.stock += qtyReal; // Sumamos UNIDADES (Botellas), no cajas
+        ing.tax = it.tax; 
+        ing.lastProv = provName; 
+
+        // Log Kardex con detalle
+        const logMsg = factor > 1 
+            ? `Alb: ${num} (Entra: ${it.q} Cajas x${factor})` 
+            : `Alb: ${num}`;
+
+        logStock(ing.id, qtyReal, 'IN', logMsg, costReal);
+        
+        // Para la factura sumamos el precio total de compra
+        const lineTotal = it.q * priceInInvoice;
+        subtotal += lineTotal;
+        taxes += lineTotal * (it.tax / 100);
     });
 
     // 3. Guardar Albarán
@@ -1404,11 +1476,11 @@ function commitAlb() {
         subtotal: subtotal, 
         taxes: taxes, 
         invoiced: false,
-        notes: notes // <--- GUARDAMOS LA NOTA AQUÍ
+        notes: notes 
     });
     
     clearCache();
-    save(`✅ Albarán ${num} guardado`);
+    save(`✅ Albarán ${num} guardado. Stock convertido.`);
     
     tempItems = []; 
     renderAdmin(document.getElementById('app'));
@@ -3028,14 +3100,17 @@ function saveMerma(id) {
         save("Merma registrada"); closeModal(); render('Stock'); 
     }
 }
-
-// --- EDICIÓN DE PRODUCTOS (CON ALÉRGENOS) ---
+// --- EDICIÓN DE PRODUCTOS (CON ALÉRGENOS Y PACKS) ---
 function editIng(id) {
-    const i = db.ingredientes.find(x => x.id === id) || { id, n: '', cost: 0, stock: 0, min: 0, unit: 'kg', fam: 'General', alg: [] };
-    const fams = FAMILIES.map(f => `<option ${i.fam === f ? 'selected' : ''}>${f}</option>`).join('');
+    const i = db.ingredientes.find(x => x.id === id) || { 
+        id, n: '', cost: 0, stock: 0, min: 0, unit: 'kg', fam: 'General', alg: [], 
+        packUnit: 'Caja', conv: 1 
+    };
     
     // 🔥 CORRECCIÓN: Clonar array para evitar referencias cruzadas
     tempAlgs = [...(i.alg || [])];
+
+    const fams = FAMILIES.map(f => `<option ${i.fam === f ? 'selected' : ''}>${f}</option>`).join('');
 
     const algHTML = ALLERGENS.map(a => {
         const active = tempAlgs.includes(a.k);
@@ -3046,8 +3121,30 @@ function editIng(id) {
         ? `<button class="btn-ghost w-auto text-indigo-600 border-indigo-200 bg-indigo-50" onclick="viewKardex('${id}')">📜 HISTORIAL</button>` 
         : '';
 
-    showModal('Ficha Producto', `
-        <label>Nombre</label><input id="ei-n" value="${clean(i.n)}" class="input-premium mb-2">
+    showModal('Ficha Producto Maestro', `
+        <div class="bg-indigo-50 border border-indigo-100 p-3 rounded-xl mb-4 shadow-inner">
+            <div class="flex items-center gap-2 mb-2">
+                <span class="text-xl">📦</span>
+                <label class="text-indigo-800 font-bold text-xs uppercase">Configuración de Compra</label>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                 <div>
+                    <label>Formato Compra</label>
+                    <input id="ei-pack" value="${clean(i.packUnit || 'Ud')}" class="input-premium text-center" placeholder="Ej: Caja, Pack...">
+                 </div>
+                 <div>
+                    <label>Uds por Pack</label>
+                    <input id="ei-conv" type="number" value="${i.conv || 1}" class="input-premium text-center font-black text-indigo-600 text-lg" placeholder="1">
+                 </div>
+            </div>
+            <p class="text-[9px] text-indigo-400 mt-2 text-center">
+                Ej: Si compras 1 <b>Caja</b> y trae <b>24</b> botellas, pon "24".
+            </p>
+        </div>
+
+        <label>Nombre Stock (Unidad de Uso)</label>
+        <input id="ei-n" value="${clean(i.n)}" class="input-premium mb-2 font-bold" placeholder="Ej: Coca Cola (Botella)">
+        
         <label>Familia</label><select id="ei-f" class="input-premium mb-2">${fams}</select>
         
         <label class="mt-2 mb-1">Alérgenos</label>
@@ -3056,26 +3153,25 @@ function editIng(id) {
         </div>
 
         <div class="grid grid-cols-3 gap-2">
-            <div><label>Coste</label><input id="ei-c" type="number" value="${i.cost}" class="input-premium"></div>
-            <div><label>Stock</label><input id="ei-s" type="number" value="${i.stock}" class="input-premium"></div>
-            <div><label>Mín</label><input id="ei-m" type="number" value="${i.min}" class="input-premium"></div>
+            <div><label>Coste/Ud</label><input id="ei-c" type="number" value="${i.cost}" class="input-premium" disabled title="Se calcula solo"></div>
+            <div><label>Stock (Uds)</label><input id="ei-s" type="number" value="${i.stock}" class="input-premium"></div>
+            <div><label>Mínimo</label><input id="ei-m" type="number" value="${i.min}" class="input-premium"></div>
         </div>
         
-        <label>Unidad</label>
+        <label>Unidad de Uso (Cocina)</label>
         <select id="ei-u" class="input-premium mb-4">
+            <option ${i.unit==='ud'?'selected':''}>ud</option>
+            <option ${i.unit==='l'?'selected':''}>l</option>
             <option ${i.unit==='kg'?'selected':''}>kg</option>
             <option ${i.unit==='g'?'selected':''}>g</option>
-            <option ${i.unit==='mg'?'selected':''}>mg</option>
-            <option ${i.unit==='l'?'selected':''}>l</option>
             <option ${i.unit==='ml'?'selected':''}>ml</option>
             <option ${i.unit==='cl'?'selected':''}>cl</option>
             <option ${i.unit==='oz'?'selected':''}>oz</option>
             <option ${i.unit==='lb'?'selected':''}>lb</option>
-            <option ${i.unit==='ud'?'selected':''}>ud</option>
         </select>
         
         <div class="flex gap-2">
-            <button class="btn-premium flex-1" onclick="saveIng('${id}')">GUARDAR</button>
+            <button class="btn-premium flex-1" onclick="saveIng('${id}')">GUARDAR FICHA</button>
             ${histBtn}
             ${db.ingredientes.find(x => x.id === id) ? `<button class="btn-ghost w-auto text-red-500" onclick="delIng('${id}')">🗑️</button>` : ''}
         </div>
@@ -3108,13 +3204,16 @@ function saveIng(id) {
 
     const obj = {
         id, n, 
-        fam: document.getElementById('ei-f').value, 
+        fam: document.getElementById('ei-f').value,
         cost: newCost, 
         stock: parseFloat(document.getElementById('ei-s').value) || 0, 
         min: parseFloat(document.getElementById('ei-m').value) || 0, 
         unit: document.getElementById('ei-u').value,
         alg: tempAlgs, 
-        lastCost: lastCost
+        lastCost: lastCost,
+        // GUARDAR DATOS DE CAJA
+        packUnit: document.getElementById('ei-pack').value,
+        conv: parseFloat(document.getElementById('ei-conv').value) || 1
     };
     
     const idx = db.ingredientes.findIndex(x => x.id === id);
@@ -3123,7 +3222,6 @@ function saveIng(id) {
     clearCache(); 
     save("Guardado"); closeModal(); render('Stock');
 }
-
 function delIng(id) { 
     if (confirm("¿Eliminar producto?")) { 
         db.ingredientes = db.ingredientes.filter(x => x.id !== id); 
@@ -4118,6 +4216,95 @@ function printLabel(id) {
             <script>window.print(); window.close();<\/script>
         </body>
         </html>
+    `);
+}
+    /* =============================================================
+   ⚠️ INTELIGENCIA ARTIFICIAL (AUDITORÍA & MARKETING) ⚠️
+   ============================================================= */
+
+// 1. AUDITORÍA FINANCIERA (Botón Cabecera)
+function openAIAssistant() {
+    const fijosMes = CONFIG.FIXED_COST_MONTH;
+    const ventasEst = CONFIG.EST_MONTHLY_SALES;
+    const costeFijoPlato = fijosMes / ventasEst; 
+
+    let html = '';
+    let countAlerts = 0;
+
+    db.recetas.forEach(r => {
+        const analisis = calcRecipe(r);
+        const costeTotal = analisis.t; // Incluye MP + Mano Obra + Fijos
+        const margen = r.pvp - costeTotal;
+        const margenPct = r.pvp > 0 ? (margen / r.pvp) * 100 : 0;
+
+        if (margen < 0) {
+            countAlerts++;
+            html += `
+            <div class="bg-red-50 p-2 rounded border border-red-100 mb-2 text-xs">
+                <div class="font-bold text-red-700 flex justify-between">
+                    <span>${clean(r.n)}</span>
+                    <span>Pérdida: ${Num.fmt(margen)}€</span>
+                </div>
+                <div class="text-slate-500 mt-1">
+                    Vendes a <b>${Num.fmt(r.pvp)}€</b> pero cuesta <b>${Num.fmt(costeTotal)}€</b>
+                    <br>(MP: ${Num.fmt(analisis.foodCost)} + Fijos: ${Num.fmt(analisis.fixedCost)})
+                </div>
+            </div>`;
+        }
+    });
+
+    if (html === '') html = '<div class="text-center text-emerald-600 font-bold p-4">✅ ¡Enhorabuena! Todo el menú es rentable.</div>';
+
+    showModal('🤖 Auditoría de Rentabilidad', `
+        <div class="bg-slate-900 text-white p-4 rounded-xl mb-4 text-xs shadow-lg">
+            <div class="flex justify-between border-b border-slate-600 pb-2 mb-2">
+                <span>Gastos Fijos Reales (Mes)</span>
+                <span class="font-mono text-yellow-400 font-bold">${Num.fmt(fijosMes)}€</span>
+            </div>
+            <div class="flex justify-between">
+                <span>"Mochila" Fija por Plato</span>
+                <span class="font-mono text-orange-400 font-bold">${Num.fmt(costeFijoPlato)}€</span>
+            </div>
+            <div class="mt-2 text-[9px] text-slate-400 italic text-center">
+                *Cálculo basado en tus gastos fijos y una media de ${Num.fmt(ventasEst)} platos/mes.
+            </div>
+        </div>
+        
+        <h4 class="font-bold text-red-500 text-xs uppercase mb-2 flex items-center gap-2">
+            ⚠️ Platos en Riesgo <span class="bg-red-100 text-red-600 px-2 rounded-full text-[9px]">${countAlerts}</span>
+        </h4>
+        <div class="max-h-60 overflow-y-auto custom-scrollbar pr-1">
+            ${html}
+        </div>
+        <button class="btn-premium mt-4" onclick="closeModal()">ENTENDIDO</button>
+    `);
+}
+
+// 2. IA COPYWRITER (Botón en Receta)
+function generateMenuDescription(id) {
+    const r = db.recetas.find(x => x.id === id);
+    if (!r) return;
+
+    // Busca los 3 ingredientes más importantes (que no sean sal/aceite)
+    const topIngs = r.items
+        .filter(it => it.type === 'ing')
+        .map(it => {
+            const i = db.ingredientes.find(x => x.id === it.id); 
+            return i ? i.n : '';
+        })
+        .filter(n => n && !['sal','aceite','agua','azúcar'].some(x => n.toLowerCase().includes(x)))
+        .slice(0, 3);
+
+    const txt = `Disfruta de nuestro ${clean(r.n)}, una elaboración artesanal con ${topIngs.join(', ')} y el toque especial de la casa.`;
+    
+    showModal('✨ Sugerencia para Carta', `
+        <div class="bg-gradient-to-br from-indigo-50 to-purple-50 p-6 rounded-xl border border-indigo-100 text-center shadow-inner">
+            <h3 class="font-serif text-lg text-slate-800 italic mb-4 leading-relaxed">"${txt}"</h3>
+            
+            <button class="btn-premium bg-slate-800 text-white shadow-xl transform active:scale-95 transition" onclick="navigator.clipboard.writeText('${txt}');toast('Copiado al portapapeles');closeModal()">
+                📋 COPIAR TEXTO
+            </button>
+        </div>
     `);
 }
 // INICIALIZACIÓN DE LA APP
