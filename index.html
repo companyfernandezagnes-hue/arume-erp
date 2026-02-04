@@ -956,12 +956,18 @@ function renderAlbaranes(c) {
         </div>
     </div>`;
 
-    // --- 2. RENDERIZAMOS EL HTML (CON EL TIP INCLUIDO Y EL AVISO INTELIGENTE) ---
+   // --- 2. RENDERIZAMOS EL HTML (CON EL TIP INCLUIDO Y EL AVISO INTELIGENTE) ---
     c.innerHTML = `
     <div class="glass-card border-l-4 border-indigo-500" id="alb-form-anchor">
         <div class="flex justify-between items-center mb-4">
             <h3 class="font-bold text-slate-700 text-sm uppercase">Nuevo / Editar Albarán</h3>
-            <span class="text-[9px] bg-indigo-50 text-indigo-400 px-2 py-1 rounded border border-indigo-100 font-bold">PRO MODE</span>
+            
+            <div class="flex gap-2">
+                <button class="btn-ghost px-3 py-1 text-[10px] bg-emerald-50 text-emerald-600 border-emerald-200 shadow-sm" onclick="openIAImportModal()">
+                    🤖 IMPORTAR DESDE EXCEL IA
+                </button>
+                <span class="text-[9px] bg-indigo-50 text-indigo-400 px-2 py-1 rounded border border-indigo-100 font-bold">PRO MODE</span>
+            </div>
         </div>
         
         <div class="grid grid-cols-4 gap-2 mb-1">
@@ -4365,6 +4371,257 @@ function generateMenuDescription(id) {
             </button>
         </div>
     `);
+}
+/* =============================================================
+   🤖 MÓDULO IMPORTADOR IA (PUENTE EXCEL -> APP)
+   ============================================================= */
+
+let tempIAGroups = []; // Variable temporal para guardar los albaranes detectados
+
+function openIAImportModal() {
+    showModal('🤖 Importar Revisión Semanal', `
+        <div class="bg-emerald-50 border-l-4 border-emerald-500 p-4 rounded-r-xl shadow-sm mb-4">
+            <h4 class="text-xs font-black text-emerald-800 uppercase mb-1">Instrucciones</h4>
+            <p class="text-[10px] text-emerald-700 leading-relaxed">
+                1. Ve a tu Google Sheet, hoja <b>"REVISIÓN_..."</b>.<br>
+                2. Selecciona las filas de productos (sin cabeceras azules).<br>
+                3. Copia y pega aquí. El sistema <b>agrupará</b> y creará los albaranes solos.
+            </p>
+        </div>
+        
+        <textarea id="ia-paste-area" class="input-premium h-48 text-[10px] font-mono border-2 border-slate-200 p-2 leading-tight focus:border-emerald-500 transition mb-4" placeholder="Pega aquí las filas del Excel..."></textarea>
+        
+        <button class="btn-premium w-full bg-slate-800 text-white shadow-xl" onclick="parseIAPaste()">
+            🚀 PROCESAR DATOS
+        </button>
+    `);
+    setTimeout(() => document.getElementById('ia-paste-area').focus(), 100);
+}
+
+function parseIAPaste() {
+    const txt = document.getElementById('ia-paste-area').value;
+    if (!txt.trim()) return toast("Nada pegado", "error");
+
+    const lines = txt.split(/\n/);
+    const groups = {}; // Mapa para agrupar: CLAVE = PROVEEDOR + ALBARAN + FECHA
+
+    let count = 0;
+
+    lines.forEach(line => {
+        // Limpiamos la línea y dividimos por tabuladores (Excel usa tabs al copiar)
+        const cols = line.split(/\t/);
+        
+        // El Excel IA tiene esta estructura: 
+        // 0: Fecha | 1: Albarán | 2: Producto | 3: Cant | 4: Precio | 5: IVA | 6: Total | 7: Enlace
+        
+        if (cols.length < 5) return; // Línea basura
+
+        // Extraer datos
+        let dateStr = cols[0].trim();
+        let albaran = cols[1].trim();
+        let provRaw = ""; // El proveedor no está en la línea de producto en el informe visual, PERO...
+        // ... TRUCO: En tu Excel visual pusimos encabezados azules.
+        // Si copias el formato "Tabla Plana" (la hoja Historico_Precios), las columnas son:
+        // A: Fecha | B: Proveedor | C: Nº Alb | D: Producto | E: Cant | F: Precio | G: IVA | H: Total
+        
+        // Vamos a asumir que copias de "Historico_Precios" (Datos crudos) que es más fácil para la máquina,
+        // O adaptamos el parser. Voy a asumir formato "Historico_Precios" columnas A-H.
+        
+        // RE-MAPPING para Historico_Precios (Más robusto):
+        // 0: Fecha, 1: Proveedor, 2: Nº Alb, 3: Producto, 4: Cant, 5: Precio, 6: IVA
+        
+        const fecha = cols[0].trim();
+        const proveedor = cols[1].trim();
+        const numAlb = cols[2].trim();
+        const producto = cols[3].trim();
+        const cantidad = Num.parse(cols[4]);
+        const precio = Num.parse(cols[5]);
+        const iva = Num.parse(cols[6]) || 0;
+
+        // Validaciones básicas
+        if (!proveedor || !producto || cantidad === 0) return;
+
+        // Clave única para agrupar
+        const key = `${proveedor}_${numAlb}_${fecha}`;
+
+        if (!groups[key]) {
+            groups[key] = {
+                prov: proveedor,
+                num: numAlb,
+                date: convertExcelDate(fecha), // Función auxiliar para fechas
+                items: [],
+                subtotal: 0,
+                taxes: 0,
+                total: 0
+            };
+        }
+
+        // Añadir item
+        groups[key].items.push({
+            n: producto,
+            q: cantidad,
+            p: precio,
+            unit: 'ud', // Por defecto, luego el sistema de stock lo corrige
+            tax: iva,
+            d: 0, // Descuento 0 por defecto
+            status: 'new' // Para que el sistema busque coincidencia en Stock
+        });
+
+        // Sumar totales
+        const lineTotal = cantidad * precio;
+        groups[key].subtotal += lineTotal;
+        groups[key].taxes += lineTotal * (iva / 100);
+        groups[key].total += lineTotal * (1 + (iva/100));
+        
+        count++;
+    });
+
+    if (count === 0) return toast("❌ No detecté formato válido. Copia desde 'Historico_Precios'", "error");
+
+    // Convertir objeto a array para visualizar
+    tempIAGroups = Object.values(groups).sort((a,b) => a.date.localeCompare(b.date));
+    
+    renderIAReview();
+}
+
+function renderIAReview() {
+    const html = tempIAGroups.map((alb, i) => {
+        return `
+        <div class="bg-white border border-slate-200 rounded-xl p-3 mb-3 shadow-sm">
+            <div class="flex justify-between items-start border-b border-slate-100 pb-2 mb-2">
+                <div>
+                    <div class="font-black text-slate-800 text-sm uppercase">${clean(alb.prov)}</div>
+                    <div class="text-[10px] text-slate-500 font-mono flex gap-2">
+                        <span>📅 ${alb.date}</span>
+                        <span>📄 ${alb.num}</span>
+                    </div>
+                </div>
+                <div class="text-right">
+                    <div class="font-black text-emerald-600">${Num.fmt(alb.total)}€</div>
+                    <div class="text-[9px] text-slate-400">${alb.items.length} líneas</div>
+                </div>
+            </div>
+            
+            <div class="max-h-24 overflow-y-auto custom-scrollbar text-[10px] bg-slate-50 p-2 rounded">
+                ${alb.items.map(it => `
+                    <div class="flex justify-between border-b border-slate-200 last:border-0 py-1">
+                        <span class="truncate w-2/3">${clean(it.n)}</span>
+                        <span class="font-mono font-bold">${it.q} x ${Num.fmt(it.p)}€</span>
+                    </div>
+                `).join('')}
+            </div>
+
+            <div class="mt-2 flex justify-end gap-2">
+                <button class="text-red-400 text-xs font-bold px-2 hover:bg-red-50 rounded" onclick="removeIAGroup(${i})">🗑️ DESCARTAR</button>
+            </div>
+        </div>`;
+    }).join('');
+
+    showModal('📝 Revisión Final (' + tempIAGroups.length + ' Albaranes)', `
+        <div class="bg-indigo-50 p-2 text-center text-xs text-indigo-800 rounded mb-4 font-bold">
+            Se van a crear ${tempIAGroups.length} albaranes y actualizar el stock.
+        </div>
+        <div class="bg-slate-100 p-2 rounded-xl h-[60vh] overflow-y-auto mb-4">
+            ${html}
+        </div>
+        <div class="flex gap-2">
+            <button class="btn-ghost" onclick="closeModal()">CANCELAR</button>
+            <button class="btn-premium flex-1 bg-emerald-600 shadow-emerald-200" onclick="commitIAGroups()">
+                ✅ CONFIRMAR Y GUARDAR TODO
+            </button>
+        </div>
+    `);
+}
+
+function removeIAGroup(index) {
+    tempIAGroups.splice(index, 1);
+    renderIAReview();
+}
+
+// Guarda todo en la base de datos
+function commitIAGroups() {
+    let newAlbs = 0;
+    
+    tempIAGroups.forEach(g => {
+        // 1. Asegurar Proveedor
+        let provObj = db.proveedores.find(p => p.n.toLowerCase() === g.prov.toLowerCase());
+        if (!provObj) {
+            provObj = { id: generateID(), n: g.prov, tel: '', fam: 'General' };
+            db.proveedores.push(provObj);
+        }
+
+        // 2. Procesar Items y Stock
+        const finalItems = g.items.map(it => {
+            // Buscamos coincidencia en ingredientes por nombre
+            const match = db.ingredientes.find(i => i.n.toLowerCase() === it.n.toLowerCase());
+            
+            // Si existe, actualizamos precio y stock
+            if (match) {
+                // Actualizar Coste Medio
+                const totalVal = (match.stock * match.cost) + (it.q * it.p);
+                const totalQty = match.stock + it.q;
+                if (totalQty > 0) match.cost = totalVal / totalQty;
+                
+                match.stock += it.q;
+                match.lastProv = g.prov;
+                
+                // Log Kardex
+                logStock(match.id, it.q, 'IN', `IA Alb: ${g.num}`, it.p);
+                
+                return { ...it, status: 'linked', unit: match.unit };
+            } else {
+                // Si NO existe, lo creamos
+                const newId = generateID();
+                db.ingredientes.push({
+                    id: newId,
+                    n: it.n,
+                    stock: it.q,
+                    cost: it.p,
+                    unit: 'ud',
+                    fam: 'General',
+                    lastProv: g.prov,
+                    min: 0
+                });
+                logStock(newId, it.q, 'IN', `IA Nuevo: ${g.num}`, it.p);
+                return { ...it, status: 'new' };
+            }
+        });
+
+        // 3. Crear Albarán
+        db.albaranes.push({
+            id: generateID(),
+            num: g.num,
+            prov: g.prov,
+            date: g.date,
+            socio: 'Arume', // Por defecto
+            items: finalItems,
+            total: g.total,
+            subtotal: g.subtotal,
+            taxes: g.taxes,
+            invoiced: false,
+            notes: 'Importado vía IA'
+        });
+        
+        newAlbs++;
+    });
+
+    save(`✅ Importados ${newAlbs} albaranes correctamente.`);
+    closeModal();
+    renderAdmin(document.getElementById('app'));
+}
+
+// Utilidad para corregir fechas que vienen de Excel (a veces vienen como 10/02/2026 o 2026-02-10)
+function convertExcelDate(d) {
+    if (!d) return getISO();
+    // Si ya es YYYY-MM-DD
+    if (d.match(/^\d{4}-\d{2}-\d{2}$/)) return d;
+    
+    // Si es DD/MM/YYYY
+    const parts = d.split('/');
+    if (parts.length === 3) {
+        return `${parts[2]}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}`;
+    }
+    return getISO(); // Fallback hoy
 }
 // INICIALIZACIÓN DE LA APP
 init(); 
