@@ -1526,80 +1526,117 @@ function exportAlbCSV() {
 // Variable temporal para guardar datos mientras está abierta la ventana modal
 let tempInvoiceData = null;
 function renderFacturas(c) {
-    // 1. Agrupar Pendientes
-    const pends = db.albaranes.filter(a => !a.invoiced);
-    const groups = {}; 
-    pends.forEach(a => { 
-        if (!groups[a.prov]) groups[a.prov] = { c: 0, t: 0, ids: [], hasNotes: false }; 
-        groups[a.prov].c++; 
-        groups[a.prov].t += a.total; 
-        groups[a.prov].ids.push(a.id);
-        
-        // === DETECTOR DE INCIDENCIAS ===
-        // Si tiene notas, activamos la bandera 'hasNotes'
-        if (a.notes && a.notes.trim().length > 0) {
-            groups[a.prov].hasNotes = true;
-        }
-    });
+    // === 1. AGRUPAR PENDIENTES (ALBARANES) POR MES Y LUEGO POR PROVEEDOR ===
+    // Ordenamos por fecha para que salgan los antiguos primero
+    const pends = db.albaranes.filter(a => !a.invoiced).sort((a,b) => a.date.localeCompare(b.date));
     
-    // 2. Historial (Facturas ya hechas)
-    const hist = db.facturas.filter(f => isInPeriod(f.date)).sort((a,b) => b.date.localeCompare(a.date));
     const monthNames = ["", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
-    const byMonth = {};
+    
+    // Estructura: { "2026-01": { name: "Enero 2026", provs: { "Makro": { ... } } } }
+    const pendingByMonth = {};
+
+    pends.forEach(a => {
+        // Extraemos Año y Mes (YYYY-MM)
+        const dateParts = a.date.split('-');
+        const year = dateParts[0];
+        const month = parseInt(dateParts[1]);
+        const key = `${year}-${String(month).padStart(2,'0')}`;
+
+        if (!pendingByMonth[key]) {
+            pendingByMonth[key] = {
+                name: `${monthNames[month]} ${year}`,
+                provs: {}
+            };
+        }
+
+        // Agrupar por proveedor DENTRO del mes
+        const group = pendingByMonth[key].provs;
+        if (!group[a.prov]) group[a.prov] = { c: 0, t: 0, ids: [], hasNotes: false };
+        
+        group[a.prov].c++;
+        group[a.prov].t += a.total;
+        group[a.prov].ids.push(a.id);
+        if (a.notes && a.notes.trim().length > 0) group[a.prov].hasNotes = true;
+    });
+
+    // === 2. HISTORIAL (FACTURAS YA HECHAS) ===
+    const hist = db.facturas.filter(f => isInPeriod(f.date)).sort((a,b) => b.date.localeCompare(a.date));
+    const histByMonth = {};
     const unpaidCount = hist.filter(f => !f.paid).length;
 
     hist.forEach(f => {
         const m = parseInt(f.date.split('-')[1]); 
-        if(!byMonth[m]) byMonth[m] = { name: monthNames[m], total: 0, items: [] };
-        byMonth[m].items.push(f);
-        byMonth[m].total += f.total;
+        if(!histByMonth[m]) histByMonth[m] = { name: monthNames[m], total: 0, items: [] };
+        histByMonth[m].items.push(f);
+        histByMonth[m].total += f.total;
     });
 
+    // === 3. GENERAR HTML PENDIENTES (SEPARADO POR MESES) ===
+    const sortedPendingKeys = Object.keys(pendingByMonth).sort(); // Orden cronológico (Enero, luego Febrero...)
+    
+    let htmlPends = '';
+    
+    if (sortedPendingKeys.length === 0) {
+        htmlPends = `<div class="glass-card mb-6 flex items-center gap-4 p-4 opacity-70"><div class="bg-emerald-100 p-2 rounded-full text-emerald-600">✅</div><div class="text-xs font-bold text-slate-500">Todo facturado.</div></div>`;
+    } else {
+        htmlPends = sortedPendingKeys.map(key => {
+            const mData = pendingByMonth[key];
+            // Determinamos si es un mes pasado (alerta visual)
+            const isPast = key < getISO().slice(0,7); 
+            const headerColor = isPast ? 'text-red-500' : 'text-indigo-500';
+            const borderClass = isPast ? 'border-red-400' : 'border-indigo-500';
+
+            return `
+            <div class="glass-card mb-6 border-l-4 ${borderClass}">
+                <h3 class="font-black text-sm ${headerColor} mb-3 uppercase tracking-widest flex justify-between">
+                    <span>⚠️ PENDIENTES ${mData.name}</span>
+                    ${isPast ? '<span class="text-[9px] bg-red-100 px-2 py-1 rounded">MES ANTERIOR</span>' : ''}
+                </h3>
+                
+                ${Object.entries(mData.provs).map(([p, d]) => {
+                    const alertStyle = d.hasNotes 
+                        ? 'bg-red-50 border-l-4 border-red-500 my-2 rounded-r-xl shadow-sm' 
+                        : 'border-b border-slate-100 last:border-0';
+                    
+                    const alertBadge = d.hasNotes 
+                        ? `<div class="text-[10px] font-black text-red-600 animate-pulse mt-1">⚠️ REVISAR NOTAS</div>` 
+                        : '';
+
+                    return `
+                    <div class="flex justify-between items-center py-3 px-2 ${alertStyle}">
+                        <div>
+                            <div class="font-bold text-slate-800 text-sm">${clean(p)}</div>
+                            <div class="text-[10px] text-slate-400 font-bold bg-white px-2 rounded inline-block border">${d.c} albaranes</div>
+                            ${alertBadge}
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <span class="font-black text-slate-700 text-sm">${Num.fmt(d.t)}€</span>
+                            <button class="bg-indigo-600 text-white px-3 py-2 rounded-xl text-[10px] font-bold shadow-lg active:scale-95 transition" onclick="openInvoiceModal('${p}','${d.ids.join(',')}', ${d.t})">
+                                FACTURAR
+                            </button>
+                        </div>
+                    </div>`;
+                }).join('')}
+            </div>`;
+        }).join('');
+    }
+
+    // === 4. GENERAR HTML HISTORIAL ===
     const remesaPanel = unpaidCount > 0 ? `
         <div class="glass-card mb-6 bg-indigo-50 border-indigo-100 p-4">
             <div class="flex justify-between items-center">
                 <div>
                     <h3 class="font-black text-indigo-900 text-sm uppercase tracking-widest">🏦 REMESA BANCARIA (SEPA)</h3>
-                    <p class="text-[10px] text-indigo-500">Selecciona facturas abajo y descarga el archivo para el banco.</p>
+                    <p class="text-[10px] text-indigo-500">Selecciona facturas abajo y descarga el archivo.</p>
                 </div>
                 <button class="btn-premium w-auto px-4 py-2 text-xs shadow-indigo-200" onclick="downloadSEPA()">
-                    📥 DESCARGAR XML
+                    📥 XML
                 </button>
             </div>
         </div>` : '';
 
-    const htmlPends = Object.keys(groups).length ? 
-        `<div class="glass-card mb-6 border-l-4 border-indigo-500">
-            <h3 class="font-bold text-xs text-slate-400 mb-3 uppercase tracking-widest">⚠️ Pendientes de Facturar</h3>
-            ${Object.entries(groups).map(([p, d]) => {
-                // === LÓGICA VISUAL DE ALERTA ===
-                // Si hasNotes es true, cambiamos el estilo a ROJO y mostramos aviso
-                const alertStyle = d.hasNotes 
-                    ? 'bg-red-50 border-l-4 border-red-500 my-2 rounded-r-xl shadow-sm' 
-                    : 'border-b border-slate-100 last:border-0';
-                
-                const alertBadge = d.hasNotes 
-                    ? `<div class="text-[10px] font-black text-red-600 animate-pulse mt-1">⚠️ REVISAR NOTAS EN ALBARÁN</div>` 
-                    : '';
-
-                return `
-                <div class="flex justify-between items-center py-3 px-2 ${alertStyle}">
-                    <div>
-                        <div class="font-bold text-slate-800 text-sm">${clean(p)}</div>
-                        <div class="text-[10px] text-slate-400 font-bold bg-white px-2 rounded inline-block border">${d.c} albaranes</div>
-                        ${alertBadge}
-                    </div>
-                    <div class="flex items-center gap-3">
-                        <span class="font-black text-slate-700 text-sm">${Num.fmt(d.t)}€</span>
-                        <button class="bg-indigo-600 text-white px-3 py-2 rounded-xl text-[10px] font-bold shadow-lg active:scale-95 transition" onclick="openInvoiceModal('${p}','${d.ids.join(',')}', ${d.t})">GENERAR FACTURA</button>
-                    </div>
-                </div>`
-            }).join('')}
-        </div>` : 
-        `<div class="glass-card mb-6 flex items-center gap-4 p-4 opacity-70"><div class="bg-emerald-100 p-2 rounded-full text-emerald-600">✅</div><div class="text-xs font-bold text-slate-500">Todo facturado.</div></div>`;
-
-    const htmlHist = Object.keys(byMonth).sort((a,b)=>b-a).map(mKey => {
-        const mData = byMonth[mKey];
+    const htmlHist = Object.keys(histByMonth).sort((a,b)=>b-a).map(mKey => {
+        const mData = histByMonth[mKey];
         return `
         <div class="glass-card mb-6">
             <div class="flex justify-between items-center mb-4 border-b border-slate-100 pb-3">
