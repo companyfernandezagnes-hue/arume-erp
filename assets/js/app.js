@@ -36,35 +36,38 @@ async function cargarDatosDeLaNube() {
     // IMPORTANTE: Aquí llamamos a diario, pero el nuevo loadModule lo enviará a caja.js
     loadModule('dashboard');
 }
-
-// 4. EL NAVEGADOR DE MÓDULOS (ESTA ES LA VERSIÓN NUEVA QUE DEBES PONER)
+// 4. EL NAVEGADOR DE MÓDULOS (VERSIÓN PROTEGIDA PARA LA RUEDA)
 window.loadModule = async function(name) {
     const container = document.getElementById('app');
     if (!container) return;
 
-    // LIMPIEZA DE INTERFAZ
     container.innerHTML = `<div class="p-10 text-center animate-pulse text-slate-400 uppercase text-xs font-black">Cargando ${name}...</div>`;
 
     try {
-        // CORRECCIÓN INTELIGENTE: Si pides 'caja' o 'diario', cargamos 'caja.js'
         let fileName = name;
         if (name === 'diario') fileName = 'caja';
 
+        // IMPORTANTE: Aseguramos la ruta correcta para PC
         const modulePath = `./modules/${fileName}.js`;
         const mod = await import(modulePath);
         
         container.innerHTML = "";
         
         if (mod.render) {
-            // Pasamos los datos (db) y la conexión (sb) al módulo
             await mod.render(container, window.sb, window.db);
             
-            // Marcamos el botón como activo en el menú (azul) y los otros gris
+            // --- ARREGLO PARA LA RUEDA ---
+            // Ponemos todos los botones de abajo en gris
             document.querySelectorAll('nav button').forEach(btn => {
                 btn.style.color = '#94a3b8'; 
             });
+            
+            // Solo intentamos poner azul el botón si existe (evita el error de la rueda)
             const activeBtn = document.getElementById(`btn-${name}`);
-            if (activeBtn) activeBtn.style.color = '#4f46e5';
+            if (activeBtn) {
+                activeBtn.style.color = '#4f46e5';
+            }
+            // -----------------------------
 
         } else {
             throw new Error("El archivo no tiene función render");
@@ -74,12 +77,11 @@ window.loadModule = async function(name) {
         console.error("Error en loadModule:", e);
         container.innerHTML = `
             <div class="p-10 text-center bg-red-50 rounded-3xl m-4 border border-red-100">
-                <p class="text-red-500 font-black">❌ ERROR DE CARGA</p>
-                <p style="font-size:12px; color:#94a3b8;">Asegúrate de que el archivo existe en assets/js/modules/${name}.js</p>
+                <p class="text-red-500 font-black">❌ ERROR DE CARGA: ${name}</p>
+                <p style="font-size:12px; color:#94a3b8;">Asegúrate de que el archivo existe en assets/js/modules/${fileName}.js</p>
             </div>`;
     }
 };
-
 // 5. FUNCIÓN PARA PINTAR EL MENÚ DE NAVEGACIÓN
 function renderNav() {
     const nav = document.getElementById('navbar');
