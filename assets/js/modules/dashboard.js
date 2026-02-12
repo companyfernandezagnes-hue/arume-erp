@@ -1,162 +1,140 @@
 /* =============================================================
-   📊 MÓDULO: DASHBOARD PRO DIAMOND (PC & MOBILE)
+   📊 DASHBOARD TOTAL: MENSUAL Y TRIMESTRAL (PC & MOBILE)
    ============================================================= */
 
 export async function render(container, supabase, db) {
-    // 1. EXTRACCIÓN Y LIMPIEZA DE DATOS
-    const diario = db.diario || [];
-    const albaranes = db.albaranes || [];
-    const fijos = db.gastos_fijos || [];
-    
-    // Totales principales
-    const totalVentas = diario.reduce((t, d) => t + (parseFloat(d.total) || 0), 0);
-    const totalCompras = albaranes.reduce((t, a) => t + (parseFloat(a.total) || 0), 0);
-    
-    // Cálculo de Fijos Prorrateados Reales
-    const totalFijosMensual = fijos.reduce((t, g) => {
-        const imp = parseFloat(g.amount || 0);
-        return t + (g.freq === 'anual' ? imp / 12 : g.freq === 'trimestral' ? imp / 3 : imp);
-    }, 0);
+    // 1. ESTADO DE FILTROS (Por defecto mes actual)
+    const hoy = new Date();
+    let mesSeleccionado = hoy.getMonth(); // 0-11
+    let añoSeleccionado = hoy.getFullYear();
+    let modoTrimestre = false;
 
-    const personalEst = totalVentas * 0.35; // Estimación 35%
-    const beneficioNeto = totalVentas - totalCompras - totalFijosMensual - personalEst;
+    const renderContenido = () => {
+        const diario = db.diario || [];
+        const albaranes = db.albaranes || [];
+        const fijos = db.gastos_fijos || [];
 
-    // IVA (10% ventas vs IVA real albaranes)
-    const ivaSoportado = albaranes.reduce((t, a) => t + (parseFloat(a.taxes || 0)), 0);
-    const ivaRepercutido = totalVentas * (10 / 110);
-    const ivaNeto = ivaRepercutido - ivaSoportado;
+        // --- FILTRADO DE DATOS ---
+        const filtrar = (data) => {
+            return data.filter(item => {
+                const d = new Date(item.date || item.fecha);
+                if (d.getFullYear() !== añoSeleccionado) return false;
+                if (modoTrimestre) {
+                    const trimestreActual = Math.floor(mesSeleccionado / 3);
+                    const trimestreItem = Math.floor(d.getMonth() / 3);
+                    return trimestreActual === trimestreItem;
+                }
+                return d.getMonth() === mesSeleccionado;
+            });
+        };
 
-    // KPIs Inteligentes
-    const totalPax = diario.reduce((t, d) => t + (parseInt(d.pax || 0)), 0);
-    const ticketMedio = totalPax > 0 ? (totalVentas / totalPax) : 0;
-    const breakEvenDiario = (totalFijosMensual / 0.65) / 30; // Considerando 65% margen bruto est.
+        const ventasPeriodo = filtrar(diario);
+        const comprasPeriodo = filtrar(albaranes);
 
-    // 2. INTERFAZ BENTO GRID PRO
-    container.innerHTML = `
-        <div class="animate-fade-in p-4 space-y-6 max-w-7xl mx-auto">
-            
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div class="bg-slate-900 text-white p-6 rounded-[2.5rem] shadow-xl">
-                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Resultado Estimado</p>
-                    <p class="text-3xl font-black ${beneficioNeto > 0 ? 'text-emerald-400' : 'text-rose-400'}">
-                        ${beneficioNeto.toLocaleString('es-ES', {minimumFractionDigits: 2})}€
-                    </p>
-                    <p class="text-[9px] mt-2 text-slate-500 font-bold">Tras compras, fijos y personal (est.)</p>
-                </div>
+        // --- CÁLCULOS ---
+        const totalVentas = ventasPeriodo.reduce((t, v) => t + (parseFloat(v.total) || 0), 0);
+        const totalCompras = comprasPeriodo.reduce((t, c) => t + (parseFloat(c.total) || 0), 0);
+        
+        // Fijos (Prorrateo inteligente según el periodo)
+        const totalFijosMensual = fijos.reduce((t, g) => {
+            const imp = parseFloat(g.amount || 0);
+            return t + (g.freq === 'anual' ? imp / 12 : g.freq === 'trimestral' ? imp / 3 : imp);
+        }, 0);
+        
+        const fijosPeriodo = modoTrimestre ? totalFijosMensual * 3 : totalFijosMensual;
+        const personalEst = totalVentas * 0.35; 
+        const beneficio = totalVentas - totalCompras - fijosPeriodo - personalEst;
+
+        // IVA para el Gestor
+        const ivaSoportado = comprasPeriodo.reduce((t, c) => t + (parseFloat(c.taxes || 0)), 0);
+        const ivaRepercutido = totalVentas * (10 / 110);
+
+        // --- INTERFAZ ---
+        container.innerHTML = `
+            <div class="animate-fade-in p-4 space-y-6 max-w-7xl mx-auto">
                 
-                <div class="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm">
-                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Punto de Equilibrio/Día</p>
-                    <p class="text-3xl font-black text-slate-800">${breakEvenDiario.toFixed(2)}€</p>
-                    <div class="w-full bg-slate-100 h-1.5 rounded-full mt-3 overflow-hidden">
-                        <div class="bg-indigo-500 h-full" style="width: ${Math.min((totalVentas/(breakEvenDiario*30))*100, 100)}%"></div>
+                <div class="bg-white p-4 rounded-[2rem] shadow-sm border border-slate-100 flex flex-wrap gap-4 justify-between items-center">
+                    <div class="flex gap-2">
+                        <button id="btnModoMes" class="px-4 py-2 rounded-xl text-[10px] font-black ${!modoTrimestre ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-400'}">MES</button>
+                        <button id="btnModoTri" class="px-4 py-2 rounded-xl text-[10px] font-black ${modoTrimestre ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-400'}">TRIMESTRE</button>
+                    </div>
+                    
+                    <div class="flex items-center gap-4">
+                        <select id="selectMes" class="bg-transparent font-black text-slate-800 outline-none">
+                            ${['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'].map((m, i) => 
+                                `<option value="${i}" ${mesSeleccionado === i ? 'selected' : ''}>${m}</option>`
+                            ).join('')}
+                        </select>
+                        <span class="font-black text-slate-200">/</span>
+                        <input id="selectAño" type="number" value="${añoSeleccionado}" class="w-16 bg-transparent font-black text-slate-800 outline-none">
                     </div>
                 </div>
 
-                <div class="bg-indigo-600 text-white p-6 rounded-[2.5rem] shadow-xl relative overflow-hidden">
-                    <p class="text-[10px] font-bold text-indigo-200 uppercase tracking-widest">IVA Neto a Pagar</p>
-                    <p class="text-3xl font-black">${ivaNeto.toFixed(2)}€</p>
-                    <button onclick="window.export303()" class="mt-3 text-[9px] font-black bg-white/20 px-4 py-2 rounded-xl hover:bg-white/30 transition">GENERAR MODELO 303</button>
-                    <span class="absolute -right-4 -bottom-4 text-7xl opacity-10">⚖️</span>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div class="bg-slate-900 text-white p-6 rounded-[2.5rem] shadow-xl border-b-4 border-emerald-500">
+                        <p class="text-[10px] font-bold text-slate-400 uppercase">Beneficio Neto (Est.)</p>
+                        <p class="text-3xl font-black ${beneficio > 0 ? 'text-emerald-400' : 'text-rose-400'}">${beneficio.toLocaleString()}€</p>
+                    </div>
+                    <div class="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm">
+                        <p class="text-[10px] font-bold text-slate-400 uppercase">Ventas Brutas</p>
+                        <p class="text-3xl font-black text-slate-800">${totalVentas.toLocaleString()}€</p>
+                    </div>
+                    <div class="bg-indigo-600 text-white p-6 rounded-[2.5rem] shadow-xl relative overflow-hidden">
+                        <p class="text-[10px] font-bold text-indigo-200 uppercase">IVA a Liquidar (Mod. 303)</p>
+                        <p class="text-3xl font-black">${(ivaRepercutido - ivaSoportado).toFixed(2)}€</p>
+                        <span class="absolute -right-2 -bottom-2 text-6xl opacity-10">📑</span>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div class="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 h-[350px]">
+                         <canvas id="chartPeriodo"></canvas>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="bg-emerald-50 p-6 rounded-[2rem] border border-emerald-100">
+                            <p class="text-[9px] font-black text-emerald-600 uppercase">Margen Bruto</p>
+                            <p class="text-2xl font-black text-emerald-700">${totalVentas > 0 ? (((totalVentas-totalCompras)/totalVentas)*100).toFixed(1) : 0}%</p>
+                        </div>
+                        <div class="bg-rose-50 p-6 rounded-[2rem] border border-rose-100">
+                            <p class="text-[9px] font-black text-rose-600 uppercase">Food Cost</p>
+                            <p class="text-2xl font-black text-rose-700">${totalVentas > 0 ? ((totalCompras/totalVentas)*100).toFixed(1) : 0}%</p>
+                        </div>
+                        <div class="col-span-2 bg-slate-50 p-6 rounded-[2rem] border border-slate-100">
+                             <p class="text-[9px] font-black text-slate-400 uppercase">Ticket Medio Periodo</p>
+                             <p class="text-2xl font-black text-slate-800">${(totalVentas / (ventasPeriodo.reduce((t,v)=>t+(parseInt(v.pax||0)),0) || 1)).toFixed(2)}€</p>
+                        </div>
+                    </div>
                 </div>
             </div>
+        `;
 
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div class="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100">
-                    <div class="flex justify-between items-center mb-6">
-                        <h3 class="text-xs font-black text-slate-400 uppercase tracking-widest">Balance de Operaciones</h3>
-                        <span class="text-[10px] font-bold bg-slate-100 px-3 py-1 rounded-full">Mensual</span>
-                    </div>
-                    <div class="h-[250px]">
-                        <canvas id="chartMain"></canvas>
-                    </div>
-                </div>
+        // --- EVENTOS DEL SELECTOR ---
+        container.querySelector("#btnModoMes").onclick = () => { modoTrimestre = false; renderContenido(); };
+        container.querySelector("#btnModoTri").onclick = () => { modoTrimestre = true; renderContenido(); };
+        container.querySelector("#selectMes").onchange = (e) => { mesSeleccionado = parseInt(e.target.value); renderContenido(); };
+        container.querySelector("#selectAño").onchange = (e) => { añoSeleccionado = parseInt(e.target.value); renderContenido(); };
 
-                <div class="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100">
-                    <h3 class="text-xs font-black text-slate-400 uppercase tracking-widest mb-6">Estructura de Costes (Real)</h3>
-                    <div class="h-[250px] flex items-center justify-center">
-                        <canvas id="chartDonut"></canvas>
-                    </div>
-                </div>
-            </div>
-
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div class="bg-white p-5 rounded-[2rem] border border-slate-100 text-center">
-                    <p class="text-[9px] font-bold text-slate-400 uppercase">Ticket Medio</p>
-                    <p class="text-xl font-black text-indigo-600">${ticketMedio.toFixed(2)}€</p>
-                </div>
-                <div class="bg-white p-5 rounded-[2rem] border border-slate-100 text-center">
-                    <p class="text-[9px] font-bold text-slate-400 uppercase">Comensales</p>
-                    <p class="text-xl font-black text-slate-800">${totalPax}</p>
-                </div>
-                <div class="bg-white p-5 rounded-[2rem] border border-slate-100 text-center">
-                    <p class="text-[9px] font-bold text-slate-400 uppercase">Food Cost %</p>
-                    <p class="text-xl font-black text-rose-500">${totalVentas > 0 ? ((totalCompras/totalVentas)*100).toFixed(1) : 0}%</p>
-                </div>
-                <div class="bg-white p-5 rounded-[2rem] border border-slate-100 text-center">
-                    <p class="text-[9px] font-bold text-slate-400 uppercase">Mochila Fija</p>
-                    <p class="text-xl font-black text-slate-800">${totalFijosMensual.toFixed(0)}€</p>
-                </div>
-            </div>
-        </div>
-    `;
-
-    // --- 3. LÓGICA DE GRÁFICAS (Chart.js) ---
-    setTimeout(() => {
-        // Gráfica de Barras
-        new Chart(document.getElementById('chartMain'), {
-            type: 'bar',
-            data: {
-                labels: ['Ventas', 'Compras', 'Personal', 'Fijos'],
-                datasets: [{
-                    data: [totalVentas, totalCompras, personalEst, totalFijosMensual],
-                    backgroundColor: ['#6366f1', '#f43f5e', '#10b981', '#f59e0b'],
-                    borderRadius: 20,
-                    barPercentage: 0.5
-                }]
-            },
-            options: { 
-                responsive: true, 
-                maintainAspectRatio: false,
-                plugins: { legend: { display: false } },
-                scales: { y: { display: false }, x: { grid: { display: false } } }
-            }
-        });
-
-        // Gráfica Donut
-        new Chart(document.getElementById('chartDonut'), {
-            type: 'doughnut',
-            data: {
-                labels: ['Compras', 'Personal', 'Fijos'],
-                datasets: [{
-                    data: [totalCompras, personalEst, totalFijosMensual],
-                    backgroundColor: ['#f43f5e', '#10b981', '#f59e0b'],
-                    borderWidth: 0,
-                    hoverOffset: 20
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                cutout: '70%',
-                plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { weight: 'bold', size: 10 } } } }
-            }
-        });
-    }, 100);
-
-    // Exportación 303
-    window.export303 = () => {
-        const rows = [
-            ["Borrador Modelo 303"],
-            ["Concepto", "IVA"],
-            ["Repercutido (Ventas)", ivaRepercutido.toFixed(2)],
-            ["Soportado (Compras)", ivaSoportado.toFixed(2)],
-            ["Neto", ivaNeto.toFixed(2)]
-        ];
-        const csv = rows.map(r => r.join(";")).join("\n");
-        const blob = new Blob(["\uFEFF" + csv], { type: 'text/csv;charset=utf-8' });
-        const link = document.createElement("a");
-        link.href = URL.createObjectURL(blob);
-        link.download = "IVA_ARUME.csv";
-        link.click();
+        // --- GRÁFICA ---
+        setTimeout(() => {
+            const ctx = document.getElementById('chartPeriodo');
+            if(!ctx) return;
+            new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Compras', 'Fijos', 'Personal', 'Beneficio'],
+                    datasets: [{
+                        data: [totalCompras, fijosPeriodo, personalEst, Math.max(0, beneficio)],
+                        backgroundColor: ['#f43f5e', '#facc15', '#10b981', '#6366f1'],
+                        borderWidth: 0
+                    }]
+                },
+                options: { 
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { position: 'bottom' } }
+                }
+            });
+        }, 100);
     };
+
+    renderContenido();
 }
