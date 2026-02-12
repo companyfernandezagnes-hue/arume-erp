@@ -30,15 +30,21 @@
         <p class="font-bold text-slate-400 animate-pulse uppercase text-xs tracking-widest">Sincronizando Arume Cloud...</p>
     </div>
 
-    <header class="sticky top-0 z-40 px-6 py-4 flex justify-between items-center bg-white border-b border-slate-200 shadow-sm">
-        <div>
-            <h1 class="text-xl font-black text-slate-900">ARUME <span class="text-indigo-600">PRO</span></h1>
-            <p class="text-[9px] text-slate-400 font-bold uppercase tracking-tighter">Diamond Connected</p>
-        </div>
+   <header class="sticky top-0 z-40 px-6 py-4 flex justify-between items-center bg-white border-b border-slate-200 shadow-sm">
+    <div>
+        <h1 class="text-xl font-black text-slate-900">ARUME <span class="text-indigo-600">PRO</span></h1>
+        <p class="text-[9px] text-slate-400 font-bold uppercase tracking-tighter">Diamond Connected</p>
+    </div>
+    
+    <div class="flex items-center gap-3">
+        <button onclick="loadModule('config')" class="w-10 h-10 flex items-center justify-center bg-slate-50 rounded-full text-lg border border-slate-100 active:scale-90 transition">
+            ⚙️
+        </button>
         <div id="user-display" class="bg-slate-100 px-3 py-1.5 rounded-full text-[10px] font-black text-slate-600 border border-slate-200 uppercase">
             Gerencia
         </div>
-    </header>
+    </div>
+</header>
 
     <main id="app" class="p-4"></main>
 
