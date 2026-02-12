@@ -1,16 +1,17 @@
 /* =============================================================
    🚀 ARUME ERP - NÚCLEO CENTRAL (app.js)
    ============================================================= */
-// Traductor universal de números para evitar errores en Dashboard
+
+// Traductor universal de números
 window.Num = {
     parse: (val) => {
         if (!val) return 0;
         if (typeof val === 'number') return val;
-        // Quita puntos de miles y cambia coma por punto decimal
         let clean = val.toString().replace(/\./g, '').replace(',', '.');
         return parseFloat(clean) || 0;
     }
 };
+
 // 1. CONFIGURACIÓN SUPABASE
 const SUPABASE_URL = "https://awbgboucnbsuzojocbuy.supabase.co";
 const SUPABASE_KEY = "sb_publishable_drOQ5PsFA8eox_aRTXNATQ_5kibM6ST";
@@ -45,7 +46,7 @@ async function cargarDatosDeLaNube() {
     loadModule('dashboard');
 }
 
-// 4. EL NAVEGADOR DE MÓDULOS (VERSIÓN CORREGIDA PARA LA RUEDA)
+// 4. EL NAVEGADOR DE MÓDULOS (VERSIÓN DEFINITIVA)
 window.loadModule = async function(name) {
     const container = document.getElementById('app');
     if (!container) return;
@@ -56,7 +57,6 @@ window.loadModule = async function(name) {
         let fileName = name;
         if (name === 'diario') fileName = 'caja';
 
-        // Ruta relativa segura para PC y Móvil
         const modulePath = `./modules/${fileName}.js`;
         const mod = await import(modulePath);
         
@@ -65,18 +65,15 @@ window.loadModule = async function(name) {
         if (mod.render) {
             await mod.render(container, window.sb, window.db);
             
-            // --- GESTIÓN DE BOTONES ACTUVA (PROTEGIDA) ---
-            // Ponemos todos los botones del menú inferior en gris
+            // Gestión de botones activos (Protegida para la rueda)
             document.querySelectorAll('nav button').forEach(btn => {
                 btn.style.color = '#94a3b8'; 
             });
             
-            // Solo si el botón existe (como en el menú inferior), lo ponemos azul
             const activeBtn = document.getElementById(`btn-${name}`);
             if (activeBtn) {
                 activeBtn.style.color = '#4f46e5';
             }
-            // Si es la RUEDA (config), no hace falta poner nada azul abajo
         }
         
     } catch (e) {
@@ -84,18 +81,18 @@ window.loadModule = async function(name) {
         container.innerHTML = `
             <div class="p-10 text-center bg-red-50 rounded-3xl m-4 border border-red-100">
                 <p class="text-red-500 font-black">❌ ERROR DE CARGA: ${name}</p>
-                <p class="text-[10px] text-slate-400 mt-2">Verifica que el archivo existe en: assets/js/modules/${fileName}.js</p>
+                <p class="text-[10px] text-slate-400 mt-2">Verifica assets/js/modules/${name}.js</p>
             </div>`;
     }
 };
 
-// 5. FUNCIÓN PARA PINTAR EL MENÚ DE NAVEGACIÓN
+// 5. FUNCIÓN PARA PINTAR EL MENÚ (AQUÍ METEMOS PROVEEDORES)
 function renderNav() {
     const nav = document.getElementById('navbar');
     if (!nav) return;
 
     nav.innerHTML = `
-        <div style="display:flex; justify-content:space-around; align-items:center; background:white; padding:15px; border-top:1px solid #f1f5f9; position:fixed; bottom:0; width:100%; max-width:500px; left:50%; transform:translateX(-50%); z-index:1000;">
+        <div style="display:flex; justify-content:space-around; align-items:center; background:white; padding:15px; border-top:1px solid #f1f5f9; position:fixed; bottom:0; width:100%; max-width:600px; left:50%; transform:translateX(-50%); z-index:1000;">
             <button id="btn-dashboard" onclick="loadModule('dashboard')" style="background:none; border:none; font-size:10px; font-weight:bold; display:flex; flex-direction:column; align-items:center; gap:4px; color:#4f46e5; cursor:pointer;">
                 <span style="font-size:20px;">📊</span> Dash
             </button>
@@ -108,14 +105,14 @@ function renderNav() {
             <button id="btn-albaranes" onclick="loadModule('albaranes')" style="background:none; border:none; font-size:10px; font-weight:bold; display:flex; flex-direction:column; align-items:center; gap:4px; color:#94a3b8; cursor:pointer;">
                 <span style="font-size:20px;">🚚</span> Alb
             </button>
-            <button id="btn-gastos_fijos" onclick="loadModule('gastos_fijos')" style="background:none; border:none; font-size:10px; font-weight:bold; display:flex; flex-direction:column; align-items:center; gap:4px; color:#94a3b8; cursor:pointer;">
-                <span style="font-size:20px;">🏢</span> Fijos
+            <button id="btn-proveedores" onclick="loadModule('proveedores')" style="background:none; border:none; font-size:10px; font-weight:bold; display:flex; flex-direction:column; align-items:center; gap:4px; color:#94a3b8; cursor:pointer;">
+                <span style="font-size:20px;">🤝</span> Prov
             </button>
         </div>
     `;
 }
 
-// 6. FUNCIÓN GLOBAL PARA GUARDAR (Añadimos timestamp)
+// 6. FUNCIÓN GLOBAL PARA GUARDAR
 window.save = async function(mensaje = "Datos guardados") {
     window.db.lastSync = Date.now();
     const { error } = await sb
@@ -143,6 +140,3 @@ window.onscroll = function() {
     }
     lastPos = currentPos;
 };
-<button id="btn-proveedores" onclick="loadModule('proveedores')" style="background:none; border:none; font-size:10px; font-weight:bold; display:flex; flex-direction:column; align-items:center; gap:4px; color:#94a3b8; cursor:pointer;">
-    <span style="font-size:20px;">🤝</span> Prov
-</button>
