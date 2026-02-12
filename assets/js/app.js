@@ -1,94 +1,72 @@
-// assets/js/app.js
 import { initPIN } from "./auth/pin.js";
 
-/* =============================================================
-   ⚙️ CONFIGURACIÓN DE CONEXIÓN SUPABASE
-   ============================================================= */
+// --- CONFIGURACIÓN ---
 const SUPABASE_URL = "https://awbgboucnbsuzojocbuy.supabase.co";
 const SUPABASE_KEY = "sb_publishable_drOQ5PsFA8eox_aRTXNATQ_5kibM6ST";
 
-// Inicializamos el cliente
 const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-
-// IMPORTANTE: Lo hacemos global para que el HTML (Botón Migrar) lo vea
 window.sb = supabase; 
+window.DB = {}; // Aquí guardaremos tus datos
 
-/* =============================================================
-   🚀 ARRANQUE DE LA APLICACIÓN
-   ============================================================= */
+// --- ARRANQUE ---
 document.addEventListener("DOMContentLoaded", () => {
-  // Configura el PIN. Le pasamos 'initApp' para que arranque la app
-  // SOLO cuando el usuario meta el PIN correcto.
-  initPIN(initApp);
+    initPIN(initApp);
 });
 
-/* =============================================================
-   🔧 FUNCIÓN PRINCIPAL DE INICIO
-   ============================================================= */
 async function initApp() {
-  console.log("🚀 Iniciando App...");
-  
-  // mostrar pantalla de carga
-  toggleLoading(true);
+    console.log("🚀 Descargando datos...");
+    toggleLoading(true);
+    
+    // 1. DESCARGAMOS TUS DATOS (ID 1)
+    let { data: rows, error } = await supabase
+        .from("arume_data")
+        .select("data")
+        .eq('id', 1) // Buscamos el ID 1 que salió en tu consola
+        .single();
 
-  // Verificación de conexión
-  const { error } = await supabase.from("arume_data").select("id").limit(1);
-
-  if (error && error.code !== 'PGRST116') {
-    console.error("Supabase error:", error);
-    toast("⚠️ Error de conexión", "error");
-  } else {
-    console.log("Supabase conectado correctamente ✅");
-  }
-
-  // cargar el primer módulo (dashboard)
-  toggleLoading(false);
-  loadModule("dashboard");
+    if (error) {
+        console.error("Error descarga:", error);
+        // Si falla la nube, intentamos leer del LocalStorage (Plan B)
+        const local = localStorage.getItem('arume_v152');
+        if(local) {
+            window.DB = JSON.parse(decodeURIComponent(atob(local)));
+            toast("⚠️ Modo Offline: Datos cargados del navegador");
+        }
+    } else if (rows) {
+        // 2. GUARDAMOS LOS DATOS EN MEMORIA
+        window.DB = rows.data; 
+        console.log("✅ Datos cargados:", window.DB);
+    }
+    
+    toggleLoading(false);
+    loadModule("dashboard");
 }
 
-/* =============================================================
-   🧩 CARGA DE MÓDULOS DINÁMICOS
-   ============================================================= */
+// --- GESTOR DE MÓDULOS ---
 window.loadModule = async function (name) {
-  const main = document.getElementById("app");
-  
-  // Actualizar Navbar
-  updateNavbar(name);
-  
-  // Mostrar carga
-  main.innerHTML = `<div class="flex justify-center mt-10"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div></div>`;
-
-  try {
-    // MAGIC IMPORT: Esto busca el archivo en la carpeta modules
-    const mod = await import(`./modules/${name}.js`);
+    const main = document.getElementById("app");
+    updateNavbar(name);
     
-    // Limpiamos y renderizamos lo que traiga el módulo
-    main.innerHTML = "";
-    mod.render(main, supabase);
-    
-  } catch (e) {
-    main.innerHTML = `<p class="text-center text-red-500 mt-10">❌ Error: Falta el archivo modules/${name}.js</p>`;
-    console.error(e);
-  }
+    try {
+        const module = await import(`./modules/${name}.js`);
+        main.innerHTML = "";
+        // Pasamos tus datos (window.DB) al módulo para que los pinte
+        module.render(main, supabase, window.DB); 
+    } catch (e) {
+        console.error(e);
+        main.innerHTML = `<p class="text-center text-red-500 mt-10">Error cargando ${name}</p>`;
+    }
 };
 
-/* =============================================================
-   ⚙️ FUNCIONES VARIAS
-   ============================================================= */
-function toggleLoading(show = false) {
-  const loader = document.getElementById("loading");
-  if(loader) loader.classList.toggle("hidden", !show);
+// --- UTILIDADES ---
+function toggleLoading(show) {
+    const l = document.getElementById("loading");
+    if(l) l.classList.toggle("hidden", !show);
 }
-
-window.toast = function(msg, type = "info") {
-  alert(msg);
-}
-
 function updateNavbar(active) {
-  document.querySelectorAll(".nav-btn").forEach((btn) => {
-    btn.classList.remove("active", "text-indigo-400");
-    if (btn.getAttribute('onclick') && btn.getAttribute('onclick').includes(active)) {
-        btn.classList.add("active", "text-indigo-400");
-    }
-  });
+    document.querySelectorAll(".nav-btn").forEach(btn => {
+        btn.classList.remove("active", "text-indigo-400");
+        if(btn.getAttribute('onclick')?.includes(active)) btn.classList.add("active", "text-indigo-400");
+    });
 }
+window.toast = (msg) => alert(msg);
