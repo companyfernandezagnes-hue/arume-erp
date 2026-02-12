@@ -1,122 +1,174 @@
 /* =============================================================
-   📄 MÓDULO: FACTURAS (Versión Recuperación Total)
+   📄 MÓDULO: FACTURAS PRO (Revisión, Agrupación y Control de Pagos)
    ============================================================= */
 export async function render(container, supabase, db) {
-  // 1. Usamos los datos descargados (db) o la memoria global (window.DB)
-  const dataStore = db || window.DB || { facturas: [] };
-  const facturasOriginales = dataStore.facturas || [];
+  const albaranes = db.albaranes || [];
+  const facturasRealizadas = db.facturas || [];
 
   container.innerHTML = `
-  <section class="p-6 bg-white rounded-3xl shadow mb-6 animate-fade-in">
-    <div class="flex justify-between items-center mb-4">
-      <h2 class="text-lg font-black text-slate-800">Facturas · Ingresos</h2>
-      <div class="flex gap-2">
-        <input id="searchFactura" type="text" placeholder="Buscar..."
-               class="border border-slate-200 rounded-xl px-3 py-1 text-sm outline-none focus:ring-2 ring-indigo-500" />
-        <select id="filterYear" class="border border-slate-200 rounded-xl px-2 py-1 text-sm">
-          ${(() => {
-            const year = new Date().getFullYear();
-            return [year, year-1, year-2].map(y => `<option value="${y}">${y}</option>`).join("");
-          })()}
-        </select>
-        <button id="btnAddFactura" class="bg-indigo-600 text-white px-3 py-1 rounded-xl text-sm font-bold shadow-md active:scale-95 transition">
-          + Nueva
-        </button>
+  <div class="animate-fade-in space-y-6">
+    <section class="p-6 bg-white rounded-[2.5rem] shadow-sm border border-slate-100">
+      <h2 class="text-xl font-black text-slate-800 mb-1">Centro de Facturación</h2>
+      <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-6">Revisión y Cierre de Ciclo</p>
+
+      <div class="flex gap-2 p-1 bg-slate-100 rounded-2xl mb-6">
+          <button id="btnTabPend" class="flex-1 py-2.5 rounded-xl font-bold text-xs transition bg-white shadow-sm text-indigo-600">📦 ALBARANES PENDIENTES</button>
+          <button id="btnTabHist" class="flex-1 py-2.5 rounded-xl font-bold text-xs transition text-slate-500">💰 FACTURAS Y PAGOS</button>
       </div>
-    </div>
-    <div id="listFacturas" class="text-sm space-y-2"></div>
-  </section>
-  <div id="facturaModal" class="hidden"></div>
+
+      <div id="contentArea"></div>
+    </section>
+  </div>
+  <div id="modalFactura"></div>
   `;
 
-  const listDiv = container.querySelector("#listFacturas");
-  const searchInput = container.querySelector("#searchFactura");
-  const yearSelect = container.querySelector("#filterYear");
+  const contentArea = container.querySelector("#contentArea");
+  container.querySelector("#btnTabPend").onclick = () => renderPendientes();
+  container.querySelector("#btnTabHist").onclick = () => renderHistorial();
 
-  // Escuchadores para filtrar en tiempo real
-  searchInput.addEventListener("input", updateList);
-  yearSelect.addEventListener("change", updateList);
+  renderPendientes(); // Inicio por defecto
 
-  // Pintar la lista por primera vez
-  updateList();
+  /* =============================================================
+     1. VISTA: PENDIENTES (Agrupados por Distribuidor)
+     ============================================================= */
+  function renderPendientes() {
+    actualizarTabs(true);
+    const pendientes = albaranes.filter(a => !a.invoiced);
+    const grupos = {};
 
-  function updateList() {
-    const search = searchInput.value.toLowerCase();
-    const year = parseInt(yearSelect.value);
-
-    // FILTRADO INTELIGENTE sobre los datos que YA tenemos
-    const filtered = facturasOriginales.filter((f) => {
-      const fechaVal = f.date || f.fecha || f.created_at || "";
-      const anio = new Date(fechaVal).getFullYear();
-      const coincideNombre = (f.prov || f.cliente || "").toLowerCase().includes(search);
-      const coincideNum = (f.num || f.numero || "").toLowerCase().includes(search);
-      
-      return anio === year && (coincideNombre || coincideNum);
+    pendientes.forEach(a => {
+      const prov = a.proveedor || a.prov || "S/N";
+      if (!grupos[prov]) grupos[prov] = { t: 0, items: [] };
+      grupos[prov].t += parseFloat(a.total) || 0;
+      grupos[prov].items.push(a);
     });
 
-    if (filtered.length === 0) {
-      listDiv.innerHTML = `<p class="text-center text-slate-400 py-10">Sin facturas encontradas en ${year}...</p>`;
+    if (Object.keys(grupos).length === 0) {
+      contentArea.innerHTML = `<div class="py-12 text-center text-slate-400 italic text-sm">No hay albaranes pendientes ✅</div>`;
       return;
     }
 
-    listDiv.innerHTML = filtered
-      .sort((a, b) => new Date(b.date || b.fecha) - new Date(a.date || a.fecha))
-      .map((f) => `
-        <div class="glass-card mb-2 cursor-pointer hover:bg-indigo-50 transition border border-slate-100 p-4 rounded-2xl" data-id="${f.id}">
-          <div class="flex justify-between items-center">
-            <div>
-              <p class="font-bold text-slate-800">${f.prov || f.cliente || "—"}</p>
-              <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">${f.date || f.fecha || ""}</p>
-            </div>
-            <div class="text-right">
-              <p class="font-black text-indigo-600 text-base">${(parseFloat(f.total) || 0).toFixed(2)} €</p>
-              <p class="text-[10px] bg-slate-100 px-2 py-0.5 rounded font-mono text-slate-500">${f.num || f.numero || "S/N"}</p>
-            </div>
+    contentArea.innerHTML = Object.entries(grupos).map(([prov, data]) => `
+      <div class="bg-slate-50 rounded-[2rem] p-6 mb-4 border border-slate-100 shadow-sm">
+        <div class="flex justify-between items-start mb-4">
+          <div>
+            <h3 class="font-black text-slate-800 text-lg uppercase">${prov}</h3>
+            <p class="text-[10px] text-indigo-500 font-bold tracking-tighter">${data.items.length} ALBARANES PARA REVISAR</p>
+          </div>
+          <div class="text-right">
+            <p class="text-2xl font-black text-slate-900">${data.t.toFixed(2)}€</p>
           </div>
         </div>
-      `).join("");
+        
+        <div class="space-y-2 mb-4">
+          ${data.items.map(alb => `
+            <div class="flex justify-between items-center bg-white/80 p-3 rounded-xl border border-slate-200 cursor-pointer hover:border-indigo-400 transition" onclick="window.revisarAlbaran('${alb.id}')">
+              <span class="text-xs font-bold text-slate-600">Ref: ${alb.numero || alb.num || '---'}</span>
+              <span class="text-xs font-black text-slate-800">${parseFloat(alb.total).toFixed(2)}€ 👁️</span>
+            </div>
+          `).join('')}
+        </div>
 
-    // Click para ver detalles
-    container.querySelectorAll("[data-id]").forEach(el => {
-      el.addEventListener("click", () => verFactura(el.dataset.id));
-    });
+        <button class="w-full bg-indigo-600 text-white py-3 rounded-2xl font-black text-xs shadow-lg active:scale-95 transition" 
+                onclick="window.prepararFactura('${prov}')">
+          GENERAR FACTURA OFICIAL
+        </button>
+      </div>
+    `).join("");
   }
 
-  function verFactura(id) {
-    const factura = facturasOriginales.find(x => x.id === id);
-    if (!factura) return;
+  /* =============================================================
+     2. VISTA: HISTORIAL (Control de Pagos)
+     ============================================================= */
+  function renderHistorial() {
+    actualizarTabs(false);
+    if (facturasRealizadas.length === 0) {
+      contentArea.innerHTML = `<div class="py-12 text-center text-slate-400 italic text-sm">Aún no hay facturas generadas.</div>`;
+      return;
+    }
 
-    const modal = container.querySelector("#facturaModal");
-    modal.classList.remove("hidden");
-    
-    // Buscamos si tiene albaranes dentro del objeto (en el nuevo sistema están ahí)
-    const albaranes = factura.items || [];
+    contentArea.innerHTML = `
+      <div class="overflow-hidden rounded-3xl border border-slate-100 shadow-sm">
+        <table class="w-full text-left text-sm bg-white">
+          <thead class="bg-slate-50 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b">
+            <tr>
+              <th class="p-4">Empresa / Fecha</th>
+              <th class="p-4 text-right">Total</th>
+              <th class="p-4 text-center">Estado</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-50">
+            ${facturasRealizadas.sort((a,b) => new Date(b.date) - new Date(a.date)).map(f => `
+              <tr class="hover:bg-slate-50 transition-colors">
+                <td class="p-4">
+                  <p class="font-bold text-slate-800">${f.prov || f.cliente}</p>
+                  <p class="text-[10px] text-slate-400 font-mono">${f.date} | #${f.num || f.numero}</p>
+                </td>
+                <td class="p-4 text-right font-black text-slate-900">${parseFloat(f.total).toFixed(2)}€</td>
+                <td class="p-4 text-center">
+                  <button onclick="window.cambiarEstadoPago('${f.id}')" 
+                    class="px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-tighter transition ${f.paid ? 'bg-emerald-100 text-emerald-600 border border-emerald-200' : 'bg-rose-100 text-rose-600 border border-rose-200'}">
+                    ${f.paid ? 'PAGADO' : 'PENDIENTE'}
+                  </button>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>`;
+  }
 
-    modal.innerHTML = `
-      <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex justify-center items-center z-[100]">
-        <div class="bg-white w-11/12 max-w-lg rounded-[2rem] shadow-2xl p-8 relative animate-slide-up">
-          <button id="closeFactura" class="absolute top-4 right-4 w-10 h-10 flex items-center justify-center bg-slate-100 rounded-full text-slate-400 hover:text-red-500 transition">✕</button>
-          
-          <h3 class="text-xl font-black text-slate-800 mb-1">${factura.prov || factura.cliente || "Factura"}</h3>
-          <p class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-6">${factura.date || factura.fecha}</p>
-          
-          <div class="border-t border-b border-slate-100 py-4 mb-6 max-h-60 overflow-y-auto custom-scrollbar">
-            <p class="text-[10px] font-black text-slate-400 uppercase mb-3">Detalle de líneas:</p>
-            ${albaranes.length ? albaranes.map(a => `
-              <div class="flex justify-between items-center py-2 border-b border-slate-50 last:border-0">
-                <div class="text-sm text-slate-600 font-medium">${a.n || a.nombre || "Item"}</div>
-                <div class="text-sm font-bold text-slate-800">${(parseFloat(a.q * a.p) || 0).toFixed(2)} €</div>
-              </div>
-            `).join("") : "<p class='text-center text-slate-400 text-xs italic py-4'>Sin detalles desglosados.</p>"}
-          </div>
+  /* =============================================================
+     🧪 FUNCIONES DE ACCIÓN (Revisar, Facturar, Pagar)
+     ============================================================= */
+  
+  // Revisar albarán individual antes de agrupar
+  window.revisarAlbaran = function(id) {
+    const alb = albaranes.find(a => a.id === id);
+    alert(`Revisando Albarán: ${alb.numero || alb.num}\nProveedor: ${alb.proveedor || alb.prov}\nTotal: ${alb.total}€\n\nAquí podrías ver los productos si están guardados.`);
+  };
 
-          <div class="flex justify-between items-center">
-             <span class="text-xs font-bold text-slate-400 uppercase">Total Factura</span>
-             <p class="text-3xl font-black text-slate-900">${(parseFloat(factura.total) || 0).toFixed(2)} €</p>
-          </div>
-        </div>
-      </div>
-    `;
-    modal.querySelector("#closeFactura").addEventListener("click", () => modal.classList.add("hidden"));
+  // Crear factura y marcar albaranes como procesados
+  window.prepararFactura = async function(prov) {
+    const numFra = prompt(`Introduce el Número de Factura para ${prov}:`);
+    if (!numFra) return;
+
+    const albs = albaranes.filter(a => (a.proveedor === prov || a.prov === prov) && !a.invoiced);
+    const total = albs.reduce((acc, a) => acc + (parseFloat(a.total) || 0), 0);
+
+    const nuevaFra = {
+      id: Math.random().toString(36).substr(2, 9),
+      prov,
+      num: numFra,
+      date: new Date().toISOString().split('T')[0],
+      total,
+      paid: false
+    };
+
+    // Marcar albaranes como facturados
+    albs.forEach(a => a.invoiced = true);
+    db.facturas = [...facturasRealizadas, nuevaFra];
+
+    if (window.save) await window.save("Factura generada y albaranes vinculados ✅");
+    renderPendientes();
+  };
+
+  // Cambiar de Pagado a Pendiente y viceversa
+  window.cambiarEstadoPago = async function(id) {
+    const f = facturasRealizadas.find(x => x.id === id);
+    if (f) {
+      f.paid = !f.paid;
+      if (window.save) await window.save(`Estado de factura ${f.num} actualizado`);
+      renderHistorial();
+    }
+  };
+
+  function actualizarTabs(esPend) {
+    container.querySelector("#btnTabPend").className = `flex-1 py-2.5 rounded-xl font-bold text-xs transition ${esPend ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-500'}`;
+    container.querySelector("#btnTabHist").className = `flex-1 py-2.5 rounded-xl font-bold text-xs transition ${!esPend ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-500'}`;
+  }
+
+  function formatDate(str) {
+    try { return new Date(str).toLocaleDateString("es-ES"); } catch { return str; }
   }
 }
