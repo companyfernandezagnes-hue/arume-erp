@@ -1,120 +1,126 @@
 /* =============================================================
-   📊 MÓDULO: DASHBOARD PRO (KPIs, IVA Real y Salud Financiera)
+   📊 MÓDULO: DASHBOARD DIAMOND (Runway + IVA Real + KPIs)
    ============================================================= */
-export function render(container, supabase, db) {
-    // 1. DATA MINING (Fuentes de datos Diamond)
-    const facturas = db.facturas || [];     // Ventas / Ingresos [cite: 9]
-    const albaranes = db.albaranes || [];   // Compras / Gastos [cite: 9]
-    const diario = db.diario || [];         // Mix de cobros y TPV [cite: 13]
-    const fijos = db.gastos_fijos || [];    // Gastos fijos (Mochila) [cite: 9]
+export async function render(container, supabase, db) {
+    // 1. DATA MINING (Fuentes de datos de tu caja fuerte)
+    const facturas = db.facturas || [];     // Ventas / Ingresos [cite: 9, 33]
+    const albaranes = db.albaranes || [];   // Compras / Gastos [cite: 9, 19]
+    const diario = db.diario || [];         // Mix de cobros y TPV [cite: 13, 56]
+    const fijos = db.gastos_fijos || [];    // Gastos fijos (La Mochila) [cite: 9, 52]
 
-    // 2. CÁLCULOS FINANCIEROS CLAVE
-    const totalIngresos = facturas.reduce((t, f) => t + (parseFloat(f.total) || 0), 0);
-    const totalCompras = albaranes.reduce((t, a) => t + (parseFloat(a.total) || 0), 0);
-    const totalFijos = fijos.reduce((acc, g) => {
-        return acc + (g.freq === 'anual' ? (parseFloat(g.amount) || 0) / 12 : (parseFloat(g.amount) || 0));
-    }, 0); [cite: 9, 52]
+    // --- 2. CÁLCULOS DE IVA (REAL vs ESTIMADO) ---
+    // Input: Lo que has pagado a proveedores (IVA Soportado real) [cite: 35]
+    const ivaSoportado = albaranes.reduce((t, a) => t + (parseFloat(a.taxes || a.tax || 0)), 0); [cite: 35]
 
-    // Prime Cost (% Food + Labor estimado)
-    const foodCost = (totalCompras / totalIngresos) * 100 || 0;
-    const laborCostPct = 35; // Objetivo estándar 
-    const primeCost = foodCost + laborCostPct;
+    // Output: Lo que has cobrado (IVA Repercutido)
+    // Se estima al 10% (estándar hostelería) si no hay desglose en TPV [cite: 18, 35]
+    const totalVentas = diario.reduce((t, d) => t + (parseFloat(d.total) || 0), 0); [cite: 57]
+    const ivaRepercutido = totalVentas * (10 / 110); [cite: 18, 35]
+
+    // --- 3. CÁLCULOS DE SUPERVIVENCIA (RUNWAY) ---
+    // Caja actual (último registro del diario) [cite: 56, 57]
+    const cajaActual = diario.length > 0 ? parseFloat(diario[diario.length - 1].cash || 0) : 0; [cite: 57]
+    const gastosMes = albaranes.reduce((t, a) => t + (parseFloat(a.total) || 0), 0); [cite: 19, 34]
     
-    // IVA (Input Real vs Output Estimado 10%)
-    const ivaSoportado = facturas.reduce((t, f) => t + (parseFloat(f.tax) || 0), 0);
-    const ivaRepercutidoEst = totalIngresos * (10 / 110); // 10% hostelería
+    // Runway: Meses de vida (Caja / Gastos Mensuales) [cite: 18]
+    const runway = gastosMes > 0 ? (cajaActual / gastosMes) : 0; [cite: 18]
 
-    // 3. ESTRUCTURA UI (Bento Grid Style)
+    // --- 4. PRIME COST (Food + Labor) ---
+    // Objetivo sectorial: 55-60% [cite: 18]
+    const foodCostPct = totalVentas > 0 ? (gastosMes / totalVentas) * 100 : 0; [cite: 18]
+    const laborCostPct = 35; // Coste de personal estimado [cite: 18]
+    const primeCost = foodCostPct + laborCostPct; [cite: 18]
+
+    // 5. RENDERIZADO DE LA INTERFAZ
     container.innerHTML = `
-        <div class="animate-fade-in space-y-6 p-4">
-            <div class="flex justify-between items-end bg-white p-6 rounded-[2.5rem] shadow-sm">
-                <div>
-                    <h2 class="text-2xl font-black text-slate-800">Dashboard de Gerencia</h2>
-                    <p class="text-xs font-bold text-slate-400 uppercase tracking-widest">Estado de Salud del Negocio</p>
-                </div>
-                <div class="flex gap-2">
-                    ${primeCost > 62 ? '<span class="bg-rose-100 text-rose-600 px-3 py-1 rounded-full text-[10px] font-black animate-pulse">⚠️ ALTO PRIME COST</span>' : '<span class="bg-emerald-100 text-emerald-600 px-3 py-1 rounded-full text-[10px] font-black">✅ COSTES SANOS</span>'}
-                </div>
-            </div>
-
-            <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <div class="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-50">
-                    <p class="text-[10px] font-black text-slate-400 uppercase tracking-tighter">Ventas Totales</p>
-                    <p class="text-2xl font-black text-slate-800">${totalIngresos.toLocaleString()}€</p>
-                </div>
-                <div class="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-50">
-                    <p class="text-[10px] font-black text-slate-400 uppercase tracking-tighter">Compras (Food)</p>
-                    <p class="text-2xl font-black text-slate-800">${totalCompras.toLocaleString()}€</p>
-                </div>
-                <div class="bg-indigo-50 p-6 rounded-[2rem] shadow-sm border border-indigo-100">
-                    <p class="text-[10px] font-black text-indigo-600 uppercase tracking-tighter">Prime Cost</p>
-                    <p class="text-2xl font-black text-indigo-700">${primeCost.toFixed(1)}%</p>
-                    <p class="text-[9px] font-bold text-indigo-400">Objetivo: 55-60%</p>
-                </div>
-                <div class="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-50">
-                    <p class="text-[10px] font-black text-slate-400 uppercase tracking-tighter">Punto de Equilibrio</p>
-                    <p class="text-2xl font-black text-slate-800">${(totalFijos / 0.65).toLocaleString(undefined, {maximumFractionDigits:0})}€</p>
-                    <p class="text-[9px] font-bold text-slate-400">Venta mínima mensual</p>
-                </div>
-            </div>
-
-            <div class="grid lg:grid-cols-3 gap-6">
-                <div class="lg:col-span-2 bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-50">
-                    <h3 class="text-xs font-black text-slate-400 uppercase mb-6 tracking-widest">Distribución de Gastos</h3>
-                    <canvas id="chartBalances" role="img" aria-label="Gráfica de ingresos vs gastos" height="250"></canvas>
-                </div>
-                
-                <div class="space-y-4">
-                    <div class="bg-slate-900 text-white p-8 rounded-[2.5rem] shadow-xl">
-                        <h3 class="text-[10px] font-black text-slate-400 uppercase mb-4 tracking-widest">Previsión IVA (Borrador 303)</h3>
-                        <div class="space-y-2">
-                            <div class="flex justify-between text-sm"><span>IVA Repercutido (10%)</span> <span>${ivaRepercutidoEst.toFixed(2)}€</span></div>
-                            <div class="flex justify-between text-sm border-b border-slate-700 pb-2"><span>IVA Soportado (Real)</span> <span>${ivaSoportado.toFixed(2)}€</span></div>
-                            <div class="flex justify-between text-lg font-black pt-2 text-emerald-400"><span>A Ingresar</span> <span>${(ivaRepercutidoEst - ivaSoportado).toFixed(2)}€</span></div>
-                        </div>
-                        <button onclick="window.dl303()" class="w-full mt-6 bg-white/10 hover:bg-white/20 py-2 rounded-xl text-[10px] font-black transition uppercase">Exportar Borrador CSV</button>
+        <div class="animate-fade-in p-4 space-y-6">
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="p-5 rounded-[2rem] border flex items-center justify-between ${primeCost <= 60 ? 'bg-emerald-50 border-emerald-100 text-emerald-700' : 'bg-rose-50 border-rose-100 text-rose-700'}">
+                    <div>
+                        <p class="text-[10px] font-black uppercase tracking-widest opacity-70">Prime Cost</p>
+                        <p class="text-xl font-black">${primeCost.toFixed(1)}%</p>
                     </div>
+                    <span class="text-[10px] font-bold px-3 py-1 rounded-full bg-white/50">${primeCost <= 60 ? '🟢 SALUDABLE' : '🔴 REVISAR COSTES'}</span>
                 </div>
+                <div class="p-5 rounded-[2rem] border flex items-center justify-between ${runway >= 2 ? 'bg-indigo-50 border-indigo-100 text-indigo-700' : 'bg-amber-50 border-amber-100 text-amber-700'}">
+                    <div>
+                        <p class="text-[10px] font-black uppercase tracking-widest opacity-70">Runway (Vida)</p>
+                        <p class="text-xl font-black">${runway.toFixed(1)} meses</p>
+                    </div>
+                    <span class="text-[10px] font-bold px-3 py-1 rounded-full bg-white/50">${runway >= 2 ? '💎 SEGURO' : '⚠️ CAJA BAJA'}</span>
+                </div>
+            </div>
+
+            <div class="bg-slate-900 text-white p-8 rounded-[2.5rem] shadow-xl relative overflow-hidden">
+                <div class="relative z-10">
+                    <h3 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6">Previsión Fiscal (Borrador 303)</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                        <div>
+                            <p class="text-[10px] text-slate-500 font-bold uppercase">IVA Repercutido (Ventas)</p>
+                            <p class="text-2xl font-black">${ivaRepercutido.toFixed(2)}€</p>
+                        </div>
+                        <div>
+                            <p class="text-[10px] text-slate-500 font-bold uppercase">IVA Soportado (Compras)</p>
+                            <p class="text-2xl font-black">${ivaSoportado.toFixed(2)}€</p>
+                        </div>
+                        <div class="bg-white/10 p-4 rounded-2xl border border-white/10">
+                            <p class="text-[10px] text-indigo-300 font-bold uppercase">Resultado Neto</p>
+                            <p class="text-2xl font-black text-emerald-400">${(ivaRepercutido - ivaSoportado).toFixed(2)}€</p>
+                        </div>
+                    </div>
+                    <button id="btnDownload303" class="mt-8 text-[10px] font-black bg-white text-slate-900 px-8 py-3 rounded-xl hover:scale-105 transition uppercase tracking-widest">
+                        Descargar Borrador 303 (CSV)
+                    </button>
+                </div>
+            </div>
+
+            <div class="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-50 text-center">
+                <h3 class="text-xs font-black text-slate-400 uppercase mb-6 tracking-widest">Balance de Operaciones</h3>
+                <canvas id="chartFinanzas" height="200" role="img" aria-label="Gráfica de ingresos vs gastos"></canvas>
             </div>
         </div>
     `;
 
-    // 4. FUNCIONALIDAD EXTRA: Exportar Modelo 303
-    window.dl303 = () => {
+    // --- 6. EXPORTACIÓN BORRADOR 303 ---
+    container.querySelector("#btnDownload303").onclick = () => {
         const rows = [
-            ['Concepto', 'Base Estimada', 'IVA'],
-            ['IVA Repercutido (Hostelería)', totalIngresos.toFixed(2), ivaRepercutidoEst.toFixed(2)],
-            ['IVA Soportado (Proveedores)', '', ivaSoportado.toFixed(2)],
-            ['Diferencia Neto', '', (ivaRepercutidoEst - ivaSoportado).toFixed(2)]
+            ["Borrador Modelo 303", "Año " + year],
+            ["Concepto", "Base Estimada", "IVA"],
+            ["IVA Repercutido (Ventas)", totalVentas.toFixed(2), ivaRepercutido.toFixed(2)],
+            ["IVA Soportado (Compras Real)", "", ivaSoportado.toFixed(2)],
+            ["RESULTADO A INGRESAR", "", (ivaRepercutido - ivaSoportado).toFixed(2)]
         ];
-        const csv = rows.map(r => r.join(';')).join('\n');
-        const blob = new Blob(["\uFEFF" + csv], { type: 'text/csv;charset=utf-8' });
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = `Borrador_303_${new Date().getFullYear()}.csv`;
-        a.click();
+        const csvContent = rows.map(e => e.join(";")).join("\n");
+        const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = `Borrador_303_${year}.csv`;
+        link.click();
     };
 
-    // 5. RENDER GRÁFICA (Chart.js con accesibilidad)
+    // --- 7. INICIALIZACIÓN DE GRÁFICA (Chart.js) ---
     setTimeout(() => {
-        const ctx = document.getElementById('chartBalances');
+        const ctx = document.getElementById('chartFinanzas');
         if (!ctx) return;
         new Chart(ctx, {
-            type: 'doughnut',
+            type: 'bar',
             data: {
-                labels: ['Ventas', 'Compras', 'Costes Fijos'],
+                labels: ['Ventas (Diario)', 'Compras (Albaranes)', 'Gastos Fijos'],
                 datasets: [{
-                    data: [totalIngresos, totalCompras, totalFijos],
+                    data: [totalVentas, gastosMes, 4000], // 4000 es el valor de gastos fijos por defecto [cite: 9]
                     backgroundColor: ['#4f46e5', '#f43f5e', '#facc15'],
-                    borderWidth: 0
+                    borderRadius: 15
                 }]
             },
             options: {
-                cutout: '80%',
-                plugins: {
-                    legend: { position: 'bottom', labels: { font: { weight: 'bold', size: 11 } } }
+                responsive: true,
+                plugins: { legend: { display: false } },
+                scales: { 
+                    y: { beginAtZero: true, grid: { display: false }, ticks: { font: { weight: 'bold' } } },
+                    x: { grid: { display: false }, ticks: { font: { weight: 'bold' } } }
                 }
             }
         });
-    }, 100);
+    }, 150);
 }
