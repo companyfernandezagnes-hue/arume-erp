@@ -10,6 +10,7 @@ window.db = {};
 
 // 2. ARRANQUE
 document.addEventListener("DOMContentLoaded", async () => {
+    renderNav(); // Dibujamos el menú
     await cargarDatosDeLaNube();
 });
 
@@ -35,10 +36,17 @@ async function cargarDatosDeLaNube() {
     loadModule('dashboard');
 }
 
-// 4. EL NAVEGADOR DE MÓDULOS (La versión nueva que pusiste)
+// 4. EL NAVEGADOR DE MÓDULOS
 window.loadModule = async function(name) {
     const container = document.getElementById('app');
     if (!container) return;
+
+    // Marcamos el botón activo en el menú
+    document.querySelectorAll('nav button').forEach(btn => {
+        btn.style.color = '#94a3b8'; // Color gris apagado
+    });
+    const activeBtn = document.getElementById(`btn-${name}`);
+    if (activeBtn) activeBtn.style.color = '#4f46e5'; // Azul activo
 
     container.innerHTML = `<p style="text-align:center; padding:20px;">Cargando ${name}...</p>`;
 
@@ -61,5 +69,45 @@ window.loadModule = async function(name) {
                 <p style="font-weight:bold;">Error de carga: ${name}</p>
                 <p style="font-size:12px; color:#94a3b8;">Asegúrate de que el archivo existe en assets/js/modules/${name}.js</p>
             </div>`;
+    }
+};
+
+// 5. FUNCIÓN PARA PINTAR EL MENÚ DE NAVEGACIÓN
+function renderNav() {
+    const nav = document.getElementById('navbar'); // Asegúrate de tener <nav id="navbar"></nav> en tu index.html
+    if (!nav) return;
+
+    nav.innerHTML = `
+        <div style="display:flex; justify-content:space-around; align-items:center; background:white; padding:15px; border-top:1px solid #f1f5f9; position:fixed; bottom:0; width:100%; max-width:500px; left:50%; transform:translateX(-50%); z-index:1000;">
+            <button id="btn-dashboard" onclick="loadModule('dashboard')" style="background:none; border:none; font-size:10px; font-weight:bold; display:flex; flex-direction:column; align-items:center; gap:4px; color:#4f46e5; cursor:pointer;">
+                <span style="font-size:20px;">📊</span> Dash
+            </button>
+            <button id="btn-diario" onclick="loadModule('diario')" style="background:none; border:none; font-size:10px; font-weight:bold; display:flex; flex-direction:column; align-items:center; gap:4px; color:#94a3b8; cursor:pointer;">
+                <span style="font-size:20px;">💵</span> Caja
+            </button>
+            <button id="btn-facturas" onclick="loadModule('facturas')" style="background:none; border:none; font-size:10px; font-weight:bold; display:flex; flex-direction:column; align-items:center; gap:4px; color:#94a3b8; cursor:pointer;">
+                <span style="font-size:20px;">📄</span> Fra
+            </button>
+            <button id="btn-albaranes" onclick="loadModule('albaranes')" style="background:none; border:none; font-size:10px; font-weight:bold; display:flex; flex-direction:column; align-items:center; gap:4px; color:#94a3b8; cursor:pointer;">
+                <span style="font-size:20px;">🚚</span> Alb
+            </button>
+            <button id="btn-gastos_fijos" onclick="loadModule('gastos_fijos')" style="background:none; border:none; font-size:10px; font-weight:bold; display:flex; flex-direction:column; align-items:center; gap:4px; color:#94a3b8; cursor:pointer;">
+                <span style="font-size:20px;">🏢</span> Fijos
+            </button>
+        </div>
+    `;
+}
+
+// 6. FUNCIÓN GLOBAL PARA GUARDAR (Para que todos los módulos la usen)
+window.save = async function(mensaje = "Datos guardados") {
+    const { error } = await sb
+        .from('arume_data')
+        .upsert({ id: 1, data: window.db });
+
+    if (error) {
+        alert("Error al guardar en la nube: " + error.message);
+    } else {
+        console.log("☁️ " + mensaje);
+        // Opcional: mostrar un aviso pequeño tipo toast
     }
 };
