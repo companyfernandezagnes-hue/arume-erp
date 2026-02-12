@@ -78,7 +78,15 @@
     <div id="pinPad" class="grid grid-cols-3 gap-4 w-72"></div>
   </div>
 
-  <!-- SCRIPT PRINCIPAL -->
-  <script type="module" src="assets/js/app.js"></script>
+ <!-- SCRIPT PRINCIPAL -->
+<script type="module" src="assets/js/app.js"></script>
+<script>
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("service-worker.js");
+    });
+  }
+</script>
 </body>
 </html>
+
