@@ -143,3 +143,6 @@ window.onscroll = function() {
     }
     lastPos = currentPos;
 };
+<button id="btn-proveedores" onclick="loadModule('proveedores')" style="background:none; border:none; font-size:10px; font-weight:bold; display:flex; flex-direction:column; align-items:center; gap:4px; color:#94a3b8; cursor:pointer;">
+    <span style="font-size:20px;">🤝</span> Prov
+</button>
