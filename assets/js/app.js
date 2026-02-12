@@ -1,3 +1,4 @@
+import { initPIN } from "./auth/pin.js";
 /* =============================================================
    ⚙️ CONFIGURACIÓN DE CONEXIÓN SUPABASE
    ============================================================= */
@@ -9,7 +10,8 @@ const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
    🚀 ARRANQUE DE LA APLICACIÓN
    ============================================================= */
 document.addEventListener("DOMContentLoaded", () => {
-  initApp();
+  initPIN();   // 🔐 Primero pide el PIN
+  initApp();   // 🚀 Después arranca la app
 });
 
 /* =============================================================
