@@ -16,6 +16,12 @@
         
         /* Estilo para botón activo */
         .nav-btn.active { color: #4f46e5; border-top: 2px solid #4f46e5; margin-top: -2px; }
+    #navbar {
+    transition: transform 0.3s ease-in-out;
+}
+#navbar.nav-hidden {
+    transform: translateY(100%);
+}
     </style>
 </head>
 <body>
