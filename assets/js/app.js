@@ -118,3 +118,20 @@ window.save = async function(mensaje = "Datos guardados") {
         console.log("☁️ " + mensaje);
     }
 };
+// === LÓGICA DE BARRA DINÁMICA ===
+let lastScrollTop = 0;
+window.addEventListener("scroll", function() {
+    const nav = document.getElementById("navbar"); //
+    if (!nav) return;
+
+    let scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+    
+    if (scrollTop > lastScrollTop && scrollTop > 100) {
+        // Si el usuario baja con el dedo, escondemos la barra
+        nav.classList.add("nav-hidden");
+    } else {
+        // Si el usuario sube con el dedo, mostramos la barra
+        nav.classList.remove("nav-hidden");
+    }
+    lastScrollTop = scrollTop <= 0 ? 0 : scrollTop; 
+}, false);
