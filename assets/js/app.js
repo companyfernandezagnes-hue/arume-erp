@@ -1,97 +1,94 @@
 // assets/js/app.js
+import { initPIN } from "./auth/pin.js";
 
-// ==========================================
-// 1. CONFIGURACIÓN DE SUPABASE
-// ==========================================
-const SUPABASE_URL = "https://awbgboucnbsuzojocbuy.supabase.co"; 
+/* =============================================================
+   ⚙️ CONFIGURACIÓN DE CONEXIÓN SUPABASE
+   ============================================================= */
+const SUPABASE_URL = "https://awbgboucnbsuzojocbuy.supabase.co";
 const SUPABASE_KEY = "sb_publishable_drOQ5PsFA8eox_aRTXNATQ_5kibM6ST";
 
-// Inicializar cliente
-const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+// Inicializamos el cliente
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// HACER GLOBAL 'sb' para que el botón de Migrar del HTML funcione
-window.sb = sb; 
+// IMPORTANTE: Lo hacemos global para que el HTML (Botón Migrar) lo vea
+window.sb = supabase; 
 
-
-// ==========================================
-// 2. ARRANQUE DIRECTO (SIN PIN)
-// ==========================================
+/* =============================================================
+   🚀 ARRANQUE DE LA APLICACIÓN
+   ============================================================= */
 document.addEventListener("DOMContentLoaded", () => {
-    console.log("🚀 App iniciada sin bloqueo.");
-    // Cargamos directamente el dashboard
-    loadModule('dashboard');
+  // Configura el PIN. Le pasamos 'initApp' para que arranque la app
+  // SOLO cuando el usuario meta el PIN correcto.
+  initPIN(initApp);
 });
 
+/* =============================================================
+   🔧 FUNCIÓN PRINCIPAL DE INICIO
+   ============================================================= */
+async function initApp() {
+  console.log("🚀 Iniciando App...");
+  
+  // mostrar pantalla de carga
+  toggleLoading(true);
 
-// ==========================================
-// 3. ESTADO Y UTILIDADES
-// ==========================================
-const appState = {
-    currentModule: 'dashboard',
-    user: null
+  // Verificación de conexión
+  const { error } = await supabase.from("arume_data").select("id").limit(1);
+
+  if (error && error.code !== 'PGRST116') {
+    console.error("Supabase error:", error);
+    toast("⚠️ Error de conexión", "error");
+  } else {
+    console.log("Supabase conectado correctamente ✅");
+  }
+
+  // cargar el primer módulo (dashboard)
+  toggleLoading(false);
+  loadModule("dashboard");
+}
+
+/* =============================================================
+   🧩 CARGA DE MÓDULOS DINÁMICOS
+   ============================================================= */
+window.loadModule = async function (name) {
+  const main = document.getElementById("app");
+  
+  // Actualizar Navbar
+  updateNavbar(name);
+  
+  // Mostrar carga
+  main.innerHTML = `<div class="flex justify-center mt-10"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div></div>`;
+
+  try {
+    // MAGIC IMPORT: Esto busca el archivo en la carpeta modules
+    const mod = await import(`./modules/${name}.js`);
+    
+    // Limpiamos y renderizamos lo que traiga el módulo
+    main.innerHTML = "";
+    mod.render(main, supabase);
+    
+  } catch (e) {
+    main.innerHTML = `<p class="text-center text-red-500 mt-10">❌ Error: Falta el archivo modules/${name}.js</p>`;
+    console.error(e);
+  }
 };
 
-// Funciones globales
-window.loading = (show) => {
-    const loader = document.getElementById('loading');
-    if(loader) loader.classList.toggle('hidden', !show);
-};
+/* =============================================================
+   ⚙️ FUNCIONES VARIAS
+   ============================================================= */
+function toggleLoading(show = false) {
+  const loader = document.getElementById("loading");
+  if(loader) loader.classList.toggle("hidden", !show);
+}
 
-window.toast = (msg) => alert(msg);
+window.toast = function(msg, type = "info") {
+  alert(msg);
+}
 
-
-// ==========================================
-// 4. SISTEMA DE NAVEGACIÓN (Módulos)
-// ==========================================
-window.loadModule = function(moduleName) {
-    const appContainer = document.getElementById('app');
-    
-    // Actualizar botones del menú
-    document.querySelectorAll(".nav-btn").forEach(btn => {
-        btn.classList.remove("active", "text-indigo-400");
-        // Si el botón tiene el onclick coincidente, lo activamos
-        if (btn.getAttribute('onclick') && btn.getAttribute('onclick').includes(moduleName)) {
-            btn.classList.add("active", "text-indigo-400");
-        }
-    });
-    
-    appState.currentModule = moduleName;
-
-    // Renderizar contenido
-    let content = '';
-    switch(moduleName) {
-        case 'dashboard':
-            content = `
-                <div class="animate-fade-in">
-                    <h2 class="text-2xl font-bold mb-6">Dashboard</h2>
-                    <div class="grid grid-cols-2 gap-4">
-                        <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
-                            <p class="text-slate-400 text-[10px] font-bold uppercase tracking-widest">Ventas</p>
-                            <p class="text-3xl font-black text-indigo-600 mt-2">0.00€</p>
-                        </div>
-                        <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
-                            <p class="text-slate-400 text-[10px] font-bold uppercase tracking-widest">Pedidos</p>
-                            <p class="text-3xl font-black text-purple-600 mt-2">0</p>
-                        </div>
-                    </div>
-                </div>
-            `;
-            break;
-        case 'facturas':
-            content = `<div class="p-10 text-center bg-white rounded-2xl shadow">📃<br>Módulo de <b>Facturas</b></div>`;
-            break;
-        case 'albaranes':
-            content = `<div class="p-10 text-center bg-white rounded-2xl shadow">🚚<br>Módulo de <b>Albaranes</b></div>`;
-            break;
-        case 'productos':
-            content = `<div class="p-10 text-center bg-white rounded-2xl shadow">📦<br>Módulo de <b>Stock</b></div>`;
-            break;
-        case 'caja':
-            content = `<div class="p-10 text-center bg-white rounded-2xl shadow">💶<br>Módulo de <b>Caja</b></div>`;
-            break;
-        default:
-            content = `<p class="text-center mt-10 text-slate-400">Módulo no encontrado</p>`;
+function updateNavbar(active) {
+  document.querySelectorAll(".nav-btn").forEach((btn) => {
+    btn.classList.remove("active", "text-indigo-400");
+    if (btn.getAttribute('onclick') && btn.getAttribute('onclick').includes(active)) {
+        btn.classList.add("active", "text-indigo-400");
     }
-
-    appContainer.innerHTML = content;
-};
+  });
+}
