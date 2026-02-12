@@ -1,123 +1,99 @@
 /* =============================================================
-   💰 MÓDULO: CAJA / CIERRES DIARIOS
+   💰 MÓDULO: CAJA / CIERRES DIARIOS (Versión Diamond)
    ============================================================= */
-export async function render(container, supabase) {
+export async function render(container, supabase, db) {
+  // 1. Extraemos los cierres de la base de datos descargada (carpeta 'diario')
+  const cierresOriginales = db.diario || [];
+
   container.innerHTML = `
-  <section class="p-6 bg-white rounded-3xl shadow mb-6">
+  <section class="p-6 bg-white rounded-3xl shadow-sm mb-6 animate-fade-in border border-slate-100">
     <div class="flex justify-between items-center mb-4">
-      <h2 class="text-lg font-black">Caja / Diario</h2>
-      <button id="btnNuevoCierre" class="bg-indigo-600 text-white px-3 py-1 rounded-xl text-sm font-bold">
-        <i class="ph ph-plus"></i> Nuevo Cierre
+      <h2 class="text-lg font-black text-slate-800">Caja / Diario</h2>
+      <button id="btnNuevoCierre" class="bg-indigo-600 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-md active:scale-95 transition">
+        + Nuevo Cierre
       </button>
     </div>
-    <div id="listaCierres" class="text-sm"></div>
+    <div id="listaCierres" class="text-sm space-y-2"></div>
   </section>
+  <div id="detalleCierreModal"></div>
   `;
 
   const cierresDiv = container.querySelector("#listaCierres");
   const nuevoBtn = container.querySelector("#btnNuevoCierre");
 
-  nuevoBtn.addEventListener("click", nuevoCierre);
-  await cargarCierres();
+  nuevoBtn.addEventListener("click", () => alert("Función para nuevos cierres en desarrollo. ¡Usa los históricos!"));
+  
+  // Pintar la lista inicialmente
+  renderCierresList();
 
-  /* =============================================================
-     📦 Cargar cierres desde Supabase
-     ============================================================= */
-  async function cargarCierres() {
-    cierresDiv.innerHTML = `<p class="text-center text-slate-400 mt-4">Cargando...</p>`;
-
-    const { data, error } = await supabase.from("diario").select("*").order("fecha", { ascending: false });
-    if (error) {
-      cierresDiv.innerHTML = `<p class="text-red-500">Error al cargar cierres.</p>`;
+  function renderCierresList() {
+    if (cierresOriginales.length === 0) {
+      cierresDiv.innerHTML = `<p class="text-center text-slate-400 py-10 italic">Sin cierres registrados en la nube...</p>`;
       return;
     }
 
-    if (!data || data.length === 0) {
-      cierresDiv.innerHTML = `<p class="text-center text-slate-400 mt-4">Sin cierres registrados...</p>`;
-      return;
-    }
-
-    cierresDiv.innerHTML = data.map(c => `
-      <div class="glass-card flex justify-between items-center mb-2 cursor-pointer hover:bg-slate-50 transition" data-id="${c.id}">
-        <div>
-          <p class="font-bold text-slate-800">${formatDate(c.fecha)}</p>
-          <p class="text-xs text-slate-400">${c.turno || "Turno general"}</p>
+    cierresDiv.innerHTML = cierresOriginales
+      .sort((a, b) => new Date(b.date || b.fecha) - new Date(a.date || a.fecha))
+      .map(c => `
+        <div class="glass-card flex justify-between items-center p-4 rounded-2xl border border-slate-50 cursor-pointer hover:bg-indigo-50 transition" data-id="${c.id}">
+          <div>
+            <p class="font-bold text-slate-800">${formatDate(c.date || c.fecha)}</p>
+            <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">${c.turno || "Turno general"}</p>
+          </div>
+          <div class="text-right">
+            <p class="font-black text-indigo-600 text-base">${(parseFloat(c.total) || 0).toFixed(2)} €</p>
+            <p class="text-[10px] text-slate-400 font-bold">${c.usuario || "Staff"}</p>
+          </div>
         </div>
-        <div class="text-right">
-          <p class="font-black text-slate-800">${(c.total || 0).toFixed(2)} €</p>
-          <p class="text-xs text-slate-400">${c.usuario || ""}</p>
-        </div>
-      </div>
-    `).join("");
+      `).join("");
 
-    document.querySelectorAll("[data-id]").forEach(el =>
+    // Eventos para ver detalle
+    container.querySelectorAll("[data-id]").forEach(el =>
       el.addEventListener("click", () => verCierre(el.dataset.id))
     );
   }
 
-  /* =============================================================
-     🧾 Ver cierre individual
-     ============================================================= */
-  async function verCierre(id) {
-    const { data, error } = await supabase.from("diario").select("*").eq("id", id).single();
-    if (error || !data) return alert("No se pudo abrir este cierre.");
+  function verCierre(id) {
+    const data = cierresOriginales.find(x => x.id === id);
+    if (!data) return;
 
-    const detalle = `
-      <div class="fixed inset-0 bg-black/50 backdrop-blur-sm flex justify-center items-center z-50">
-        <div class="bg-white w-11/12 max-w-md rounded-3xl shadow-xl p-6 relative">
-          <button id="closeDetalle" class="absolute top-3 right-3 text-slate-400 hover:text-red-500">
-            <i class="ph ph-x text-lg"></i></button>
-          <h3 class="text-lg font-black mb-2">Cierre ${formatDate(data.fecha)}</h3>
-          <p class="text-sm text-slate-600 mb-3">Turno: <span class="font-bold">${data.turno || "—"}</span></p>
+    const modal = container.querySelector("#detalleCierreModal");
+    modal.innerHTML = `
+      <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex justify-center items-center z-[100]">
+        <div class="bg-white w-11/12 max-w-md rounded-[2rem] shadow-2xl p-8 relative animate-slide-up">
+          <button id="closeDetalle" class="absolute top-4 right-4 w-10 h-10 flex items-center justify-center bg-slate-100 rounded-full text-slate-400 hover:text-red-500 transition">✕</button>
+          
+          <h3 class="text-xl font-black text-slate-800 mb-1">Cierre de Caja</h3>
+          <p class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-6">${formatDate(data.date || data.fecha)}</p>
 
-          <div class="border-t border-b py-2 mb-3 text-sm">
-            ${data.detalle || "<p class='text-slate-400'>Sin detalle registrado.</p>"}
+          <div class="bg-slate-50 rounded-2xl p-4 mb-6">
+            <div class="flex justify-between mb-2">
+                <span class="text-xs text-slate-500 font-bold uppercase">Efectivo</span>
+                <span class="font-bold text-slate-700">${(data.cash || 0).toFixed(2)}€</span>
+            </div>
+            <div class="flex justify-between mb-2 border-b border-slate-100 pb-2">
+                <span class="text-xs text-slate-500 font-bold uppercase">Tarjeta (Visa)</span>
+                <span class="font-bold text-slate-700">${(data.visa || 0).toFixed(2)}€</span>
+            </div>
+            <div class="flex justify-between pt-2">
+                <span class="text-xs text-indigo-600 font-black uppercase">Total Neto</span>
+                <span class="font-black text-indigo-600 text-lg">${(data.total || 0).toFixed(2)}€</span>
+            </div>
           </div>
 
-          <p class="text-right font-black text-slate-800 text-lg">${(data.total || 0).toFixed(2)} €</p>
+          <div class="text-[10px] text-slate-400 italic">
+            Registrado por: ${data.usuario || 'Sistema'}
+          </div>
         </div>
       </div>
     `;
-    const modal = document.createElement("div");
-    modal.innerHTML = detalle;
-    document.body.appendChild(modal);
-    modal.querySelector("#closeDetalle").addEventListener("click", ()=> modal.remove());
-  }
-
-  /* =============================================================
-     ➕ Registrar nuevo cierre
-     ============================================================= */
-  async function nuevoCierre() {
-    const total = parseFloat(prompt("Importe total en caja (€):") || 0);
-    const detalle = prompt("Detalle del cierre (opcional):") || "";
-    const usuario = prompt("Usuario que cerró el turno:") || "Anon";
-
-    if (!total) return alert("No se registró ningún importe.");
-
-    const cierre = {
-      fecha: new Date().toISOString().split("T")[0],
-      total,
-      detalle,
-      usuario,
-      turno: "Cierre automático",
-    };
-
-    const { error } = await supabase.from("diario").insert(cierre);
-    if (error) {
-      alert("Error al guardar cierre.");
-      console.error(error);
-    } else {
-      alert("Cierre guardado correctamente ✅");
-      await cargarCierres();
-    }
+    modal.querySelector("#closeDetalle").addEventListener("click", () => modal.innerHTML = "");
   }
 
   function formatDate(str) {
     try {
       const d = new Date(str);
       return d.toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "2-digit" });
-    } catch {
-      return str;
-    }
+    } catch { return str; }
   }
 }
