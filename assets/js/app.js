@@ -1,7 +1,16 @@
 /* =============================================================
    🚀 ARUME ERP - NÚCLEO CENTRAL (app.js)
    ============================================================= */
-
+// Traductor universal de números para evitar errores en Dashboard
+window.Num = {
+    parse: (val) => {
+        if (!val) return 0;
+        if (typeof val === 'number') return val;
+        // Quita puntos de miles y cambia coma por punto decimal
+        let clean = val.toString().replace(/\./g, '').replace(',', '.');
+        return parseFloat(clean) || 0;
+    }
+};
 // 1. CONFIGURACIÓN SUPABASE
 const SUPABASE_URL = "https://awbgboucnbsuzojocbuy.supabase.co";
 const SUPABASE_KEY = "sb_publishable_drOQ5PsFA8eox_aRTXNATQ_5kibM6ST";
