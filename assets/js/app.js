@@ -85,33 +85,48 @@ window.loadModule = async function(name) {
             </div>`;
     }
 };
-
-// 5. FUNCIÓN PARA PINTAR EL MENÚ (AQUÍ METEMOS PROVEEDORES)
+// 5. FUNCIÓN PARA PINTAR EL MENÚ (AHORA CON 6 BOTONES)
 function renderNav() {
     const nav = document.getElementById('navbar');
     if (!nav) return;
 
+    // He subido el max-width a 700px para que quepan los 6 botones cómodos
     nav.innerHTML = `
-        <div style="display:flex; justify-content:space-around; align-items:center; background:white; padding:15px; border-top:1px solid #f1f5f9; position:fixed; bottom:0; width:100%; max-width:600px; left:50%; transform:translateX(-50%); z-index:1000;">
-            <button id="btn-dashboard" onclick="loadModule('dashboard')" style="background:none; border:none; font-size:10px; font-weight:bold; display:flex; flex-direction:column; align-items:center; gap:4px; color:#4f46e5; cursor:pointer;">
-                <span style="font-size:20px;">📊</span> Dash
+        <div style="display:flex; justify-content:space-around; align-items:center; background:white; padding:12px; border-top:1px solid #f1f5f9; position:fixed; bottom:0; width:100%; max-width:700px; left:50%; transform:translateX(-50%); z-index:1000; border-radius: 20px 20px 0 0; box-shadow: 0 -5px 20px rgba(0,0,0,0.05);">
+            
+            <button id="btn-dashboard" onclick="loadModule('dashboard')" style="background:none; border:none; display:flex; flex-direction:column; align-items:center; gap:4px; cursor:pointer; min-width: 50px;">
+                <span style="font-size:20px;">📊</span> 
+                <span style="font-size:9px; font-weight:900; text-transform:uppercase;">Dash</span>
             </button>
-            <button id="btn-diario" onclick="loadModule('diario')" style="background:none; border:none; font-size:10px; font-weight:bold; display:flex; flex-direction:column; align-items:center; gap:4px; color:#94a3b8; cursor:pointer;">
-                <span style="font-size:20px;">💵</span> Caja
+
+            <button id="btn-diario" onclick="loadModule('diario')" style="background:none; border:none; display:flex; flex-direction:column; align-items:center; gap:4px; cursor:pointer; min-width: 50px;">
+                <span style="font-size:20px;">💵</span> 
+                <span style="font-size:9px; font-weight:900; text-transform:uppercase;">Caja</span>
             </button>
-            <button id="btn-facturas" onclick="loadModule('facturas')" style="background:none; border:none; font-size:10px; font-weight:bold; display:flex; flex-direction:column; align-items:center; gap:4px; color:#94a3b8; cursor:pointer;">
-                <span style="font-size:20px;">📄</span> Fra
+
+            <button id="btn-facturas" onclick="loadModule('facturas')" style="background:none; border:none; display:flex; flex-direction:column; align-items:center; gap:4px; cursor:pointer; min-width: 50px;">
+                <span style="font-size:20px;">📄</span> 
+                <span style="font-size:9px; font-weight:900; text-transform:uppercase;">Fra</span>
             </button>
-            <button id="btn-albaranes" onclick="loadModule('albaranes')" style="background:none; border:none; font-size:10px; font-weight:bold; display:flex; flex-direction:column; align-items:center; gap:4px; color:#94a3b8; cursor:pointer;">
-                <span style="font-size:20px;">🚚</span> Alb
+
+            <button id="btn-albaranes" onclick="loadModule('albaranes')" style="background:none; border:none; display:flex; flex-direction:column; align-items:center; gap:4px; cursor:pointer; min-width: 50px;">
+                <span style="font-size:20px;">🚚</span> 
+                <span style="font-size:9px; font-weight:900; text-transform:uppercase;">Alb</span>
             </button>
-            <button id="btn-proveedores" onclick="loadModule('proveedores')" style="background:none; border:none; font-size:10px; font-weight:bold; display:flex; flex-direction:column; align-items:center; gap:4px; color:#94a3b8; cursor:pointer;">
-                <span style="font-size:20px;">🤝</span> Prov
+
+            <button id="btn-gastos_fijos" onclick="loadModule('gastos_fijos')" style="background:none; border:none; display:flex; flex-direction:column; align-items:center; gap:4px; cursor:pointer; min-width: 50px;">
+                <span style="font-size:20px;">🏢</span> 
+                <span style="font-size:9px; font-weight:900; text-transform:uppercase;">Fijos</span>
             </button>
+
+            <button id="btn-proveedores" onclick="loadModule('proveedores')" style="background:none; border:none; display:flex; flex-direction:column; align-items:center; gap:4px; cursor:pointer; min-width: 50px;">
+                <span style="font-size:20px;">🤝</span> 
+                <span style="font-size:9px; font-weight:900; text-transform:uppercase;">Prov</span>
+            </button>
+
         </div>
     `;
 }
-
 // 6. FUNCIÓN GLOBAL PARA GUARDAR
 window.save = async function(mensaje = "Datos guardados") {
     window.db.lastSync = Date.now();
