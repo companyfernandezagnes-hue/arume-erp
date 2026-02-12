@@ -1,210 +1,183 @@
 /* =============================================================
-   🏢 MÓDULO: GASTOS FIJOS PRO (Estructura Contable y Prorrateo)
+   🏢 MÓDULO: GASTOS FIJOS PRO (Versión 2.0 - Edición y Sincro)
    ============================================================= */
 
 export async function render(container, supabase, db) {
     if (!db.gastos_fijos) db.gastos_fijos = [];
     
-    // Configuración local basada en tus motores financieros [cite: 237-263]
-    const SALES_EST = (typeof CONFIG !== 'undefined' && CONFIG.EST_MONTHLY_SALES) ? CONFIG.EST_MONTHLY_SALES : 3000;
-
+    // Función de guardado robusta
     const saveToCloud = async (msg) => {
-        db.lastSync = Date.now(); // [cite: 386]
-        try {
-            const { error } = await supabase.from('arume_data').upsert({ id: 1, data: db }); // [cite: 388]
-            if (error) throw error;
-            if (typeof toast !== 'undefined') toast(msg, 'success'); // [cite: 390]
-        } catch (e) {
-            if (typeof toast !== 'undefined') toast("Guardado local", "info"); // [cite: 391]
-        }
+        db.lastSync = Date.now();
+        const { error } = await supabase.from('arume_data').upsert({ id: 1, data: db });
+        if (error) console.error("Error:", error);
+        else console.log("☁️ " + msg);
     };
 
-    // --- LÓGICA DE PRORRATEO EXACTO ---
-    const calcImpactoMensual = (g) => {
-        const importe = parseFloat(g.amount) || 0;
-        if (g.oneOff) return importe; // Gasto puntual no se prorratea
-        
-        const freqMap = {
-            'semanal': 4.33,
-            'mensual': 1,
-            'bimensual': 0.5,
-            'trimestral': 1/3, // [cite: 244]
-            'semestral': 1/6,
-            'anual': 1/12 // [cite: 245]
-        };
-        
-        return importe * (freqMap[g.freq] || 1);
+    // Lógica de cálculo (Mantenemos la inteligencia de prorrateo)
+    const getMensual = (g) => {
+        const importe = parseFloat(g.amount || g.v || 0);
+        const f = g.freq || 'mensual';
+        if (f === 'trimestral') return importe / 3;
+        if (f === 'anual') return importe / 12;
+        if (f === 'semanal') return importe * 4.33;
+        return importe;
     };
 
-    container.innerHTML = `
-        <div class="animate-fade-in p-4 space-y-6" role="main">
-            <header class="bg-white p-6 rounded-[2.5rem] shadow-sm flex justify-between items-end border border-slate-50">
-                <div>
-                    <h2 class="text-2xl font-black text-slate-800">Estructura Fija</h2>
-                    <p class="text-[10px] text-indigo-500 font-bold uppercase tracking-widest">Contabilidad y Centros de Coste</p>
-                </div>
-                <button id="btnAddFijo" class="btn-premium w-auto px-6 py-3" aria-label="Añadir nuevo gasto">
-                    + NUEVO GASTO
-                </button>
-            </header>
-
-            <div class="grid grid-cols-2 lg:grid-cols-3 gap-4">
-                <div class="bg-slate-900 text-white p-6 rounded-[2rem] shadow-xl">
-                    <p class="text-[9px] font-black text-slate-400 uppercase">Mochila Mensual</p>
-                    <p id="totalMensual" class="text-2xl font-black text-emerald-400">0,00 €</p>
-                </div>
-                <div class="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
-                    <p class="text-[9px] font-black text-slate-400 uppercase tracking-tighter">Impacto / Plato</p>
-                    <p id="impactoPlato" class="text-2xl font-black text-indigo-600">0,00 €</p>
-                    <p class="text-[8px] text-slate-300 font-bold uppercase">Sobre ${SALES_EST} vtas/mes</p>
-                </div>
-                <div class="hidden lg:block bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
-                    <p class="text-[9px] font-black text-slate-400 uppercase tracking-tighter">Próximo Vencimiento</p>
-                    <p id="proximoVto" class="text-sm font-bold text-slate-700 mt-2">--</p>
-                </div>
-            </div>
-
-            <div class="flex gap-2 overflow-x-auto no-scrollbar pb-2">
-                <button class="bg-slate-800 text-white px-4 py-1.5 rounded-full text-[10px] font-bold uppercase">Todos</button>
-                <button class="bg-white text-slate-400 px-4 py-1.5 rounded-full text-[10px] font-bold uppercase border border-slate-100">Cocina</button>
-                <button class="bg-white text-slate-400 px-4 py-1.5 rounded-full text-[10px] font-bold uppercase border border-slate-100">Sala</button>
-                <button class="bg-white text-slate-400 px-4 py-1.5 rounded-full text-[10px] font-bold uppercase border border-slate-100">Delivery</button>
-            </div>
-
-            <div id="listaFijos" class="grid gap-3"></div>
-        </div>
-        <div id="overlayFijo" class="overlay hidden" role="dialog" aria-modal="true"></div>
-    `;
-
-    const refresh = () => {
-        let totalAcumulado = 0;
+    const drawList = () => {
         const listaDiv = container.querySelector("#listaFijos");
-        
-        db.gastos_fijos.sort((a,b) => calcImpactoMensual(b) - calcImpactoMensual(a));
+        let totalMochila = 0;
 
         listaDiv.innerHTML = db.gastos_fijos.map(g => {
-            const mensual = calcImpactoMensual(g);
-            totalAcumulado += mensual;
-            const prov = db.proveedores.find(p => p.id === g.provId) || { n: 'Sin Prov.' };
-            
-            // Alarma de vencimiento (< 7 días)
-            const hoy = new Date().getDate();
-            const esUrgente = g.dueDay && (g.dueDay - hoy > 0 && g.dueDay - hoy < 7);
+            const mensual = getMensual(g);
+            totalMochila += mensual;
+            // Compatibilidad con nombres antiguos (n = nombre, v = valor)
+            const nombre = g.concept || g.n || 'Sin nombre';
+            const valor = g.amount || g.v || 0;
 
             return `
-                <div class="glass-card flex justify-between items-center group p-5 mb-0 border-l-4 ${mensual > (totalAcumulado * 0.35) ? 'border-l-rose-500' : 'border-l-indigo-500'}">
-                    <div class="flex-1 cursor-pointer" onclick="openFijoModal('${g.id}')">
-                        <div class="flex items-center gap-2 mb-1">
-                            <h4 class="font-black text-slate-800">${g.concept}</h4>
-                            ${g.indexation?.kind !== 'ninguna' ? '<span class="text-[7px] bg-amber-100 text-amber-600 px-1.5 py-0.5 rounded font-black uppercase">Indexado</span>' : ''}
-                            ${esUrgente ? '<span class="animate-pulse text-[12px]">⚠️</span>' : ''}
-                        </div>
-                        <div class="flex gap-3 text-[9px] font-bold uppercase text-slate-400">
-                            <span class="text-indigo-500">${g.center || 'General'}</span>
-                            <span>•</span>
-                            <span>${prov.n}</span>
-                            <span>•</span>
-                            <span class="${esUrgente ? 'text-rose-500' : ''}">Día ${g.dueDay || '--'}</span>
+                <div class="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm flex justify-between items-center active:scale-[0.98] transition-transform" 
+                     onclick="window.abrirEditorFijo('${g.id}')">
+                    <div class="flex-1">
+                        <h4 class="font-black text-slate-800">${nombre}</h4>
+                        <div class="flex gap-2 mt-1">
+                            <span class="text-[8px] font-black px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-600 uppercase">${g.freq || 'mensual'}</span>
+                            <span class="text-[8px] font-bold text-slate-400 uppercase">${g.center || 'General'}</span>
                         </div>
                     </div>
                     <div class="text-right">
-                        <p class="text-lg font-black text-slate-900">${mensual.toLocaleString('es-ES', {style:'currency', currency:'EUR'})}</p>
-                        <p class="text-[8px] font-black text-slate-400 uppercase tracking-widest">${g.freq} | +${(mensual/SALES_EST).toFixed(2)}€ / Plato</p>
+                        <p class="font-black text-slate-900 text-lg">${parseFloat(valor).toFixed(2)}€</p>
+                        <p class="text-[8px] font-bold text-indigo-400 uppercase tracking-tighter">Impacto: ${mensual.toFixed(2)}€/mes</p>
                     </div>
                 </div>
             `;
         }).join('');
 
-        container.querySelector("#totalMensual").innerText = totalAcumulado.toLocaleString('es-ES', {style:'currency', currency:'EUR'});
-        container.querySelector("#impactoPlato").innerText = (totalAcumulado / SALES_EST).toLocaleString('es-ES', {style:'currency', currency:'EUR'});
+        container.querySelector("#totalMensual").innerText = totalAcumulado.toLocaleString('es-ES', {minimumFractionDigits: 2}) + "€";
     };
 
-    // --- MODAL DE EDICIÓN PRO ---
-    window.openFijoModal = (id = null) => {
-        const item = id ? db.gastos_fijos.find(x => x.id === id) : { 
-            id: crypto.randomUUID(), concept: '', amount: 0, freq: 'mensual', 
-            center: 'General', taxPct: 10, dueDay: 1, indexation: {kind: 'ninguna'} 
-        };
+    // --- INTERFAZ BASE ---
+    container.innerHTML = `
+        <div class="animate-fade-in p-4 space-y-6">
+            <header class="flex justify-between items-center bg-white p-6 rounded-[2.5rem] shadow-sm">
+                <div>
+                    <h2 class="text-xl font-black text-slate-800">Mochila Fija</h2>
+                    <p class="text-[10px] text-slate-400 font-bold uppercase">Gestión de Estructura</p>
+                </div>
+                <button id="btnAddFijo" class="bg-indigo-600 text-white px-6 py-3 rounded-2xl text-[10px] font-black shadow-lg">+ AÑADIR</button>
+            </header>
 
-        const overlay = container.querySelector("#overlayFijo");
-        overlay.classList.remove("hidden");
-        overlay.innerHTML = `
-            <div class="modal max-w-lg">
+            <div id="listaFijos" class="grid gap-3"></div>
+
+            <div class="bg-slate-900 text-white p-8 rounded-[2.5rem] shadow-xl flex justify-between items-center">
+                <div>
+                    <p class="text-[10px] font-black text-slate-400 uppercase mb-1">Carga Mensual Total</p>
+                    <p id="totalMensual" class="text-3xl font-black text-emerald-400">0.00€</p>
+                </div>
+            </div>
+        </div>
+        <div id="modalFijo" class="hidden fixed inset-0 bg-slate-900/90 backdrop-blur-sm z-[500] flex justify-center items-center p-4"></div>
+    `;
+
+    // --- FUNCIÓN GLOBAL DE EDICIÓN ---
+    window.abrirEditorFijo = (id = null) => {
+        const modal = container.querySelector("#modalFijo");
+        const item = id ? db.gastos_fijos.find(x => x.id === id) : { concept: '', amount: '', freq: 'mensual', taxPct: 10, center: 'General', dueDay: 1 };
+        
+        modal.classList.remove("hidden");
+        modal.innerHTML = `
+            <div class="bg-white w-full max-w-md rounded-[2.5rem] p-8 shadow-2xl animate-slide-up">
                 <div class="flex justify-between items-center mb-6">
-                    <h3 class="text-xl font-black text-slate-800 uppercase">${id ? 'Editar Gasto' : 'Nuevo Fijo'}</h3>
-                    <button onclick="document.getElementById('overlayFijo').classList.add('hidden')" class="btn-icon">✕</button>
+                    <h3 class="text-xl font-black text-slate-800">${id ? 'EDITAR GASTO' : 'NUEVO GASTO'}</h3>
+                    <button onclick="document.getElementById('modalFijo').classList.add('hidden')" class="text-slate-300 text-2xl">✕</button>
                 </div>
                 
-                <div class="grid grid-cols-2 gap-4 mb-4">
-                    <div class="col-span-2 text-center bg-slate-50 p-4 rounded-3xl border border-dashed border-slate-200">
-                        <label>Importe Total Bruto</label>
-                        <input id="f-amount" type="number" value="${item.amount}" class="bg-transparent text-3xl font-black text-center w-full outline-none text-indigo-600">
-                    </div>
+                <div class="space-y-4">
                     <div>
-                        <label>Concepto</label>
-                        <input id="f-concept" type="text" value="${item.concept}" class="input-premium" placeholder="Alquiler...">
+                        <label class="text-[10px] font-bold text-slate-400 uppercase ml-2">Concepto del gasto</label>
+                        <input id="f-concept" type="text" value="${item.concept || item.n || ''}" class="w-full p-4 bg-slate-50 rounded-2xl border-0 font-bold outline-none focus:ring-2 focus:ring-indigo-500">
                     </div>
-                    <div>
-                        <label>Centro de Coste</label>
-                        <select id="f-center" class="input-premium">
-                            <option value="General" ${item.center==='General'?'selected':''}>General</option>
-                            <option value="Cocina" ${item.center==='Cocina'?'selected':''}>Cocina</option>
-                            <option value="Sala" ${item.center==='Sala'?'selected':''}>Sala</option>
-                            <option value="Oficina" ${item.center==='Oficina'?'selected':''}>Oficina</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label>Frecuencia de Pago</label>
-                        <select id="f-freq" class="input-premium">
-                            <option value="mensual" ${item.freq==='mensual'?'selected':''}>Mensual</option>
-                            <option value="trimestral" ${item.freq==='trimestral'?'selected':''}>Trimestral</option>
-                            <option value="anual" ${item.freq==='anual'?'selected':''}>Anual</option>
-                            <option value="semanal" ${item.freq==='semanal'?'selected':''}>Semanal</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label>Día Vencimiento</label>
-                        <input id="f-due" type="number" value="${item.dueDay}" min="1" max="31" class="input-premium text-center">
-                    </div>
-                </div>
 
-                <div class="flex gap-3 mt-8">
-                    <button id="btnSaveFijo" class="btn-premium flex-1">SINCRO NUBE</button>
-                    ${id ? `<button onclick="deleteFijo('${id}')" class="btn-ghost text-rose-500 border-rose-100 w-auto">Eliminar</button>` : ''}
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="text-[10px] font-bold text-slate-400 uppercase ml-2">Importe Bruto (€)</label>
+                            <input id="f-amount" type="number" value="${item.amount || item.v || ''}" class="w-full p-4 bg-slate-50 rounded-2xl border-0 font-bold outline-none focus:ring-2 focus:ring-indigo-500">
+                        </div>
+                        <div>
+                            <label class="text-[10px] font-bold text-slate-400 uppercase ml-2">% IVA</label>
+                            <select id="f-tax" class="w-full p-4 bg-slate-50 rounded-2xl border-0 font-bold outline-none">
+                                <option value="0" ${item.taxPct==0?'selected':''}>0% (Exento)</option>
+                                <option value="4" ${item.taxPct==4?'selected':''}>4% (Super)</option>
+                                <option value="10" ${item.taxPct==10?'selected':''}>10% (Reducido)</option>
+                                <option value="21" ${item.taxPct==21?'selected':''}>21% (General)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="text-[10px] font-bold text-slate-400 uppercase ml-2">Periodicidad</label>
+                            <select id="f-freq" class="w-full p-4 bg-slate-50 rounded-2xl border-0 font-bold outline-none">
+                                <option value="mensual" ${item.freq=='mensual'?'selected':''}>Mensual</option>
+                                <option value="trimestral" ${item.freq=='trimestral'?'selected':''}>Trimestral</option>
+                                <option value="anual" ${item.freq=='anual'?'selected':''}>Anual</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-[10px] font-bold text-slate-400 uppercase ml-2">Día de cobro</label>
+                            <input id="f-due" type="number" value="${item.dueDay || 1}" class="w-full p-4 bg-slate-50 rounded-2xl border-0 font-bold outline-none">
+                        </div>
+                    </div>
+
+                    <div class="pt-6 space-y-2">
+                        <button id="f-save-btn" class="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black shadow-xl active:scale-95 transition-transform">GUARDAR CAMBIOS</button>
+                        ${id ? `<button id="f-delete-btn" class="w-full bg-rose-50 text-rose-500 py-4 rounded-2xl font-bold text-xs">ELIMINAR GASTO</button>` : ''}
+                    </div>
                 </div>
             </div>
         `;
 
-        document.getElementById("btnSaveFijo").onclick = async () => {
-            const amount = parseFloat(document.getElementById("f-amount").value) || 0;
-            const concept = document.getElementById("f-concept").value.trim();
+        // Acción Guardar
+        document.getElementById("f-save-btn").onclick = async () => {
+            const concept = document.getElementById("f-concept").value;
+            const amount = parseFloat(document.getElementById("f-amount").value);
             const freq = document.getElementById("f-freq").value;
-            const center = document.getElementById("f-center").value;
+            const taxPct = parseInt(document.getElementById("f-tax").value);
             const dueDay = parseInt(document.getElementById("f-due").value);
 
-            if (!concept || amount <= 0) return alert("Concepto e Importe obligatorios");
+            if (!concept || isNaN(amount)) return;
 
-            const index = db.gastos_fijos.findIndex(x => x.id === item.id);
-            const finalObj = { ...item, concept, amount, freq, center, dueDay };
+            const nuevoGasto = { 
+                id: id || Math.random().toString(36).substr(2, 9), 
+                concept, amount, freq, taxPct, dueDay,
+                center: item.center || 'General'
+            };
 
-            if (index >= 0) db.gastos_fijos[index] = finalObj;
-            else db.gastos_fijos.push(finalObj);
+            if (id) {
+                const idx = db.gastos_fijos.findIndex(x => x.id === id);
+                db.gastos_fijos[idx] = nuevoGasto;
+            } else {
+                db.gastos_fijos.push(nuevoGasto);
+            }
 
             await saveToCloud("Mochila actualizada");
-            overlay.classList.add("hidden");
-            refresh();
+            modal.classList.add("hidden");
+            drawList();
         };
+
+        // Acción Eliminar
+        if(id) {
+            document.getElementById("f-delete-btn").onclick = async () => {
+                if(!confirm("¿Seguro que quieres borrar este gasto?")) return;
+                db.gastos_fijos = db.gastos_fijos.filter(x => x.id !== id);
+                await saveToCloud("Gasto eliminado");
+                modal.classList.add("hidden");
+                drawList();
+            };
+        }
     };
 
-    container.querySelector("#btnAddFijo").onclick = () => openFijoModal();
-
-    window.deleteFijo = async (id) => {
-        if (!confirm("¿Eliminar gasto de la estructura?")) return;
-        db.gastos_fijos = db.gastos_fijos.filter(x => x.id !== id);
-        await saveToCloud("Gasto eliminado");
-        container.querySelector("#overlayFijo").classList.add("hidden");
-        refresh();
-    };
-
-    refresh();
+    container.querySelector("#btnAddFijo").onclick = () => window.abrirEditorFijo();
+    
+    // Dibujar lista inicial
+    drawList();
 }
