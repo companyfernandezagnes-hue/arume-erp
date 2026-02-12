@@ -1,4 +1,6 @@
-// assets/js/app.js
+/* =============================================================
+   🚀 ARUME ERP - NÚCLEO CENTRAL (app.js)
+   ============================================================= */
 
 // 1. CONFIGURACIÓN SUPABASE
 const SUPABASE_URL = "https://awbgboucnbsuzojocbuy.supabase.co";
@@ -10,7 +12,7 @@ window.db = {};
 
 // 2. ARRANQUE
 document.addEventListener("DOMContentLoaded", async () => {
-    renderNav(); // Dibujamos el menú
+    renderNav(); 
     await cargarDatosDeLaNube();
 });
 
@@ -26,17 +28,15 @@ async function cargarDatosDeLaNube() {
     if (error) {
         console.error("Error al bajar datos:", error);
         const local = localStorage.getItem('arume_v152');
-        if (local) {
-            window.db = JSON.parse(decodeURIComponent(atob(local)));
-        }
+        if (local) window.db = JSON.parse(decodeURIComponent(atob(local)));
     } else {
         window.db = data.data;
         console.log("✅ Datos cargados correctamente.");
     }
-    // IMPORTANTE: Aquí llamamos a diario, pero el nuevo loadModule lo enviará a caja.js
     loadModule('dashboard');
 }
-// 4. EL NAVEGADOR DE MÓDULOS (VERSIÓN PROTEGIDA PARA LA RUEDA)
+
+// 4. EL NAVEGADOR DE MÓDULOS (VERSIÓN CORREGIDA PARA LA RUEDA)
 window.loadModule = async function(name) {
     const container = document.getElementById('app');
     if (!container) return;
@@ -47,7 +47,7 @@ window.loadModule = async function(name) {
         let fileName = name;
         if (name === 'diario') fileName = 'caja';
 
-        // IMPORTANTE: Aseguramos la ruta correcta para PC
+        // Ruta relativa segura para PC y Móvil
         const modulePath = `./modules/${fileName}.js`;
         const mod = await import(modulePath);
         
@@ -56,21 +56,18 @@ window.loadModule = async function(name) {
         if (mod.render) {
             await mod.render(container, window.sb, window.db);
             
-            // --- ARREGLO PARA LA RUEDA ---
-            // Ponemos todos los botones de abajo en gris
+            // --- GESTIÓN DE BOTONES ACTUVA (PROTEGIDA) ---
+            // Ponemos todos los botones del menú inferior en gris
             document.querySelectorAll('nav button').forEach(btn => {
                 btn.style.color = '#94a3b8'; 
             });
             
-            // Solo intentamos poner azul el botón si existe (evita el error de la rueda)
+            // Solo si el botón existe (como en el menú inferior), lo ponemos azul
             const activeBtn = document.getElementById(`btn-${name}`);
             if (activeBtn) {
                 activeBtn.style.color = '#4f46e5';
             }
-            // -----------------------------
-
-        } else {
-            throw new Error("El archivo no tiene función render");
+            // Si es la RUEDA (config), no hace falta poner nada azul abajo
         }
         
     } catch (e) {
@@ -78,10 +75,11 @@ window.loadModule = async function(name) {
         container.innerHTML = `
             <div class="p-10 text-center bg-red-50 rounded-3xl m-4 border border-red-100">
                 <p class="text-red-500 font-black">❌ ERROR DE CARGA: ${name}</p>
-                <p style="font-size:12px; color:#94a3b8;">Asegúrate de que el archivo existe en assets/js/modules/${fileName}.js</p>
+                <p class="text-[10px] text-slate-400 mt-2">Verifica que el archivo existe en: assets/js/modules/${fileName}.js</p>
             </div>`;
     }
 };
+
 // 5. FUNCIÓN PARA PINTAR EL MENÚ DE NAVEGACIÓN
 function renderNav() {
     const nav = document.getElementById('navbar');
@@ -108,8 +106,9 @@ function renderNav() {
     `;
 }
 
-// 6. FUNCIÓN GLOBAL PARA GUARDAR
+// 6. FUNCIÓN GLOBAL PARA GUARDAR (Añadimos timestamp)
 window.save = async function(mensaje = "Datos guardados") {
+    window.db.lastSync = Date.now();
     const { error } = await sb
         .from('arume_data')
         .upsert({ id: 1, data: window.db });
@@ -120,19 +119,17 @@ window.save = async function(mensaje = "Datos guardados") {
         console.log("☁️ " + mensaje);
     }
 };
-// === LÓGICA DE BARRA DINÁMICA (CORREGIDA) ===
+
+// 7. LÓGICA DE BARRA DINÁMICA
 let lastPos = 0;
 window.onscroll = function() {
     const nav = document.getElementById("navbar");
     if (!nav) return;
-
     let currentPos = window.pageYOffset || document.documentElement.scrollTop;
     
     if (currentPos > lastPos && currentPos > 50) {
-        // Bajando: Ocultar
         nav.style.transform = "translateY(100%)";
     } else {
-        // Subiendo: Mostrar
         nav.style.transform = "translateY(0)";
     }
     lastPos = currentPos;
