@@ -22,6 +22,50 @@
 #navbar.nav-hidden {
     transform: translateY(100%);
 }
+        /* --- OPTIMIZACIÓN PARA ORDENADOR (PC) --- */
+@media (min-width: 1024px) {
+    body {
+        /* Evita que el fondo se vea vacío en monitores grandes */
+        background-color: #f8fafc;
+    }
+
+    #app {
+        /* Centramos el contenido y limitamos el ancho para que sea legible */
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 40px 20px;
+    }
+
+    header {
+        /* Header elegante y centrado en PC */
+        max-width: 1200px;
+        margin: 0 auto !important;
+        border-bottom-left-radius: 20px;
+        border-bottom-right-radius: 20px;
+    }
+
+    /* Bento Grid para el Dashboard en PC: 2 columnas */
+    .dashboard-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 24px;
+    }
+
+    /* Barra de navegación inferior: La hacemos más fina en PC */
+    #navbar div {
+        max-width: 600px !important;
+        border-radius: 30px 30px 0 0;
+        box-shadow: 0 -10px 25px -5px rgba(0, 0, 0, 0.1);
+    }
+}
+
+/* Mejora visual para los modales en pantalla grande */
+@media (min-width: 768px) {
+    .modal-content {
+        max-width: 500px;
+        border-radius: 40px;
+    }
+}
     </style>
 </head>
 <body>
