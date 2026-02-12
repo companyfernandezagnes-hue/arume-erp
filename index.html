@@ -2,17 +2,14 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" 
-        content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <title>ARUME ERP</title>
   <meta name="description" content="Gestión integral financiera y retail ARUME" />
   <meta name="theme-color" content="#0f172a" />
-  <link rel="icon" href="icons/logo-192.png" />
+  <link rel="icon" href="icons/logo-192.png" /> 
   <link rel="manifest" href="manifest.json" />
 
-  <!-- Fuentes + Librerías -->
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;700;800&display=swap" 
-        rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;700;800&display=swap" rel="stylesheet" />
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -22,13 +19,12 @@
 </head>
 
 <body class="bg-slate-100 font-['Plus Jakarta Sans'] select-none text-slate-800">
-  <!-- LOADING -->
+  
   <div id="loading" class="fixed inset-0 bg-slate-900/90 text-white z-50 hidden flex flex-col justify-center items-center">
     <div class="w-12 h-12 border-4 border-slate-700 border-t-indigo-500 rounded-full animate-spin mb-6"></div>
     <span class="tracking-widest text-xs font-bold uppercase animate-pulse">Sincronizando...</span>
   </div>
 
-  <!-- HEADER -->
   <header class="sticky top-0 z-40 bg-white/80 backdrop-blur border-b border-slate-200 shadow-sm flex justify-between items-center px-6 py-4">
     <div>
       <h1 class="text-xl font-black leading-tight">ARUME <span class="text-indigo-600">ERP</span></h1>
@@ -44,19 +40,14 @@
         U
       </button>
       
-<button onclick="migrarDatosSupabase()" 
-        class="btn-ghost" 
-        style="margin-left:8px;">
-  ♻️ Migrar datos
-  </button>
-
+      <button onclick="migrarDatosSupabase()" class="bg-white border border-slate-200 text-slate-600 px-3 py-2 rounded-xl text-xs font-bold shadow-sm hover:bg-slate-50 transition ml-2 flex items-center gap-2">
+        <span>♻️</span> Migrar
+      </button>
     </div>
   </header>
 
-  <!-- CONTENIDO -->
   <main id="app" class="p-4 max-w-3xl mx-auto"></main>
 
-  <!-- NAVBAR -->
   <nav id="navbar" class="fixed bottom-4 left-1/2 -translate-x-1/2 bg-slate-900/95 border border-slate-700 w-[92%] max-w-md rounded-3xl flex justify-between px-6 py-3 shadow-lg text-xs font-bold tracking-wide uppercase text-slate-400">
     <button onclick="loadModule('dashboard')" class="nav-btn active"><i class="ph ph-chart-bar text-xl"></i><span>Home</span></button>
     <button onclick="loadModule('facturas')" class="nav-btn"><i class="ph ph-file text-xl"></i><span>Facturas</span></button>
@@ -65,7 +56,6 @@
     <button onclick="loadModule('caja')" class="nav-btn"><i class="ph ph-currency-eur text-xl"></i><span>Caja</span></button>
   </nav>
 
-  <!-- MODAL -->
   <div id="modalContainer" class="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-50 hidden justify-center items-center">
     <div class="bg-white w-11/12 max-w-lg rounded-3xl shadow-2xl p-6 relative overflow-hidden">
       <button id="modalClose" class="absolute top-3 right-3 text-slate-400 hover:text-red-500 transition"><i class="ph ph-x text-2xl"></i></button>
@@ -74,7 +64,6 @@
     </div>
   </div>
 
-  <!-- PANTALLA PIN -->
   <div id="pinScreen" class="fixed inset-0 bg-slate-950 text-white flex flex-col justify-center items-center hidden">
     <div class="w-20 h-20 bg-white/5 border border-white/10 rounded-2xl flex justify-center items-center mb-5">
       <i class="ph ph-lock text-3xl text-indigo-400"></i>
@@ -85,118 +74,113 @@
     <div id="pinPad" class="grid grid-cols-3 gap-4 w-72"></div>
   </div>
 
- <!-- SCRIPT PRINCIPAL -->
-<script type="module" src="assets/js/app.js"></script>
-<script>
-  if ("serviceWorker" in navigator) {
-    window.addEventListener("load", () => {
-      navigator.serviceWorker.register("service-worker.js");
-    });
-  }
+  <script type="module" src="assets/js/app.js"></script>
+
   <script>
-// --- MIGRACIÓN AUTOMÁTICA DE JSON (NUBE -> NUEVO MODELO) ---
-async function migrarDatosSupabase() {
-  if (!confirm("¿Migrar datos de Supabase al nuevo modelo?")) return;
-  try {
-    loading(true); // ya existe en tu código actual
-    // 1) Leer el registro único de la nube
-    const { data, error } = await sb
-      .from('arume_data')
-      .select('data')
-      .eq('id', 1)
-      .single();
-    if (error) throw error;
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        // navigator.serviceWorker.register("service-worker.js"); // Descomentar cuando tengas el archivo
+      });
+    }
+  </script>
 
-    let cloud = (data && data.data) ? data.data : {};
-    // 2) Normalizar y crear carpetas que falten (parches robustos)
-    const target = {};
+  <script>
+    // Esta función busca la variable global 'sb' (definida en app.js)
+    async function migrarDatosSupabase() {
+      // Verificación de seguridad
+      if (!window.sb) {
+        alert("⚠️ Error: No se ha conectado con Supabase. Revisa tus claves en assets/js/app.js");
+        return;
+      }
 
-    // Helper: clonar array seguro
-    const arr = v => Array.isArray(v) ? JSON.parse(JSON.stringify(v)) : [];
+      if (!confirm("¿Estás seguro de migrar los datos de la nube al nuevo formato?")) return;
 
-    // a) Recetas: aceptar 'recetas' o 'recipes'
-    target.recetas = arr(cloud.recetas || cloud.recipes);
+      try {
+        if(typeof loading === 'function') loading(true);
+        
+        // 1) Leer el registro único de la nube
+        const { data, error } = await window.sb
+          .from('arume_data')
+          .select('data')
+          .eq('id', 1)
+          .single();
+          
+        if (error) throw error;
 
-    // b) Ingredientes
-    target.ingredientes = arr(cloud.ingredientes);
+        let cloud = (data && data.data) ? data.data : {};
+        const target = {};
 
-    // c) Proveedores, Albaranes, Facturas, Diario
-    target.proveedores  = arr(cloud.proveedores);
-    target.albaranes    = arr(cloud.albaranes);
-    target.facturas     = arr(cloud.facturas);
-    target.diario       = arr(cloud.diario);
+        // Helper para arrays
+        const arr = v => Array.isArray(v) ? JSON.parse(JSON.stringify(v)) : [];
 
-    // d) Ventas históricas: aceptar 'sales_history' o 'salesHistory'
-    target.sales_history = arr(cloud.sales_history || cloud.salesHistory);
+        // --- MAPEO DE DATOS ---
+        target.recetas       = arr(cloud.recetas || cloud.recipes);
+        target.ingredientes  = arr(cloud.ingredientes);
+        target.proveedores   = arr(cloud.proveedores);
+        target.albaranes     = arr(cloud.albaranes);
+        target.facturas      = arr(cloud.facturas);
+        target.diario        = arr(cloud.diario);
+        target.sales_history = arr(cloud.sales_history || cloud.salesHistory);
+        target.gastos_fijos  = arr(cloud.gastos_fijos || cloud.gastosFijos);
+        target.eventos       = arr(cloud.eventos);
+        target.listaSocios   = arr(cloud.listaSocios || ['Jeronimo','Pedro','Pau','Agnes']);
+        target.config        = cloud.config || { empresa:'', nif:'', iban:'', sufijo:'000' };
+        target.kardex        = arr(cloud.kardex);
+        target.mermas        = arr(cloud.mermas);
+        target.lastSync      = Date.now();
 
-    // e) Gastos fijos: aceptar 'gastos_fijos' o 'gastosFijos'
-    target.gastos_fijos = arr(cloud.gastos_fijos || cloud.gastosFijos);
+        // Corrección de ingredientes
+        target.ingredientes = target.ingredientes.map(i => ({
+          id: i.id || Math.random().toString(36).slice(2,11),
+          n: i.n || i.name || 'Producto',
+          fam: i.fam || 'General',
+          cost: Number.isFinite(i.cost) ? i.cost : 0,
+          stock: Number.isFinite(i.stock) ? i.stock : 0,
+          min: Number.isFinite(i.min) ? i.min : 0,
+          unit: i.unit || 'ud',
+          alg: Array.isArray(i.alg) ? i.alg : [],
+          lastCost: Number.isFinite(i.lastCost) ? i.lastCost : 0,
+          packUnit: i.packUnit || 'Ud',
+          conv: Number.isFinite(i.conv) ? i.conv : 1,
+          lastProv: i.lastProv || ''
+        }));
 
-    // f) Eventos / listaSocios
-    target.eventos     = arr(cloud.eventos);
-    target.listaSocios = arr(cloud.listaSocios || ['Jeronimo','Pedro','Pau','Agnes']);
+        // Corrección de recetas
+        target.recetas = target.recetas.map(r => ({
+          id: r.id || Math.random().toString(36).slice(2,11),
+          n: r.n || r.name || 'Nueva Receta',
+          type: r.type || 'cocina',
+          pvp: Number.isFinite(r.pvp) ? r.pvp : 0,
+          time: Number.isFinite(r.time) ? r.time : 15,
+          yield: Number.isFinite(r.yield) ? r.yield : 1,
+          unit: r.unit || 'rac',
+          items: Array.isArray(r.items) ? r.items.map(it => ({
+            type: it.type || (it.id && it.q ? 'ing' : 'ing'),
+            id: it.id || it.ingId || '',
+            q: Number.isFinite(it.q) ? it.q : 0,
+            unit: it.unit || 'ud',
+            merma: Number.isFinite(it.merma) ? it.merma : 0
+          })) : [],
+          inst: r.inst || '',
+          alg: Array.isArray(r.alg) ? r.alg : []
+        }));
 
-    // g) Config fiscal (si falta, crear vacía segura)
-    target.config = cloud.config || { empresa:'', nif:'', iban:'', sufijo:'000' };
+        // Guardar y Subir
+        localStorage.setItem('arume_v152', btoa(encodeURIComponent(JSON.stringify(target))));
+        
+        const up = await window.sb.from('arume_data').upsert({ id: 1, data: target });
+        if (up.error) throw up.error;
 
-    // h) Otros metadatos
-    target.kardex      = arr(cloud.kardex);
-    target.mermas      = arr(cloud.mermas);
-    target.lastSync    = Date.now();
+        alert("✅ Migración completada con éxito.");
+        if (typeof refreshCurrentView === 'function') refreshCurrentView(); 
 
-    // 3) Parchear elementos internos que falten (ingredientes nuevos)
-    target.ingredientes = target.ingredientes.map(i => ({
-      id: i.id || Math.random().toString(36).slice(2,11),
-      n: i.n || i.name || 'Producto',
-      fam: i.fam || 'General',
-      cost: Number.isFinite(i.cost) ? i.cost : 0,
-      stock: Number.isFinite(i.stock) ? i.stock : 0,
-      min: Number.isFinite(i.min) ? i.min : 0,
-      unit: i.unit || 'ud',
-      alg: Array.isArray(i.alg) ? i.alg : [],
-      lastCost: Number.isFinite(i.lastCost) ? i.lastCost : 0,
-      // Campos nuevos para “packs/caja”
-      packUnit: i.packUnit || 'Ud',
-      conv: Number.isFinite(i.conv) ? i.conv : 1,
-      lastProv: i.lastProv || ''
-    }));
-
-    // 4) Recetas: asegurar estructura mínima
-    target.recetas = target.recetas.map(r => ({
-      id: r.id || Math.random().toString(36).slice(2,11),
-      n: r.n || r.name || 'Nueva Receta',
-      type: r.type || 'cocina',
-      pvp: Number.isFinite(r.pvp) ? r.pvp : 0,
-      time: Number.isFinite(r.time) ? r.time : 15,
-      yield: Number.isFinite(r.yield) ? r.yield : 1,
-      unit: r.unit || 'rac',
-      items: Array.isArray(r.items) ? r.items.map(it => ({
-        type: it.type || (it.id && it.q ? 'ing' : 'ing'),
-        id: it.id || it.ingId || '',
-        q: Number.isFinite(it.q) ? it.q : 0,
-        unit: it.unit || 'ud',
-        merma: Number.isFinite(it.merma) ? it.merma : 0
-      })) : [],
-      inst: r.inst || '',
-      // si venían “alg” heredados
-      alg: Array.isArray(r.alg) ? r.alg : []
-    }));
-
-    // 5) Guardar local y subir a nube
-    db = target;
-    localStorage.setItem('arume_v152', btoa(encodeURIComponent(JSON.stringify(db))));
-    const up = await sb.from('arume_data').upsert({ id: 1, data: db });
-    if (up.error) throw up.error;
-
-    toast("✅ Migración completada");
-    refreshCurrentView && refreshCurrentView(); // ya existe en tu código
-  } catch (e) {
-    console.error(e);
-    toast("❌ Error migrando datos");
-  } finally {
-    loading(false);
-  }
-}
-</script>
+      } catch (e) {
+        console.error(e);
+        alert("❌ Error: " + e.message);
+      } finally {
+        if(typeof loading === 'function') loading(false);
+      }
+    }
+  </script>
 </body>
 </html>
