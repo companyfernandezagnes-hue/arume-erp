@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" 
+  <meta name="viewport"
         content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <title>ARUME ERP</title>
   <meta name="description" content="Gestión integral financiera y retail ARUME" />
@@ -11,7 +11,7 @@
   <link rel="manifest" href="manifest.json" />
 
   <!-- Fuentes + Librerías -->
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;700;800&display=swap" 
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;700;800&display=swap"
         rel="stylesheet" />
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -22,6 +22,7 @@
 </head>
 
 <body class="bg-slate-100 font-['Plus Jakarta Sans'] select-none text-slate-800">
+
   <!-- LOADING -->
   <div id="loading" class="fixed inset-0 bg-slate-900/90 text-white z-50 hidden flex flex-col justify-center items-center">
     <div class="w-12 h-12 border-4 border-slate-700 border-t-indigo-500 rounded-full animate-spin mb-6"></div>
@@ -33,15 +34,18 @@
     <div>
       <h1 class="text-xl font-black leading-tight">ARUME <span class="text-indigo-600">ERP</span></h1>
       <p class="text-[10px] text-slate-400 font-bold tracking-[0.2em] uppercase mt-1">
-        Sistema Financiero Retail · v3.0
-      </p>
-    </div>
-    <div class="flex items-center gap-2">
-      <button id="btnConfig" class="bg-slate-900 text-white w-10 h-10 rounded-2xl flex items-center justify-center shadow active:scale-95 transition">
+       enter justify-center shadow active:scale-95 transition">
         <i class="ph ph-gear text-xl"></i>
       </button>
       <button id="btnLogout" class="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex justify-center items-center text-white font-black ring-2 ring-white shadow cursor-pointer" title="Cerrar Sesión">
         U
+      </button>
+
+      <!-- Botón de migración -->
+      <button onclick="migrarDatosSupabase()"
+              class="btn-ghost px-3 py-2 text-[12px] border border-slate-200 rounded-lg hover:bg-slate-50"
+              style="margin-left:8px;">
+        ♻️ Migrar datos
       </button>
     </div>
   </header>
@@ -78,15 +82,137 @@
     <div id="pinPad" class="grid grid-cols-3 gap-4 w-72"></div>
   </div>
 
- <!-- SCRIPT PRINCIPAL -->
-<script type="module" src="assets/js/app.js"></script>
-<script>
-  if ("serviceWorker" in navigator) {
-    window.addEventListener("load", () => {
-      navigator.serviceWorker.register("service-worker.js");
-    });
+  <!-- SCRIPT PRINCIPAL -->
+  assets/js/app.js</script>
+
+  <!-- Service worker (cerrado correctamente) -->
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("service-worker.js");
+      });
+    }
+  </script>
+
+  <!-- MIGRACIÓN: nube -> nuevo modelo -->
+  <script>
+  // Fallbacks por si tu app aún no define estas funciones
+  const __loading = (typeof window.loading === 'function')
+    ? window.loading
+    : (on) => { const el = document.getElementById('loading'); if (el) el.classList.toggle('hidden', !on); };
+
+  const __toast = (typeof window.toast === 'function')
+    ? window.toast
+    : (msg) => { try { alert(msg); } catch(e){} };
+
+  const __refresh = (typeof window.refreshCurrentView === 'function')
+    ? window.refreshCurrentView
+    : () => {};
+
+  async function migrarDatosSupabase() {
+    if (!confirm("¿Migrar datos de Supabase al nuevo modelo?")) return;
+
+    // Verificar cliente Supabase
+    if (!window.sb) {
+      // Si tu app ya lo crea en app.js, perfecto; si no, avisamos
+      if (!(window.supabase && window.supabase.createClient)) {
+        __toast("❌ No encuentro el cliente de Supabase. Abre la app normal (app.js) primero.");
+        return;
+      }
+      // Si tienes SUPABASE_URL/KEY en global, podríamos crear uno aquí,
+      // pero normalmente ya vienen desde app.js.
+      if (!(window.SUPABASE_URL && window.SUPABASE_KEY)) {
+        __toast("❌ Falta configuración Supabase. Revisa app.js o tus variables.");
+        return;
+      }
+      window.sb = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_KEY);
+    }
+
+    try {
+      __loading(true);
+
+      // 1) Leer el registro único de la nube
+      const { data, error } = await sb
+        .from('arume_data')
+        .select('data')
+        .eq('id', 1)
+        .single();
+
+      if (error) throw error;
+
+      let cloud = (data && data.data) ? data.data : {};
+      const target = {};
+      const arr = v => Array.isArray(v) ? JSON.parse(JSON.stringify(v)) : [];
+
+      // Aceptar nombres viejos y nuevos (recipes -> recetas, etc.)
+      target.recetas       = arr(cloud.recetas || cloud.recipes);
+      target.ingredientes  = arr(cloud.ingredientes);
+      target.proveedores   = arr(cloud.proveedores);
+      target.albaranes     = arr(cloud.albaranes);
+      target.facturas      = arr(cloud.facturas);
+      target.diario        = arr(cloud.diario);
+      target.sales_history = arr(cloud.sales_history || cloud.salesHistory);
+      target.gastos_fijos  = arr(cloud.gastos_fijos || cloud.gastosFijos);
+      target.eventos       = arr(cloud.eventos);
+      target.listaSocios   = arr(cloud.listaSocios || ['Jeronimo','Pedro','Pau','Agnes']);
+      target.config        = cloud.config || { empresa:'', nif:'', iban:'', sufijo:'000' };
+      target.kardex        = arr(cloud.kardex);
+      target.mermas        = arr(cloud.mermas);
+      target.lastSync      = Date.now();
+
+      // Ingredientes: asegurar campos nuevos/obligatorios
+      target.ingredientes = target.ingredientes.map(i => ({
+        id: i.id || Math.random().toString(36).slice(2,11),
+        n: i.n || i.name || 'Producto',
+        fam: i.fam || 'General',
+        cost: Number.isFinite(i.cost) ? i.cost : 0,
+        stock: Number.isFinite(i.stock) ? i.stock : 0,
+        min: Number.isFinite(i.min) ? i.min : 0,
+        unit: i.unit || 'ud',
+        alg: Array.isArray(i.alg) ? i.alg : [],
+        lastCost: Number.isFinite(i.lastCost) ? i.lastCost : 0,
+        packUnit: i.packUnit || 'Ud',
+        conv: Number.isFinite(i.conv) ? i.conv : 1,
+        lastProv: i.lastProv || ''
+      }));
+
+      // Recetas: asegurar estructura mínima
+      target.recetas = target.recetas.map(r => ({
+        id: r.id || Math.random().toString(36).slice(2,11),
+        n: r.n || r.name || 'Nueva Receta',
+        type: r.type || 'cocina',
+        pvp: Number.isFinite(r.pvp) ? r.pvp : 0,
+        time: Number.isFinite(r.time) ? r.time : 15,
+        yield: Number.isFinite(r.yield) ? r.yield : 1,
+        unit: r.unit || 'rac',
+        items: Array.isArray(r.items) ? r.items.map(it => ({
+          type: it.type || 'ing',
+          id: it.id || it.ingId || '',
+          q: Number.isFinite(it.q) ? it.q : 0,
+          unit: it.unit || 'ud',
+          merma: Number.isFinite(it.merma) ? it.merma : 0
+        })) : [],
+        inst: r.inst || '',
+        alg: Array.isArray(r.alg) ? r.alg : []
+      }));
+
+      // 5) Guardar local y subir a nube
+      window.db = target;
+      localStorage.setItem('arume_v152', btoa(encodeURIComponent(JSON.stringify(db))));
+
+      const up = await sb.from('arume_data').upsert({ id: 1, data: db });
+      if (up.error) throw up.error;
+
+      __toast("✅ Migración completada");
+      __refresh();
+
+    } catch (e) {
+      console.error(e);
+      __toast("❌ Error migrando datos");
+    } finally {
+      __loading(false);
+    }
   }
-</script>
+  </script>
 </body>
 </html>
-
