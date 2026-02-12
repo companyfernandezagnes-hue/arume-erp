@@ -10,39 +10,47 @@
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;800&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Plus Jakarta Sans', sans-serif; background: #f1f5f9; padding-bottom: 100px; }
-        .nav-btn.active { color: #4f46e5; border-top: 3px solid #4f46e5; }
+        /* Animación para que las pantallas entren suaves */
+        .animate-fade-in { animation: fadeIn 0.3s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        
+        /* Estilo para botón activo */
+        .nav-btn.active { color: #4f46e5; border-top: 2px solid #4f46e5; margin-top: -2px; }
     </style>
 </head>
 <body>
     <div id="loading" class="fixed inset-0 bg-white/90 z-[300] flex flex-col justify-center items-center">
         <div class="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mb-4"></div>
-        <p class="font-bold text-slate-400 animate-pulse uppercase text-xs tracking-widest">Sincronizando Datos...</p>
+        <p class="font-bold text-slate-400 animate-pulse uppercase text-xs tracking-widest">Sincronizando Arume Cloud...</p>
     </div>
 
     <header class="sticky top-0 z-40 px-6 py-4 flex justify-between items-center bg-white border-b border-slate-200 shadow-sm">
         <div>
             <h1 class="text-xl font-black text-slate-900">ARUME <span class="text-indigo-600">PRO</span></h1>
-            <p class="text-[9px] text-slate-400 font-bold uppercase">Cloud Connected</p>
+            <p class="text-[9px] text-slate-400 font-bold uppercase tracking-tighter">Diamond Connected</p>
         </div>
         <div id="user-display" class="bg-slate-100 px-3 py-1.5 rounded-full text-[10px] font-black text-slate-600 border border-slate-200 uppercase">
-            Cargando...
+            Gerencia
         </div>
     </header>
 
-    <main id="app" class="p-4 animate-fade-in"></main>
+    <main id="app" class="p-4"></main>
 
-    <nav class="fixed bottom-0 left-0 w-full bg-white border-t border-slate-200 flex justify-around py-3 px-2 shadow-2xl z-50">
-        <button onclick="loadModule('dashboard')" class="nav-btn flex flex-col items-center gap-1 text-slate-400 transition-all">
-            <span class="text-lg">📊</span><span class="text-[10px] font-bold uppercase">Dashboard</span>
+    <nav id="navbar" class="fixed bottom-0 left-0 w-full bg-white border-t border-slate-200 flex justify-around py-3 px-2 shadow-2xl z-50 pb-safe">
+        <button id="btn-dashboard" onclick="loadModule('dashboard')" class="nav-btn flex flex-col items-center gap-1 text-slate-400 transition-all flex-1">
+            <span class="text-lg">📊</span><span class="text-[9px] font-bold uppercase">Dash</span>
         </button>
-        <button onclick="loadModule('facturas')" class="nav-btn flex flex-col items-center gap-1 text-slate-400 transition-all">
-            <span class="text-lg">📄</span><span class="text-[10px] font-bold uppercase">Facturas</span>
+        <button id="btn-facturas" onclick="loadModule('facturas')" class="nav-btn flex flex-col items-center gap-1 text-slate-400 transition-all flex-1">
+            <span class="text-lg">📄</span><span class="text-[9px] font-bold uppercase">Facturas</span>
         </button>
-        <button onclick="loadModule('stock')" class="nav-btn flex flex-col items-center gap-1 text-slate-400 transition-all">
-            <span class="text-lg">📦</span><span class="text-[10px] font-bold uppercase">Stock</span>
+        <button id="btn-albaranes" onclick="loadModule('albaranes')" class="nav-btn flex flex-col items-center gap-1 text-slate-400 transition-all flex-1">
+            <span class="text-lg">🚚</span><span class="text-[9px] font-bold uppercase">Albaranes</span>
         </button>
-        <button onclick="loadModule('caja')" class="nav-btn flex flex-col items-center gap-1 text-slate-400 transition-all">
-            <span class="text-lg">💶</span><span class="text-[10px] font-bold uppercase">Caja</span>
+        <button id="btn-diario" onclick="loadModule('diario')" class="nav-btn flex flex-col items-center gap-1 text-slate-400 transition-all flex-1">
+            <span class="text-lg">💵</span><span class="text-[9px] font-bold uppercase">Caja</span>
+        </button>
+        <button id="btn-gastos_fijos" onclick="loadModule('gastos_fijos')" class="nav-btn flex flex-col items-center gap-1 text-slate-400 transition-all flex-1">
+            <span class="text-lg">🏢</span><span class="text-[9px] font-bold uppercase">Fijos</span>
         </button>
     </nav>
 
