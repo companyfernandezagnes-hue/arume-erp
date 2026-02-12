@@ -118,20 +118,20 @@ window.save = async function(mensaje = "Datos guardados") {
         console.log("☁️ " + mensaje);
     }
 };
-// === LÓGICA DE BARRA DINÁMICA ===
-let lastScrollTop = 0;
-window.addEventListener("scroll", function() {
-    const nav = document.getElementById("navbar"); //
+// === LÓGICA DE BARRA DINÁMICA (CORREGIDA) ===
+let lastPos = 0;
+window.onscroll = function() {
+    const nav = document.getElementById("navbar");
     if (!nav) return;
 
-    let scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+    let currentPos = window.pageYOffset || document.documentElement.scrollTop;
     
-    if (scrollTop > lastScrollTop && scrollTop > 100) {
-        // Si el usuario baja con el dedo, escondemos la barra
-        nav.classList.add("nav-hidden");
+    if (currentPos > lastPos && currentPos > 50) {
+        // Bajando: Ocultar
+        nav.style.transform = "translateY(100%)";
     } else {
-        // Si el usuario sube con el dedo, mostramos la barra
-        nav.classList.remove("nav-hidden");
+        // Subiendo: Mostrar
+        nav.style.transform = "translateY(0)";
     }
-    lastScrollTop = scrollTop <= 0 ? 0 : scrollTop; 
-}, false);
+    lastPos = currentPos;
+};
