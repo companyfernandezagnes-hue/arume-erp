@@ -1,72 +1,63 @@
-import { initPIN } from "./auth/pin.js";
+// assets/js/app.js
 
-// --- CONFIGURACIÓN ---
+// 1. CONFIGURACIÓN SUPABASE (Tus claves reales)
 const SUPABASE_URL = "https://awbgboucnbsuzojocbuy.supabase.co";
 const SUPABASE_KEY = "sb_publishable_drOQ5PsFA8eox_aRTXNATQ_5kibM6ST";
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-window.sb = supabase; 
-window.DB = {}; // Aquí guardaremos tus datos
+// Hacerlas globales para que el HTML y los módulos las vean
+window.sb = sb;
+window.db = {}; 
 
-// --- ARRANQUE ---
-document.addEventListener("DOMContentLoaded", () => {
-    initPIN(initApp);
+// 2. ARRANQUE DE LA APP
+document.addEventListener("DOMContentLoaded", async () => {
+    // Si quieres el PIN que tenías en el HTML, lo llamamos aquí
+    // Por ahora, vamos directo a cargar los datos para que no te agobies
+    await cargarDatosDeLaNube();
 });
 
-async function initApp() {
-    console.log("🚀 Descargando datos...");
-    toggleLoading(true);
+// 3. FUNCIÓN PARA RECUPERAR TUS DATOS REALES
+async function cargarDatosDeLaNube() {
+    console.log("📡 Conectando con Supabase...");
     
-    // 1. DESCARGAMOS TUS DATOS (ID 1)
-    let { data: rows, error } = await supabase
-        .from("arume_data")
-        .select("data")
-        .eq('id', 1) // Buscamos el ID 1 que salió en tu consola
+    // Buscamos en la tabla arume_data donde vimos que tienes 643KB de datos
+    const { data, error } = await sb
+        .from('arume_data')
+        .select('data')
+        .eq('id', 1)
         .single();
 
     if (error) {
-        console.error("Error descarga:", error);
-        // Si falla la nube, intentamos leer del LocalStorage (Plan B)
+        console.error("Error al bajar datos:", error);
+        // Intentamos cargar de la memoria del navegador por si acaso
         const local = localStorage.getItem('arume_v152');
-        if(local) {
-            window.DB = JSON.parse(decodeURIComponent(atob(local)));
-            toast("⚠️ Modo Offline: Datos cargados del navegador");
+        if (local) {
+            window.db = JSON.parse(decodeURIComponent(atob(local)));
         }
-    } else if (rows) {
-        // 2. GUARDAMOS LOS DATOS EN MEMORIA
-        window.DB = rows.data; 
-        console.log("✅ Datos cargados:", window.DB);
+    } else {
+        window.db = data.data;
+        console.log("✅ Datos cargados correctamente en memoria.");
     }
-    
-    toggleLoading(false);
-    loadModule("dashboard");
+
+    // Una vez tenemos los datos, cargamos el Dashboard
+    loadModule('dashboard');
 }
 
-// --- GESTOR DE MÓDULOS ---
-window.loadModule = async function (name) {
-    const main = document.getElementById("app");
-    updateNavbar(name);
-    
+// 4. EL NAVEGADOR DE MÓDULOS (Como lo tenías antes)
+window.loadModule = async function(name) {
+    const container = document.getElementById('app');
+    if (!container) return;
+
+    container.innerHTML = `<p style="text-align:center; padding:20px;">Cargando ${name}...</p>`;
+
     try {
-        const module = await import(`./modules/${name}.js`);
-        main.innerHTML = "";
-        // Pasamos tus datos (window.DB) al módulo para que los pinte
-        module.render(main, supabase, window.DB); 
+        // Esto busca los archivos en la carpeta assets/js/modules/
+        const mod = await import(`./modules/${name}.js`);
+        container.innerHTML = "";
+        // Le pasamos 'sb' y 'db' para que el módulo tenga la conexión y los datos
+        mod.render(container, window.sb, window.db);
     } catch (e) {
-        console.error(e);
-        main.innerHTML = `<p class="text-center text-red-500 mt-10">Error cargando ${name}</p>`;
+        console.error("Error al cargar el módulo:", e);
+        container.innerHTML = `<p style="color:red;">Error: No se encuentra el archivo assets/js/modules/${name}.js</p>`;
     }
 };
-
-// --- UTILIDADES ---
-function toggleLoading(show) {
-    const l = document.getElementById("loading");
-    if(l) l.classList.toggle("hidden", !show);
-}
-function updateNavbar(active) {
-    document.querySelectorAll(".nav-btn").forEach(btn => {
-        btn.classList.remove("active", "text-indigo-400");
-        if(btn.getAttribute('onclick')?.includes(active)) btn.classList.add("active", "text-indigo-400");
-    });
-}
-window.toast = (msg) => alert(msg);
