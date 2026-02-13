@@ -86,22 +86,55 @@ window.loadModule = async function(name) {
             </div>`;
     }
 };
-// 5. MENÚ EXPANDIDO (HOLDED STYLE)
+// 5. MENÚ COMPLETO (8 MÓDULOS)
 function renderNav() {
     const nav = document.getElementById('navbar');
     if (!nav) return;
 
     nav.innerHTML = `
-        <div style="display:flex; justify-content:space-between; align-items:center; background:white; padding:10px 20px; border-top:1px solid #f1f5f9; position:fixed; bottom:0; width:100%; max-width:900px; left:50%; transform:translateX(-50%); z-index:1000; border-radius: 20px 20px 0 0; box-shadow: 0 -5px 30px rgba(0,0,0,0.08); overflow-x: auto;">
+        <div style="display:flex; justify-content:space-between; align-items:center; background:white; padding:10px 20px; border-top:1px solid #f1f5f9; position:fixed; bottom:0; width:100%; max-width:900px; left:50%; transform:translateX(-50%); z-index:1000; border-radius: 20px 20px 0 0; box-shadow: 0 -5px 30px rgba(0,0,0,0.08); overflow-x: auto; gap: 12px;">
             
-            <button onclick="loadModule('dashboard')" class="flex flex-col items-center gap-1 min-w-[50px]"><span class="text-xl">📊</span><span class="text-[8px] font-black uppercase text-slate-400">Dash</span></button>
-            <button onclick="loadModule('diario')" class="flex flex-col items-center gap-1 min-w-[50px]"><span class="text-xl">💵</span><span class="text-[8px] font-black uppercase text-slate-400">Caja</span></button>
-            <button onclick="loadModule('albaranes')" class="flex flex-col items-center gap-1 min-w-[50px]"><span class="text-xl">🚚</span><span class="text-[8px] font-black uppercase text-slate-400">Alb</span></button>
-            <button onclick="loadModule('facturas')" class="flex flex-col items-center gap-1 min-w-[50px]"><span class="text-xl">📄</span><span class="text-[8px] font-black uppercase text-slate-400">Fra</span></button>
+            <button onclick="loadModule('dashboard')" class="flex flex-col items-center gap-1 min-w-[50px] shrink-0">
+                <span class="text-xl">📊</span>
+                <span class="text-[8px] font-black uppercase text-slate-400">Dash</span>
+            </button>
             
-            <div class="w-px h-8 bg-slate-100 mx-2"></div> <button onclick="loadModule('fiscalidad')" class="flex flex-col items-center gap-1 min-w-[50px]"><span class="text-xl">⚖️</span><span class="text-[8px] font-black uppercase text-slate-400">Imp</span></button>
-            <button onclick="loadModule('banco')" class="flex flex-col items-center gap-1 min-w-[50px]"><span class="text-xl">🏦</span><span class="text-[8px] font-black uppercase text-slate-400">Banco</span></button>
-            <button onclick="loadModule('informes')" class="flex flex-col items-center gap-1 min-w-[50px]"><span class="text-xl">📈</span><span class="text-[8px] font-black uppercase text-slate-400">P&L</span></button>
+            <button onclick="loadModule('diario')" class="flex flex-col items-center gap-1 min-w-[50px] shrink-0">
+                <span class="text-xl">💵</span>
+                <span class="text-[8px] font-black uppercase text-slate-400">Caja</span>
+            </button>
+            
+            <button onclick="loadModule('facturas')" class="flex flex-col items-center gap-1 min-w-[50px] shrink-0">
+                <span class="text-xl">📄</span>
+                <span class="text-[8px] font-black uppercase text-slate-400">Fra</span>
+            </button>
+            
+            <button onclick="loadModule('albaranes')" class="flex flex-col items-center gap-1 min-w-[50px] shrink-0">
+                <span class="text-xl">🚚</span>
+                <span class="text-[8px] font-black uppercase text-slate-400">Alb</span>
+            </button>
+
+            <button onclick="loadModule('gastos_fijos')" class="flex flex-col items-center gap-1 min-w-[50px] shrink-0">
+                <span class="text-xl">🏢</span>
+                <span class="text-[8px] font-black uppercase text-slate-400">Fijos</span>
+            </button>
+            
+            <div class="w-px h-8 bg-slate-100 mx-2 shrink-0"></div> 
+
+            <button onclick="loadModule('fiscalidad')" class="flex flex-col items-center gap-1 min-w-[50px] shrink-0">
+                <span class="text-xl">⚖️</span>
+                <span class="text-[8px] font-black uppercase text-slate-400">Imp</span>
+            </button>
+            
+            <button onclick="loadModule('banco')" class="flex flex-col items-center gap-1 min-w-[50px] shrink-0">
+                <span class="text-xl">🏦</span>
+                <span class="text-[8px] font-black uppercase text-slate-400">Banco</span>
+            </button>
+            
+            <button onclick="loadModule('informes')" class="flex flex-col items-center gap-1 min-w-[50px] shrink-0">
+                <span class="text-xl">📈</span>
+                <span class="text-[8px] font-black uppercase text-slate-400">P&L</span>
+            </button>
 
         </div>
     `;
