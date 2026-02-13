@@ -1,191 +1,162 @@
 /* =============================================================
-   ⚖️ MÓDULO: FISCALIDAD (Simulador de Impuestos / Modelo 303)
+   ⚖️ MÓDULO: FISCALIDAD PRO (IVA 303 + IRPF 130)
    ============================================================= */
 
 export async function render(container, supabase, db, opts = {}) {
-    // 1. Inicialización de Datos
+    // 1. Setup
     if (!db.facturas) db.facturas = [];
     if (!db.albaranes) db.albaranes = [];
 
-    // Determinar Trimestre Actual
     const today = new Date();
-    const currentMonth = today.getMonth(); // 0-11
-    let currentQ = 1;
-    if (currentMonth > 2) currentQ = 2;
-    if (currentMonth > 5) currentQ = 3;
-    if (currentMonth > 8) currentQ = 4;
-    
-    let selectedQ = currentQ;
+    let selectedQ = Math.ceil((today.getMonth() + 1) / 3);
     let selectedYear = today.getFullYear();
 
     // 2. INTERFAZ
     container.innerHTML = `
     <div class="animate-fade-in space-y-6">
         
-        <header class="bg-slate-900 text-white p-8 rounded-[2.5rem] shadow-2xl relative overflow-hidden">
-            <div class="absolute top-0 right-0 w-64 h-64 bg-indigo-500 rounded-full blur-[80px] opacity-20 -mr-16 -mt-16"></div>
-            
-            <div class="relative z-10 flex flex-col md:flex-row justify-between items-center gap-4">
-                <div>
-                    <h2 class="text-2xl font-black">Fiscalidad & IVA</h2>
-                    <p class="text-xs font-bold text-slate-400 uppercase tracking-widest">Simulador Modelo 303</p>
-                </div>
-
-                <div class="flex bg-slate-800 p-1 rounded-xl">
-                    <button class="q-btn px-4 py-2 rounded-lg text-xs font-black transition ${selectedQ===1?'bg-indigo-600 text-white':'text-slate-400'}" data-q="1">1T</button>
-                    <button class="q-btn px-4 py-2 rounded-lg text-xs font-black transition ${selectedQ===2?'bg-indigo-600 text-white':'text-slate-400'}" data-q="2">2T</button>
-                    <button class="q-btn px-4 py-2 rounded-lg text-xs font-black transition ${selectedQ===3?'bg-indigo-600 text-white':'text-slate-400'}" data-q="3">3T</button>
-                    <button class="q-btn px-4 py-2 rounded-lg text-xs font-black transition ${selectedQ===4?'bg-indigo-600 text-white':'text-slate-400'}" data-q="4">4T</button>
-                </div>
+        <header class="flex flex-col md:flex-row justify-between items-center bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100">
+            <div>
+                <h2 class="text-xl font-black text-slate-800">Impuestos & Modelos</h2>
+                <p class="text-[10px] text-indigo-500 font-bold uppercase tracking-widest">Simulación Trimestral</p>
             </div>
-
-            <div class="mt-8 text-center relative z-10">
-                <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Resultado Estimado del Trimestre</p>
-                <h3 id="lbl-resultado" class="text-5xl md:text-6xl font-black tracking-tight text-white mb-2">0.00€</h3>
-                <span id="lbl-estado" class="px-4 py-1 rounded-full text-[10px] font-black uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                    A DEVOLVER (HACIENDA TE PAGA)
-                </span>
+            <div class="flex bg-slate-100 p-1 rounded-xl mt-4 md:mt-0">
+                ${[1,2,3,4].map(q => `
+                    <button class="q-btn px-4 py-2 rounded-lg text-xs font-black transition ${selectedQ===q?'bg-slate-900 text-white':'text-slate-400'}" data-q="${q}">${q}T</button>
+                `).join('')}
             </div>
         </header>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div class="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 relative overflow-hidden">
-                <div class="absolute top-0 right-0 p-4 opacity-10 text-6xl">📈</div>
-                <h4 class="text-xs font-black text-slate-400 uppercase mb-4">IVA Repercutido (Ventas)</h4>
-                <div class="flex justify-between items-end mb-2">
-                    <span class="text-3xl font-black text-slate-800" id="lbl-iva-ventas">0€</span>
-                    <span class="text-xs font-bold text-slate-400 mb-1">Lo que has cobrado</span>
+        <div class="bg-slate-900 text-white p-8 rounded-[2.5rem] shadow-2xl relative overflow-hidden text-center">
+            <div class="absolute top-0 right-0 w-64 h-64 bg-rose-500 rounded-full blur-[100px] opacity-20 -mr-16 -mt-16"></div>
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Total Estimado a Pagar (IVA + IRPF)</p>
+            <h3 id="total-pain" class="text-5xl md:text-6xl font-black tracking-tight mb-2">0.00€</h3>
+            <p class="text-xs text-slate-400">Previsión para el final del trimestre</p>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            
+            <div class="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm relative overflow-hidden">
+                <div class="flex justify-between items-center mb-6">
+                    <span class="px-3 py-1 bg-indigo-50 text-indigo-600 rounded-lg text-[10px] font-black uppercase">Modelo 303</span>
+                    <span class="text-2xl">⚖️</span>
                 </div>
-                <div class="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                    <div id="bar-ventas" class="h-full bg-indigo-500 w-0 transition-all duration-1000"></div>
+                
+                <div class="space-y-4">
+                    <div class="flex justify-between items-end border-b border-slate-50 pb-2">
+                        <span class="text-xs font-bold text-slate-400">IVA Repercutido (Ventas)</span>
+                        <span id="val-iva-rep" class="text-lg font-black text-slate-800">0.00€</span>
+                    </div>
+                    <div class="flex justify-between items-end border-b border-slate-50 pb-2">
+                        <span class="text-xs font-bold text-slate-400">IVA Soportado (Compras)</span>
+                        <span id="val-iva-sop" class="text-lg font-black text-emerald-500">-0.00€</span>
+                    </div>
+                    <div class="flex justify-between items-end pt-2">
+                        <span class="text-xs font-black text-slate-800 uppercase">Resultado IVA</span>
+                        <span id="res-iva" class="text-2xl font-black text-indigo-600">0.00€</span>
+                    </div>
                 </div>
             </div>
 
-            <div class="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 relative overflow-hidden">
-                <div class="absolute top-0 right-0 p-4 opacity-10 text-6xl">📉</div>
-                <h4 class="text-xs font-black text-slate-400 uppercase mb-4">IVA Soportado (Gastos)</h4>
-                <div class="flex justify-between items-end mb-2">
-                    <span class="text-3xl font-black text-slate-800" id="lbl-iva-gastos">0€</span>
-                    <span class="text-xs font-bold text-slate-400 mb-1">Lo que deduces</span>
+            <div class="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm relative overflow-hidden">
+                <div class="flex justify-between items-center mb-6">
+                    <span class="px-3 py-1 bg-rose-50 text-rose-600 rounded-lg text-[10px] font-black uppercase">Modelo 130 (IRPF)</span>
+                    <span class="text-2xl">💰</span>
                 </div>
-                <div class="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                    <div id="bar-gastos" class="h-full bg-emerald-500 w-0 transition-all duration-1000"></div>
+                
+                <div class="space-y-4">
+                    <div class="flex justify-between items-end border-b border-slate-50 pb-2">
+                        <span class="text-xs font-bold text-slate-400">Beneficio Neto (Trimestre)</span>
+                        <span id="val-beneficio" class="text-lg font-black text-slate-800">0.00€</span>
+                    </div>
+                    <div class="flex justify-between items-end border-b border-slate-50 pb-2">
+                        <span class="text-xs font-bold text-slate-400">Tipo Impositivo</span>
+                        <span class="text-lg font-black text-slate-400">20%</span>
+                    </div>
+                    <div class="flex justify-between items-end pt-2">
+                        <span class="text-xs font-black text-slate-800 uppercase">Cuota a Pagar</span>
+                        <span id="res-irpf" class="text-2xl font-black text-rose-500">0.00€</span>
+                    </div>
                 </div>
+                <p class="text-[9px] text-slate-300 mt-4 italic">*Calculado como el 20% del rendimiento neto positivo.</p>
             </div>
-        </div>
 
-        <div class="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 h-80">
-            <canvas id="chartFiscal"></canvas>
-        </div>
-        
-        <div class="text-center p-4">
-            <p class="text-[10px] text-slate-400">Nota: Cálculo aproximado basado en Facturas emitidas y Albaranes registrados.</p>
         </div>
     </div>
     `;
 
-    // 3. LÓGICA DE CÁLCULO
-    let chartInstance = null;
-
+    // 3. CÁLCULOS
     const calcular = () => {
-        // Rango de fechas del trimestre seleccionado
         const startMonth = (selectedQ - 1) * 3;
         const endMonth = startMonth + 2;
         
-        // 1. CALCULAR IVA REPERCUTIDO (VENTAS/FACTURAS)
-        const facturasQ = db.facturas.filter(f => {
-            const d = new Date(f.date);
-            return d.getFullYear() === selectedYear && d.getMonth() >= startMonth && d.getMonth() <= endMonth;
-        });
+        // FILTROS
+        const inPeriod = (d) => {
+            const x = new Date(d);
+            return x.getFullYear() === selectedYear && x.getMonth() >= startMonth && x.getMonth() <= endMonth;
+        };
 
-        // Si la factura no tiene 'tax' guardado explícitamente, lo calculamos (Asumiendo 10% hostelería por defecto si falta)
-        const totalVentasBruto = facturasQ.reduce((acc, f) => acc + (parseFloat(f.total)||0), 0);
-        const totalVentasBase = facturasQ.reduce((acc, f) => acc + (f.base || (parseFloat(f.total)/1.10)), 0);
-        const ivaRepercutido = totalVentasBruto - totalVentasBase;
+        // 1. DATOS IVA
+        const facturasQ = db.facturas.filter(f => inPeriod(f.date));
+        const albaranesQ = db.albaranes.filter(a => inPeriod(a.date));
 
-        // 2. CALCULAR IVA SOPORTADO (GASTOS/ALBARANES)
-        const albaranesQ = db.albaranes.filter(a => {
-            const d = new Date(a.date);
-            return d.getFullYear() === selectedYear && d.getMonth() >= startMonth && d.getMonth() <= endMonth;
-        });
+        const totalVentas = facturasQ.reduce((a,f) => a + parseFloat(f.total), 0);
+        const baseVentas = facturasQ.reduce((a,f) => a + (f.base || parseFloat(f.total)/1.1), 0);
+        const ivaRep = totalVentas - baseVentas;
 
-        const ivaSoportado = albaranesQ.reduce((acc, a) => acc + (parseFloat(a.taxes) || 0), 0);
+        const ivaSop = albaranesQ.reduce((a,alb) => a + (parseFloat(alb.taxes)||0), 0);
         
-        // 3. RESULTADO
-        const resultado = ivaRepercutido - ivaSoportado;
+        // Resultado IVA
+        const resultadoIVA = ivaRep - ivaSop;
 
-        // 4. PINTAR DATOS
-        container.querySelector("#lbl-iva-ventas").innerText = ivaRepercutido.toLocaleString('es-ES', {style:'currency', currency:'EUR'});
-        container.querySelector("#lbl-iva-gastos").innerText = ivaSoportado.toLocaleString('es-ES', {style:'currency', currency:'EUR'});
+        // 2. DATOS IRPF (Modelo 130)
+        // Beneficio = Base Ventas - Base Compras - Gastos Fijos (Trimestrales)
+        const baseCompras = albaranesQ.reduce((a,alb) => {
+            return a + (parseFloat(alb.total) - (parseFloat(alb.taxes)||0));
+        }, 0);
+
+        // Estimación de Fijos para el trimestre
+        const fijosQ = (db.gastos_fijos || []).reduce((acc, g) => {
+            let val = parseFloat(g.amount) || 0;
+            if(g.freq === 'mensual') val *= 3; // 3 meses
+            // si es trimestral se suma tal cual, si es anual se divide entre 4... (simplificado)
+            return acc + val;
+        }, 0);
+
+        const beneficio = baseVentas - baseCompras - fijosQ;
         
-        const lblRes = container.querySelector("#lbl-resultado");
-        const lblState = container.querySelector("#lbl-estado");
+        // El IRPF es el 20% si hay beneficios, 0 si hay pérdidas
+        const cuotaIRPF = beneficio > 0 ? beneficio * 0.20 : 0;
 
-        lblRes.innerText = resultado.toLocaleString('es-ES', {style:'currency', currency:'EUR'});
-        
-        if (resultado > 0) {
-            lblRes.className = "text-5xl md:text-6xl font-black tracking-tight text-rose-400 mb-2";
-            lblState.className = "px-4 py-1 rounded-full text-[10px] font-black uppercase bg-rose-500/20 text-rose-300 border border-rose-500/30";
-            lblState.innerText = "A PAGAR (HACIENDA COBRA)";
-        } else {
-            lblRes.className = "text-5xl md:text-6xl font-black tracking-tight text-emerald-400 mb-2";
-            lblState.className = "px-4 py-1 rounded-full text-[10px] font-black uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/30";
-            lblState.innerText = "A DEVOLVER / COMPENSAR";
-        }
+        // 3. PINTAR
+        const fmt = (n) => n.toLocaleString('es-ES', {style:'currency', currency:'EUR'});
 
-        // Animación barras
-        const max = Math.max(ivaRepercutido, ivaSoportado) || 1;
-        setTimeout(() => {
-            container.querySelector("#bar-ventas").style.width = `${(ivaRepercutido/max)*100}%`;
-            container.querySelector("#bar-gastos").style.width = `${(ivaSoportado/max)*100}%`;
-        }, 100);
+        container.querySelector("#val-iva-rep").innerText = fmt(ivaRep);
+        container.querySelector("#val-iva-sop").innerText = fmt(ivaSop);
+        container.querySelector("#res-iva").innerText = fmt(resultadoIVA);
+        container.querySelector("#res-iva").className = `text-2xl font-black ${resultadoIVA > 0 ? 'text-rose-500' : 'text-emerald-500'}`;
 
-        renderChart(ivaRepercutido, ivaSoportado);
+        container.querySelector("#val-beneficio").innerText = fmt(beneficio);
+        container.querySelector("#res-irpf").innerText = fmt(cuotaIRPF);
+
+        // TOTAL PAIN
+        const totalPagar = (resultadoIVA > 0 ? resultadoIVA : 0) + cuotaIRPF;
+        container.querySelector("#total-pain").innerText = fmt(totalPagar);
     };
 
-    // 4. GRÁFICA CHART.JS
-    const renderChart = (ventas, gastos) => {
-        const ctx = container.querySelector('#chartFiscal').getContext('2d');
-        if (chartInstance) chartInstance.destroy();
-
-        chartInstance = new Chart(ctx, {
-            type: 'bar',
-            data: {
-                labels: ['IVA Repercutido (Cobrado)', 'IVA Soportado (Pagado)'],
-                datasets: [{
-                    label: 'Impuestos (€)',
-                    data: [ventas, gastos],
-                    backgroundColor: ['#6366f1', '#10b981'],
-                    borderRadius: 20,
-                    barThickness: 50
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: { legend: { display: false } },
-                scales: {
-                    y: { beginAtZero: true, grid: { display: false } },
-                    x: { grid: { display: false } }
-                }
-            }
-        });
-    };
-
-    // Eventos Trimestres
+    // Eventos
     container.querySelectorAll('.q-btn').forEach(btn => {
         btn.onclick = () => {
             container.querySelectorAll('.q-btn').forEach(b => {
-                b.classList.remove('bg-indigo-600', 'text-white');
+                b.classList.remove('bg-slate-900', 'text-white');
                 b.classList.add('text-slate-400');
             });
             btn.classList.remove('text-slate-400');
-            btn.classList.add('bg-indigo-600', 'text-white');
+            btn.classList.add('bg-slate-900', 'text-white');
             selectedQ = parseInt(btn.dataset.q);
             calcular();
         };
     });
 
-    // Iniciar
     calcular();
 }
