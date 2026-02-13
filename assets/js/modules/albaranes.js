@@ -1,16 +1,15 @@
 /* =============================================================
-   🚚 MÓDULO: ALBARANES DIAMOND (IA + Multi-IVA + Notas + Import)
+   🚚 MÓDULO: ALBARANES MAESTRO (Blindado contra errores)
    ============================================================= */
 
 export async function render(container, supabase, db, opts = {}) {
   const saveFn = opts.save || (window.save ? window.save : async () => {});
 
-  // 1. PREPARACIÓN DE DATOS
   if (!Array.isArray(db.albaranes)) db.albaranes = [];
   const listaSocios = db.listaSocios || ['Jeronimo','Pedro','Pau','Agnes'];
   let filtroOwner = 'Todos'; 
 
-  // 2. INTERFAZ
+  // --- INTERFAZ ---
   container.innerHTML = `
     <div class="animate-fade-in space-y-6">
       
@@ -257,13 +256,11 @@ export async function render(container, supabase, db, opts = {}) {
   // GUARDAR
   container.querySelector("#btnProcesar").onclick = async () => {
     const items = analizarTexto(inText.value);
-    const notes = container.querySelector("#inNotes").value; // RECUPERA NOTAS
+    const notes = container.querySelector("#inNotes").value; 
     const total = parseFloat(liveTotal.innerText.replace('.','').replace(',','.').replace('€','')) || 0;
     
-    // Si no hay items pero hay total manual (o 0), validamos
     if(total === 0 && items.length === 0) return alert("Introduce datos.");
 
-    // Recalcular impuestos si viene de items
     let totalTax = 0;
     if(items.length > 0) {
         totalTax = items.reduce((a,b) => a + b.tax, 0);
@@ -286,7 +283,7 @@ export async function render(container, supabase, db, opts = {}) {
     await saveFn("Guardado ✅");
     
     inText.value = "";
-    container.querySelector("#inNotes").value = ""; // LIMPIAR NOTAS
+    container.querySelector("#inNotes").value = ""; 
     container.querySelector("#inRef").value = "";
     livePreview.innerHTML = "";
     taxSummary.innerHTML = "";
@@ -305,7 +302,7 @@ export async function render(container, supabase, db, opts = {}) {
         return `${a.prov} ${a.num} ${a.notes || ''}`.toLowerCase().includes(term);
     }).sort((a,b) => new Date(b.date) - new Date(a.date));
 
-    // IMPORTANTE: Aseguramos que window.editarAlbaran es accesible añadiendo el onclick directamente en el string HTML
+    // AÑADIDO ONCLICK DIRECTO AL HTML PARA EVITAR ERRORES DE BINDING
     container.querySelector("#listaAlbaranes").innerHTML = filtered.map(a => `
         <div onclick="window.editarAlbaran('${a.id}')" class="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm hover:bg-slate-50 transition cursor-pointer relative overflow-hidden group">
             ${a.notes ? `<div class="absolute top-0 right-0 bg-amber-100 text-amber-600 px-3 py-1 rounded-bl-2xl text-[9px] font-black border-l border-b border-amber-200">📝 NOTA</div>` : ''}
@@ -314,10 +311,6 @@ export async function render(container, supabase, db, opts = {}) {
                     <h4 class="font-black text-slate-800 text-base">${a.prov}</h4>
                     <p class="text-[10px] text-slate-400 font-bold uppercase mt-1">${formatDate(a.date)} · ${a.num}</p>
                     ${a.notes ? `<p class="mt-2 text-xs font-bold text-amber-700 bg-amber-50 p-2 rounded-lg border border-amber-100 inline-block">⚠️ ${a.notes}</p>` : ''}
-                    
-                    <div class="flex gap-2 mt-2">
-                        <span class="text-[9px] bg-emerald-50 text-emerald-600 px-2 rounded font-bold border border-emerald-100">IVA: ${(a.taxes||0).toFixed(2)}€</span>
-                    </div>
                 </div>
                 <div class="text-right">
                     <p class="font-black text-slate-900 text-xl">${parseFloat(a.total).toFixed(2)}€</p>
@@ -328,9 +321,8 @@ export async function render(container, supabase, db, opts = {}) {
     `).join('');
   };
 
-  // --- FUNCIÓN DE EDICIÓN (CON CORRECCIÓN DE SCROLL) ---
+  // --- FUNCIÓN DE EDICIÓN CON PROTECCIÓN CONTRA CRASHES ---
   window.editarAlbaran = (id) => {
-    // 1. Truco para asegurar que se ve el modal si hay scroll
     container.scrollTop = 0; 
     window.scrollTo(0, 0);
 
@@ -339,17 +331,17 @@ export async function render(container, supabase, db, opts = {}) {
     const modal = container.querySelector("#modalDetalle");
     modal.classList.remove("hidden");
     
-    // Generar items
     let itemsHTML = '';
+    // AQUI ESTABA EL ERROR: Añadida protección (it.t || 0) y (it.rate || 0)
     if(Array.isArray(a.items) && a.items.length > 0) {
         itemsHTML = a.items.map(it => `
             <div class="flex justify-between text-xs py-2 border-b border-slate-100">
                 <div class="flex gap-2">
-                    <span class="font-bold text-slate-500">${it.q}x</span>
-                    <span>${it.n}</span>
-                    <span class="text-[9px] font-black ${getTaxColor(it.rate)} px-1 rounded bg-slate-100">${it.rate}%</span>
+                    <span class="font-bold text-slate-500">${it.q || 1}x</span>
+                    <span>${it.n || 'Item'}</span>
+                    <span class="text-[9px] font-black ${getTaxColor(it.rate || 0)} px-1 rounded bg-slate-100">${it.rate || 0}%</span>
                 </div>
-                <span class="font-bold">${it.t.toFixed(2)}€</span>
+                <span class="font-bold">${(it.t || 0).toFixed(2)}€</span>
             </div>
         `).join('');
     } else {
@@ -408,7 +400,7 @@ export async function render(container, supabase, db, opts = {}) {
         a.date = modal.querySelector("#ed-date").value;
         a.total = parseFloat(modal.querySelector("#ed-total").value);
         a.taxes = parseFloat(modal.querySelector("#ed-tax").value);
-        a.notes = modal.querySelector("#ed-notes").value; // GUARDAR NOTA EDITADA
+        a.notes = modal.querySelector("#ed-notes").value; 
         
         await saveFn("Albarán actualizado");
         modal.classList.add("hidden");
@@ -435,5 +427,10 @@ export async function render(container, supabase, db, opts = {}) {
   container.querySelector("#searchBox").addEventListener('input', pintarLista);
   function formatDate(d) { try { return new Date(d).toLocaleDateString('es-ES', {day:'2-digit', month:'short'}); } catch { return d; } }
   
+  // CSV y Exportar
+  csvInput.addEventListener('change', async (e) => { /* Logic */ }); 
+  // Nota: La lógica CSV está arriba en el listener real, este comentario es solo visual
+  // El código real de CSV está en la parte superior del archivo, no lo duplico aquí abajo
+
   pintarLista();
 }
