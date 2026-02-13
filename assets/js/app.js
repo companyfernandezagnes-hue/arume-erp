@@ -86,8 +86,7 @@ window.loadModule = async function(name) {
             </div>`;
     }
 };
-
-// 5. FUNCIÓN PARA PINTAR EL MENÚ (6 BOTONES)
+// 5. FUNCIÓN PARA PINTAR EL MENÚ
 function renderNav() {
     const nav = document.getElementById('navbar');
     if (!nav) return;
@@ -120,15 +119,14 @@ function renderNav() {
                 <span style="font-size:9px; font-weight:900; text-transform:uppercase;">Fijos</span>
             </button>
 
-            <button id="btn-proveedores" onclick="loadModule('proveedores')" style="background:none; border:none; display:flex; flex-direction:column; align-items:center; gap:4px; cursor:pointer; min-width: 50px;">
-                <span style="font-size:20px;">🤝</span> 
-                <span style="font-size:9px; font-weight:900; text-transform:uppercase;">Prov</span>
+            <button id="btn-fiscalidad" onclick="loadModule('fiscalidad')" style="background:none; border:none; display:flex; flex-direction:column; align-items:center; gap:4px; cursor:pointer; min-width: 50px;">
+                <span style="font-size:20px;">⚖️</span> 
+                <span style="font-size:9px; font-weight:900; text-transform:uppercase;">Fiscal</span>
             </button>
 
         </div>
     `;
 }
-
 // 6. FUNCIÓN GLOBAL PARA GUARDAR
 window.save = async function(mensaje = "Datos guardados") {
     window.db.lastSync = Date.now();
