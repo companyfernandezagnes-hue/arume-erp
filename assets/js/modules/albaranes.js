@@ -1,76 +1,73 @@
 /* =============================================================
-   🚚 MÓDULO: ALBARANES "IA" (Sin Stock - Solo Control Total)
+   🚚 MÓDULO: ALBARANES DIAMOND (Multi-IVA por Línea)
    ============================================================= */
 
 export async function render(container, supabase, db, opts = {}) {
   const saveFn = opts.save || (window.save ? window.save : async () => {});
 
-  // 1. PREPARACIÓN DE DATOS
   if (!Array.isArray(db.albaranes)) db.albaranes = [];
   const listaSocios = db.listaSocios || ['Jeronimo','Pedro','Pau','Agnes'];
-  let filtroTexto = "";
   let filtroOwner = 'Todos'; 
 
-  // 2. INTERFAZ (DISEÑO SPLIT: CEREBRO IZQUIERDA / LISTA DERECHA)
+  // --- INTERFAZ ---
   container.innerHTML = `
     <div class="animate-fade-in space-y-6">
       
       <header class="flex flex-col md:flex-row justify-between items-center bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100">
          <div>
-            <h2 class="text-xl font-black text-slate-800">Escáner de Facturas</h2>
-            <p class="text-[10px] text-indigo-500 font-bold uppercase tracking-widest">Digitalización Inteligente</p>
+            <h2 class="text-xl font-black text-slate-800">Escáner Multi-IVA</h2>
+            <p class="text-[10px] text-indigo-500 font-bold uppercase tracking-widest">Desglose Fiscal Automático</p>
          </div>
          <div class="flex gap-2 mt-4 md:mt-0">
-            <button id="btnExport" class="bg-slate-800 text-white px-5 py-2 rounded-2xl text-[10px] font-black shadow-md hover:bg-slate-700 transition">EXPORTAR TODO</button>
-            <label class="bg-indigo-50 text-indigo-600 px-5 py-2 rounded-2xl text-[10px] font-black hover:bg-indigo-100 transition cursor-pointer border border-indigo-100">
-                IMPORTAR CSV <input type="file" id="csvInput" class="hidden" accept=".csv">
-            </label>
+             <div class="text-right">
+                <p class="text-[9px] font-black text-slate-400 uppercase">Total Soportado</p>
+                <p class="text-xl font-black text-slate-800" id="total-global-kpi">0.00€</p>
+             </div>
          </div>
       </header>
 
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
         <div class="lg:col-span-1 space-y-4">
-            <div class="bg-white p-6 rounded-[2.5rem] shadow-2xl border border-indigo-50 relative overflow-hidden">
-                <div class="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500"></div>
-                
+            <div class="bg-white p-6 rounded-[2.5rem] shadow-xl border-2 border-indigo-50 relative">
+                <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-400 via-indigo-500 to-rose-500"></div>
+
                 <h3 class="text-sm font-black text-slate-800 mb-4 flex items-center gap-2">
-                    ⚡ Entrada Rápida
+                   ⚡ Entrada Rápida
                 </h3>
 
                 <div class="space-y-3 mb-4">
-                    <input id="inProv" type="text" placeholder="Proveedor (ej. Makro)" class="w-full p-3 bg-slate-50 rounded-xl text-sm font-bold border-0 outline-none focus:ring-2 focus:ring-indigo-500 transition placeholder-slate-300 text-slate-700">
+                    <input id="inProv" type="text" placeholder="Proveedor (ej. Makro)" class="w-full p-3 bg-slate-50 rounded-xl text-sm font-bold border-0 outline-none focus:ring-2 focus:ring-indigo-500">
                     <div class="flex gap-2">
-                        <input id="inDate" type="date" value="${new Date().toISOString().split('T')[0]}" class="flex-1 p-3 bg-slate-50 rounded-xl text-sm font-bold border-0 outline-none text-slate-700">
-                        <input id="inRef" type="text" placeholder="Nº Ref" class="w-1/3 p-3 bg-slate-50 rounded-xl text-sm font-bold border-0 outline-none text-slate-700">
+                        <input id="inDate" type="date" value="${new Date().toISOString().split('T')[0]}" class="flex-1 p-3 bg-slate-50 rounded-xl text-sm font-bold border-0">
+                        <input id="inRef" type="text" placeholder="Nº Ref" class="w-1/3 p-3 bg-slate-50 rounded-xl text-sm font-bold border-0">
                     </div>
-                    <select id="inSocio" class="w-full p-3 bg-slate-50 rounded-xl text-xs font-bold border-0 outline-none text-slate-600 cursor-pointer">
+                    <select id="inSocio" class="w-full p-3 bg-slate-50 rounded-xl text-xs font-bold border-0 outline-none text-slate-600">
                         <option value="Arume">Gasto: Restaurante</option>
                         ${listaSocios.map(s => `<option value="${s}">Gasto: ${s}</option>`).join('')}
                     </select>
                 </div>
 
-                <div class="mb-4 relative">
-                    <input id="inNotes" type="text" placeholder="📝 Notas (ej. Vino roto, Precio pactado...)" 
-                           class="w-full p-3 pl-10 bg-amber-50 text-amber-900 placeholder-amber-400/70 rounded-xl text-xs font-bold border border-amber-100 outline-none focus:ring-2 focus:ring-amber-400 transition">
-                    <span class="absolute left-3 top-3 text-amber-400">⚠️</span>
+                <div class="relative mb-3">
+                    <textarea id="inText" placeholder="Ejemplos:&#10;2 Cajas Tomates 15.00&#10;1 Ginebra 12.50 21%&#10;Lejía 5.00 21" 
+                        class="w-full h-40 bg-slate-50 rounded-2xl p-4 text-xs font-mono border-0 outline-none resize-none focus:bg-white focus:ring-2 focus:ring-indigo-500 transition shadow-inner"></textarea>
+                    <p class="absolute bottom-2 right-4 text-[9px] text-slate-300 font-bold pointer-events-none">Añade '21' al final para alcohol/químicos</p>
                 </div>
 
-                <div class="relative">
-                    <textarea id="inText" placeholder="Pega aquí el texto...&#10;Ejemplos:&#10;2 Solomillos 45.50&#10;Caja Gambas 22.00&#10;Limones 3.50" 
-                        class="w-full h-32 bg-slate-50 rounded-2xl p-4 text-xs font-mono border-0 outline-none resize-none focus:bg-white focus:ring-2 focus:ring-indigo-500 transition shadow-inner"></textarea>
+                <div id="livePreview" class="mt-3 space-y-1 max-h-40 overflow-y-auto custom-scrollbar px-1 bg-slate-50/50 rounded-xl p-2">
+                    <p class="text-[10px] text-slate-300 text-center italic py-2">Escribe para desglosar impuestos...</p>
                 </div>
 
-                <div id="livePreview" class="mt-3 space-y-1 max-h-32 overflow-y-auto custom-scrollbar px-1">
-                    <p class="text-[10px] text-slate-300 text-center italic py-2">Escribe arriba para ver la magia...</p>
-                </div>
-
-                <div class="mt-4 p-4 bg-slate-900 rounded-2xl flex justify-between items-center shadow-lg transform transition-all">
-                    <div class="text-left">
-                        <span class="text-[9px] font-black text-slate-400 uppercase block">Total Reconocido</span>
-                        <span id="itemCount" class="text-[9px] font-bold text-indigo-400">0 líneas</span>
+                <div class="mt-4 p-4 bg-slate-900 rounded-2xl shadow-lg space-y-2">
+                    <div class="flex justify-between text-[10px] text-slate-400 font-bold border-b border-slate-700 pb-1">
+                        <span>TIPO</span> <span>BASE</span> <span>CUOTA</span>
                     </div>
-                    <span id="liveTotal" class="text-2xl font-black text-white">0.00€</span>
+                    <div id="taxSummary" class="space-y-1">
+                        </div>
+                    <div class="flex justify-between items-center pt-2 border-t border-slate-700 mt-2">
+                        <span class="text-xs font-black text-white uppercase">TOTAL PAGAR</span>
+                        <span id="liveTotal" class="text-2xl font-black text-white">0.00€</span>
+                    </div>
                 </div>
 
                 <button id="btnProcesar" class="w-full mt-4 bg-indigo-600 text-white py-4 rounded-2xl font-black shadow-xl hover:bg-indigo-700 active:scale-95 transition">
@@ -80,19 +77,13 @@ export async function render(container, supabase, db, opts = {}) {
         </div>
 
         <div class="lg:col-span-2 space-y-6">
-            
             <div class="bg-white p-2 rounded-full shadow-sm border border-slate-100 flex justify-between items-center px-4 sticky top-0 z-10">
-                <div class="flex items-center gap-2 w-full">
-                    <span class="text-lg">🔍</span>
-                    <input id="searchBox" type="text" placeholder="Buscar proveedor, ref o nota..." class="bg-transparent text-sm font-bold outline-none w-full text-slate-600 placeholder-slate-300">
-                </div>
-                <div class="flex gap-1 shrink-0">
-                    <button data-filter="Todos" class="filter-btn px-4 py-1.5 rounded-full text-[9px] font-black uppercase bg-slate-900 text-white transition">Todos</button>
-                    <button data-filter="Arume" class="filter-btn px-4 py-1.5 rounded-full text-[9px] font-black uppercase bg-slate-100 text-slate-400 transition">Rest.</button>
-                    <button data-filter="Socios" class="filter-btn px-4 py-1.5 rounded-full text-[9px] font-black uppercase bg-slate-100 text-slate-400 transition">Socios</button>
+                <input id="searchBox" type="text" placeholder="Buscar..." class="bg-transparent text-sm font-bold outline-none w-full text-slate-600">
+                <div class="flex gap-1">
+                    <button data-filter="Todos" class="filter-btn px-3 py-1 rounded-full text-[9px] font-black uppercase bg-slate-900 text-white">Todos</button>
+                    <button data-filter="Arume" class="filter-btn px-3 py-1 rounded-full text-[9px] font-black uppercase bg-slate-100 text-slate-400">Rest.</button>
                 </div>
             </div>
-
             <div id="listaAlbaranes" class="space-y-3 pb-20"></div>
         </div>
       </div>
@@ -101,224 +92,250 @@ export async function render(container, supabase, db, opts = {}) {
     <div id="modalDetalle" class="hidden fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[200] flex justify-center items-center p-4"></div>
   `;
 
-  // --- 3. EL CEREBRO DE LA IA (Regex Engine) ---
+  // --- CEREBRO IA MULTI-IVA ---
   const inText = container.querySelector("#inText");
   const livePreview = container.querySelector("#livePreview");
   const liveTotal = container.querySelector("#liveTotal");
-  const itemCount = container.querySelector("#itemCount");
+  const taxSummary = container.querySelector("#taxSummary");
 
-  // Función Inteligente: Convierte texto sucio en datos limpios
+  // Función: Analiza línea a línea buscando "21" o "%" al final
   const analizarTexto = (texto) => {
     return texto.split('\n').filter(l => l.trim()).map(line => {
-        let cleanLine = line.trim();
-        
-        // 1. Buscamos el precio al final (soporta "12.50", "12,50", "12.50€")
-        const priceMatch = cleanLine.match(/(\d+[\.,]?\d*)\s*€?$/);
+        let clean = line.trim();
+        let rate = 10; // Por defecto Hostelería (Comida)
+
+        // 1. Detectar Tasa de IVA al final (ej: "21", "21%", "4%", "10")
+        // Buscamos un número (1 o 2 dígitos) seguido opcionalmente de % AL FINAL de la línea
+        const taxMatch = clean.match(/\s(\d{1,2})%?$/);
+        if (taxMatch) {
+            const detected = parseInt(taxMatch[1]);
+            if([0, 4, 10, 21].includes(detected)) {
+                rate = detected;
+                // Quitamos el indicador de IVA de la línea para no confundir al precio
+                clean = clean.substring(0, taxMatch.index).trim();
+            }
+        }
+
+        // 2. Detectar Precio (lo que queda al final)
+        const priceMatch = clean.match(/(\d+[\.,]?\d*)\s*€?$/);
         
         if (priceMatch) {
-            const priceStr = priceMatch[1].replace(',', '.');
-            const price = parseFloat(priceStr);
+            const priceVal = parseFloat(priceMatch[1].replace(',', '.'));
             
-            // Quitamos el precio de la línea para buscar el resto
-            let rest = cleanLine.substring(0, priceMatch.index).trim();
-            
-            // 2. Buscamos cantidad al principio (opcional)
+            // 3. Detectar Cantidad y Nombre (lo que queda al principio)
+            let rest = clean.substring(0, priceMatch.index).trim();
             let qty = 1;
             const qtyMatch = rest.match(/^(\d+[\.,]?\d*)\s+/);
             
             if (qtyMatch) {
-                // Si empieza por número, es la cantidad
                 qty = parseFloat(qtyMatch[1].replace(',', '.'));
-                // El nombre es lo que queda
-                let name = rest.substring(qtyMatch[0].length).trim();
-                // Limpiamos unidades comunes (kg, ud, cajas) si están pegadas al nombre
-                name = name.replace(/^(cajas?|kg|gr|uds?|botellas?)\s+/i, '');
-                return { q: qty, n: name || "Varios", p: price, t: qty * price };
-            } else {
-                // Si no hay numero al principio, es 1 unidad
-                return { q: 1, n: rest || "Varios", p: price, t: price }; // Aquí asumimos que el precio final es el total de la línea
+                rest = rest.substring(qtyMatch[0].length).trim();
             }
+            
+            let name = rest.replace(/^(cajas?|kg|gr|uds?|botellas?)\s+/i, '') || "Varios";
+
+            // CÁLCULOS
+            const totalLine = qty * priceVal; // Total Bruto (lo que pagas)
+            const baseLine = totalLine / (1 + rate/100);
+            const taxLine = totalLine - baseLine;
+
+            return { 
+                q: qty, n: name, p: priceVal, 
+                rate: rate, // Guardamos el % de esta línea
+                t: totalLine, 
+                base: baseLine, 
+                tax: taxLine 
+            };
         }
-        return null; 
+        return null;
     }).filter(Boolean);
   };
 
-  // Evento: Escribir en tiempo real
+  // Renderizar Previsualización
   inText.addEventListener('input', () => {
     const items = analizarTexto(inText.value);
-    const total = items.reduce((acc, it) => acc + it.t, 0); // Sumamos los totales de línea
+    
+    // Agrupar impuestos para el resumen
+    const taxes = { 10: {b:0, i:0}, 21: {b:0, i:0}, 4: {b:0, i:0}, 0: {b:0, i:0} };
+    let grandTotal = 0;
 
-    // Pintar Previsualización
+    items.forEach(it => {
+        if(!taxes[it.rate]) taxes[it.rate] = {b:0, i:0};
+        taxes[it.rate].b += it.base;
+        taxes[it.rate].i += it.tax;
+        grandTotal += it.t;
+    });
+
+    // Pintar Items
     if (items.length > 0) {
         livePreview.innerHTML = items.map(it => `
-            <div class="flex justify-between items-center text-[10px] p-2 bg-indigo-50/50 rounded-lg border border-indigo-50">
-                <div class="flex gap-2">
-                    <span class="font-bold text-indigo-600 w-8 text-right">${it.q} x</span>
-                    <span class="font-bold text-slate-700 truncate max-w-[120px]">${it.n}</span>
+            <div class="flex justify-between items-center text-[10px] py-1 border-b border-slate-200 last:border-0">
+                <div class="flex gap-2 items-center">
+                    <span class="font-bold text-slate-500 w-6 text-right">${it.q}x</span>
+                    <span class="font-bold text-slate-700 truncate max-w-[100px]">${it.n}</span>
+                    <span class="px-1.5 py-0.5 rounded text-[8px] font-black ${getTaxColor(it.rate)}">${it.rate}%</span>
                 </div>
                 <span class="font-black text-slate-900">${it.t.toFixed(2)}€</span>
             </div>
         `).join('');
-        itemCount.innerText = `${items.length} líneas detectadas`;
-        itemCount.classList.replace('text-indigo-400', 'text-emerald-400');
     } else {
-        livePreview.innerHTML = '<p class="text-[10px] text-slate-300 text-center italic py-2">Escribe arriba para ver la magia...</p>';
-        itemCount.innerText = "0 líneas";
+        livePreview.innerHTML = '<p class="text-[10px] text-slate-300 text-center italic py-2">Escribe líneas...</p>';
     }
 
-    liveTotal.innerText = total.toLocaleString('es-ES', {minimumFractionDigits: 2}) + "€";
+    // Pintar Resumen Fiscal
+    taxSummary.innerHTML = Object.keys(taxes).map(r => {
+        if(taxes[r].b === 0) return '';
+        return `
+            <div class="flex justify-between text-[10px] text-slate-300">
+                <span class="font-bold w-10">IVA ${r}%</span>
+                <span class="font-mono text-right flex-1">${taxes[r].b.toFixed(2)}€</span>
+                <span class="font-mono text-right w-16 text-emerald-400">+${taxes[r].i.toFixed(2)}€</span>
+            </div>
+        `;
+    }).join('');
+
+    liveTotal.innerText = grandTotal.toLocaleString('es-ES', {minimumFractionDigits: 2}) + "€";
   });
 
-  // --- 4. GUARDAR ALBARÁN ---
+  // --- GUARDAR ---
   container.querySelector("#btnProcesar").onclick = async () => {
-    const prov = container.querySelector("#inProv").value || "Varios";
-    const ref = container.querySelector("#inRef").value || "S/N";
-    const date = container.querySelector("#inDate").value;
-    const socio = container.querySelector("#inSocio").value;
-    const notes = container.querySelector("#inNotes").value;
-    
-    // Usamos la IA para generar los items finales
     const items = analizarTexto(inText.value);
-    const total = parseFloat(liveTotal.innerText.replace('.','').replace(',','.').replace('€',''));
+    if(items.length === 0) return alert("No hay datos válidos.");
 
-    if (items.length === 0 && total === 0) return alert("⚠️ No he detectado ningún precio. Revisa el texto.");
+    // Recalcular totales finales
+    const total = items.reduce((a,b) => a + b.t, 0);
+    const totalTax = items.reduce((a,b) => a + b.tax, 0); // Suma de todas las cuotas
 
     const nuevo = {
         id: Date.now().toString(),
-        prov, num: ref, date, socio, notes,
-        items: items, // Guardamos los items procesados por si acaso
+        prov: container.querySelector("#inProv").value || "Varios",
+        num: container.querySelector("#inRef").value || "S/N",
+        date: container.querySelector("#inDate").value,
+        socio: container.querySelector("#inSocio").value,
+        items: items, // Guardamos el array detallado con tipos de IVA
         total: total,
-        invoiced: false
+        taxes: totalTax,
+        invoiced: false,
+        notes: "Entrada Inteligente Multi-IVA"
     };
 
     db.albaranes.push(nuevo);
-    await saveFn("Albarán procesado correctamente 🚀");
-    
-    // Reset
+    await saveFn("Albarán Multi-IVA Guardado 🚀");
     inText.value = "";
-    container.querySelector("#inRef").value = "";
-    container.querySelector("#inNotes").value = "";
+    livePreview.innerHTML = "";
+    taxSummary.innerHTML = "";
     liveTotal.innerText = "0.00€";
-    livePreview.innerHTML = '<p class="text-[10px] text-slate-300 text-center italic py-2">Listo para el siguiente...</p>';
     pintarLista();
   };
 
-  // --- 5. LISTADO INTELIGENTE ---
+  // --- LISTADO ---
   const pintarLista = () => {
     const term = container.querySelector("#searchBox").value.toLowerCase();
     
+    // KPI Global (Total Albaranes)
+    const totalGlobal = db.albaranes.reduce((acc, a) => acc + (parseFloat(a.total)||0), 0);
+    container.querySelector("#total-global-kpi").innerText = totalGlobal.toLocaleString('es-ES',{minimumFractionDigits:2}) + "€";
+
     const filtered = db.albaranes.filter(a => {
-        const esSocio = a.socio && a.socio !== 'Arume' && a.socio !== 'Restaurante';
-        if (filtroOwner === 'Arume' && esSocio) return false;
-        if (filtroOwner === 'Socios' && !esSocio) return false;
-        
-        const txt = `${a.prov} ${a.num} ${a.notes || ''}`.toLowerCase();
-        return txt.includes(term);
+        if (filtroOwner === 'Arume' && a.socio !== 'Arume' && a.socio !== 'Restaurante') return false;
+        return `${a.prov} ${a.num}`.toLowerCase().includes(term);
     }).sort((a,b) => new Date(b.date) - new Date(a.date));
 
     container.querySelector("#listaAlbaranes").innerHTML = filtered.map(a => `
-        <div onclick="window.abrirAlbaran('${a.id}')" class="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm hover:shadow-md hover:scale-[1.01] transition cursor-pointer relative overflow-hidden group">
-            
-            ${a.notes ? `<div class="absolute top-0 right-0 bg-amber-100 text-amber-600 px-3 py-1 rounded-bl-2xl text-[9px] font-black border-l border-b border-amber-200">📝 NOTA</div>` : ''}
-
+        <div onclick="window.editarAlbaran('${a.id}')" class="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm hover:bg-slate-50 transition cursor-pointer relative overflow-hidden group">
             <div class="flex justify-between items-center">
                 <div>
-                    <h4 class="font-black text-slate-800 text-base group-hover:text-indigo-600 transition">${a.prov}</h4>
-                    <div class="flex gap-2 items-center mt-1">
-                        <span class="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-md font-bold uppercase tracking-wider">${formatDate(a.date)}</span>
-                        <span class="text-[10px] text-slate-400 font-mono">Ref: ${a.num}</span>
-                        ${a.invoiced ? '<span class="text-[8px] border border-emerald-200 text-emerald-600 px-1.5 rounded font-black">FACTURADO</span>' : ''}
+                    <h4 class="font-black text-slate-800 text-base">${a.prov}</h4>
+                    <p class="text-[10px] text-slate-400 font-bold uppercase mt-1">${formatDate(a.date)} · ${a.num}</p>
+                    
+                    <div class="flex gap-2 mt-2">
+                         ${ (a.items && Array.isArray(a.items)) ? 
+                            a.items.some(i => i.rate == 21) ? '<span class="text-[8px] bg-rose-100 text-rose-600 px-1.5 rounded font-black">21%</span>' : '' 
+                        : '' }
+                        <span class="text-[9px] bg-emerald-50 text-emerald-600 px-2 rounded font-bold border border-emerald-100">
+                            IVA: ${(a.taxes||0).toFixed(2)}€
+                        </span>
                     </div>
-                    ${a.notes ? `<p class="mt-2 text-xs font-bold text-amber-700 bg-amber-50 p-2 rounded-lg border border-amber-100 inline-block">⚠️ ${a.notes}</p>` : ''}
                 </div>
                 <div class="text-right">
                     <p class="font-black text-slate-900 text-xl">${parseFloat(a.total).toFixed(2)}€</p>
-                    <p class="text-[9px] text-indigo-400 font-bold uppercase">${a.socio || 'Restaurante'}</p>
+                    ${a.invoiced ? '<span class="text-[8px] text-indigo-400 font-black">FACTURADO</span>' : ''}
                 </div>
             </div>
         </div>
     `).join('');
   };
 
-  // --- 6. EDICIÓN ---
-  window.abrirAlbaran = (id) => {
+  // --- EDICIÓN (VISUALIZACIÓN DETALLADA) ---
+  window.editarAlbaran = (id) => {
     const a = db.albaranes.find(x => x.id === id);
     if (!a) return;
 
     const modal = container.querySelector("#modalDetalle");
     modal.classList.remove("hidden");
     
-    // Generamos la lista de items guardados
-    const listItems = (a.items || []).map(it => `
-        <div class="flex justify-between text-xs py-1 border-b border-slate-50">
-            <span class="text-slate-600 w-2/3 truncate">${it.q} x ${it.n}</span>
-            <span class="font-bold text-slate-900">${it.t.toFixed(2)}€</span>
-        </div>
-    `).join('');
+    // Si es antiguo (string) o nuevo (array)
+    let itemsHTML = '';
+    if(Array.isArray(a.items)) {
+        itemsHTML = a.items.map(it => `
+            <div class="flex justify-between text-xs py-2 border-b border-slate-100 last:border-0">
+                <div class="flex gap-2">
+                    <span class="font-bold text-slate-500">${it.q}x</span>
+                    <span>${it.n}</span>
+                    <span class="text-[9px] font-black ${getTaxColor(it.rate)} px-1 rounded bg-slate-100">${it.rate}%</span>
+                </div>
+                <span class="font-bold">${it.t.toFixed(2)}€</span>
+            </div>
+        `).join('');
+    } else {
+        itemsHTML = `<div class="p-2 text-xs italic text-slate-400">${a.items || 'Sin detalle'}</div>`;
+    }
 
     modal.innerHTML = `
         <div class="bg-white w-full max-w-lg rounded-[2.5rem] p-8 shadow-2xl animate-slide-up relative">
-            <h3 class="text-2xl font-black text-slate-800 mb-1">${a.prov}</h3>
-            <p class="text-xs font-bold text-indigo-500 uppercase tracking-widest mb-6">Editando Albarán</p>
-
-            <div class="space-y-4">
-                <div>
-                    <label class="text-[10px] font-bold text-slate-400 uppercase ml-2">Notas / Incidencias</label>
-                    <input id="editNotes" type="text" value="${a.notes || ''}" class="w-full p-3 bg-amber-50 text-amber-900 rounded-xl text-xs font-bold border border-amber-100 outline-none">
-                </div>
-
-                <div class="bg-slate-50 p-4 rounded-2xl max-h-40 overflow-y-auto">
-                    ${listItems || '<p class="text-xs italic text-slate-400">Sin detalle</p>'}
-                </div>
-
-                <div class="flex justify-between items-center pt-2">
-                    <span class="font-black text-slate-400 uppercase text-xs">Total</span>
-                    <span class="font-black text-3xl text-slate-900">${parseFloat(a.total).toFixed(2)}€</span>
-                </div>
-
-                <div class="grid grid-cols-2 gap-3 mt-4">
-                    <button id="btnSaveEdit" class="bg-indigo-600 text-white py-3 rounded-2xl font-black text-xs shadow-lg">GUARDAR CAMBIOS</button>
-                    <button onclick="borrarAlbaran('${a.id}')" class="bg-rose-50 text-rose-500 py-3 rounded-2xl font-black text-xs border border-rose-100">ELIMINAR</button>
-                </div>
-                <button onclick="document.getElementById('modalDetalle').classList.add('hidden')" class="w-full mt-2 text-slate-400 text-xs font-bold">CANCELAR</button>
+            <h3 class="text-2xl font-black text-slate-800 mb-2">${a.prov}</h3>
+            
+            <div class="flex justify-between items-center mb-6 bg-slate-50 p-3 rounded-2xl border border-slate-100">
+                 <div>
+                    <p class="text-[9px] font-bold text-slate-400 uppercase">Total Cuota IVA</p>
+                    <p class="text-lg font-black text-emerald-500">${(a.taxes||0).toFixed(2)}€</p>
+                 </div>
+                 <div class="text-right">
+                    <p class="text-[9px] font-bold text-slate-400 uppercase">Total Bruto</p>
+                    <p class="text-2xl font-black text-slate-900">${(a.total||0).toFixed(2)}€</p>
+                 </div>
             </div>
+
+            <div class="max-h-60 overflow-y-auto custom-scrollbar mb-4 bg-white border border-slate-100 rounded-2xl p-4">
+                ${itemsHTML}
+            </div>
+
+            <button onclick="borrarAlbaran('${a.id}')" class="w-full bg-rose-50 text-rose-500 py-3 rounded-2xl font-black text-xs border border-rose-100 mb-2">ELIMINAR ALBARÁN</button>
+            <button onclick="document.getElementById('modalDetalle').classList.add('hidden')" class="w-full text-slate-400 text-xs font-bold">CERRAR</button>
         </div>
     `;
-
-    modal.querySelector("#btnSaveEdit").onclick = async () => {
-        a.notes = modal.querySelector("#editNotes").value;
-        await saveFn("Nota actualizada");
-        modal.classList.add("hidden");
-        pintarLista();
-    };
   };
 
   window.borrarAlbaran = async (id) => {
-    if (!confirm("¿Eliminar definitivamente?")) return;
+    if(!confirm("¿Borrar?")) return;
     db.albaranes = db.albaranes.filter(x => x.id !== id);
-    await saveFn("Albarán eliminado");
+    await saveFn("Borrado");
     container.querySelector("#modalDetalle").classList.add("hidden");
     pintarLista();
   };
 
-  // Filtros UI
+  // Helpers
+  function getTaxColor(r) {
+      if(r == 21) return "text-rose-500";
+      if(r == 10) return "text-indigo-500";
+      if(r == 4) return "text-emerald-500";
+      return "text-slate-400";
+  }
   container.querySelectorAll(".filter-btn").forEach(btn => {
-    btn.onclick = () => {
-        container.querySelectorAll(".filter-btn").forEach(b => {
-            b.classList.remove("bg-slate-900", "text-white");
-            b.classList.add("bg-slate-100", "text-slate-400");
-        });
-        btn.classList.remove("bg-slate-100", "text-slate-400");
-        btn.classList.add("bg-slate-900", "text-white");
-        filtroOwner = btn.dataset.filter;
-        pintarLista();
-    };
+    btn.onclick = () => { filtroOwner = btn.dataset.filter; pintarLista(); };
   });
-  
   container.querySelector("#searchBox").addEventListener('input', pintarLista);
-  
   function formatDate(d) { try { return new Date(d).toLocaleDateString('es-ES', {day:'2-digit', month:'short'}); } catch { return d; } }
-
-  // Init
+  
   pintarLista();
 }
