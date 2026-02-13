@@ -1,5 +1,5 @@
 /* =============================================================
-   🚚 MÓDULO: ALBARANES DIAMOND (IA + Multi-IVA + IMPORT/EXPORT)
+   🚚 MÓDULO: ALBARANES DIAMOND (IA + Multi-IVA + Notas + Import)
    ============================================================= */
 
 export async function render(container, supabase, db, opts = {}) {
@@ -58,6 +58,12 @@ export async function render(container, supabase, db, opts = {}) {
                     </select>
                 </div>
 
+                <div class="mb-4 relative">
+                    <input id="inNotes" type="text" placeholder="📝 Notas (ej. Vino roto, Devolución...)" 
+                           class="w-full p-3 pl-10 bg-amber-50 text-amber-900 placeholder-amber-400/70 rounded-xl text-xs font-bold border border-amber-100 outline-none focus:ring-2 focus:ring-amber-400 transition">
+                    <span class="absolute left-3 top-3 text-amber-400">⚠️</span>
+                </div>
+
                 <div class="relative mb-3">
                     <textarea id="inText" placeholder="Ejemplos:&#10;2 Cajas Tomates 15.00&#10;1 Ginebra 12.50 21%&#10;Lejía 5.00 21" 
                         class="w-full h-40 bg-slate-50 rounded-2xl p-4 text-xs font-mono border-0 outline-none resize-none focus:bg-white focus:ring-2 focus:ring-indigo-500 transition shadow-inner"></textarea>
@@ -110,7 +116,7 @@ export async function render(container, supabase, db, opts = {}) {
   const btnExport = container.querySelector("#btnExport");
 
   /* =============================================================
-     📥 LÓGICA DE IMPORTACIÓN CSV (RECUPERADA)
+     📥 IMPORTACIÓN CSV
      ============================================================= */
   csvInput.addEventListener('change', async (e) => {
     const file = e.target.files[0];
@@ -119,60 +125,47 @@ export async function render(container, supabase, db, opts = {}) {
     const reader = new FileReader();
     reader.onload = async (evt) => {
         const text = evt.target.result;
-        // Separamos por líneas
-        const rows = text.split('\n').slice(1); // Asumimos que la primera es cabecera
+        const rows = text.split('\n').slice(1);
         let importedCount = 0;
 
         rows.forEach(row => {
             if (!row.trim()) return;
-            // Intentamos separar por ; (Excel europeo) o , (Excel americano)
             let cols = row.includes(';') ? row.split(';') : row.split(',');
             
-            // Estructura esperada CSV: Fecha; Proveedor; Ref; Total; Socio; IVA(Opcional)
             if (cols.length >= 4) {
-                const date = cols[0].trim();
-                const prov = cols[1].trim();
-                const num = cols[2].trim();
                 const total = parseFloat(cols[3].replace(',', '.')) || 0;
-                const socio = cols[4] ? cols[4].trim() : "Arume";
-                
-                // Cálculo simple de IVA (Asumimos 10% si no viene) para mantener coherencia
-                const rate = 10; 
                 const base = total / 1.10;
                 const tax = total - base;
 
-                // Crear objeto compatible con la IA
                 const newItem = {
                     id: Date.now() + Math.random(),
-                    date: date,
-                    prov: prov,
-                    num: num,
-                    socio: socio,
+                    date: cols[0].trim(),
+                    prov: cols[1].trim(),
+                    num: cols[2].trim(),
+                    socio: cols[4] ? cols[4].trim() : "Arume",
                     total: total,
-                    taxes: tax, // Guardamos el IVA calculado
-                    items: [{ q:1, n: "Importado CSV", p: total, rate: 10, t: total, base: base, tax: tax }], // Item dummy
+                    taxes: tax,
+                    items: [{ q:1, n: "Importado CSV", p: total, rate: 10, t: total, base: base, tax: tax }],
                     invoiced: false,
-                    notes: "Importado desde Archivo"
+                    notes: cols[7] || "Importado CSV" // Intentar leer notas de la col 7
                 };
-                
                 db.albaranes.push(newItem);
                 importedCount++;
             }
         });
-
-        await saveFn(`Importados ${importedCount} albaranes correctamente 📂`);
+        await saveFn(`Importados ${importedCount} albaranes 📂`);
         pintarLista();
-        csvInput.value = ""; // Limpiar input para permitir recargar el mismo archivo
+        csvInput.value = "";
     };
     reader.readAsText(file);
   });
 
   /* =============================================================
-     ⬇️ LÓGICA DE EXPORTACIÓN (RECUPERADA)
+     ⬇️ EXPORTACIÓN
      ============================================================= */
   btnExport.onclick = () => {
     let csvContent = "data:text/csv;charset=utf-8,";
-    csvContent += "Fecha;Proveedor;Referencia;Socio;Base;CuotaIVA;Total;Notas\n"; // Cabecera
+    csvContent += "Fecha;Proveedor;Referencia;Socio;Base;CuotaIVA;Total;Notas\n";
 
     db.albaranes.forEach(a => {
         const fecha = a.date || "";
@@ -196,14 +189,13 @@ export async function render(container, supabase, db, opts = {}) {
     link.remove();
   };
 
-
   /* =============================================================
-     🧠 LÓGICA IA (MULTI-IVA)
+     🧠 LÓGICA IA
      ============================================================= */
   const analizarTexto = (texto) => {
     return texto.split('\n').filter(l => l.trim()).map(line => {
         let clean = line.trim();
-        let rate = 10; // Default
+        let rate = 10; 
 
         const taxMatch = clean.match(/\s(\d{1,2})%?$/);
         if (taxMatch) {
@@ -280,6 +272,9 @@ export async function render(container, supabase, db, opts = {}) {
   // GUARDAR
   container.querySelector("#btnProcesar").onclick = async () => {
     const items = analizarTexto(inText.value);
+    // Recuperar nota del input (IMPORTANTE)
+    const notes = container.querySelector("#inNotes").value; 
+
     if(items.length === 0) return alert("No hay datos válidos.");
 
     const total = items.reduce((a,b) => a + b.t, 0);
@@ -295,12 +290,16 @@ export async function render(container, supabase, db, opts = {}) {
         total: total,
         taxes: totalTax,
         invoiced: false,
-        notes: "Entrada Inteligente Multi-IVA"
+        notes: notes // Guardamos la nota real
     };
 
     db.albaranes.push(nuevo);
     await saveFn("Albarán Multi-IVA Guardado 🚀");
+    
+    // Limpieza
     inText.value = "";
+    container.querySelector("#inNotes").value = ""; // Limpiar nota
+    container.querySelector("#inRef").value = "";
     livePreview.innerHTML = "";
     taxSummary.innerHTML = "";
     liveTotal.innerText = "0.00€";
@@ -315,15 +314,21 @@ export async function render(container, supabase, db, opts = {}) {
 
     const filtered = db.albaranes.filter(a => {
         if (filtroOwner === 'Arume' && a.socio !== 'Arume' && a.socio !== 'Restaurante') return false;
-        return `${a.prov} ${a.num}`.toLowerCase().includes(term);
+        return `${a.prov} ${a.num} ${a.notes || ''}`.toLowerCase().includes(term);
     }).sort((a,b) => new Date(b.date) - new Date(a.date));
 
     container.querySelector("#listaAlbaranes").innerHTML = filtered.map(a => `
         <div onclick="window.editarAlbaran('${a.id}')" class="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm hover:bg-slate-50 transition cursor-pointer relative overflow-hidden group">
+            
+            ${a.notes ? `<div class="absolute top-0 right-0 bg-amber-100 text-amber-600 px-3 py-1 rounded-bl-2xl text-[9px] font-black border-l border-b border-amber-200">📝 NOTA</div>` : ''}
+
             <div class="flex justify-between items-center">
                 <div>
                     <h4 class="font-black text-slate-800 text-base">${a.prov}</h4>
                     <p class="text-[10px] text-slate-400 font-bold uppercase mt-1">${formatDate(a.date)} · ${a.num}</p>
+                    
+                    ${a.notes ? `<p class="mt-2 text-xs font-bold text-amber-700 bg-amber-50 p-2 rounded-lg border border-amber-100 inline-block">⚠️ ${a.notes}</p>` : ''}
+
                     <div class="flex gap-2 mt-2">
                         ${ (a.items && Array.isArray(a.items)) ? a.items.some(i => i.rate == 21) ? '<span class="text-[8px] bg-rose-100 text-rose-600 px-1.5 rounded font-black">21%</span>' : '' : '' }
                         <span class="text-[9px] bg-emerald-50 text-emerald-600 px-2 rounded font-bold border border-emerald-100">IVA: ${(a.taxes||0).toFixed(2)}€</span>
@@ -364,6 +369,7 @@ export async function render(container, supabase, db, opts = {}) {
     modal.innerHTML = `
         <div class="bg-white w-full max-w-lg rounded-[2.5rem] p-8 shadow-2xl animate-slide-up relative">
             <h3 class="text-2xl font-black text-slate-800 mb-2">${a.prov}</h3>
+            
             <div class="flex justify-between items-center mb-6 bg-slate-50 p-3 rounded-2xl border border-slate-100">
                  <div>
                     <p class="text-[9px] font-bold text-slate-400 uppercase">Total Cuota IVA</p>
@@ -374,11 +380,29 @@ export async function render(container, supabase, db, opts = {}) {
                     <p class="text-2xl font-black text-slate-900">${(a.total||0).toFixed(2)}€</p>
                  </div>
             </div>
-            <div class="max-h-60 overflow-y-auto custom-scrollbar mb-4 bg-white border border-slate-100 rounded-2xl p-4">${itemsHTML}</div>
+
+            <div class="mb-4">
+                <label class="text-[9px] font-black text-amber-500 uppercase ml-2">NOTAS / INCIDENCIAS</label>
+                <input id="ed-notes" type="text" value="${a.notes || ''}" class="w-full p-3 bg-amber-50 text-amber-900 rounded-xl text-xs font-bold border border-amber-100">
+            </div>
+
+            <div class="max-h-40 overflow-y-auto custom-scrollbar mb-4 bg-white border border-slate-100 rounded-2xl p-4">${itemsHTML}</div>
+
             <button onclick="borrarAlbaran('${a.id}')" class="w-full bg-rose-50 text-rose-500 py-3 rounded-2xl font-black text-xs border border-rose-100 mb-2">ELIMINAR ALBARÁN</button>
-            <button onclick="document.getElementById('modalDetalle').classList.add('hidden')" class="w-full text-slate-400 text-xs font-bold">CERRAR</button>
+            
+            <div class="grid grid-cols-2 gap-2">
+                <button id="btnSaveEdit" class="bg-indigo-600 text-white py-3 rounded-2xl font-black text-xs">GUARDAR</button>
+                <button onclick="document.getElementById('modalDetalle').classList.add('hidden')" class="bg-slate-100 text-slate-400 py-3 rounded-2xl font-black text-xs">CERRAR</button>
+            </div>
         </div>
     `;
+
+    modal.querySelector("#btnSaveEdit").onclick = async () => {
+        a.notes = modal.querySelector("#ed-notes").value;
+        await saveFn("Nota actualizada");
+        modal.classList.add("hidden");
+        pintarLista();
+    };
   };
 
   window.borrarAlbaran = async (id) => {
