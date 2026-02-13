@@ -4,112 +4,144 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
     <title>ARUME ERP PRO</title>
+    
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;800&display=swap" rel="stylesheet">
+    
     <style>
-        body { font-family: 'Plus Jakarta Sans', sans-serif; background: #f1f5f9; padding-bottom: 100px; }
-        /* Animación para que las pantallas entren suaves */
-        .animate-fade-in { animation: fadeIn 0.3s ease-out; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        /* === ESTILOS BASE === */
+        body { 
+            font-family: 'Plus Jakarta Sans', sans-serif; 
+            background: #f1f5f9; 
+            padding-bottom: 100px; 
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* Animación suave de entrada */
+        .animate-fade-in { animation: fadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
+        .animate-slide-up { animation: slideUp 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
         
-        /* Estilo para botón activo */
-        .nav-btn.active { color: #4f46e5; border-top: 2px solid #4f46e5; margin-top: -2px; }
-    #navbar {
-    transition: transform 0.3s ease-in-out;
-}
-#navbar.nav-hidden {
-    transform: translateY(100%);
-}
-        /* --- OPTIMIZACIÓN PARA ORDENADOR (PC) --- */
-@media (min-width: 1024px) {
-    body {
-        /* Evita que el fondo se vea vacío en monitores grandes */
-        background-color: #f8fafc;
-    }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(100%); } to { opacity: 1; transform: translateY(0); } }
+        
+        /* Animación de la Rueda */
+        #rueda-config { transition: all 0.5s ease; cursor: pointer; }
+        #rueda-config:hover { transform: rotate(90deg); background: #eef2ff; color: #4f46e5; border-color: #c7d2fe; }
+        #rueda-config:active { transform: scale(0.9) rotate(180deg); }
 
-    #app {
-        /* Centramos el contenido y limitamos el ancho para que sea legible */
-        max-width: 1200px;
-        margin: 0 auto;
-        padding: 40px 20px;
-    }
+        /* Scrollbar personalizada */
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
 
-    header {
-        /* Header elegante y centrado en PC */
-        max-width: 1200px;
-        margin: 0 auto !important;
-        border-bottom-left-radius: 20px;
-        border-bottom-right-radius: 20px;
-    }
+        /* === MODO ESCRITORIO (PC) - ESTILO DIAMOND === */
+        @media (min-width: 1024px) {
+            body {
+                background-color: #cbd5e1; /* Fondo gris ejecutivo */
+                display: flex;
+                justify-content: center;
+                align-items: flex-start;
+                padding-top: 40px;
+                min-height: 100vh;
+            }
 
-    /* Bento Grid para el Dashboard en PC: 2 columnas */
-    .dashboard-grid {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 24px;
-    }
+            #app {
+                width: 100%;
+                max-width: 1200px; /* Ancho perfecto para ver 2 columnas */
+                background-color: #f8fafc; /* Blanco/Gris muy suave */
+                min-height: 85vh;
+                border-radius: 30px; /* Bordes muy redondeados */
+                box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); /* Sombra 3D potente */
+                margin-bottom: 120px; /* Espacio para que el menú no tape nada */
+                overflow: hidden;
+                position: relative;
+                padding: 40px; /* Aire interior */
+            }
 
-    /* Barra de navegación inferior: La hacemos más fina en PC */
-    #navbar div {
-        max-width: 600px !important;
-        border-radius: 30px 30px 0 0;
-        box-shadow: 0 -10px 25px -5px rgba(0, 0, 0, 0.1);
-    }
-}
+            /* El Header se adapta al contenedor redondeado */
+            body > header {
+                display: none; /* Ocultamos el header global en PC, lo gestionan los módulos o lo metemos dentro */
+            }
+            
+            /* Pero necesitamos ver la rueda y el usuario en PC, así que creamos un header flotante dentro de #app */
+            #app::before {
+                /* Esto es un truco visual para el fondo del header en PC */
+                content: '';
+                display: block;
+                height: 20px;
+            }
 
-/* Mejora visual para los modales en pantalla grande */
-@media (min-width: 768px) {
-    .modal-content {
-        max-width: 500px;
-        border-radius: 40px;
-    }
-}
+            /* Scrollbar de diseño (estilo Mac/iOS) para toda la página */
+            ::-webkit-scrollbar { width: 10px; }
+            ::-webkit-scrollbar-track { background: transparent; }
+            ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 5px; border: 2px solid #f8fafc; }
+            ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+            
+            /* Asegurar que los modales no sean gigantes en PC */
+            #modalDetalle > div, #modalGasto > div, #modalProv > div {
+                max-width: 600px;
+                margin: 0 auto;
+                border-radius: 40px;
+            }
+        }
     </style>
 </head>
 <body>
-    <div id="loading" class="fixed inset-0 bg-white/90 z-[300] flex flex-col justify-center items-center">
+    <div id="loading" class="fixed inset-0 bg-white/90 z-[300] flex flex-col justify-center items-center transition-opacity duration-500">
         <div class="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mb-4"></div>
         <p class="font-bold text-slate-400 animate-pulse uppercase text-xs tracking-widest">Sincronizando Arume Cloud...</p>
     </div>
 
-   <header class="sticky top-0 z-40 px-6 py-4 flex justify-between items-center bg-white border-b border-slate-200 shadow-sm">
-    <div>
-        <h1 class="text-xl font-black text-slate-900">ARUME <span class="text-indigo-600">PRO</span></h1>
-        <p class="text-[9px] text-slate-400 font-bold uppercase tracking-tighter">Diamond Connected</p>
-    </div>
-    
-    <div class="flex items-center gap-3">
-        <button onclick="loadModule('config')" class="w-10 h-10 flex items-center justify-center bg-slate-50 rounded-full text-lg border border-slate-100 active:scale-90 transition">
-            ⚙️
-        </button>
-        <div id="user-display" class="bg-slate-100 px-3 py-1.5 rounded-full text-[10px] font-black text-slate-600 border border-slate-200 uppercase">
-            Gerencia
+    <header class="sticky top-0 z-40 px-6 py-4 flex justify-between items-center bg-white border-b border-slate-200 shadow-sm lg:hidden">
+        <div>
+            <h1 class="text-xl font-black text-slate-900">ARUME <span class="text-indigo-600">PRO</span></h1>
+            <p class="text-[9px] text-slate-400 font-bold uppercase tracking-tighter">Diamond Connected</p>
+        </div>
+        
+        <div class="flex items-center gap-3">
+            <button id="rueda-config" onclick="loadModule('config')" class="w-10 h-10 flex items-center justify-center bg-slate-50 rounded-full text-lg border border-slate-100 shadow-sm">
+                ⚙️
+            </button>
+            <div id="user-display" class="bg-slate-100 px-3 py-1.5 rounded-full text-[10px] font-black text-slate-600 border border-slate-200 uppercase">
+                Gerencia
+            </div>
+        </div>
+    </header>
+
+    <div class="hidden lg:flex justify-between items-center px-8 py-6 max-w-[1200px] mx-auto w-full mb-[-20px] relative z-50">
+        <div>
+            <h1 class="text-2xl font-black text-slate-800">ARUME <span class="text-indigo-600">ERP</span></h1>
+            <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Panel de Control Integral</p>
+        </div>
+        <div class="flex items-center gap-4">
+             <div class="bg-white px-4 py-2 rounded-full text-[11px] font-black text-slate-600 border border-slate-200 shadow-sm uppercase">
+                🟢 Conectado
+            </div>
+            <button onclick="loadModule('config')" class="w-12 h-12 flex items-center justify-center bg-white rounded-full text-xl border border-slate-100 shadow-md hover:scale-105 transition hover:text-indigo-600">
+                ⚙️
+            </button>
         </div>
     </div>
-</header>
 
-    <main id="app" class="p-4"></main>
+    <main id="app" class="p-4 lg:p-10"></main>
 
-    <nav id="navbar" class="fixed bottom-0 left-0 w-full bg-white border-t border-slate-200 flex justify-around py-3 px-2 shadow-2xl z-50 pb-safe">
-        <button id="btn-dashboard" onclick="loadModule('dashboard')" class="nav-btn flex flex-col items-center gap-1 text-slate-400 transition-all flex-1">
-            <span class="text-lg">📊</span><span class="text-[9px] font-bold uppercase">Dash</span>
-        </button>
-        <button id="btn-facturas" onclick="loadModule('facturas')" class="nav-btn flex flex-col items-center gap-1 text-slate-400 transition-all flex-1">
-            <span class="text-lg">📄</span><span class="text-[9px] font-bold uppercase">Facturas</span>
-        </button>
-        <button id="btn-albaranes" onclick="loadModule('albaranes')" class="nav-btn flex flex-col items-center gap-1 text-slate-400 transition-all flex-1">
-            <span class="text-lg">🚚</span><span class="text-[9px] font-bold uppercase">Albaranes</span>
-        </button>
-        <button id="btn-diario" onclick="loadModule('diario')" class="nav-btn flex flex-col items-center gap-1 text-slate-400 transition-all flex-1">
-            <span class="text-lg">💵</span><span class="text-[9px] font-bold uppercase">Caja</span>
-        </button>
-        <button id="btn-gastos_fijos" onclick="loadModule('gastos_fijos')" class="nav-btn flex flex-col items-center gap-1 text-slate-400 transition-all flex-1">
-            <span class="text-lg">🏢</span><span class="text-[9px] font-bold uppercase">Fijos</span>
-        </button>
-    </nav>
+    <nav id="navbar"></nav>
 
     <script type="module" src="assets/js/app.js"></script>
+
+    <script>
+        // Ocultar pantalla de carga cuando todo esté listo
+        window.onload = () => {
+            setTimeout(() => {
+                const loader = document.getElementById('loading');
+                if(loader) {
+                    loader.style.opacity = '0';
+                    setTimeout(() => loader.remove(), 500);
+                }
+            }, 800);
+        };
+    </script>
 </body>
 </html>
