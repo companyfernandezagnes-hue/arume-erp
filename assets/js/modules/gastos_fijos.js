@@ -287,4 +287,4 @@ export async function render(container, supabase, db, opts = {}) {
     }
 
     pintarLista();
-}
+}     
