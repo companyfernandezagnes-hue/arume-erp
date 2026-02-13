@@ -70,14 +70,11 @@ export async function render(container, supabase, db, opts = {}) {
                     <p class="absolute bottom-2 right-4 text-[9px] text-slate-300 font-bold pointer-events-none">Añade '21' al final para alcohol</p>
                 </div>
 
-                <div id="livePreview" class="mt-3 space-y-1 max-h-40 overflow-y-auto custom-scrollbar px-1 bg-slate-50/50 rounded-xl p-2">
-                    <p class="text-[10px] text-slate-300 text-center italic py-2">Escribe para desglosar impuestos...</p>
+                <div id="livePreview" class="mt-3 space-y-1 max-h-40 overflow-y-auto custom-scrollbar px-1 bg-slate-50/50 rounded-xl p-2 min-h-[50px]">
+                    <p class="text-[10px] text-slate-300 text-center italic py-2">Esperando datos...</p>
                 </div>
 
                 <div class="mt-4 p-4 bg-slate-900 rounded-2xl shadow-lg space-y-2">
-                    <div class="flex justify-between text-[10px] text-slate-400 font-bold border-b border-slate-700 pb-1">
-                        <span>TIPO</span> <span>BASE</span> <span>CUOTA</span>
-                    </div>
                     <div id="taxSummary" class="space-y-1"></div>
                     <div class="flex justify-between items-center pt-2 border-t border-slate-700 mt-2">
                         <span class="text-xs font-black text-white uppercase">TOTAL</span>
@@ -107,7 +104,7 @@ export async function render(container, supabase, db, opts = {}) {
     <div id="modalDetalle" class="hidden fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[200] flex justify-center items-center p-4"></div>
   `;
 
-  // --- REFERENCIAS ---
+  // --- REFERENCIAS & IA ---
   const inText = container.querySelector("#inText");
   const livePreview = container.querySelector("#livePreview");
   const liveTotal = container.querySelector("#liveTotal");
@@ -147,7 +144,7 @@ export async function render(container, supabase, db, opts = {}) {
                     taxes: tax,
                     items: [{ q:1, n: "Importado CSV", p: total, rate: 10, t: total, base: base, tax: tax }],
                     invoiced: false,
-                    notes: cols[7] || "Importado CSV" // Intentar leer notas de la col 7
+                    notes: cols[7] || "Importado CSV"
                 };
                 db.albaranes.push(newItem);
                 importedCount++;
@@ -196,7 +193,6 @@ export async function render(container, supabase, db, opts = {}) {
     return texto.split('\n').filter(l => l.trim()).map(line => {
         let clean = line.trim();
         let rate = 10; 
-
         const taxMatch = clean.match(/\s(\d{1,2})%?$/);
         if (taxMatch) {
             const detected = parseInt(taxMatch[1]);
@@ -205,7 +201,6 @@ export async function render(container, supabase, db, opts = {}) {
                 clean = clean.substring(0, taxMatch.index).trim();
             }
         }
-
         const priceMatch = clean.match(/(\d+[\.,]?\d*)\s*€?$/);
         if (priceMatch) {
             const priceVal = parseFloat(priceMatch[1].replace(',', '.'));
@@ -217,11 +212,9 @@ export async function render(container, supabase, db, opts = {}) {
                 rest = rest.substring(qtyMatch[0].length).trim();
             }
             let name = rest.replace(/^(cajas?|kg|gr|uds?|botellas?)\s+/i, '') || "Varios";
-
             const totalLine = qty * priceVal;
             const baseLine = totalLine / (1 + rate/100);
             const taxLine = totalLine - baseLine;
-
             return { q: qty, n: name, p: priceVal, rate: rate, t: totalLine, base: baseLine, tax: taxLine };
         }
         return null;
@@ -232,7 +225,6 @@ export async function render(container, supabase, db, opts = {}) {
     const items = analizarTexto(inText.value);
     const taxes = { 10: {b:0, i:0}, 21: {b:0, i:0}, 4: {b:0, i:0}, 0: {b:0, i:0} };
     let grandTotal = 0;
-
     items.forEach(it => {
         if(!taxes[it.rate]) taxes[it.rate] = {b:0, i:0};
         taxes[it.rate].b += it.base;
@@ -257,28 +249,25 @@ export async function render(container, supabase, db, opts = {}) {
 
     taxSummary.innerHTML = Object.keys(taxes).map(r => {
         if(taxes[r].b === 0) return '';
-        return `
-            <div class="flex justify-between text-[10px] text-slate-300">
-                <span class="font-bold w-10">IVA ${r}%</span>
-                <span class="font-mono text-right flex-1">${taxes[r].b.toFixed(2)}€</span>
-                <span class="font-mono text-right w-16 text-emerald-400">+${taxes[r].i.toFixed(2)}€</span>
-            </div>
-        `;
+        return `<div class="flex justify-between text-[10px] text-slate-300"><span class="font-bold w-10">IVA ${r}%</span><span class="font-mono text-right flex-1">${taxes[r].b.toFixed(2)}€</span><span class="font-mono text-right w-16 text-emerald-400">+${taxes[r].i.toFixed(2)}€</span></div>`;
     }).join('');
-
     liveTotal.innerText = grandTotal.toLocaleString('es-ES', {minimumFractionDigits: 2}) + "€";
   });
 
   // GUARDAR
   container.querySelector("#btnProcesar").onclick = async () => {
     const items = analizarTexto(inText.value);
-    // Recuperar nota del input (IMPORTANTE)
-    const notes = container.querySelector("#inNotes").value; 
+    const notes = container.querySelector("#inNotes").value; // RECUPERA NOTAS
+    const total = parseFloat(liveTotal.innerText.replace('.','').replace(',','.').replace('€','')) || 0;
+    
+    // Si no hay items pero hay total manual (o 0), validamos
+    if(total === 0 && items.length === 0) return alert("Introduce datos.");
 
-    if(items.length === 0) return alert("No hay datos válidos.");
-
-    const total = items.reduce((a,b) => a + b.t, 0);
-    const totalTax = items.reduce((a,b) => a + b.tax, 0);
+    // Recalcular impuestos si viene de items
+    let totalTax = 0;
+    if(items.length > 0) {
+        totalTax = items.reduce((a,b) => a + b.tax, 0);
+    }
 
     const nuevo = {
         id: Date.now().toString(),
@@ -290,15 +279,14 @@ export async function render(container, supabase, db, opts = {}) {
         total: total,
         taxes: totalTax,
         invoiced: false,
-        notes: notes // Guardamos la nota real
+        notes: notes
     };
 
     db.albaranes.push(nuevo);
-    await saveFn("Albarán Multi-IVA Guardado 🚀");
+    await saveFn("Guardado ✅");
     
-    // Limpieza
     inText.value = "";
-    container.querySelector("#inNotes").value = ""; // Limpiar nota
+    container.querySelector("#inNotes").value = ""; // LIMPIAR NOTAS
     container.querySelector("#inRef").value = "";
     livePreview.innerHTML = "";
     taxSummary.innerHTML = "";
@@ -317,20 +305,17 @@ export async function render(container, supabase, db, opts = {}) {
         return `${a.prov} ${a.num} ${a.notes || ''}`.toLowerCase().includes(term);
     }).sort((a,b) => new Date(b.date) - new Date(a.date));
 
+    // IMPORTANTE: Aseguramos que window.editarAlbaran es accesible añadiendo el onclick directamente en el string HTML
     container.querySelector("#listaAlbaranes").innerHTML = filtered.map(a => `
         <div onclick="window.editarAlbaran('${a.id}')" class="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm hover:bg-slate-50 transition cursor-pointer relative overflow-hidden group">
-            
             ${a.notes ? `<div class="absolute top-0 right-0 bg-amber-100 text-amber-600 px-3 py-1 rounded-bl-2xl text-[9px] font-black border-l border-b border-amber-200">📝 NOTA</div>` : ''}
-
             <div class="flex justify-between items-center">
                 <div>
                     <h4 class="font-black text-slate-800 text-base">${a.prov}</h4>
                     <p class="text-[10px] text-slate-400 font-bold uppercase mt-1">${formatDate(a.date)} · ${a.num}</p>
-                    
                     ${a.notes ? `<p class="mt-2 text-xs font-bold text-amber-700 bg-amber-50 p-2 rounded-lg border border-amber-100 inline-block">⚠️ ${a.notes}</p>` : ''}
-
+                    
                     <div class="flex gap-2 mt-2">
-                        ${ (a.items && Array.isArray(a.items)) ? a.items.some(i => i.rate == 21) ? '<span class="text-[8px] bg-rose-100 text-rose-600 px-1.5 rounded font-black">21%</span>' : '' : '' }
                         <span class="text-[9px] bg-emerald-50 text-emerald-600 px-2 rounded font-bold border border-emerald-100">IVA: ${(a.taxes||0).toFixed(2)}€</span>
                     </div>
                 </div>
@@ -343,17 +328,22 @@ export async function render(container, supabase, db, opts = {}) {
     `).join('');
   };
 
-  // EDICIÓN
+  // --- FUNCIÓN DE EDICIÓN (CON CORRECCIÓN DE SCROLL) ---
   window.editarAlbaran = (id) => {
+    // 1. Truco para asegurar que se ve el modal si hay scroll
+    container.scrollTop = 0; 
+    window.scrollTo(0, 0);
+
     const a = db.albaranes.find(x => x.id === id);
     if (!a) return;
     const modal = container.querySelector("#modalDetalle");
     modal.classList.remove("hidden");
     
+    // Generar items
     let itemsHTML = '';
-    if(Array.isArray(a.items)) {
+    if(Array.isArray(a.items) && a.items.length > 0) {
         itemsHTML = a.items.map(it => `
-            <div class="flex justify-between text-xs py-2 border-b border-slate-100 last:border-0">
+            <div class="flex justify-between text-xs py-2 border-b border-slate-100">
                 <div class="flex gap-2">
                     <span class="font-bold text-slate-500">${it.q}x</span>
                     <span>${it.n}</span>
@@ -363,43 +353,64 @@ export async function render(container, supabase, db, opts = {}) {
             </div>
         `).join('');
     } else {
-        itemsHTML = `<div class="p-2 text-xs italic text-slate-400">${a.items || 'Sin detalle'}</div>`;
+        itemsHTML = `<div class="p-2 text-xs italic text-slate-400">Sin detalle de líneas</div>`;
     }
 
     modal.innerHTML = `
         <div class="bg-white w-full max-w-lg rounded-[2.5rem] p-8 shadow-2xl animate-slide-up relative">
-            <h3 class="text-2xl font-black text-slate-800 mb-2">${a.prov}</h3>
+            <h3 class="text-2xl font-black text-slate-800 mb-6">Editar Albarán</h3>
             
-            <div class="flex justify-between items-center mb-6 bg-slate-50 p-3 rounded-2xl border border-slate-100">
-                 <div>
-                    <p class="text-[9px] font-bold text-slate-400 uppercase">Total Cuota IVA</p>
-                    <p class="text-lg font-black text-emerald-500">${(a.taxes||0).toFixed(2)}€</p>
-                 </div>
-                 <div class="text-right">
-                    <p class="text-[9px] font-bold text-slate-400 uppercase">Total Bruto</p>
-                    <p class="text-2xl font-black text-slate-900">${(a.total||0).toFixed(2)}€</p>
-                 </div>
-            </div>
+            <div class="space-y-4">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="text-[9px] font-bold text-slate-400 uppercase ml-2">Proveedor</label>
+                        <input id="ed-prov" type="text" value="${a.prov}" class="w-full p-3 bg-slate-50 rounded-xl font-bold text-sm border border-slate-200">
+                    </div>
+                    <div>
+                        <label class="text-[9px] font-bold text-slate-400 uppercase ml-2">Fecha</label>
+                        <input id="ed-date" type="date" value="${a.date}" class="w-full p-3 bg-slate-50 rounded-xl font-bold text-sm border border-slate-200">
+                    </div>
+                </div>
 
-            <div class="mb-4">
-                <label class="text-[9px] font-black text-amber-500 uppercase ml-2">NOTAS / INCIDENCIAS</label>
-                <input id="ed-notes" type="text" value="${a.notes || ''}" class="w-full p-3 bg-amber-50 text-amber-900 rounded-xl text-xs font-bold border border-amber-100">
-            </div>
+                <div class="p-4 bg-slate-50 rounded-2xl border border-slate-100 space-y-3">
+                    <div>
+                        <label class="text-[9px] font-bold text-slate-400 uppercase">Total Bruto (€)</label>
+                        <input id="ed-total" type="number" value="${a.total}" class="w-full p-2 bg-white rounded-lg font-black text-lg border border-slate-200">
+                    </div>
+                    <div class="flex gap-4">
+                        <div class="flex-1">
+                            <label class="text-[9px] font-bold text-slate-400 uppercase">Cuota IVA</label>
+                            <input id="ed-tax" type="number" value="${a.taxes || 0}" class="w-full p-2 bg-white rounded-lg font-bold text-emerald-600 border border-slate-200">
+                        </div>
+                    </div>
+                </div>
 
-            <div class="max-h-40 overflow-y-auto custom-scrollbar mb-4 bg-white border border-slate-100 rounded-2xl p-4">${itemsHTML}</div>
+                <div>
+                    <label class="text-[9px] font-black text-amber-500 uppercase ml-2">NOTAS / INCIDENCIAS</label>
+                    <input id="ed-notes" type="text" value="${a.notes || ''}" class="w-full p-3 bg-amber-50 text-amber-900 rounded-xl text-xs font-bold border border-amber-100 outline-none focus:ring-2 focus:ring-amber-400">
+                </div>
 
-            <button onclick="borrarAlbaran('${a.id}')" class="w-full bg-rose-50 text-rose-500 py-3 rounded-2xl font-black text-xs border border-rose-100 mb-2">ELIMINAR ALBARÁN</button>
-            
-            <div class="grid grid-cols-2 gap-2">
-                <button id="btnSaveEdit" class="bg-indigo-600 text-white py-3 rounded-2xl font-black text-xs">GUARDAR</button>
-                <button onclick="document.getElementById('modalDetalle').classList.add('hidden')" class="bg-slate-100 text-slate-400 py-3 rounded-2xl font-black text-xs">CERRAR</button>
+                <div class="max-h-40 overflow-y-auto custom-scrollbar bg-slate-50 p-4 rounded-2xl">
+                    ${itemsHTML}
+                </div>
+
+                <div class="grid grid-cols-2 gap-3 pt-4">
+                    <button id="btnSaveEd" class="bg-indigo-600 text-white py-3 rounded-2xl font-black text-xs shadow-lg">GUARDAR</button>
+                    <button onclick="borrarAlbaran('${a.id}')" class="bg-rose-50 text-rose-500 py-3 rounded-2xl font-black text-xs border border-rose-100">ELIMINAR</button>
+                </div>
+                <button onclick="document.getElementById('modalDetalle').classList.add('hidden')" class="w-full text-slate-400 text-xs font-bold mt-2">CANCELAR</button>
             </div>
         </div>
     `;
 
-    modal.querySelector("#btnSaveEdit").onclick = async () => {
-        a.notes = modal.querySelector("#ed-notes").value;
-        await saveFn("Nota actualizada");
+    modal.querySelector("#btnSaveEd").onclick = async () => {
+        a.prov = modal.querySelector("#ed-prov").value;
+        a.date = modal.querySelector("#ed-date").value;
+        a.total = parseFloat(modal.querySelector("#ed-total").value);
+        a.taxes = parseFloat(modal.querySelector("#ed-tax").value);
+        a.notes = modal.querySelector("#ed-notes").value; // GUARDAR NOTA EDITADA
+        
+        await saveFn("Albarán actualizado");
         modal.classList.add("hidden");
         pintarLista();
     };
