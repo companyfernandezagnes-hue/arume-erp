@@ -86,43 +86,22 @@ window.loadModule = async function(name) {
             </div>`;
     }
 };
-// 5. FUNCIÓN PARA PINTAR EL MENÚ
+// 5. MENÚ EXPANDIDO (HOLDED STYLE)
 function renderNav() {
     const nav = document.getElementById('navbar');
     if (!nav) return;
 
     nav.innerHTML = `
-        <div style="display:flex; justify-content:space-around; align-items:center; background:white; padding:12px; border-top:1px solid #f1f5f9; position:fixed; bottom:0; width:100%; max-width:700px; left:50%; transform:translateX(-50%); z-index:1000; border-radius: 20px 20px 0 0; box-shadow: 0 -5px 20px rgba(0,0,0,0.05);">
+        <div style="display:flex; justify-content:space-between; align-items:center; background:white; padding:10px 20px; border-top:1px solid #f1f5f9; position:fixed; bottom:0; width:100%; max-width:900px; left:50%; transform:translateX(-50%); z-index:1000; border-radius: 20px 20px 0 0; box-shadow: 0 -5px 30px rgba(0,0,0,0.08); overflow-x: auto;">
             
-            <button id="btn-dashboard" onclick="loadModule('dashboard')" style="background:none; border:none; display:flex; flex-direction:column; align-items:center; gap:4px; cursor:pointer; min-width: 50px;">
-                <span style="font-size:20px;">📊</span> 
-                <span style="font-size:9px; font-weight:900; text-transform:uppercase;">Dash</span>
-            </button>
-
-            <button id="btn-diario" onclick="loadModule('diario')" style="background:none; border:none; display:flex; flex-direction:column; align-items:center; gap:4px; cursor:pointer; min-width: 50px;">
-                <span style="font-size:20px;">💵</span> 
-                <span style="font-size:9px; font-weight:900; text-transform:uppercase;">Caja</span>
-            </button>
-
-            <button id="btn-facturas" onclick="loadModule('facturas')" style="background:none; border:none; display:flex; flex-direction:column; align-items:center; gap:4px; cursor:pointer; min-width: 50px;">
-                <span style="font-size:20px;">📄</span> 
-                <span style="font-size:9px; font-weight:900; text-transform:uppercase;">Fra</span>
-            </button>
-
-            <button id="btn-albaranes" onclick="loadModule('albaranes')" style="background:none; border:none; display:flex; flex-direction:column; align-items:center; gap:4px; cursor:pointer; min-width: 50px;">
-                <span style="font-size:20px;">🚚</span> 
-                <span style="font-size:9px; font-weight:900; text-transform:uppercase;">Alb</span>
-            </button>
-
-            <button id="btn-gastos_fijos" onclick="loadModule('gastos_fijos')" style="background:none; border:none; display:flex; flex-direction:column; align-items:center; gap:4px; cursor:pointer; min-width: 50px;">
-                <span style="font-size:20px;">🏢</span> 
-                <span style="font-size:9px; font-weight:900; text-transform:uppercase;">Fijos</span>
-            </button>
-
-            <button id="btn-fiscalidad" onclick="loadModule('fiscalidad')" style="background:none; border:none; display:flex; flex-direction:column; align-items:center; gap:4px; cursor:pointer; min-width: 50px;">
-                <span style="font-size:20px;">⚖️</span> 
-                <span style="font-size:9px; font-weight:900; text-transform:uppercase;">Fiscal</span>
-            </button>
+            <button onclick="loadModule('dashboard')" class="flex flex-col items-center gap-1 min-w-[50px]"><span class="text-xl">📊</span><span class="text-[8px] font-black uppercase text-slate-400">Dash</span></button>
+            <button onclick="loadModule('diario')" class="flex flex-col items-center gap-1 min-w-[50px]"><span class="text-xl">💵</span><span class="text-[8px] font-black uppercase text-slate-400">Caja</span></button>
+            <button onclick="loadModule('albaranes')" class="flex flex-col items-center gap-1 min-w-[50px]"><span class="text-xl">🚚</span><span class="text-[8px] font-black uppercase text-slate-400">Alb</span></button>
+            <button onclick="loadModule('facturas')" class="flex flex-col items-center gap-1 min-w-[50px]"><span class="text-xl">📄</span><span class="text-[8px] font-black uppercase text-slate-400">Fra</span></button>
+            
+            <div class="w-px h-8 bg-slate-100 mx-2"></div> <button onclick="loadModule('fiscalidad')" class="flex flex-col items-center gap-1 min-w-[50px]"><span class="text-xl">⚖️</span><span class="text-[8px] font-black uppercase text-slate-400">Imp</span></button>
+            <button onclick="loadModule('banco')" class="flex flex-col items-center gap-1 min-w-[50px]"><span class="text-xl">🏦</span><span class="text-[8px] font-black uppercase text-slate-400">Banco</span></button>
+            <button onclick="loadModule('informes')" class="flex flex-col items-center gap-1 min-w-[50px]"><span class="text-xl">📈</span><span class="text-[8px] font-black uppercase text-slate-400">P&L</span></button>
 
         </div>
     `;
