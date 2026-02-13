@@ -11,102 +11,108 @@
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;800&display=swap" rel="stylesheet">
     
     <style>
-        /* === ESTILOS BASE (Móvil First) === */
-        body { 
-            font-family: 'Plus Jakarta Sans', sans-serif; 
-            background: #f1f5f9; 
-            padding-bottom: 100px; 
-            -webkit-tap-highlight-color: transparent;
-            margin: 0;
+    /* === ESTILOS BASE (Móvil First) === */
+    body { 
+        font-family: 'Plus Jakarta Sans', sans-serif; 
+        background: #f1f5f9; 
+        padding-bottom: 100px; 
+        -webkit-tap-highlight-color: transparent;
+        margin: 0;
+    }
+
+    /* Animaciones */
+    .animate-fade-in { animation: fadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
+    .animate-slide-up { animation: slideUp 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes slideUp { from { opacity: 0; transform: translateY(100%); } to { opacity: 1; transform: translateY(0); } }
+    
+    /* Rueda */
+    .btn-rueda { transition: all 0.5s ease; cursor: pointer; }
+    .btn-rueda:hover { transform: rotate(90deg); background: #eef2ff; color: #4f46e5; border-color: #c7d2fe; }
+    .btn-rueda:active { transform: scale(0.9) rotate(180deg); }
+    
+    /* Scrollbar Móvil */
+    .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+
+    /* === MODO ESCRITORIO (PC) - EL AJUSTE SASTRE === */
+    @media (min-width: 1024px) {
+        body {
+            background-color: #cbd5e1; /* Fondo gris ejecutivo */
+            height: 100vh; /* Ocupa toda la pantalla */
+            width: 100vw;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden; /* ELIMINA EL SCROLL DEL FONDO GRIS */
         }
 
-        /* Animaciones */
-        .animate-fade-in { animation: fadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
-        .animate-slide-up { animation: slideUp 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes slideUp { from { opacity: 0; transform: translateY(100%); } to { opacity: 1; transform: translateY(0); } }
-        
-        /* Rueda */
-        .btn-rueda { transition: all 0.5s ease; cursor: pointer; }
-        .btn-rueda:hover { transform: rotate(90deg); background: #eef2ff; color: #4f46e5; border-color: #c7d2fe; }
-        .btn-rueda:active { transform: scale(0.9) rotate(180deg); }
-        
-        /* Scrollbar Móvil */
-        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        /* Ocultar header móvil */
+        body > header.mobile-header { display: none; }
 
-        /* === MODO ESCRITORIO (PC) - EL AJUSTE SASTRE === */
-        @media (min-width: 1024px) {
-            body {
-                background-color: #cbd5e1; /* Fondo gris ejecutivo */
-                height: 100vh; /* Ocupa toda la pantalla */
-                width: 100vw;
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-                justify-content: center;
-                overflow: hidden; /* ELIMINA EL SCROLL DEL FONDO GRIS */
-            }
-
-            /* Ocultar header móvil */
-            body > header.mobile-header { display: none; }
-
-            #app {
-                width: 100%;
-                max-width: 1100px; 
-                height: 85vh; /* Altura fija (como una tablet) */
-                background-color: #f8fafc;
-                border-radius: 30px;
-                box-shadow: 0 40px 80px -20px rgba(0, 0, 0, 0.3); /* Sombra flotante */
-                
-                /* SCROLL INTERNO: Solo se mueve lo de dentro */
-                overflow-y: auto; 
-                overflow-x: hidden;
-                
-                position: relative;
-                padding: 40px;
-                padding-bottom: 100px; /* Espacio para que el menú no tape el final */
-                margin: 0 auto;
-            }
-
-            /* Header especial PC flotando fuera del contenedor */
-            .pc-header {
-                display: flex !important;
-                justify-content: space-between;
-                align-items: center;
-                width: 100%;
-                max-width: 1100px;
-                margin-bottom: 20px;
-                padding: 0 20px;
-            }
-
-            /* Scrollbar interna bonita */
-            #app::-webkit-scrollbar { width: 8px; }
-            #app::-webkit-scrollbar-track { background: transparent; margin: 20px 0; }
-            #app::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-            #app::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
-
-            /* Ajuste de Modales en PC para que no se salgan */
-            .fixed.inset-0 {
-                position: absolute !important; /* Se quedan dentro del #app */
-                border-radius: 30px;
-            }
+        #app {
+            width: 100%;
+            max-width: 1100px; 
+            height: 85vh; /* Altura fija (como una tablet) */
+            background-color: #f8fafc;
+            border-radius: 30px;
+            box-shadow: 0 40px 80px -20px rgba(0, 0, 0, 0.3); /* Sombra flotante */
             
-            /* Ajuste del Menú de Navegación */
-            #navbar {
-                position: absolute !important; /* Se pega al #app, no a la pantalla */
-                bottom: 20px !important;
-                width: 90% !important;
-                max-width: 600px !important;
-                left: 50% !important;
-                transform: translateX(-50%) !important;
-                border-radius: 25px !important;
-                box-shadow: 0 10px 30px -5px rgba(0,0,0,0.15) !important;
-                border: 1px solid #e2e8f0 !important;
-            }
+            /* SCROLL INTERNO: Solo se mueve lo de dentro */
+            overflow-y: auto; 
+            overflow-x: hidden;
+            
+            position: relative;
+            padding: 40px;
+            padding-bottom: 100px; /* Espacio para que el menú no tape el final */
+            margin: 0 auto;
         }
-    </style>
+
+        /* Header especial PC flotando fuera del contenedor */
+        .pc-header {
+            display: flex !important;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+            max-width: 1100px;
+            margin-bottom: 20px;
+            padding: 0 20px;
+        }
+
+        /* Scrollbar interna bonita */
+        #app::-webkit-scrollbar { width: 8px; }
+        #app::-webkit-scrollbar-track { background: transparent; margin: 20px 0; }
+        #app::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        #app::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+        /* === CORRECCIÓN IMPORTANTE DE MODALES === */
+        /* Ahora usamos FIXED para que siempre se vea en el centro de tu monitor, da igual el scroll */
+        .fixed.inset-0 {
+            position: fixed !important; 
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 9999;
+            border-radius: 0;
+        }
+        
+        /* Ajuste del Menú de Navegación */
+        #navbar {
+            position: absolute !important; /* Se pega al #app, no a la pantalla */
+            bottom: 20px !important;
+            width: 90% !important;
+            max-width: 800px !important; /* Un poco más ancho para los nuevos botones */
+            left: 50% !important;
+            transform: translateX(-50%) !important;
+            border-radius: 25px !important;
+            box-shadow: 0 10px 30px -5px rgba(0,0,0,0.15) !important;
+            border: 1px solid #e2e8f0 !important;
+        }
+    }
+</style>
 </head>
 <body>
 
