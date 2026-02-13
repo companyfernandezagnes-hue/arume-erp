@@ -11,97 +11,117 @@
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;800&display=swap" rel="stylesheet">
     
     <style>
-        /* === ESTILOS BASE === */
+        /* === ESTILOS BASE (Móvil First) === */
         body { 
             font-family: 'Plus Jakarta Sans', sans-serif; 
             background: #f1f5f9; 
             padding-bottom: 100px; 
             -webkit-tap-highlight-color: transparent;
+            margin: 0;
         }
 
-        /* Animación suave de entrada */
+        /* Animaciones */
         .animate-fade-in { animation: fadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
         .animate-slide-up { animation: slideUp 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
-        
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes slideUp { from { opacity: 0; transform: translateY(100%); } to { opacity: 1; transform: translateY(0); } }
         
-        /* Animación de la Rueda */
-        #rueda-config { transition: all 0.5s ease; cursor: pointer; }
-        #rueda-config:hover { transform: rotate(90deg); background: #eef2ff; color: #4f46e5; border-color: #c7d2fe; }
-        #rueda-config:active { transform: scale(0.9) rotate(180deg); }
-
-        /* Scrollbar personalizada */
+        /* Rueda */
+        .btn-rueda { transition: all 0.5s ease; cursor: pointer; }
+        .btn-rueda:hover { transform: rotate(90deg); background: #eef2ff; color: #4f46e5; border-color: #c7d2fe; }
+        .btn-rueda:active { transform: scale(0.9) rotate(180deg); }
+        
+        /* Scrollbar Móvil */
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
 
-        /* === MODO ESCRITORIO (PC) - ESTILO DIAMOND === */
+        /* === MODO ESCRITORIO (PC) - EL AJUSTE SASTRE === */
         @media (min-width: 1024px) {
             body {
                 background-color: #cbd5e1; /* Fondo gris ejecutivo */
+                height: 100vh; /* Ocupa toda la pantalla */
+                width: 100vw;
                 display: flex;
+                flex-direction: column;
+                align-items: center;
                 justify-content: center;
-                align-items: flex-start;
-                padding-top: 40px;
-                min-height: 100vh;
+                overflow: hidden; /* ELIMINA EL SCROLL DEL FONDO GRIS */
             }
+
+            /* Ocultar header móvil */
+            body > header.mobile-header { display: none; }
 
             #app {
                 width: 100%;
-                max-width: 1200px; /* Ancho perfecto para ver 2 columnas */
-                background-color: #f8fafc; /* Blanco/Gris muy suave */
-                min-height: 85vh;
-                border-radius: 30px; /* Bordes muy redondeados */
-                box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); /* Sombra 3D potente */
-                margin-bottom: 120px; /* Espacio para que el menú no tape nada */
-                overflow: hidden;
+                max-width: 1100px; 
+                height: 85vh; /* Altura fija (como una tablet) */
+                background-color: #f8fafc;
+                border-radius: 30px;
+                box-shadow: 0 40px 80px -20px rgba(0, 0, 0, 0.3); /* Sombra flotante */
+                
+                /* SCROLL INTERNO: Solo se mueve lo de dentro */
+                overflow-y: auto; 
+                overflow-x: hidden;
+                
                 position: relative;
-                padding: 40px; /* Aire interior */
-            }
-
-            /* El Header se adapta al contenedor redondeado */
-            body > header {
-                display: none; /* Ocultamos el header global en PC, lo gestionan los módulos o lo metemos dentro */
-            }
-            
-            /* Pero necesitamos ver la rueda y el usuario en PC, así que creamos un header flotante dentro de #app */
-            #app::before {
-                /* Esto es un truco visual para el fondo del header en PC */
-                content: '';
-                display: block;
-                height: 20px;
-            }
-
-            /* Scrollbar de diseño (estilo Mac/iOS) para toda la página */
-            ::-webkit-scrollbar { width: 10px; }
-            ::-webkit-scrollbar-track { background: transparent; }
-            ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 5px; border: 2px solid #f8fafc; }
-            ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
-            
-            /* Asegurar que los modales no sean gigantes en PC */
-            #modalDetalle > div, #modalGasto > div, #modalProv > div {
-                max-width: 600px;
+                padding: 40px;
+                padding-bottom: 100px; /* Espacio para que el menú no tape el final */
                 margin: 0 auto;
-                border-radius: 40px;
+            }
+
+            /* Header especial PC flotando fuera del contenedor */
+            .pc-header {
+                display: flex !important;
+                justify-content: space-between;
+                align-items: center;
+                width: 100%;
+                max-width: 1100px;
+                margin-bottom: 20px;
+                padding: 0 20px;
+            }
+
+            /* Scrollbar interna bonita */
+            #app::-webkit-scrollbar { width: 8px; }
+            #app::-webkit-scrollbar-track { background: transparent; margin: 20px 0; }
+            #app::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+            #app::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+            /* Ajuste de Modales en PC para que no se salgan */
+            .fixed.inset-0 {
+                position: absolute !important; /* Se quedan dentro del #app */
+                border-radius: 30px;
+            }
+            
+            /* Ajuste del Menú de Navegación */
+            #navbar {
+                position: absolute !important; /* Se pega al #app, no a la pantalla */
+                bottom: 20px !important;
+                width: 90% !important;
+                max-width: 600px !important;
+                left: 50% !important;
+                transform: translateX(-50%) !important;
+                border-radius: 25px !important;
+                box-shadow: 0 10px 30px -5px rgba(0,0,0,0.15) !important;
+                border: 1px solid #e2e8f0 !important;
             }
         }
     </style>
 </head>
 <body>
-    <div id="loading" class="fixed inset-0 bg-white/90 z-[300] flex flex-col justify-center items-center transition-opacity duration-500">
+
+    <div id="loading" class="fixed inset-0 bg-white/90 z-[9999] flex flex-col justify-center items-center transition-opacity duration-500">
         <div class="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mb-4"></div>
-        <p class="font-bold text-slate-400 animate-pulse uppercase text-xs tracking-widest">Sincronizando Arume Cloud...</p>
+        <p class="font-bold text-slate-400 animate-pulse uppercase text-xs tracking-widest">Iniciando Sistema...</p>
     </div>
 
-    <header class="sticky top-0 z-40 px-6 py-4 flex justify-between items-center bg-white border-b border-slate-200 shadow-sm lg:hidden">
+    <header class="mobile-header sticky top-0 z-40 px-6 py-4 flex justify-between items-center bg-white border-b border-slate-200 shadow-sm lg:hidden">
         <div>
             <h1 class="text-xl font-black text-slate-900">ARUME <span class="text-indigo-600">PRO</span></h1>
             <p class="text-[9px] text-slate-400 font-bold uppercase tracking-tighter">Diamond Connected</p>
         </div>
-        
         <div class="flex items-center gap-3">
-            <button id="rueda-config" onclick="loadModule('config')" class="w-10 h-10 flex items-center justify-center bg-slate-50 rounded-full text-lg border border-slate-100 shadow-sm">
+            <button onclick="abrirConfiguracion()" class="btn-rueda w-10 h-10 flex items-center justify-center bg-slate-50 rounded-full text-lg border border-slate-100 shadow-sm">
                 ⚙️
             </button>
             <div id="user-display" class="bg-slate-100 px-3 py-1.5 rounded-full text-[10px] font-black text-slate-600 border border-slate-200 uppercase">
@@ -110,16 +130,16 @@
         </div>
     </header>
 
-    <div class="hidden lg:flex justify-between items-center px-8 py-6 max-w-[1200px] mx-auto w-full mb-[-20px] relative z-50">
+    <div class="pc-header hidden">
         <div>
             <h1 class="text-2xl font-black text-slate-800">ARUME <span class="text-indigo-600">ERP</span></h1>
             <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Panel de Control Integral</p>
         </div>
         <div class="flex items-center gap-4">
-             <div class="bg-white px-4 py-2 rounded-full text-[11px] font-black text-slate-600 border border-slate-200 shadow-sm uppercase">
-                🟢 Conectado
+             <div class="bg-white px-4 py-2 rounded-full text-[11px] font-black text-emerald-600 border border-emerald-100 shadow-sm uppercase flex items-center gap-2">
+                <span class="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span> Online
             </div>
-            <button onclick="loadModule('config')" class="w-12 h-12 flex items-center justify-center bg-white rounded-full text-xl border border-slate-100 shadow-md hover:scale-105 transition hover:text-indigo-600">
+            <button onclick="abrirConfiguracion()" class="btn-rueda w-12 h-12 flex items-center justify-center bg-white rounded-full text-xl border border-slate-100 shadow-md">
                 ⚙️
             </button>
         </div>
@@ -129,10 +149,42 @@
 
     <nav id="navbar"></nav>
 
+    <div id="modal-config" class="hidden fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[9999] flex justify-center items-center p-4 opacity-0 transition-opacity duration-300">
+        <div class="bg-white w-full max-w-lg rounded-[2.5rem] p-8 shadow-2xl relative transform scale-95 transition-transform duration-300" id="modal-config-content">
+            <button onclick="cerrarConfiguracion()" class="absolute top-6 right-6 text-slate-300 hover:text-slate-500 text-2xl transition">✕</button>
+            
+            <header class="text-center mb-6">
+                <div class="w-14 h-14 bg-slate-900 text-white rounded-full flex items-center justify-center text-2xl mx-auto mb-3 shadow-lg">⚙️</div>
+                <h2 class="text-2xl font-black text-slate-800">Ajustes</h2>
+                <p class="text-[10px] font-bold text-indigo-500 uppercase tracking-widest">Panel de Control</p>
+            </header>
+
+            <div class="space-y-4">
+                <div class="bg-slate-50 p-5 rounded-3xl border border-slate-100">
+                    <label class="text-[10px] font-black text-slate-400 uppercase ml-2 block mb-2">Objetivo Mensual (€)</label>
+                    <div class="flex gap-2">
+                        <input id="cfg-meta" type="number" placeholder="Ej. 30000" class="w-full p-3 bg-white rounded-xl font-black text-lg outline-none border border-slate-200">
+                        <button onclick="guardarMeta()" class="bg-indigo-600 text-white px-4 rounded-xl font-black text-xs shadow-lg">GUARDAR</button>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <button onclick="descargarBackup()" class="p-4 bg-emerald-50 border border-emerald-100 rounded-3xl flex flex-col items-center gap-2 hover:bg-emerald-100 transition">
+                        <span class="text-2xl">💾</span>
+                        <span class="text-[9px] font-black text-emerald-700 uppercase">Backup</span>
+                    </button>
+                    <button onclick="location.reload()" class="p-4 bg-slate-100 border border-slate-200 rounded-3xl flex flex-col items-center gap-2 hover:bg-slate-200 transition">
+                        <span class="text-2xl">🔄</span>
+                        <span class="text-[9px] font-black text-slate-600 uppercase">Recargar</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script type="module" src="assets/js/app.js"></script>
 
     <script>
-        // Ocultar pantalla de carga cuando todo esté listo
+        // Lógica de carga
         window.onload = () => {
             setTimeout(() => {
                 const loader = document.getElementById('loading');
@@ -141,6 +193,52 @@
                     setTimeout(() => loader.remove(), 500);
                 }
             }, 800);
+        };
+
+        // Lógica de la Rueda (Config)
+        window.abrirConfiguracion = function() {
+            const modal = document.getElementById('modal-config');
+            const content = document.getElementById('modal-config-content');
+            if(window.db && window.db.config) {
+                document.getElementById('cfg-meta').value = window.db.config.objetivoMensual || 30000;
+            }
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                content.classList.remove('scale-95');
+                content.classList.add('scale-100');
+            }, 10);
+        };
+
+        window.cerrarConfiguracion = function() {
+            const modal = document.getElementById('modal-config');
+            const content = document.getElementById('modal-config-content');
+            modal.classList.add('opacity-0');
+            content.classList.remove('scale-100');
+            content.classList.add('scale-95');
+            setTimeout(() => modal.classList.add('hidden'), 300);
+        };
+
+        window.guardarMeta = async function() {
+            const valor = parseFloat(document.getElementById('cfg-meta').value) || 0;
+            if(!window.db.config) window.db.config = {};
+            window.db.config.objetivoMensual = valor;
+            await window.save("Objetivo guardado");
+            window.cerrarConfiguracion();
+            // Recargar Dashboard si está activo
+            if(document.getElementById('btn-dashboard').style.color === 'rgb(79, 70, 229)') {
+                window.loadModule('dashboard');
+            }
+        };
+
+        window.descargarBackup = function() {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(window.db));
+            const downloadAnchorNode = document.createElement('a');
+            downloadAnchorNode.setAttribute("href", dataStr);
+            downloadAnchorNode.setAttribute("download", "Arume_Backup.json");
+            document.body.appendChild(downloadAnchorNode);
+            downloadAnchorNode.click();
+            downloadAnchorNode.remove();
         };
     </script>
 </body>
