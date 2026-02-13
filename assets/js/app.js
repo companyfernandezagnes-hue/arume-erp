@@ -57,7 +57,8 @@ window.loadModule = async function(name) {
         let fileName = name;
         if (name === 'diario') fileName = 'caja';
 
-        const modulePath = `./modules/${fileName}.js`;
+        // TRUCO: Añadimos ?v=Date.now() para que nunca cargue la versión vieja
+        const modulePath = `./modules/${fileName}.js?v=${Date.now()}`;
         const mod = await import(modulePath);
         
         container.innerHTML = "";
@@ -65,7 +66,7 @@ window.loadModule = async function(name) {
         if (mod.render) {
             await mod.render(container, window.sb, window.db);
             
-            // Gestión de botones activos (Protegida para la rueda)
+            // Gestión de botones activos (Protegida)
             document.querySelectorAll('nav button').forEach(btn => {
                 btn.style.color = '#94a3b8'; 
             });
@@ -85,12 +86,12 @@ window.loadModule = async function(name) {
             </div>`;
     }
 };
-// 5. FUNCIÓN PARA PINTAR EL MENÚ (AHORA CON 6 BOTONES)
+
+// 5. FUNCIÓN PARA PINTAR EL MENÚ (6 BOTONES)
 function renderNav() {
     const nav = document.getElementById('navbar');
     if (!nav) return;
 
-    // He subido el max-width a 700px para que quepan los 6 botones cómodos
     nav.innerHTML = `
         <div style="display:flex; justify-content:space-around; align-items:center; background:white; padding:12px; border-top:1px solid #f1f5f9; position:fixed; bottom:0; width:100%; max-width:700px; left:50%; transform:translateX(-50%); z-index:1000; border-radius: 20px 20px 0 0; box-shadow: 0 -5px 20px rgba(0,0,0,0.05);">
             
@@ -127,6 +128,7 @@ function renderNav() {
         </div>
     `;
 }
+
 // 6. FUNCIÓN GLOBAL PARA GUARDAR
 window.save = async function(mensaje = "Datos guardados") {
     window.db.lastSync = Date.now();
