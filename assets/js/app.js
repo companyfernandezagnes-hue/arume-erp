@@ -86,13 +86,13 @@ window.loadModule = async function(name) {
             </div>`;
     }
 };
-// 5. MENÚ COMPLETO (8 MÓDULOS)
+// 5. MENÚ COMPLETO (9 MÓDULOS)
 function renderNav() {
     const nav = document.getElementById('navbar');
     if (!nav) return;
 
     nav.innerHTML = `
-        <div style="display:flex; justify-content:space-between; align-items:center; background:white; padding:10px 20px; border-top:1px solid #f1f5f9; position:fixed; bottom:0; width:100%; max-width:900px; left:50%; transform:translateX(-50%); z-index:1000; border-radius: 20px 20px 0 0; box-shadow: 0 -5px 30px rgba(0,0,0,0.08); overflow-x: auto; gap: 12px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; background:white; padding:10px 20px; border-top:1px solid #f1f5f9; position:fixed; bottom:0; width:100%; max-width:900px; left:50%; transform:translateX(-50%); z-index:1000; border-radius: 20px 20px 0 0; box-shadow: 0 -5px 30px rgba(0,0,0,0.08); overflow-x: auto; gap: 15px;">
             
             <button onclick="loadModule('dashboard')" class="flex flex-col items-center gap-1 min-w-[50px] shrink-0">
                 <span class="text-xl">📊</span>
@@ -119,7 +119,12 @@ function renderNav() {
                 <span class="text-[8px] font-black uppercase text-slate-400">Fijos</span>
             </button>
             
-            <div class="w-px h-8 bg-slate-100 mx-2 shrink-0"></div> 
+            <div class="w-px h-8 bg-slate-100 mx-1 shrink-0"></div> 
+
+            <button onclick="loadModule('menu')" class="flex flex-col items-center gap-1 min-w-[50px] shrink-0">
+                <span class="text-xl">🍽️</span>
+                <span class="text-[8px] font-black uppercase text-slate-400">Menu</span>
+            </button>
 
             <button onclick="loadModule('fiscalidad')" class="flex flex-col items-center gap-1 min-w-[50px] shrink-0">
                 <span class="text-xl">⚖️</span>
