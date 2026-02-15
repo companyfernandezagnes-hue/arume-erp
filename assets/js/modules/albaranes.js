@@ -1,15 +1,17 @@
 /* =============================================================
-   🚚 MÓDULO: ALBARANES MAESTRO (Blindado contra errores)
+   🚚 MÓDULO: ALBARANES MAESTRO (Con Socios Visibles)
    ============================================================= */
 
 export async function render(container, supabase, db, opts = {}) {
   const saveFn = opts.save || (window.save ? window.save : async () => {});
 
+  // 1. PREPARACIÓN DE DATOS
   if (!Array.isArray(db.albaranes)) db.albaranes = [];
+  // Aquí definimos tus socios. Si en el futuro quieres cambiarlos, edita esta línea:
   const listaSocios = db.listaSocios || ['Jeronimo','Pedro','Pau','Agnes'];
   let filtroOwner = 'Todos'; 
 
-  // --- INTERFAZ ---
+  // 2. INTERFAZ
   container.innerHTML = `
     <div class="animate-fade-in space-y-6">
       
@@ -51,20 +53,21 @@ export async function render(container, supabase, db, opts = {}) {
                         <input id="inDate" type="date" value="${new Date().toISOString().split('T')[0]}" class="flex-1 p-3 bg-slate-50 rounded-xl text-sm font-bold border-0 outline-none text-slate-700">
                         <input id="inRef" type="text" placeholder="Nº Ref" class="w-1/3 p-3 bg-slate-50 rounded-xl text-sm font-bold border-0 outline-none text-slate-700">
                     </div>
-                    <select id="inSocio" class="w-full p-3 bg-slate-50 rounded-xl text-xs font-bold border-0 outline-none text-slate-600 cursor-pointer">
-                        <option value="Arume">Gasto: Restaurante</option>
+                    
+                    <select id="inSocio" class="w-full p-3 bg-slate-50 rounded-xl text-xs font-bold border-0 outline-none text-slate-600 cursor-pointer hover:bg-slate-100 transition">
+                        <option value="Arume">Gasto: Restaurante (Arume)</option>
                         ${listaSocios.map(s => `<option value="${s}">Gasto: ${s}</option>`).join('')}
                     </select>
                 </div>
 
                 <div class="mb-4 relative">
-                    <input id="inNotes" type="text" placeholder="📝 Notas (ej. Vino roto, Devolución...)" 
+                    <input id="inNotes" type="text" placeholder="📝 Notas (ej. Vino roto...)" 
                            class="w-full p-3 pl-10 bg-amber-50 text-amber-900 placeholder-amber-400/70 rounded-xl text-xs font-bold border border-amber-100 outline-none focus:ring-2 focus:ring-amber-400 transition">
                     <span class="absolute left-3 top-3 text-amber-400">⚠️</span>
                 </div>
 
                 <div class="relative mb-3">
-                    <textarea id="inText" placeholder="Ejemplos:&#10;2 Cajas Tomates 15.00&#10;1 Ginebra 12.50 21%&#10;Lejía 5.00 21" 
+                    <textarea id="inText" placeholder="Ejemplos:&#10;2 Cajas Tomates 15.00&#10;1 Ginebra 12.50 21%" 
                         class="w-full h-40 bg-slate-50 rounded-2xl p-4 text-xs font-mono border-0 outline-none resize-none focus:bg-white focus:ring-2 focus:ring-indigo-500 transition shadow-inner"></textarea>
                     <p class="absolute bottom-2 right-4 text-[9px] text-slate-300 font-bold pointer-events-none">Añade '21' al final para alcohol</p>
                 </div>
@@ -93,6 +96,7 @@ export async function render(container, supabase, db, opts = {}) {
                 <div class="flex gap-1">
                     <button data-filter="Todos" class="filter-btn px-3 py-1 rounded-full text-[9px] font-black uppercase bg-slate-900 text-white">Todos</button>
                     <button data-filter="Arume" class="filter-btn px-3 py-1 rounded-full text-[9px] font-black uppercase bg-slate-100 text-slate-400">Rest.</button>
+                    <button data-filter="Socios" class="filter-btn px-3 py-1 rounded-full text-[9px] font-black uppercase bg-slate-100 text-slate-400">Socios</button>
                 </div>
             </div>
             <div id="listaAlbaranes" class="space-y-3 pb-20"></div>
@@ -271,7 +275,7 @@ export async function render(container, supabase, db, opts = {}) {
         prov: container.querySelector("#inProv").value || "Varios",
         num: container.querySelector("#inRef").value || "S/N",
         date: container.querySelector("#inDate").value,
-        socio: container.querySelector("#inSocio").value,
+        socio: container.querySelector("#inSocio").value, // Aquí guarda el socio del selector
         items: items,
         total: total,
         taxes: totalTax,
@@ -291,26 +295,42 @@ export async function render(container, supabase, db, opts = {}) {
     pintarLista();
   };
 
-  // LISTADO
+  // LISTADO (AQUÍ ESTÁ LA CORRECCIÓN)
   const pintarLista = () => {
     const term = container.querySelector("#searchBox").value.toLowerCase();
     const totalGlobal = db.albaranes.reduce((acc, a) => acc + (parseFloat(a.total)||0), 0);
     container.querySelector("#total-global-kpi").innerText = totalGlobal.toLocaleString('es-ES',{minimumFractionDigits:2}) + "€";
 
     const filtered = db.albaranes.filter(a => {
-        if (filtroOwner === 'Arume' && a.socio !== 'Arume' && a.socio !== 'Restaurante') return false;
+        const esSocio = a.socio && a.socio !== 'Arume' && a.socio !== 'Restaurante';
+        if (filtroOwner === 'Arume' && esSocio) return false;
+        if (filtroOwner === 'Socios' && !esSocio) return false; // Filtro Socios activado
+        
         return `${a.prov} ${a.num} ${a.notes || ''}`.toLowerCase().includes(term);
     }).sort((a,b) => new Date(b.date) - new Date(a.date));
 
-    // AÑADIDO ONCLICK DIRECTO AL HTML PARA EVITAR ERRORES DE BINDING
     container.querySelector("#listaAlbaranes").innerHTML = filtered.map(a => `
         <div onclick="window.editarAlbaran('${a.id}')" class="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm hover:bg-slate-50 transition cursor-pointer relative overflow-hidden group">
+            
             ${a.notes ? `<div class="absolute top-0 right-0 bg-amber-100 text-amber-600 px-3 py-1 rounded-bl-2xl text-[9px] font-black border-l border-b border-amber-200">📝 NOTA</div>` : ''}
+
             <div class="flex justify-between items-center">
                 <div>
-                    <h4 class="font-black text-slate-800 text-base">${a.prov}</h4>
+                    <div class="flex items-center gap-2 mb-1">
+                        <h4 class="font-black text-slate-800 text-base">${a.prov}</h4>
+                        <span class="text-[8px] font-bold uppercase px-2 py-0.5 rounded ${a.socio === 'Arume' || !a.socio ? 'bg-slate-100 text-slate-400' : 'bg-indigo-100 text-indigo-600 border border-indigo-200'}">
+                            ${a.socio || 'Restaurante'}
+                        </span>
+                    </div>
+
                     <p class="text-[10px] text-slate-400 font-bold uppercase mt-1">${formatDate(a.date)} · ${a.num}</p>
+                    
                     ${a.notes ? `<p class="mt-2 text-xs font-bold text-amber-700 bg-amber-50 p-2 rounded-lg border border-amber-100 inline-block">⚠️ ${a.notes}</p>` : ''}
+
+                    <div class="flex gap-2 mt-2">
+                        ${ (a.items && Array.isArray(a.items)) ? a.items.some(i => i.rate == 21) ? '<span class="text-[8px] bg-rose-100 text-rose-600 px-1.5 rounded font-black">21%</span>' : '' : '' }
+                        <span class="text-[9px] bg-emerald-50 text-emerald-600 px-2 rounded font-bold border border-emerald-100">IVA: ${(a.taxes||0).toFixed(2)}€</span>
+                    </div>
                 </div>
                 <div class="text-right">
                     <p class="font-black text-slate-900 text-xl">${parseFloat(a.total).toFixed(2)}€</p>
@@ -321,7 +341,7 @@ export async function render(container, supabase, db, opts = {}) {
     `).join('');
   };
 
-  // --- FUNCIÓN DE EDICIÓN CON PROTECCIÓN CONTRA CRASHES ---
+  // --- FUNCIÓN DE EDICIÓN ---
   window.editarAlbaran = (id) => {
     container.scrollTop = 0; 
     window.scrollTo(0, 0);
@@ -332,7 +352,6 @@ export async function render(container, supabase, db, opts = {}) {
     modal.classList.remove("hidden");
     
     let itemsHTML = '';
-    // AQUI ESTABA EL ERROR: Añadida protección (it.t || 0) y (it.rate || 0)
     if(Array.isArray(a.items) && a.items.length > 0) {
         itemsHTML = a.items.map(it => `
             <div class="flex justify-between text-xs py-2 border-b border-slate-100">
@@ -362,6 +381,14 @@ export async function render(container, supabase, db, opts = {}) {
                         <label class="text-[9px] font-bold text-slate-400 uppercase ml-2">Fecha</label>
                         <input id="ed-date" type="date" value="${a.date}" class="w-full p-3 bg-slate-50 rounded-xl font-bold text-sm border border-slate-200">
                     </div>
+                </div>
+
+                <div>
+                    <label class="text-[9px] font-bold text-slate-400 uppercase ml-2">Asignado a:</label>
+                    <select id="ed-socio" class="w-full p-3 bg-slate-50 rounded-xl text-sm font-bold border border-slate-200 outline-none">
+                        <option value="Arume" ${a.socio==='Arume'?'selected':''}>Restaurante (Arume)</option>
+                        ${listaSocios.map(s => `<option value="${s}" ${a.socio===s?'selected':''}>${s}</option>`).join('')}
+                    </select>
                 </div>
 
                 <div class="p-4 bg-slate-50 rounded-2xl border border-slate-100 space-y-3">
@@ -398,6 +425,7 @@ export async function render(container, supabase, db, opts = {}) {
     modal.querySelector("#btnSaveEd").onclick = async () => {
         a.prov = modal.querySelector("#ed-prov").value;
         a.date = modal.querySelector("#ed-date").value;
+        a.socio = modal.querySelector("#ed-socio").value; // GUARDAR CAMBIO DE SOCIO
         a.total = parseFloat(modal.querySelector("#ed-total").value);
         a.taxes = parseFloat(modal.querySelector("#ed-tax").value);
         a.notes = modal.querySelector("#ed-notes").value; 
@@ -427,10 +455,8 @@ export async function render(container, supabase, db, opts = {}) {
   container.querySelector("#searchBox").addEventListener('input', pintarLista);
   function formatDate(d) { try { return new Date(d).toLocaleDateString('es-ES', {day:'2-digit', month:'short'}); } catch { return d; } }
   
-  // CSV y Exportar
-  csvInput.addEventListener('change', async (e) => { /* Logic */ }); 
-  // Nota: La lógica CSV está arriba en el listener real, este comentario es solo visual
-  // El código real de CSV está en la parte superior del archivo, no lo duplico aquí abajo
+  csvInput.addEventListener('change', async (e) => { /* Logic is above */ }); 
+  btnExport.onclick = () => { /* Logic is above */ };
 
   pintarLista();
 }
