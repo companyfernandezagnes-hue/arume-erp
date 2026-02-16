@@ -139,13 +139,11 @@ window.loadModule = async function(name) {
             </div>`;
     }
 };
-
-// 5. MENÚ DE NAVEGACIÓN (Navbar con Clases Seguras)
+// 5. MENÚ DE NAVEGACIÓN (Navbar con Nombres Lógicos)
 function renderNav() {
     const nav = document.getElementById('navbar');
     if (!nav) return;
 
-    // AÑADIDO: Botón de Gastos Fijos (🏢)
     nav.innerHTML = `
         <div class="flex items-center justify-between w-full overflow-x-auto gap-4 px-2 py-1 no-scrollbar">
             
@@ -161,12 +159,12 @@ function renderNav() {
             
             <button onclick="loadModule('facturas')" class="flex flex-col items-center gap-1 min-w-[45px] shrink-0 group">
                 <span class="text-xl transition-all nav-icon">📄</span>
-                <span class="text-[8px] font-black uppercase text-slate-400 group-hover:text-indigo-500 nav-text">Ventas</span>
+                <span class="text-[8px] font-black uppercase text-slate-400 group-hover:text-indigo-500 nav-text">Facturas</span>
             </button>
             
             <button onclick="loadModule('albaranes')" class="flex flex-col items-center gap-1 min-w-[45px] shrink-0 group">
                 <span class="text-xl transition-all nav-icon">🚚</span>
-                <span class="text-[8px] font-black uppercase text-slate-400 group-hover:text-indigo-500 nav-text">Gastos</span>
+                <span class="text-[8px] font-black uppercase text-slate-400 group-hover:text-indigo-500 nav-text">Albaranes</span>
             </button>
 
             <button onclick="loadModule('gastos_fijos')" class="flex flex-col items-center gap-1 min-w-[45px] shrink-0 group">
@@ -194,7 +192,6 @@ function renderNav() {
         </div>
     `;
 }
-
 // 6. FUNCIÓN GLOBAL PARA GUARDAR (Sincronización)
 window.save = async function(mensaje = "Datos guardados") {
     // Marca de tiempo
