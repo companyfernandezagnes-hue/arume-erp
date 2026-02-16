@@ -244,61 +244,68 @@ export async function render(container, supabase, db, opts = {}) {
         container.querySelector("#total-global-kpi").innerText = totalGlobal.toLocaleString('es-ES', {minimumFractionDigits:2}) + "€";
     };
 
-   // --- FUNCIÓN DE EDICIÓN MEJORADA (Ahora con lista de productos) ---
+  // --- SUSTITUYE TU FUNCIÓN window.editarAlbaran POR ESTA ---
     window.editarAlbaran = (id) => {
         const a = db.albaranes.find(x => x.id === id);
         if(!a) return;
         const modal = container.querySelector("#modalDetalle");
         modal.classList.remove("hidden");
 
-        // Generamos el HTML de los productos guardados
+        // 1. Generamos el desglose detallado de productos
         let productosHTML = '';
-        if (a.items && a.items.length > 0) {
+        if (a.items && Array.isArray(a.items) && a.items.length > 0) {
             productosHTML = `
                 <div class="mt-4 border-t border-slate-100 pt-4">
-                    <p class="text-[10px] font-black text-indigo-500 uppercase mb-2">Desglose de Productos:</p>
-                    <div class="space-y-1 max-h-40 overflow-y-auto pr-2 custom-scrollbar">
+                    <p class="text-[10px] font-black text-indigo-500 uppercase mb-2 tracking-widest">Contenido del Albarán:</p>
+                    <div class="space-y-1 max-h-48 overflow-y-auto pr-2 custom-scrollbar bg-slate-50 p-2 rounded-2xl">
                         ${a.items.map(it => `
-                            <div class="flex justify-between items-center text-[11px] bg-slate-50 p-2 rounded-lg">
-                                <span class="font-bold text-slate-700">${it.q}x ${it.n}</span>
-                                <div class="flex gap-3">
-                                    <span class="text-slate-400">${it.rate}% IVA</span>
-                                    <span class="font-black text-slate-900">${it.t.toFixed(2)}€</span>
+                            <div class="flex justify-between items-center text-[11px] py-1 border-b border-white last:border-0">
+                                <div class="flex flex-col">
+                                    <span class="font-bold text-slate-700">${it.q}x ${it.n}</span>
+                                    <span class="text-[9px] text-slate-400">P.U: ${it.p.toFixed(2)}€ | IVA: ${it.rate}%</span>
                                 </div>
+                                <span class="font-black text-slate-900">${it.t.toFixed(2)}€</span>
                             </div>
                         `).join('')}
                     </div>
                 </div>
             `;
         } else {
-            productosHTML = `<p class="text-[10px] text-slate-400 italic mt-4">Sin desglose de productos (entrada manual única)</p>`;
+            productosHTML = `
+                <div class="mt-4 border-t border-slate-100 pt-4 text-center">
+                    <p class="text-[10px] text-slate-400 italic">Este albarán no tiene desglose de productos.</p>
+                </div>
+            `;
         }
 
+        // 2. Pintamos el modal con los datos y el desglose
         modal.innerHTML = `
-            <div class="bg-white w-full max-w-lg rounded-[2.5rem] p-8 shadow-2xl animate-slide-up relative">
-                <button onclick="document.getElementById('modalDetalle').classList.add('hidden')" class="absolute top-6 right-6 text-slate-300 hover:text-slate-600 text-2xl">✕</button>
-                <h3 class="text-2xl font-black text-slate-800 mb-6">Detalle Albarán</h3>
+            <div class="bg-white w-full max-w-lg rounded-[2.5rem] p-8 shadow-2xl animate-slide-up relative overflow-hidden">
+                <div class="absolute top-0 left-0 w-full h-1 bg-indigo-500"></div>
+                <button onclick="document.getElementById('modalDetalle').classList.add('hidden')" class="absolute top-6 right-6 text-slate-300 hover:text-slate-600 text-2xl transition">✕</button>
+                
+                <h3 class="text-2xl font-black text-slate-800 mb-6">Detalle de Compra</h3>
                 
                 <div class="grid grid-cols-2 gap-4 mb-4">
-                    <div>
+                    <div class="flex flex-col gap-1">
                         <label class="text-[9px] font-bold text-slate-400 uppercase ml-2">Proveedor</label>
-                        <input id="ed-prov" type="text" value="${a.prov}" class="w-full p-3 bg-slate-50 rounded-xl font-bold border border-slate-100">
+                        <input id="ed-prov" type="text" value="${a.prov}" class="p-3 bg-slate-50 rounded-xl font-bold border border-slate-100 focus:ring-2 focus:ring-indigo-500 outline-none">
                     </div>
-                    <div>
+                    <div class="flex flex-col gap-1">
                         <label class="text-[9px] font-bold text-slate-400 uppercase ml-2">Fecha</label>
-                        <input id="ed-date" type="date" value="${a.date}" class="w-full p-3 bg-slate-50 rounded-xl font-bold border border-slate-100">
+                        <input id="ed-date" type="date" value="${a.date}" class="p-3 bg-slate-50 rounded-xl font-bold border border-slate-100 focus:ring-2 focus:ring-indigo-500 outline-none">
                     </div>
                 </div>
 
                 <div class="grid grid-cols-2 gap-4 mb-4">
-                    <div>
+                    <div class="flex flex-col gap-1">
                         <label class="text-[9px] font-bold text-slate-400 uppercase ml-2">Total (€)</label>
-                        <input id="ed-total" type="number" value="${a.total}" class="w-full p-3 bg-slate-900 text-white rounded-xl font-black">
+                        <input id="ed-total" type="number" value="${a.total}" class="p-3 bg-slate-900 text-white rounded-xl font-black text-lg outline-none">
                     </div>
-                    <div>
-                        <label class="text-[9px] font-bold text-slate-400 uppercase ml-2">Socio / Gasto</label>
-                        <select id="ed-socio" class="w-full p-3 bg-slate-50 rounded-xl font-bold border border-slate-100">
-                            <option value="Arume" ${a.socio==='Arume'?'selected':''}>Arume</option>
+                    <div class="flex flex-col gap-1">
+                        <label class="text-[9px] font-bold text-slate-400 uppercase ml-2">Socio Responsable</label>
+                        <select id="ed-socio" class="p-3 bg-slate-50 rounded-xl font-bold border border-slate-100 outline-none">
+                            <option value="Arume" ${a.socio==='Arume'?'selected':''}>Arume (Restaurante)</option>
                             ${listaSocios.map(s => `<option value="${s}" ${a.socio===s?'selected':''}>${s}</option>`).join('')}
                         </select>
                     </div>
@@ -306,22 +313,29 @@ export async function render(container, supabase, db, opts = {}) {
 
                 ${productosHTML}
 
-                <div class="flex items-center gap-3 mt-6 mb-6">
-                    <input type="checkbox" id="ed-paid" ${a.paid ? 'checked' : ''} class="w-5 h-5 accent-emerald-500">
-                    <label class="text-sm font-bold text-slate-700">Gasto Pagado</label>
+                <div class="flex items-center gap-3 mt-6 mb-6 p-3 bg-emerald-50 rounded-2xl border border-emerald-100">
+                    <input type="checkbox" id="ed-paid" ${a.paid ? 'checked' : ''} class="w-5 h-5 accent-emerald-500 cursor-pointer">
+                    <label for="ed-paid" class="text-sm font-bold text-emerald-800 cursor-pointer">Marcar como Gasto Pagado</label>
                 </div>
 
-                <button id="btnSaveEd" class="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black shadow-lg hover:bg-indigo-700 transition">GUARDAR CAMBIOS</button>
-                <button onclick="borrarAlbaran('${a.id}')" class="w-full text-rose-500 text-[10px] font-black mt-4 uppercase tracking-widest">Eliminar Registro Definitivamente</button>
+                <div class="grid grid-cols-1 gap-3">
+                    <button id="btnSaveEd" class="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black shadow-lg hover:bg-indigo-700 transition">
+                        CONFIRMAR CAMBIOS
+                    </button>
+                    <button onclick="window.borrarAlbaran('${a.id}')" class="w-full text-rose-400 text-[10px] font-black mt-2 uppercase tracking-widest hover:text-rose-600">
+                        Eliminar Registro Permanentemente
+                    </button>
+                </div>
             </div>
         `;
 
         modal.querySelector("#btnSaveEd").onclick = async () => {
             a.prov = modal.querySelector("#ed-prov").value;
             a.date = modal.querySelector("#ed-date").value;
-            a.total = parseFloat(modal.querySelector("#ed-total").value);
+            a.total = parseFloat(modal.querySelector("#ed-total").value) || 0;
             a.socio = modal.querySelector("#ed-socio").value;
             a.paid = modal.querySelector("#ed-paid").checked;
+            
             await saveFn("Albarán actualizado ✅");
             modal.classList.add("hidden");
             pintarLista();
