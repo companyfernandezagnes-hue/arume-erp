@@ -2,7 +2,7 @@
    🚀 ARUME ERP - NÚCLEO CENTRAL (app.js)
    ============================================================= */
 
-// Traductor universal de números
+// 0. UTILIDADES GLOBALES
 window.Num = {
     parse: (val) => {
         if (!val) return 0;
@@ -29,146 +29,209 @@ document.addEventListener("DOMContentLoaded", async () => {
 // 3. RECUPERAR DATOS REALES
 async function cargarDatosDeLaNube() {
     console.log("📡 Conectando con Supabase...");
+    
+    // UI de carga inicial
+    const container = document.getElementById('app');
+    if(container) container.innerHTML = `<div class="flex h-full items-center justify-center"><p class="animate-pulse text-slate-400 font-bold text-xs uppercase">Sincronizando...</p></div>`;
+
     const { data, error } = await sb
-        .from('arume_data')
+        .from('arume_data') // TIENE QUE SER arume_data
         .select('data')
         .eq('id', 1)
         .single();
 
     if (error) {
         console.error("Error al bajar datos:", error);
-        const local = localStorage.getItem('arume_v152');
-        if (local) window.db = JSON.parse(decodeURIComponent(atob(local)));
+        // Fallback local por si no hay internet
+        const local = localStorage.getItem('arume_backup_local');
+        if (local) window.db = JSON.parse(local);
     } else {
-        window.db = data.data;
+        window.db = data.data || {};
+        // Inicializar estructuras vacías si es la primera vez
+        if(!window.db.banco) window.db.banco = [];
+        if(!window.db.platos) window.db.platos = [];
+        if(!window.db.ventas_menu) window.db.ventas_menu = [];
+        if(!window.db.diario) window.db.diario = [];
+        
+        // Guardar copia local por seguridad
+        localStorage.setItem('arume_backup_local', JSON.stringify(window.db));
         console.log("✅ Datos cargados correctamente.");
     }
+    
+    // Cargar Dashboard por defecto
     loadModule('dashboard');
 }
 
-// 4. EL NAVEGADOR DE MÓDULOS (VERSIÓN DEFINITIVA)
+// 4. EL NAVEGADOR DE MÓDULOS (Router)
 window.loadModule = async function(name) {
     const container = document.getElementById('app');
     if (!container) return;
 
-    container.innerHTML = `<div class="p-10 text-center animate-pulse text-slate-400 uppercase text-xs font-black">Cargando ${name}...</div>`;
+    // Feedback visual inmediato
+    container.innerHTML = `
+        <div class="h-full flex flex-col items-center justify-center space-y-4">
+            <div class="w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
+            <p class="text-xs font-black text-slate-300 uppercase tracking-widest">Cargando ${name}...</p>
+        </div>
+    `;
 
     try {
+        // --- AQUÍ ESTÁ LA CORRECCIÓN ---
+        // Si pedimos 'diario', cargamos el archivo 'caja.js'
         let fileName = name;
-        if (name === 'diario') fileName = 'caja';
+        if (name === 'diario') fileName = 'caja'; 
+        // -------------------------------
 
-        // TRUCO: Añadimos ?v=Date.now() para que nunca cargue la versión vieja
+        // TRUCO: Cache-busting para asegurar que carga siempre el código nuevo
         const modulePath = `./modules/${fileName}.js?v=${Date.now()}`;
+        
+        // Importación dinámica
         const mod = await import(modulePath);
         
+        // Limpiar contenedor y renderizar módulo
         container.innerHTML = "";
         
         if (mod.render) {
             await mod.render(container, window.sb, window.db);
             
-            // Gestión de botones activos (Protegida)
-            document.querySelectorAll('nav button').forEach(btn => {
-                btn.style.color = '#94a3b8'; 
+            // --- GESTIÓN DE BOTONES ACTIVOS ---
+            document.querySelectorAll('#navbar button span.text-xl').forEach(icon => {
+                icon.style.opacity = '0.5';
+                icon.style.transform = 'scale(1)';
             });
-            
-            const activeBtn = document.getElementById(`btn-${name}`);
+            document.querySelectorAll('#navbar button span.text-[8px]').forEach(text => {
+                text.classList.remove('text-indigo-600');
+                text.classList.add('text-slate-400');
+            });
+
+            // Activar el botón actual
+            const activeBtn = document.querySelector(`button[onclick="loadModule('${name}')"]`);
             if (activeBtn) {
-                activeBtn.style.color = '#4f46e5';
+                const icon = activeBtn.querySelector('.text-xl');
+                const text = activeBtn.querySelector('.text-[8px]');
+                if(icon) {
+                    icon.style.opacity = '1';
+                    icon.style.transform = 'scale(1.2)';
+                    icon.style.transition = 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+                }
+                if(text) {
+                    text.classList.remove('text-slate-400');
+                    text.classList.add('text-indigo-600');
+                }
             }
         }
         
     } catch (e) {
-        console.error("Error en loadModule:", e);
+        console.error("Error crítico en loadModule:", e);
         container.innerHTML = `
-            <div class="p-10 text-center bg-red-50 rounded-3xl m-4 border border-red-100">
-                <p class="text-red-500 font-black">❌ ERROR DE CARGA: ${name}</p>
-                <p class="text-[10px] text-slate-400 mt-2">Verifica assets/js/modules/${name}.js</p>
+            <div class="flex flex-col items-center justify-center h-full p-6 text-center">
+                <div class="bg-rose-50 p-6 rounded-[2rem] border border-rose-100 shadow-sm">
+                    <p class="text-3xl mb-2">😵</p>
+                    <p class="text-rose-600 font-black text-sm uppercase">Error cargando módulo</p>
+                    <p class="text-slate-400 text-xs mt-2 font-mono bg-white p-2 rounded border border-rose-50">${e.message}</p>
+                    <button onclick="location.reload()" class="mt-4 bg-slate-900 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-lg">Reiniciar App</button>
+                </div>
             </div>`;
     }
 };
-// 5. MENÚ COMPLETO (9 MÓDULOS)
+
+// 5. MENÚ DE NAVEGACIÓN (Navbar)
 function renderNav() {
     const nav = document.getElementById('navbar');
     if (!nav) return;
 
+    // Estilo tipo "Dock" de macOS/iOS
     nav.innerHTML = `
-        <div style="display:flex; justify-content:space-between; align-items:center; background:white; padding:10px 20px; border-top:1px solid #f1f5f9; position:fixed; bottom:0; width:100%; max-width:900px; left:50%; transform:translateX(-50%); z-index:1000; border-radius: 20px 20px 0 0; box-shadow: 0 -5px 30px rgba(0,0,0,0.08); overflow-x: auto; gap: 15px;">
+        <div class="flex items-center justify-between w-full overflow-x-auto gap-4 px-2 py-1 no-scrollbar">
             
-            <button onclick="loadModule('dashboard')" class="flex flex-col items-center gap-1 min-w-[50px] shrink-0">
-                <span class="text-xl">📊</span>
-                <span class="text-[8px] font-black uppercase text-slate-400">Dash</span>
+            <button onclick="loadModule('dashboard')" class="flex flex-col items-center gap-1 min-w-[45px] shrink-0 group">
+                <span class="text-xl transition-all">📊</span>
+                <span class="text-[8px] font-black uppercase text-slate-400 group-hover:text-indigo-500">Dash</span>
             </button>
             
-            <button onclick="loadModule('diario')" class="flex flex-col items-center gap-1 min-w-[50px] shrink-0">
-                <span class="text-xl">💵</span>
-                <span class="text-[8px] font-black uppercase text-slate-400">Caja</span>
+            <button onclick="loadModule('diario')" class="flex flex-col items-center gap-1 min-w-[45px] shrink-0 group">
+                <span class="text-xl transition-all">💵</span>
+                <span class="text-[8px] font-black uppercase text-slate-400 group-hover:text-indigo-500">Caja</span>
             </button>
             
-            <button onclick="loadModule('facturas')" class="flex flex-col items-center gap-1 min-w-[50px] shrink-0">
-                <span class="text-xl">📄</span>
-                <span class="text-[8px] font-black uppercase text-slate-400">Fra</span>
+            <button onclick="loadModule('facturas')" class="flex flex-col items-center gap-1 min-w-[45px] shrink-0 group">
+                <span class="text-xl transition-all">📄</span>
+                <span class="text-[8px] font-black uppercase text-slate-400 group-hover:text-indigo-500">Ventas</span>
             </button>
             
-            <button onclick="loadModule('albaranes')" class="flex flex-col items-center gap-1 min-w-[50px] shrink-0">
-                <span class="text-xl">🚚</span>
-                <span class="text-[8px] font-black uppercase text-slate-400">Alb</span>
+            <button onclick="loadModule('albaranes')" class="flex flex-col items-center gap-1 min-w-[45px] shrink-0 group">
+                <span class="text-xl transition-all">🚚</span>
+                <span class="text-[8px] font-black uppercase text-slate-400 group-hover:text-indigo-500">Gastos</span>
             </button>
 
-            <button onclick="loadModule('gastos_fijos')" class="flex flex-col items-center gap-1 min-w-[50px] shrink-0">
-                <span class="text-xl">🏢</span>
-                <span class="text-[8px] font-black uppercase text-slate-400">Fijos</span>
-            </button>
-            
-            <div class="w-px h-8 bg-slate-100 mx-1 shrink-0"></div> 
+            <div class="w-px h-6 bg-slate-200 shrink-0"></div> 
 
-            <button onclick="loadModule('menu')" class="flex flex-col items-center gap-1 min-w-[50px] shrink-0">
-                <span class="text-xl">🍽️</span>
-                <span class="text-[8px] font-black uppercase text-slate-400">Menu</span>
+            <button onclick="loadModule('menu')" class="flex flex-col items-center gap-1 min-w-[45px] shrink-0 group">
+                <span class="text-xl transition-all">🍽️</span>
+                <span class="text-[8px] font-black uppercase text-slate-400 group-hover:text-indigo-500">Carta</span>
             </button>
 
-            <button onclick="loadModule('fiscalidad')" class="flex flex-col items-center gap-1 min-w-[50px] shrink-0">
-                <span class="text-xl">⚖️</span>
-                <span class="text-[8px] font-black uppercase text-slate-400">Imp</span>
+            <button onclick="loadModule('banco')" class="flex flex-col items-center gap-1 min-w-[45px] shrink-0 group">
+                <span class="text-xl transition-all">🏦</span>
+                <span class="text-[8px] font-black uppercase text-slate-400 group-hover:text-indigo-500">Banco</span>
             </button>
             
-            <button onclick="loadModule('banco')" class="flex flex-col items-center gap-1 min-w-[50px] shrink-0">
-                <span class="text-xl">🏦</span>
-                <span class="text-[8px] font-black uppercase text-slate-400">Banco</span>
-            </button>
-            
-            <button onclick="loadModule('informes')" class="flex flex-col items-center gap-1 min-w-[50px] shrink-0">
-                <span class="text-xl">📈</span>
-                <span class="text-[8px] font-black uppercase text-slate-400">P&L</span>
+            <button onclick="loadModule('informes')" class="flex flex-col items-center gap-1 min-w-[45px] shrink-0 group">
+                <span class="text-xl transition-all">📈</span>
+                <span class="text-[8px] font-black uppercase text-slate-400 group-hover:text-indigo-500">P&L</span>
             </button>
 
         </div>
     `;
 }
-// 6. FUNCIÓN GLOBAL PARA GUARDAR
+
+// 6. FUNCIÓN GLOBAL PARA GUARDAR (Sincronización)
 window.save = async function(mensaje = "Datos guardados") {
+    // Marca de tiempo para control de versiones
     window.db.lastSync = Date.now();
+    
+    // Guardado Optimista (LocalStorage primero para sensación de velocidad)
+    localStorage.setItem('arume_backup_local', JSON.stringify(window.db));
+
+    // Guardado Real (Nube)
     const { error } = await sb
-        .from('arume_data')
+        .from('arume_data') // Aseguramos el nombre correcto
         .upsert({ id: 1, data: window.db });
 
     if (error) {
-        alert("Error al guardar en la nube: " + error.message);
+        alert("⚠️ Error de sincronización: " + error.message);
+        console.error(error);
+        return false;
     } else {
-        console.log("☁️ " + mensaje);
+        // Toast Notification (Visualmente agradable)
+        const toast = document.createElement('div');
+        toast.className = "fixed top-4 left-1/2 transform -translate-x-1/2 bg-slate-900 text-white text-xs font-bold px-4 py-2 rounded-full shadow-xl z-[10000] animate-fade-in";
+        toast.innerHTML = `☁️ ${mensaje}`;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 2000);
+        return true;
     }
 };
 
-// 7. LÓGICA DE BARRA DINÁMICA
-let lastPos = 0;
-window.onscroll = function() {
+// 7. LÓGICA DE BARRA DINÁMICA (Esconder al bajar, mostrar al subir)
+let lastScrollTop = 0;
+window.addEventListener("scroll", function() {
     const nav = document.getElementById("navbar");
     if (!nav) return;
-    let currentPos = window.pageYOffset || document.documentElement.scrollTop;
     
-    if (currentPos > lastPos && currentPos > 50) {
-        nav.style.transform = "translateY(100%)";
+    // Solo en móvil (en PC el nav tiene posición distinta)
+    if(window.innerWidth > 1024) return;
+
+    let scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+    
+    if (scrollTop > lastScrollTop && scrollTop > 60) {
+        // Bajando -> Esconder
+        nav.style.transform = "translateY(150%)";
+        nav.style.transition = "transform 0.3s ease-out";
     } else {
+        // Subiendo -> Mostrar
         nav.style.transform = "translateY(0)";
+        nav.style.transition = "transform 0.3s ease-out";
     }
-    lastPos = currentPos;
-};
+    lastScrollTop = scrollTop <= 0 ? 0 : scrollTop;
+}, false);
