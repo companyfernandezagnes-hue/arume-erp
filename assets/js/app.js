@@ -26,7 +26,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     await cargarDatosDeLaNube();
 });
 
-// 3. RECUPERAR DATOS REALES
+// 3. RECUPERAR DATOS REALES (CON BLOQUE DE SEGURIDAD)
 async function cargarDatosDeLaNube() {
     console.log("📡 Conectando con Supabase...");
     
@@ -35,23 +35,29 @@ async function cargarDatosDeLaNube() {
     if(container) container.innerHTML = `<div class="flex h-full items-center justify-center"><p class="animate-pulse text-slate-400 font-bold text-xs uppercase">Sincronizando...</p></div>`;
 
     const { data, error } = await sb
-        .from('arume_data')
+        .from('arume_data') // TIENE QUE SER arume_data
         .select('data')
         .eq('id', 1)
         .single();
 
     if (error) {
         console.error("Error al bajar datos:", error);
-        // Fallback local por si no hay internet
         const local = localStorage.getItem('arume_backup_local');
         if (local) window.db = JSON.parse(local);
     } else {
         window.db = data.data || {};
-        // Inicializar estructuras vacías si es la primera vez
+        
+        // --- BLOQUE DE SEGURIDAD: INICIALIZAR ESTRUCTURAS ---
+        // Esto garantiza que la App nunca falle por "datos no encontrados"
         if(!window.db.banco) window.db.banco = [];
         if(!window.db.platos) window.db.platos = [];
         if(!window.db.ventas_menu) window.db.ventas_menu = [];
         if(!window.db.diario) window.db.diario = [];
+        if(!window.db.facturas) window.db.facturas = []; // Ventas
+        if(!window.db.albaranes) window.db.albaranes = []; // Gastos
+        if(!window.db.gastos_fijos) window.db.gastos_fijos = []; // Alquileres, luz...
+        if(!window.db.config) window.db.config = { objetivoMensual: 30000 };
+        // ---------------------------------------------------
         
         // Guardar copia local por seguridad
         localStorage.setItem('arume_backup_local', JSON.stringify(window.db));
@@ -76,26 +82,24 @@ window.loadModule = async function(name) {
     `;
 
     try {
-        // --- MAPEADO DE NOMBRES (IMPORTANTE) ---
+        // --- MAPEADO DE NOMBRES ---
         let fileName = name;
-        // Si pedimos 'diario', cargamos el archivo 'caja.js'
+        // Si pedimos 'diario', cargamos el archivo 'caja.js' (IMPORTANTE)
         if (name === 'diario') fileName = 'caja'; 
-        // ---------------------------------------
+        // --------------------------
 
         // TRUCO: Cache-busting para asegurar que carga siempre el código nuevo
         const modulePath = `./modules/${fileName}.js?v=${Date.now()}`;
         
-        // Importación dinámica
         const mod = await import(modulePath);
         
-        // Limpiar contenedor y renderizar módulo
         container.innerHTML = "";
         
         if (mod.render) {
             await mod.render(container, window.sb, window.db);
             
             // --- GESTIÓN DE BOTONES ACTIVOS (CORREGIDA) ---
-            // Usamos clases seguras 'nav-icon' y 'nav-text' en lugar de selectores complejos
+            // Usamos clases seguras 'nav-icon' y 'nav-text'
             document.querySelectorAll('.nav-icon').forEach(icon => {
                 icon.style.opacity = '0.5';
                 icon.style.transform = 'scale(1)';
@@ -141,8 +145,7 @@ function renderNav() {
     const nav = document.getElementById('navbar');
     if (!nav) return;
 
-    // Estilo tipo "Dock" de macOS/iOS
-    // NOTA: He añadido las clases 'nav-icon' y 'nav-text' para seleccionarlas sin errores
+    // AÑADIDO: Botón de Gastos Fijos (🏢)
     nav.innerHTML = `
         <div class="flex items-center justify-between w-full overflow-x-auto gap-4 px-2 py-1 no-scrollbar">
             
@@ -164,6 +167,11 @@ function renderNav() {
             <button onclick="loadModule('albaranes')" class="flex flex-col items-center gap-1 min-w-[45px] shrink-0 group">
                 <span class="text-xl transition-all nav-icon">🚚</span>
                 <span class="text-[8px] font-black uppercase text-slate-400 group-hover:text-indigo-500 nav-text">Gastos</span>
+            </button>
+
+            <button onclick="loadModule('gastos_fijos')" class="flex flex-col items-center gap-1 min-w-[45px] shrink-0 group">
+                <span class="text-xl transition-all nav-icon">🏢</span>
+                <span class="text-[8px] font-black uppercase text-slate-400 group-hover:text-indigo-500 nav-text">Fijos</span>
             </button>
 
             <div class="w-px h-6 bg-slate-200 shrink-0"></div> 
@@ -189,7 +197,7 @@ function renderNav() {
 
 // 6. FUNCIÓN GLOBAL PARA GUARDAR (Sincronización)
 window.save = async function(mensaje = "Datos guardados") {
-    // Marca de tiempo para control de versiones
+    // Marca de tiempo
     window.db.lastSync = Date.now();
     
     // Guardado Optimista
@@ -197,7 +205,7 @@ window.save = async function(mensaje = "Datos guardados") {
 
     // Guardado Real (Nube)
     const { error } = await sb
-        .from('arume_data')
+        .from('arume_data') 
         .upsert({ id: 1, data: window.db });
 
     if (error) {
