@@ -244,46 +244,89 @@ export async function render(container, supabase, db, opts = {}) {
         container.querySelector("#total-global-kpi").innerText = totalGlobal.toLocaleString('es-ES', {minimumFractionDigits:2}) + "€";
     };
 
+   // --- FUNCIÓN DE EDICIÓN MEJORADA (Ahora con lista de productos) ---
     window.editarAlbaran = (id) => {
         const a = db.albaranes.find(x => x.id === id);
         if(!a) return;
         const modal = container.querySelector("#modalDetalle");
         modal.classList.remove("hidden");
+
+        // Generamos el HTML de los productos guardados
+        let productosHTML = '';
+        if (a.items && a.items.length > 0) {
+            productosHTML = `
+                <div class="mt-4 border-t border-slate-100 pt-4">
+                    <p class="text-[10px] font-black text-indigo-500 uppercase mb-2">Desglose de Productos:</p>
+                    <div class="space-y-1 max-h-40 overflow-y-auto pr-2 custom-scrollbar">
+                        ${a.items.map(it => `
+                            <div class="flex justify-between items-center text-[11px] bg-slate-50 p-2 rounded-lg">
+                                <span class="font-bold text-slate-700">${it.q}x ${it.n}</span>
+                                <div class="flex gap-3">
+                                    <span class="text-slate-400">${it.rate}% IVA</span>
+                                    <span class="font-black text-slate-900">${it.t.toFixed(2)}€</span>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        } else {
+            productosHTML = `<p class="text-[10px] text-slate-400 italic mt-4">Sin desglose de productos (entrada manual única)</p>`;
+        }
+
         modal.innerHTML = `
             <div class="bg-white w-full max-w-lg rounded-[2.5rem] p-8 shadow-2xl animate-slide-up relative">
-                <button onclick="document.getElementById('modalDetalle').classList.add('hidden')" class="absolute top-6 right-6 text-slate-300 text-2xl">✕</button>
+                <button onclick="document.getElementById('modalDetalle').classList.add('hidden')" class="absolute top-6 right-6 text-slate-300 hover:text-slate-600 text-2xl">✕</button>
                 <h3 class="text-2xl font-black text-slate-800 mb-6">Detalle Albarán</h3>
+                
                 <div class="grid grid-cols-2 gap-4 mb-4">
-                    <input id="ed-prov" type="text" value="${a.prov}" class="p-3 bg-slate-50 rounded-xl font-bold border border-slate-200">
-                    <input id="ed-date" type="date" value="${a.date}" class="p-3 bg-slate-50 rounded-xl font-bold border border-slate-200">
+                    <div>
+                        <label class="text-[9px] font-bold text-slate-400 uppercase ml-2">Proveedor</label>
+                        <input id="ed-prov" type="text" value="${a.prov}" class="w-full p-3 bg-slate-50 rounded-xl font-bold border border-slate-100">
+                    </div>
+                    <div>
+                        <label class="text-[9px] font-bold text-slate-400 uppercase ml-2">Fecha</label>
+                        <input id="ed-date" type="date" value="${a.date}" class="w-full p-3 bg-slate-50 rounded-xl font-bold border border-slate-100">
+                    </div>
                 </div>
+
                 <div class="grid grid-cols-2 gap-4 mb-4">
-                    <input id="ed-total" type="number" value="${a.total}" class="p-3 bg-slate-900 text-white rounded-xl font-black">
-                    <select id="ed-socio" class="p-3 bg-slate-50 rounded-xl font-bold border border-slate-200">
-                        <option value="Arume" ${a.socio==='Arume'?'selected':''}>Arume</option>
-                        ${listaSocios.map(s => `<option value="${s}" ${a.socio===s?'selected':''}>${s}</option>`).join('')}
-                    </select>
+                    <div>
+                        <label class="text-[9px] font-bold text-slate-400 uppercase ml-2">Total (€)</label>
+                        <input id="ed-total" type="number" value="${a.total}" class="w-full p-3 bg-slate-900 text-white rounded-xl font-black">
+                    </div>
+                    <div>
+                        <label class="text-[9px] font-bold text-slate-400 uppercase ml-2">Socio / Gasto</label>
+                        <select id="ed-socio" class="w-full p-3 bg-slate-50 rounded-xl font-bold border border-slate-100">
+                            <option value="Arume" ${a.socio==='Arume'?'selected':''}>Arume</option>
+                            ${listaSocios.map(s => `<option value="${s}" ${a.socio===s?'selected':''}>${s}</option>`).join('')}
+                        </select>
+                    </div>
                 </div>
-                <div class="flex items-center gap-3 mb-6">
+
+                ${productosHTML}
+
+                <div class="flex items-center gap-3 mt-6 mb-6">
                     <input type="checkbox" id="ed-paid" ${a.paid ? 'checked' : ''} class="w-5 h-5 accent-emerald-500">
-                    <label class="text-sm font-bold">Marcar como pagado</label>
+                    <label class="text-sm font-bold text-slate-700">Gasto Pagado</label>
                 </div>
-                <button id="btnSaveEd" class="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black shadow-lg">GUARDAR CAMBIOS</button>
-                <button onclick="borrarAlbaran('${a.id}')" class="w-full text-rose-500 text-[10px] font-black mt-4 uppercase">Eliminar Registro</button>
+
+                <button id="btnSaveEd" class="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black shadow-lg hover:bg-indigo-700 transition">GUARDAR CAMBIOS</button>
+                <button onclick="borrarAlbaran('${a.id}')" class="w-full text-rose-500 text-[10px] font-black mt-4 uppercase tracking-widest">Eliminar Registro Definitivamente</button>
             </div>
         `;
+
         modal.querySelector("#btnSaveEd").onclick = async () => {
             a.prov = modal.querySelector("#ed-prov").value;
             a.date = modal.querySelector("#ed-date").value;
             a.total = parseFloat(modal.querySelector("#ed-total").value);
             a.socio = modal.querySelector("#ed-socio").value;
             a.paid = modal.querySelector("#ed-paid").checked;
-            await saveFn("Actualizado");
+            await saveFn("Albarán actualizado ✅");
             modal.classList.add("hidden");
             pintarLista();
         };
     };
-
     window.borrarAlbaran = async (id) => {
         if(!confirm("¿Eliminar?")) return;
         db.albaranes = db.albaranes.filter(x => x.id !== id);
