@@ -1,5 +1,5 @@
 /* =============================================================
-   📄 MÓDULO: FACTURAS PRO+ (Con Trazabilidad y Auditoría)
+   📄 MÓDULO: FACTURAS (Gestión de Compras y Albaranes)
    ============================================================= */
 export async function render(container, supabase, db, opts = {}) {
   const saveFn = opts.save || (window.save ? window.save : async () => {});
@@ -11,14 +11,13 @@ export async function render(container, supabase, db, opts = {}) {
   let mode = 'proveedor';
   let year = new Date().getFullYear();
 
-  // 1. ESTRUCTURA BASE
   container.innerHTML = `
-    <div class="animate-fade-in space-y-6">
+    <div class="animate-fade-in space-y-6 pb-24">
       <section class="p-6 bg-white rounded-[2.5rem] shadow-sm border border-slate-100">
         <div class="flex flex-col md:flex-row items-center justify-between gap-4 mb-6">
           <div>
             <h2 class="text-xl font-black text-slate-800 mb-1">Centro de Facturación</h2>
-            <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Revisión y Trazabilidad</p>
+            <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Agrupación de Albaranes (Compras)</p>
           </div>
           <div class="flex items-center gap-2 bg-slate-50 p-1 rounded-full border">
             <button id="btnModeProv" class="px-4 py-1.5 rounded-full text-[10px] font-black uppercase transition-all">Proveedor</button>
@@ -27,8 +26,8 @@ export async function render(container, supabase, db, opts = {}) {
         </div>
 
         <div class="flex items-center gap-2 p-1 bg-slate-100 rounded-2xl mb-6">
-          <button id="btnTabPend" class="flex-1 py-3 rounded-xl font-black text-xs transition">📦 PENDIENTES</button>
-          <button id="btnTabHist" class="flex-1 py-3 rounded-xl font-black text-xs transition">💰 HISTORIAL</button>
+          <button id="btnTabPend" class="flex-1 py-3 rounded-xl font-black text-xs transition">📦 ALBARANES PENDIENTES</button>
+          <button id="btnTabHist" class="flex-1 py-3 rounded-xl font-black text-xs transition">💰 FACTURAS RECIBIDAS</button>
         </div>
 
         <div class="flex items-center justify-between mb-6">
@@ -37,7 +36,6 @@ export async function render(container, supabase, db, opts = {}) {
             <span id="lblYear" class="text-sm font-black text-slate-700 w-10 text-center">${year}</span>
             <button id="btnYearNext" class="text-indigo-600 font-bold p-1">›</button>
           </div>
-          <button id="btnSEPA" class="px-4 py-2 rounded-2xl text-[10px] font-black border bg-white uppercase">🏦 SEPA (XML)</button>
         </div>
 
         <div id="contentArea" class="space-y-4"></div>
@@ -52,7 +50,6 @@ export async function render(container, supabase, db, opts = {}) {
   const btnModeProv = container.querySelector("#btnModeProv");
   const btnModeSoc  = container.querySelector("#btnModeSocio");
 
-  // Navegación
   container.querySelector("#btnYearPrev").onclick = () => { year--; rerender(); };
   container.querySelector("#btnYearNext").onclick = () => { year++; rerender(); };
   btnTabPend.onclick = () => { activeTab = 'pend'; rerender(); };
@@ -71,22 +68,16 @@ export async function render(container, supabase, db, opts = {}) {
     else renderHistorial();
   }
 
-  rerender();
-
-  /* =============================================================
-     1) VISTA: ALBARANES PENDIENTES
-     ============================================================= */
   function renderPendientes() {
-    const albs = (db.albaranes || []).filter(a => !a.invoiced && isInYear(a.fecha || a.date, year));
+    const albs = db.albaranes.filter(a => !a.invoiced && isInYear(a.date, year));
     const byMonth = {};
 
     albs.forEach(a => {
-      const mk = keyMonth(a.fecha || a.date);
+      const mk = keyMonth(a.date);
       if (!mk) return;
       if (!byMonth[mk]) byMonth[mk] = { name: nameMonthKey(mk), groups: {} };
 
-      const owner = (mode === 'proveedor') ? (a.proveedor || a.prov || 'S/N') : ((a.socio && a.socio !== 'Restaurante') ? a.socio : 'Arume');
-
+      const owner = (mode === 'proveedor') ? (a.prov || 'Sin Proveedor') : (a.socio || 'Arume');
       const g = byMonth[mk].groups;
       if (!g[owner]) g[owner] = { label: owner, t: 0, ids: [], count: 0 };
       
@@ -97,20 +88,18 @@ export async function render(container, supabase, db, opts = {}) {
 
     const keys = Object.keys(byMonth).sort();
     if (!keys.length) {
-        contentArea.innerHTML = `<div class="py-20 text-center text-slate-400 italic text-sm">Todo facturado en ${year} ✅</div>`;
+        contentArea.innerHTML = `<div class="py-20 text-center text-slate-400 italic text-sm">No hay albaranes pendientes en ${year}</div>`;
         return;
     }
 
     contentArea.innerHTML = keys.map(k => `
       <div class="mb-8">
-        <h3 class="text-xs font-black text-indigo-500 uppercase mb-3">${byMonth[k].name}</h3>
+        <h3 class="text-xs font-black text-indigo-500 uppercase mb-3 px-2">${byMonth[k].name}</h3>
         ${Object.values(byMonth[k].groups).map(g => `
           <div class="flex justify-between items-center p-4 bg-slate-50 rounded-2xl border border-slate-100 mb-2 hover:border-indigo-200 transition group">
             <div class="cursor-pointer flex-1" onclick="window.auditarAlbaranes('${g.ids.join(',')}', '${escapeHtml(g.label)}')">
-              <p class="font-bold text-slate-800 group-hover:text-indigo-600 underline decoration-dotted decoration-indigo-200">
-                ${escapeHtml(g.label)}
-              </p>
-              <p class="text-[10px] font-black text-slate-400 uppercase">${g.count} albaranes (Ver desglose)</p>
+              <p class="font-bold text-slate-800 group-hover:text-indigo-600 underline decoration-dotted decoration-indigo-200">${escapeHtml(g.label)}</p>
+              <p class="text-[10px] font-black text-slate-400 uppercase">${g.count} albaranes (Tocar para ver)</p>
             </div>
             <div class="text-right">
               <p class="font-black text-slate-900 text-base">${fmt(g.t)}€</p>
@@ -123,11 +112,12 @@ export async function render(container, supabase, db, opts = {}) {
     `).join('');
   }
 
-  /* =============================================================
-     2) VISTA: HISTORIAL CON AUDITORÍA
-     ============================================================= */
   function renderHistorial() {
     const list = (db.facturas || []).filter(f => isInYear(f.date, year));
+    if(!list.length) {
+        contentArea.innerHTML = `<div class="py-20 text-center text-slate-400 italic text-sm">Sin facturas registradas en ${year}</div>`;
+        return;
+    }
 
     contentArea.innerHTML = `
       <div class="overflow-hidden rounded-3xl border border-slate-100 shadow-sm bg-white">
@@ -155,11 +145,8 @@ export async function render(container, supabase, db, opts = {}) {
       </div>`;
   }
 
-  /* =============================================================
-     🧪 VENTANA DE AUDITORÍA (Muestra los albaranes originales)
-     ============================================================= */
   window.auditarAlbaranes = (idsString, label) => {
-    if (!idsString) return alert("Esta factura no tiene albaranes vinculados.");
+    if (!idsString) return alert("Sin albaranes vinculados.");
     const ids = idsString.split(',');
     const albaranes = db.albaranes.filter(a => ids.includes(a.id));
     
@@ -169,41 +156,37 @@ export async function render(container, supabase, db, opts = {}) {
       <div class="bg-white w-full max-w-2xl rounded-[2.5rem] p-8 shadow-2xl animate-slide-up relative overflow-hidden">
         <button onclick="document.getElementById('modalAuditoria').classList.add('hidden')" class="absolute top-6 right-6 text-slate-300 text-2xl">✕</button>
         <h3 class="text-xl font-black text-slate-800 mb-2">${label}</h3>
-        <p class="text-[10px] font-black text-indigo-500 uppercase tracking-widest mb-6">Desglose de albaranes agrupados</p>
+        <p class="text-[10px] font-black text-indigo-500 uppercase tracking-widest mb-6">Desglose de la compra</p>
         
         <div class="space-y-3 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
           ${albaranes.map(a => `
             <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-              <div class="flex justify-between items-start mb-2">
+              <div class="flex justify-between items-start">
                 <div>
-                  <p class="font-bold text-slate-700 text-sm">${a.fecha || a.date}</p>
-                  <p class="text-[10px] font-mono text-slate-400">ID: ${a.id}</p>
+                  <p class="font-bold text-slate-700 text-sm">${a.date}</p>
+                  <p class="text-[9px] font-mono text-slate-400 uppercase">Socio: ${a.socio || 'Arume'}</p>
                 </div>
                 <p class="font-black text-slate-900">${fmt(a.total)}€</p>
               </div>
-              ${a.notes ? `<div class="bg-amber-100/50 p-2 rounded-lg text-[11px] text-amber-800 font-medium">⚠️ NOTA: ${a.notes}</div>` : ''}
+              ${a.notes ? `<p class="mt-2 text-[10px] text-amber-600 font-bold">⚠️ ${a.notes}</p>` : ''}
             </div>
           `).join('')}
         </div>
-        
         <div class="mt-8 pt-6 border-t flex justify-between items-center">
-            <p class="text-[10px] font-black text-slate-400 uppercase">Suma Total Auditoría</p>
+            <p class="text-[10px] font-black text-slate-400 uppercase">Total agrupado</p>
             <p class="text-2xl font-black text-slate-900">${fmt(albaranes.reduce((t,x)=>t+parseFloat(x.total||0),0))}€</p>
         </div>
       </div>
     `;
   };
 
-  /* =============================================================
-     GENERACIÓN DE FACTURA (Ahora guarda los IDs)
-     ============================================================= */
   window.facturarAgrupado = async (monthKey, ownerLabel) => {
-    const num = prompt(`Nº de Factura para ${ownerLabel}:`);
+    const num = prompt(`Nº de Factura Oficial para ${ownerLabel}:`);
     if (!num) return;
 
     const sel = db.albaranes.filter(a => {
-        const o = (mode === 'proveedor') ? (a.proveedor || a.prov) : (a.socio || 'Arume');
-        return !a.invoiced && keyMonth(a.fecha || a.date) === monthKey && o === ownerLabel;
+        const o = (mode === 'proveedor') ? a.prov : (a.socio || 'Arume');
+        return !a.invoiced && keyMonth(a.date) === monthKey && o === ownerLabel;
     });
 
     let total = 0;
@@ -213,32 +196,31 @@ export async function render(container, supabase, db, opts = {}) {
         return a.id;
     });
 
-    const nuevaFra = {
+    db.facturas.push({
         id: Math.random().toString(36).slice(2,11),
         num,
         date: new Date().toISOString().split('T')[0],
-        prov: mode === 'proveedor' ? ownerLabel : undefined,
-        cliente: mode === 'socio' ? ownerLabel : undefined,
-        total: round2(total),
-        albaranIds: albaranIds.join(','), // AQUÍ GUARDAMOS EL VÍNCULO
+        prov: mode === 'proveedor' ? ownerLabel : 'Varios',
+        cliente: mode === 'socio' ? ownerLabel : 'Arume',
+        total: Math.round(total * 100) / 100,
+        albaranIds: albaranIds.join(','),
         paid: false
-    };
+    });
 
-    db.facturas.push(nuevaFra);
-    await saveFn("Factura generada con trazabilidad ✅");
+    await saveFn("Factura generada ✅");
     rerender();
   };
 
   window.togglePago = async (id) => {
     const f = db.facturas.find(x => x.id === id);
-    if (f) { f.paid = !f.paid; await saveFn(`Factura ${f.num} actualizada`); rerender(); }
+    if (f) { f.paid = !f.paid; await saveFn(`Actualizado`); rerender(); }
   };
 
-  // HELPERS
   function isInYear(d, y) { try { return new Date(d).getFullYear() === y; } catch { return false; } }
   function keyMonth(d) { if(!d) return null; const date = new Date(d); return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}`; }
   function nameMonthKey(k) { const names = ["","Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"]; return `${names[parseInt(k.split('-')[1])]} ${k.split('-')[0]}`; }
   function fmt(n) { return Number(n||0).toLocaleString('es-ES',{minimumFractionDigits:2}); }
-  function round2(x) { return Math.round(x * 100) / 100; }
   function escapeHtml(s) { return String(s||'').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;"}[m])); }
+
+  rerender();
 }
