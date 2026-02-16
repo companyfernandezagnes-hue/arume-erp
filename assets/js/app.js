@@ -35,7 +35,7 @@ async function cargarDatosDeLaNube() {
     if(container) container.innerHTML = `<div class="flex h-full items-center justify-center"><p class="animate-pulse text-slate-400 font-bold text-xs uppercase">Sincronizando...</p></div>`;
 
     const { data, error } = await sb
-        .from('arume_data') // TIENE QUE SER arume_data
+        .from('arume_data')
         .select('data')
         .eq('id', 1)
         .single();
@@ -76,11 +76,11 @@ window.loadModule = async function(name) {
     `;
 
     try {
-        // --- AQUÍ ESTÁ LA CORRECCIÓN ---
-        // Si pedimos 'diario', cargamos el archivo 'caja.js'
+        // --- MAPEADO DE NOMBRES (IMPORTANTE) ---
         let fileName = name;
+        // Si pedimos 'diario', cargamos el archivo 'caja.js'
         if (name === 'diario') fileName = 'caja'; 
-        // -------------------------------
+        // ---------------------------------------
 
         // TRUCO: Cache-busting para asegurar que carga siempre el código nuevo
         const modulePath = `./modules/${fileName}.js?v=${Date.now()}`;
@@ -94,12 +94,13 @@ window.loadModule = async function(name) {
         if (mod.render) {
             await mod.render(container, window.sb, window.db);
             
-            // --- GESTIÓN DE BOTONES ACTIVOS ---
-            document.querySelectorAll('#navbar button span.text-xl').forEach(icon => {
+            // --- GESTIÓN DE BOTONES ACTIVOS (CORREGIDA) ---
+            // Usamos clases seguras 'nav-icon' y 'nav-text' en lugar de selectores complejos
+            document.querySelectorAll('.nav-icon').forEach(icon => {
                 icon.style.opacity = '0.5';
                 icon.style.transform = 'scale(1)';
             });
-            document.querySelectorAll('#navbar button span.text-[8px]').forEach(text => {
+            document.querySelectorAll('.nav-text').forEach(text => {
                 text.classList.remove('text-indigo-600');
                 text.classList.add('text-slate-400');
             });
@@ -107,8 +108,8 @@ window.loadModule = async function(name) {
             // Activar el botón actual
             const activeBtn = document.querySelector(`button[onclick="loadModule('${name}')"]`);
             if (activeBtn) {
-                const icon = activeBtn.querySelector('.text-xl');
-                const text = activeBtn.querySelector('.text-[8px]');
+                const icon = activeBtn.querySelector('.nav-icon');
+                const text = activeBtn.querySelector('.nav-text');
                 if(icon) {
                     icon.style.opacity = '1';
                     icon.style.transform = 'scale(1.2)';
@@ -135,50 +136,51 @@ window.loadModule = async function(name) {
     }
 };
 
-// 5. MENÚ DE NAVEGACIÓN (Navbar)
+// 5. MENÚ DE NAVEGACIÓN (Navbar con Clases Seguras)
 function renderNav() {
     const nav = document.getElementById('navbar');
     if (!nav) return;
 
     // Estilo tipo "Dock" de macOS/iOS
+    // NOTA: He añadido las clases 'nav-icon' y 'nav-text' para seleccionarlas sin errores
     nav.innerHTML = `
         <div class="flex items-center justify-between w-full overflow-x-auto gap-4 px-2 py-1 no-scrollbar">
             
             <button onclick="loadModule('dashboard')" class="flex flex-col items-center gap-1 min-w-[45px] shrink-0 group">
-                <span class="text-xl transition-all">📊</span>
-                <span class="text-[8px] font-black uppercase text-slate-400 group-hover:text-indigo-500">Dash</span>
+                <span class="text-xl transition-all nav-icon">📊</span>
+                <span class="text-[8px] font-black uppercase text-slate-400 group-hover:text-indigo-500 nav-text">Dash</span>
             </button>
             
             <button onclick="loadModule('diario')" class="flex flex-col items-center gap-1 min-w-[45px] shrink-0 group">
-                <span class="text-xl transition-all">💵</span>
-                <span class="text-[8px] font-black uppercase text-slate-400 group-hover:text-indigo-500">Caja</span>
+                <span class="text-xl transition-all nav-icon">💵</span>
+                <span class="text-[8px] font-black uppercase text-slate-400 group-hover:text-indigo-500 nav-text">Caja</span>
             </button>
             
             <button onclick="loadModule('facturas')" class="flex flex-col items-center gap-1 min-w-[45px] shrink-0 group">
-                <span class="text-xl transition-all">📄</span>
-                <span class="text-[8px] font-black uppercase text-slate-400 group-hover:text-indigo-500">Ventas</span>
+                <span class="text-xl transition-all nav-icon">📄</span>
+                <span class="text-[8px] font-black uppercase text-slate-400 group-hover:text-indigo-500 nav-text">Ventas</span>
             </button>
             
             <button onclick="loadModule('albaranes')" class="flex flex-col items-center gap-1 min-w-[45px] shrink-0 group">
-                <span class="text-xl transition-all">🚚</span>
-                <span class="text-[8px] font-black uppercase text-slate-400 group-hover:text-indigo-500">Gastos</span>
+                <span class="text-xl transition-all nav-icon">🚚</span>
+                <span class="text-[8px] font-black uppercase text-slate-400 group-hover:text-indigo-500 nav-text">Gastos</span>
             </button>
 
             <div class="w-px h-6 bg-slate-200 shrink-0"></div> 
 
             <button onclick="loadModule('menu')" class="flex flex-col items-center gap-1 min-w-[45px] shrink-0 group">
-                <span class="text-xl transition-all">🍽️</span>
-                <span class="text-[8px] font-black uppercase text-slate-400 group-hover:text-indigo-500">Carta</span>
+                <span class="text-xl transition-all nav-icon">🍽️</span>
+                <span class="text-[8px] font-black uppercase text-slate-400 group-hover:text-indigo-500 nav-text">Carta</span>
             </button>
 
             <button onclick="loadModule('banco')" class="flex flex-col items-center gap-1 min-w-[45px] shrink-0 group">
-                <span class="text-xl transition-all">🏦</span>
-                <span class="text-[8px] font-black uppercase text-slate-400 group-hover:text-indigo-500">Banco</span>
+                <span class="text-xl transition-all nav-icon">🏦</span>
+                <span class="text-[8px] font-black uppercase text-slate-400 group-hover:text-indigo-500 nav-text">Banco</span>
             </button>
             
             <button onclick="loadModule('informes')" class="flex flex-col items-center gap-1 min-w-[45px] shrink-0 group">
-                <span class="text-xl transition-all">📈</span>
-                <span class="text-[8px] font-black uppercase text-slate-400 group-hover:text-indigo-500">P&L</span>
+                <span class="text-xl transition-all nav-icon">📈</span>
+                <span class="text-[8px] font-black uppercase text-slate-400 group-hover:text-indigo-500 nav-text">P&L</span>
             </button>
 
         </div>
@@ -190,12 +192,12 @@ window.save = async function(mensaje = "Datos guardados") {
     // Marca de tiempo para control de versiones
     window.db.lastSync = Date.now();
     
-    // Guardado Optimista (LocalStorage primero para sensación de velocidad)
+    // Guardado Optimista
     localStorage.setItem('arume_backup_local', JSON.stringify(window.db));
 
     // Guardado Real (Nube)
     const { error } = await sb
-        .from('arume_data') // Aseguramos el nombre correcto
+        .from('arume_data')
         .upsert({ id: 1, data: window.db });
 
     if (error) {
@@ -203,7 +205,7 @@ window.save = async function(mensaje = "Datos guardados") {
         console.error(error);
         return false;
     } else {
-        // Toast Notification (Visualmente agradable)
+        // Toast Notification
         const toast = document.createElement('div');
         toast.className = "fixed top-4 left-1/2 transform -translate-x-1/2 bg-slate-900 text-white text-xs font-bold px-4 py-2 rounded-full shadow-xl z-[10000] animate-fade-in";
         toast.innerHTML = `☁️ ${mensaje}`;
@@ -219,7 +221,7 @@ window.addEventListener("scroll", function() {
     const nav = document.getElementById("navbar");
     if (!nav) return;
     
-    // Solo en móvil (en PC el nav tiene posición distinta)
+    // Solo en móvil
     if(window.innerWidth > 1024) return;
 
     let scrollTop = window.pageYOffset || document.documentElement.scrollTop;
