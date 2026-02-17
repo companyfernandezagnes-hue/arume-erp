@@ -9,12 +9,13 @@ window.Num = {
         if (typeof val === 'number') return val;
         let clean = val.toString().replace(/\./g, '').replace(',', '.');
         return parseFloat(clean) || 0;
-    }
+    },
+    fmt: (val) => new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(val || 0)
 };
 
 // 1. CONFIGURACIÓN SUPABASE
 const SUPABASE_URL = "https://awbgboucnbsuzojocbuy.supabase.co";
-const SUPABASE_KEY = "sb_publishable_drOQ5PsFA8eox_aRTXNATQ_5kibM6ST"; // Nota: Asegúrate de que esta key sea correcta
+const SUPABASE_KEY = "sb_publishable_drOQ5PsFA8eox_aRTXNATQ_5kibM6ST"; 
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 window.sb = sb;
@@ -32,10 +33,10 @@ async function cargarDatosDeLaNube() {
     
     // UI de carga inicial
     const container = document.getElementById('app');
-    if(container) container.innerHTML = `<div class="flex h-full items-center justify-center"><p class="animate-pulse text-slate-400 font-bold text-xs uppercase">Sincronizando...</p></div>`;
+    if(container) container.innerHTML = `<div class="flex h-full items-center justify-center flex-col gap-4"><div class="w-12 h-12 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div><p class="animate-pulse text-slate-400 font-bold text-xs uppercase tracking-widest">Sincronizando Sistema...</p></div>`;
 
     const { data, error } = await sb
-        .from('arume_data') // TIENE QUE SER arume_data
+        .from('arume_data') 
         .select('data')
         .eq('id', 1)
         .single();
@@ -51,16 +52,17 @@ async function cargarDatosDeLaNube() {
         // Esto garantiza que la App nunca falle por "datos no encontrados"
         if(!window.db.banco) window.db.banco = [];
         if(!window.db.platos) window.db.platos = [];
+        if(!window.db.recetas) window.db.recetas = []; // Cocina
+        if(!window.db.ingredientes) window.db.ingredientes = []; // Stock
         if(!window.db.ventas_menu) window.db.ventas_menu = [];
         if(!window.db.diario) window.db.diario = [];
         if(!window.db.facturas) window.db.facturas = []; // Ventas
         if(!window.db.albaranes) window.db.albaranes = []; // Gastos
-        if(!window.db.gastos_fijos) window.db.gastos_fijos = []; // Alquileres, luz...
+        if(!window.db.gastos_fijos) window.db.gastos_fijos = []; 
+        if(!window.db.activos) window.db.activos = []; // Amortizaciones
+        if(!window.db.proveedores) window.db.proveedores = [];
+        if(!window.db.cierres_mensuales) window.db.cierres_mensuales = [];
         
-        // --- NUEVO: Módulo Amortizaciones ---
-        if(!window.db.activos) window.db.activos = []; 
-        // ------------------------------------
-
         if(!window.db.config) window.db.config = { objetivoMensual: 30000 };
         // ---------------------------------------------------
         
@@ -89,7 +91,6 @@ window.loadModule = async function(name) {
     try {
         // --- MAPEADO DE NOMBRES ---
         let fileName = name;
-        // Si pedimos 'diario', cargamos el archivo 'caja.js' (IMPORTANTE)
         if (name === 'diario') fileName = 'caja'; 
         // --------------------------
 
@@ -144,7 +145,7 @@ window.loadModule = async function(name) {
     }
 };
 
-// 5. MENÚ DE NAVEGACIÓN (Navbar con Amortizaciones Añadido)
+// 5. MENÚ DE NAVEGACIÓN (Navbar Completo)
 function renderNav() {
     const nav = document.getElementById('navbar');
     if (!nav) return;
@@ -157,6 +158,8 @@ function renderNav() {
                 <span class="text-[8px] font-black uppercase text-slate-400 group-hover:text-indigo-500 nav-text">Dash</span>
             </button>
             
+            <div class="w-px h-6 bg-slate-200 shrink-0"></div> 
+
             <button onclick="loadModule('diario')" class="flex flex-col items-center gap-1 min-w-[45px] shrink-0 group">
                 <span class="text-xl transition-all nav-icon">💵</span>
                 <span class="text-[8px] font-black uppercase text-slate-400 group-hover:text-indigo-500 nav-text">Caja</span>
@@ -164,12 +167,29 @@ function renderNav() {
             
             <button onclick="loadModule('facturas')" class="flex flex-col items-center gap-1 min-w-[45px] shrink-0 group">
                 <span class="text-xl transition-all nav-icon">📄</span>
-                <span class="text-[8px] font-black uppercase text-slate-400 group-hover:text-indigo-500 nav-text">Facturas</span>
+                <span class="text-[8px] font-black uppercase text-slate-400 group-hover:text-indigo-500 nav-text">Ventas</span>
             </button>
             
             <button onclick="loadModule('albaranes')" class="flex flex-col items-center gap-1 min-w-[45px] shrink-0 group">
                 <span class="text-xl transition-all nav-icon">🚚</span>
-                <span class="text-[8px] font-black uppercase text-slate-400 group-hover:text-indigo-500 nav-text">Albaranes</span>
+                <span class="text-[8px] font-black uppercase text-slate-400 group-hover:text-indigo-500 nav-text">Gastos</span>
+            </button>
+
+            <button onclick="loadModule('tesoreria')" class="flex flex-col items-center gap-1 min-w-[45px] shrink-0 group">
+                <span class="text-xl transition-all nav-icon">⚖️</span>
+                <span class="text-[8px] font-black uppercase text-slate-400 group-hover:text-indigo-500 nav-text">Deuda</span>
+            </button>
+
+            <div class="w-px h-6 bg-slate-200 shrink-0"></div> 
+
+            <button onclick="loadModule('liquidez')" class="flex flex-col items-center gap-1 min-w-[45px] shrink-0 group">
+                <span class="text-xl transition-all nav-icon">🔮</span>
+                <span class="text-[8px] font-black uppercase text-slate-400 group-hover:text-indigo-500 nav-text">Futuro</span>
+            </button>
+
+            <button onclick="loadModule('banco')" class="flex flex-col items-center gap-1 min-w-[45px] shrink-0 group">
+                <span class="text-xl transition-all nav-icon">🏦</span>
+                <span class="text-[8px] font-black uppercase text-slate-400 group-hover:text-indigo-500 nav-text">Banco</span>
             </button>
 
             <button onclick="loadModule('gastos_fijos')" class="flex flex-col items-center gap-1 min-w-[45px] shrink-0 group">
@@ -177,25 +197,26 @@ function renderNav() {
                 <span class="text-[8px] font-black uppercase text-slate-400 group-hover:text-indigo-500 nav-text">Fijos</span>
             </button>
 
-            <button onclick="loadModule('amortizaciones')" class="flex flex-col items-center gap-1 min-w-[45px] shrink-0 group">
-                <span class="text-xl transition-all nav-icon">📉</span>
-                <span class="text-[8px] font-black uppercase text-slate-400 group-hover:text-indigo-500 nav-text">Amort.</span>
-            </button>
             <div class="w-px h-6 bg-slate-200 shrink-0"></div> 
 
-            <button onclick="loadModule('menu')" class="flex flex-col items-center gap-1 min-w-[45px] shrink-0 group">
-                <span class="text-xl transition-all nav-icon">🍽️</span>
-                <span class="text-[8px] font-black uppercase text-slate-400 group-hover:text-indigo-500 nav-text">Carta</span>
-            </button>
-
-            <button onclick="loadModule('banco')" class="flex flex-col items-center gap-1 min-w-[45px] shrink-0 group">
-                <span class="text-xl transition-all nav-icon">🏦</span>
-                <span class="text-[8px] font-black uppercase text-slate-400 group-hover:text-indigo-500 nav-text">Banco</span>
-            </button>
-            
             <button onclick="loadModule('informes')" class="flex flex-col items-center gap-1 min-w-[45px] shrink-0 group">
                 <span class="text-xl transition-all nav-icon">📈</span>
                 <span class="text-[8px] font-black uppercase text-slate-400 group-hover:text-indigo-500 nav-text">P&L</span>
+            </button>
+
+            <button onclick="loadModule('cierre')" class="flex flex-col items-center gap-1 min-w-[45px] shrink-0 group">
+                <span class="text-xl transition-all nav-icon">🔒</span>
+                <span class="text-[8px] font-black uppercase text-slate-400 group-hover:text-indigo-500 nav-text">Cierre</span>
+            </button>
+
+            <button onclick="loadModule('proveedores')" class="flex flex-col items-center gap-1 min-w-[45px] shrink-0 group">
+                <span class="text-xl transition-all nav-icon">🤝</span>
+                <span class="text-[8px] font-black uppercase text-slate-400 group-hover:text-indigo-500 nav-text">Provs</span>
+            </button>
+
+            <button onclick="loadModule('amortizaciones')" class="flex flex-col items-center gap-1 min-w-[45px] shrink-0 group">
+                <span class="text-xl transition-all nav-icon">📉</span>
+                <span class="text-[8px] font-black uppercase text-slate-400 group-hover:text-indigo-500 nav-text">Amort.</span>
             </button>
 
         </div>
@@ -240,20 +261,31 @@ window.calcularAmortizacionMensual = function(activos) {
 
     activos.forEach(activo => {
         // Validación básica
-        if(!activo.fecha_compra || !activo.importe || !activo.vida_util_meses) return;
+        if(!activo.fecha_compra || !activo.importe || !activo.vida_util_meses && !activo.vida) return;
 
-        const fechaCompra = new Date(activo.fecha_compra);
+        // Compatibilidad: vida (años) o vida_util_meses
+        const vidaMeses = activo.vida_util_meses || (activo.vida * 12);
+
+        const fechaCompra = new Date(activo.fecha_compra || activo.fecha);
         // Calculamos diferencia en meses exacta
         const mesesTranscurridos = (hoy.getFullYear() - fechaCompra.getFullYear()) * 12 + (hoy.getMonth() - fechaCompra.getMonth());
         
         // Si aún está dentro de su vida útil
-        if (mesesTranscurridos >= 0 && mesesTranscurridos < activo.vida_util_meses) {
-            const cuotaMensual = activo.importe / activo.vida_util_meses;
+        if (mesesTranscurridos >= 0 && mesesTranscurridos < vidaMeses) {
+            const cuotaMensual = activo.importe / vidaMeses;
             gastoTotalMes += cuotaMensual;
         }
     });
 
     return gastoTotalMes;
+};
+
+// Helper Global para comprobar fechas (Usado en Informes, Albaranes, etc)
+window.isInPeriod = function(dateStr) {
+    if(!dateStr) return false;
+    // Por defecto devuelve true para simplificar si no hay filtros complejos aún
+    // Puedes ampliar esto para conectar con un selector global de fechas
+    return true; 
 };
 
 // 8. LÓGICA DE BARRA DINÁMICA (Esconder al bajar, mostrar al subir)
