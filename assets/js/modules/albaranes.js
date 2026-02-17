@@ -1,5 +1,5 @@
 /* =============================================================
-   🚚 MÓDULO: ALBARANES MAESTRO PRO (VERSIÓN BLINDADA)
+   🚚 MÓDULO: ALBARANES MAESTRO PRO (VERSIÓN BLINDADA & LIMPIA)
    ============================================================= */
 
 import Tesseract from 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.esm.min.js';
@@ -121,18 +121,16 @@ export async function render(container, supabase, db, opts = {}) {
         } catch (err) { console.error(err); }
         finally { ocrOverlay.classList.add("hidden"); e.target.value = ''; }
     };
-const analizarTexto = (texto) => {
+
+    const analizarTexto = (texto) => {
         return texto.split('\n').filter(l => l.trim()).map(line => {
             let clean = line.trim();
-            let rate = 10; // IVA por defecto (Hostelería)
-            
-            // BUSCAR IVA AL FINAL: Detecta 4, 10 o 21 al final de la línea
+            let rate = 10;
             const taxMatch = clean.match(/\s(4|10|21)%?$/);
             if (taxMatch) {
                 rate = parseInt(taxMatch[1]);
                 clean = clean.substring(0, taxMatch.index).trim();
             }
-
             const priceMatch = clean.match(/(\d+[\.,]?\d*)\s*€?$/);
             if (priceMatch) {
                 const priceVal = parseFloat(priceMatch[1].replace(',', '.'));
@@ -144,19 +142,16 @@ const analizarTexto = (texto) => {
                     rest = rest.substring(qtyMatch[0].length).trim();
                 }
                 const totalLine = qty * priceVal;
-                
-                // CÁLCULO PRECISO SEGÚN EL IVA DETECTADO
                 const baseLine = totalLine / (1 + rate/100);
                 const taxLine = totalLine - baseLine;
-                
                 return { q: qty, n: rest || "Varios", p: priceVal, rate, t: totalLine, base: baseLine, tax: taxLine };
             }
             return null;
         }).filter(Boolean);
     };
-   inText.addEventListener('input', () => {
+
+    inText.addEventListener('input', () => {
         const items = analizarTexto(inText.value);
-        // Preparamos los contenedores para los 3 tipos de IVA
         const taxes = { 4: {b:0, i:0}, 10: {b:0, i:0}, 21: {b:0, i:0} };
         let grandTotal = 0;
         
@@ -167,7 +162,6 @@ const analizarTexto = (texto) => {
             grandTotal += it.t;
         });
 
-        // Actualizar la lista de productos arriba
         livePreview.innerHTML = items.map(it => `
             <div class="flex justify-between items-center text-[10px] py-1 border-b border-slate-200 last:border-0">
                 <span><b>${it.q}x</b> ${it.n} <small class="text-indigo-400 font-bold">(${it.rate}%)</small></span>
@@ -175,7 +169,6 @@ const analizarTexto = (texto) => {
             </div>
         `).join('') || '<p class="text-[10px] text-slate-300 text-center italic py-2">Escribe líneas...</p>';
 
-        // ACTUALIZAR EL RESUMEN DE IMPUESTOS (Desglose real)
         taxSummary.innerHTML = Object.keys(taxes).map(r => {
             if(taxes[r].b === 0) return '';
             return `
@@ -189,13 +182,12 @@ const analizarTexto = (texto) => {
         liveTotal.innerText = grandTotal.toFixed(2) + "€";
     });
 
-    // --- GUARDAR (CRUCIAL: Aquí se guardan los items) ---
     container.querySelector("#btnProcesar").onclick = async () => {
-        const itemsParaGuardar = analizarTexto(inText.value); // <--- Capturamos los items aquí
+        const items = analizarTexto(inText.value);
         const total = parseFloat(liveTotal.innerText);
         if(total <= 0) return alert("Introduce datos");
 
-       const nuevo = {
+        const nuevo = {
             id: Date.now().toString(),
             prov: container.querySelector("#inProv").value || "Varios",
             num: container.querySelector("#inRef").value || "S/N",
@@ -203,10 +195,13 @@ const analizarTexto = (texto) => {
             socio: container.querySelector("#inSocio").value,
             items: items,
             total: total,
-            taxes: totalTax, // Este es el IVA total para la lista rápida
+            // Calculamos el total de impuestos sumando todas las líneas
+            taxes: items.reduce((acc, it) => acc + it.tax, 0),
+            // Calculamos la base total
+            base: items.reduce((acc, it) => acc + it.base, 0),
             invoiced: false,
             paid: container.querySelector("#inPaid").checked,
-            notes: notes
+            notes: container.querySelector("#inNotes").value
         };
 
         db.albaranes.push(nuevo);
@@ -215,19 +210,16 @@ const analizarTexto = (texto) => {
         pintarLista();
     };
 
-   // --- FUNCIÓN DE EDICIÓN (CON BASE E IVA VISIBLES) ---
     window.editarAlbaran = (id) => {
         const a = db.albaranes.find(x => x.id === id);
         if(!a) return;
         const modal = container.querySelector("#modalDetalle");
         modal.classList.remove("hidden");
 
-        // 1. Calculamos Base e IVA para mostrarlos (incluso si son antiguos)
-        // Si ya tiene base guardada la usamos, si no, calculamos una estimada al 10% (estándar hostelería)
-        const baseMostrar = a.base ? a.base : (a.total / 1.10); 
+        // Calculamos visualización segura
+        const baseMostrar = a.base ? a.base : (a.total / 1.10);
         const ivaMostrar = a.taxes ? a.taxes : (a.total - baseMostrar);
 
-        // 2. Generamos el HTML de los productos
         let productosHTML = '';
         if (Array.isArray(a.items) && a.items.length > 0) {
             productosHTML = `
@@ -250,46 +242,33 @@ const analizarTexto = (texto) => {
             productosHTML = `<p class="text-[10px] text-slate-400 italic mt-4 text-center">Sin desglose de productos</p>`;
         }
 
-        // 3. Pintamos el Modal con las Tarjetas de Base e IVA
         modal.innerHTML = `
             <div class="bg-white w-full max-w-lg rounded-[2.5rem] p-8 shadow-2xl animate-slide-up relative">
                 <button onclick="document.getElementById('modalDetalle').classList.add('hidden')" class="absolute top-6 right-6 text-slate-300 hover:text-slate-600 text-2xl">✕</button>
                 <h3 class="text-2xl font-black text-slate-800 mb-6">Detalle Albarán</h3>
                 
                 <div class="grid grid-cols-2 gap-4 mb-4">
-                    <div>
-                        <label class="text-[9px] font-bold text-slate-400 uppercase ml-2">Proveedor</label>
-                        <input id="ed-prov" type="text" value="${a.prov}" class="w-full p-3 bg-slate-50 rounded-xl font-bold border border-slate-100">
-                    </div>
-                    <div>
-                        <label class="text-[9px] font-bold text-slate-400 uppercase ml-2">Fecha</label>
-                        <input id="ed-date" type="date" value="${a.date}" class="w-full p-3 bg-slate-50 rounded-xl font-bold border border-slate-100">
-                    </div>
+                    <input id="ed-prov" type="text" value="${a.prov}" class="p-3 bg-slate-50 rounded-xl font-bold border border-slate-100">
+                    <input id="ed-date" type="date" value="${a.date}" class="p-3 bg-slate-50 rounded-xl font-bold border border-slate-100">
                 </div>
 
                 <div class="grid grid-cols-2 gap-4 mb-4">
                     <div class="bg-slate-50 p-3 rounded-2xl border border-slate-200">
-                        <p class="text-[9px] font-bold text-slate-400 uppercase">Base Imponible</p>
+                        <p class="text-[9px] font-bold text-slate-400 uppercase">Base</p>
                         <p class="text-lg font-black text-slate-700">${parseFloat(baseMostrar).toFixed(2)}€</p>
                     </div>
                     <div class="bg-emerald-50 p-3 rounded-2xl border border-emerald-200">
-                        <p class="text-[9px] font-bold text-emerald-600 uppercase">Cuota IVA</p>
+                        <p class="text-[9px] font-bold text-emerald-600 uppercase">IVA</p>
                         <p class="text-lg font-black text-emerald-600">+${parseFloat(ivaMostrar).toFixed(2)}€</p>
                     </div>
                 </div>
 
                 <div class="grid grid-cols-2 gap-4 mb-4">
-                    <div>
-                        <label class="text-[9px] font-bold text-slate-400 uppercase ml-2">Total (€)</label>
-                        <input id="ed-total" type="number" value="${a.total}" class="w-full p-3 bg-slate-900 text-white rounded-xl font-black text-lg">
-                    </div>
-                    <div>
-                        <label class="text-[9px] font-bold text-slate-400 uppercase ml-2">Socio / Gasto</label>
-                        <select id="ed-socio" class="w-full p-3 bg-slate-50 rounded-xl font-bold border border-slate-100">
-                            <option value="Arume" ${a.socio==='Arume'?'selected':''}>Arume</option>
-                            ${listaSocios.map(s => `<option value="${s}" ${a.socio===s?'selected':''}>${s}</option>`).join('')}
-                        </select>
-                    </div>
+                    <input id="ed-total" type="number" value="${a.total}" class="p-3 bg-slate-900 text-white rounded-xl font-black text-lg">
+                    <select id="ed-socio" class="p-3 bg-slate-50 rounded-xl font-bold border border-slate-100">
+                        <option value="Arume" ${a.socio==='Arume'?'selected':''}>Arume</option>
+                        ${listaSocios.map(s => `<option value="${s}" ${a.socio===s?'selected':''}>${s}</option>`).join('')}
+                    </select>
                 </div>
 
                 ${productosHTML}
@@ -300,32 +279,22 @@ const analizarTexto = (texto) => {
                 </div>
 
                 <button id="btnSaveEd" class="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black shadow-lg hover:bg-indigo-700 transition">GUARDAR CAMBIOS</button>
-                <button onclick="window.borrarAlbaran('${a.id}')" class="w-full text-rose-500 text-[10px] font-black mt-4 uppercase tracking-widest">Eliminar Registro Definitivamente</button>
+                <button onclick="window.borrarAlbaran('${a.id}')" class="w-full text-rose-500 text-[10px] font-black mt-4 uppercase tracking-widest">Eliminar Registro</button>
             </div>
         `;
 
         modal.querySelector("#btnSaveEd").onclick = async () => {
             a.prov = modal.querySelector("#ed-prov").value;
             a.date = modal.querySelector("#ed-date").value;
-            // Al editar el total a mano, recalculamos base e iva proporcionalmente (al 10% por defecto para no romper nada)
             const nuevoTotal = parseFloat(modal.querySelector("#ed-total").value);
-            a.total = nuevoTotal;
-            // Si el total cambia, ajustamos base y tax proporcionalmente
-            a.base = nuevoTotal / 1.10; 
-            a.taxes = nuevoTotal - a.base;
             
-            a.socio = modal.querySelector("#ed-socio").value;
-            a.paid = modal.querySelector("#ed-paid").checked;
+            // Si el total cambia manualmente, recalculamos proporcionalmente (asumiendo 10% por defecto para no romper)
+            if (nuevoTotal !== a.total) {
+                a.total = nuevoTotal;
+                a.base = nuevoTotal / 1.10;
+                a.taxes = nuevoTotal - a.base;
+            }
             
-            await saveFn("Albarán actualizado ✅");
-            modal.classList.add("hidden");
-            pintarLista();
-        };
-    };
-        modal.querySelector("#btnSaveEd").onclick = async () => {
-            a.prov = modal.querySelector("#ed-prov").value;
-            a.date = modal.querySelector("#ed-date").value;
-            a.total = parseFloat(modal.querySelector("#ed-total").value);
             a.socio = modal.querySelector("#ed-socio").value;
             a.paid = modal.querySelector("#ed-paid").checked;
             await saveFn("Albarán actualizado ✅");
@@ -379,6 +348,42 @@ const analizarTexto = (texto) => {
             pintarLista();
         };
     });
+
+    // Importar CSV
+    container.querySelector("#csvInput").onchange = (e) => {
+        const file = e.target.files[0];
+        if(!file) return;
+        const reader = new FileReader();
+        reader.onload = async (evt) => {
+            const rows = evt.target.result.split('\n').slice(1);
+            let count = 0;
+            rows.forEach(row => {
+                const c = row.split(';');
+                if(c.length >= 4) {
+                    const total = parseFloat(c[3]) || 0;
+                    db.albaranes.push({ 
+                        id: Date.now()+Math.random(), 
+                        date: c[0], prov: c[1], num: c[2], 
+                        total: total, base: total/1.10, taxes: total - (total/1.10),
+                        items: [], invoiced: false, paid: true 
+                    });
+                    count++;
+                }
+            });
+            await saveFn(`Importados ${count}`);
+            pintarLista();
+        };
+        reader.readAsText(file);
+    };
+
+    // Exportar CSV
+    container.querySelector("#btnExport").onclick = () => {
+        const csv = "Fecha;Proveedor;Ref;Total;Base;IVA\n" + db.albaranes.map(a => `${a.date};${a.prov};${a.num};${a.total};${(a.base||0).toFixed(2)};${(a.taxes||0).toFixed(2)}`).join('\n');
+        const link = document.createElement('a');
+        link.href = 'data:text/csv;charset=utf-8,' + encodeURI(csv);
+        link.download = 'Albaranes_Arume.csv';
+        link.click();
+    };
 
     container.querySelector("#searchBox").oninput = pintarLista;
     pintarLista();
