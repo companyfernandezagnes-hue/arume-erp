@@ -1,380 +1,583 @@
 /* =============================================================
-   🍽️ MÓDULO: MENU INTELLIGENCE (Time Machine Edition)
+   💰 MÓDULO: CONTROL DE CAJAS & CIERRES (Parte 1: Motor Seguro)
    ============================================================= */
 
 export async function render(container, supabase, db, opts = {}) {
     const saveFn = opts.save || (window.save ? window.save : async () => {});
-    
-    // 1. INICIALIZACIÓN
-    if (!Array.isArray(db.platos)) db.platos = [];
-    if (!Array.isArray(db.ventas_menu)) db.ventas_menu = []; // Histórico: { date, id, qty }
 
-    // Migración de datos antiguos (si existen ventas en el plato pero no en el histórico)
-    db.platos.forEach(p => {
-        if(p.sold > 0) {
-            const hasHistory = db.ventas_menu.some(v => v.id === p.id);
-            if(!hasHistory) {
-                // Asumimos que lo vendido hasta ahora es de "hoy" o del mes actual para no perderlo
-                db.ventas_menu.push({
-                    date: new Date().toISOString().split('T')[0],
-                    id: p.id,
-                    qty: parseFloat(p.sold)
-                });
-            }
-            p.sold = 0; // Reseteamos el contador plano para usar siempre el histórico
-        }
-    });
+    if (!db.cierres) db.cierres = [];
 
-    // Estado del Filtro de Tiempo
-    let filterMode = 'month'; // 'day', 'month', 'year'
-    let filterValue = new Date().toISOString().slice(0, 7); // YYYY-MM por defecto
-
-    // Costes estimados
-    const costEstimate = { 'Bebidas': 0.25, 'Entrantes': 0.30, 'Principal': 0.35, 'Postre': 0.25, 'General': 0.33 };
-
-    // --- CÁLCULOS ---
-    const calcularMatriz = () => {
-        const result = { stars:[], horses:[], puzzles:[], dogs:[], omnes:{}, tips:[], totalTeorico:0 };
-        if (db.platos.length === 0) return result;
-
-        // 1. Filtrar ventas por fecha seleccionada
-        const ventasFiltradas = db.ventas_menu.filter(v => {
-            if(!v.date) return false;
-            if(filterMode === 'day') return v.date === filterValue;
-            if(filterMode === 'month') return v.date.startsWith(filterValue);
-            if(filterMode === 'year') return v.date.startsWith(filterValue); // filterValue = '2024'
-            return true;
-        });
-
-        // 2. Agrupar ventas por plato
-        const ventasPorPlato = {};
-        ventasFiltradas.forEach(v => {
-            ventasPorPlato[v.id] = (ventasPorPlato[v.id] || 0) + parseFloat(v.qty);
-        });
-
-        // 3. Totales Globales
-        const porFamilia = {};
-        let totalPopularidad = 0;
-        let totalMargen = 0;
-        let totalVentasDinero = 0;
-
-        db.platos.forEach(p => {
-            const price = parseFloat(p.price) || 0;
-            const sold = ventasPorPlato[p.id] || 0; // Usamos el dato filtrado
-            const cat = p.category || 'General';
-
-            const costeReal = parseFloat(p.cost) || (price * (costEstimate[cat] || 0.33));
-            
-            p.margen = price - costeReal;
-            p.score = sold; 
-            
-            totalPopularidad += p.score;
-            totalMargen += p.margen;
-            totalVentasDinero += (price * sold);
-
-            if(!porFamilia[cat]) porFamilia[cat] = [];
-            porFamilia[cat].push(p);
-        });
-
-        const mediaPop = totalPopularidad / (db.platos.length || 1);
-        const mediaMargen = totalMargen / (db.platos.length || 1);
-
-        // 4. Clasificación
-        result.totalTeorico = totalVentasDinero;
-
-        db.platos.forEach(p => {
-            const esPop = p.score >= (mediaPop * 0.7);
-            const esRent = p.margen >= mediaMargen;
-
-            // Clonamos para no ensuciar la DB con datos visuales temporales
-            const visualP = { ...p, sold: p.score }; 
-
-            if (esPop && esRent) result.stars.push(visualP);
-            else if (esPop && !esRent) result.horses.push(visualP);
-            else if (!esPop && esRent) result.puzzles.push(visualP);
-            else result.dogs.push(visualP);
-        });
-
-        // 5. Omnes
-        Object.keys(porFamilia).forEach(fam => {
-            const items = porFamilia[fam].sort((a,b) => parseFloat(a.price) - parseFloat(b.price));
-            if (items.length > 2) {
-                const min = parseFloat(items[0].price);
-                const max = parseFloat(items[items.length-1].price);
-                const dispersion = min > 0 ? max / min : 0;
-                
-                if(dispersion > 3) result.tips.push(`⚠️ <b>${fam}</b>: Dispersión alta (x${dispersion.toFixed(1)}).`);
-                if(dispersion < 1.5) result.tips.push(`💡 <b>${fam}</b>: Precios planos. Añade opciones premium.`);
-            }
-        });
-
-        return result;
+    // --- HELPERS DE PRECISIÓN ---
+    const toCents = (n) => Math.round((Number(n) || 0) * 100);
+    const localISODate = (d = new Date()) => {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
     };
 
-    // --- RENDER ---
-    const draw = () => {
-        const data = calcularMatriz();
-        
-        container.innerHTML = `
-        <div class="animate-fade-in space-y-6 pb-20">
+    // --- INTERFAZ ---
+    container.innerHTML = `
+    <div class="animate-fade-in space-y-6 pb-24">
+        <header class="flex justify-between items-center bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100">
+            <div>
+                <h2 class="text-xl font-black text-slate-800">Cierre de Caja</h2>
+                <p class="text-[10px] text-indigo-500 font-bold uppercase tracking-widest">Control Diario Arume</p>
+            </div>
+            <div class="text-right">
+                <p class="text-[9px] font-black text-slate-400 uppercase">Fecha Local</p>
+                <p class="text-sm font-black text-slate-800">${localISODate()}</p>
+            </div>
+        </header>
+
+        <div class="bg-white p-8 rounded-[2.5rem] shadow-xl border-2 border-indigo-50 relative overflow-hidden">
+            <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-400 via-indigo-500 to-rose-500"></div>
             
-            <header class="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 flex flex-col gap-4">
-                <div class="flex justify-between items-center">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="space-y-4">
+                    <h3 class="text-xs font-black text-slate-400 uppercase mb-4 tracking-widest">💰 Ingresos Directos</h3>
                     <div>
-                        <h2 class="text-xl font-black text-slate-800">Menu Intelligence</h2>
-                        <p class="text-[10px] text-indigo-500 font-bold uppercase tracking-widest">Análisis Temporal</p>
+                        <label class="text-[10px] font-bold text-slate-400 ml-2">EFECTIVO (CAJA)</label>
+                        <input id="inCaja" type="number" placeholder="0.00" class="w-full p-4 bg-slate-50 rounded-2xl text-xl font-black text-slate-800 border-0 focus:ring-2 focus:ring-indigo-500 transition">
                     </div>
-                    <div class="text-right bg-slate-50 px-4 py-2 rounded-xl border border-slate-100">
-                        <p class="text-[9px] font-black text-slate-400 uppercase">Venta Periodo</p>
-                        <p class="text-lg font-black text-indigo-600">${data.totalTeorico.toLocaleString('es-ES',{maximumFractionDigits:0})}€</p>
+                    <div>
+                        <label class="text-[10px] font-bold text-slate-400 ml-2">TPV (TARJETAS)</label>
+                        <input id="inTarjeta" type="number" placeholder="0.00" class="w-full p-4 bg-slate-50 rounded-2xl text-xl font-black text-slate-800 border-0 focus:ring-2 focus:ring-indigo-500 transition">
                     </div>
                 </div>
 
-                <div class="flex items-center gap-2 bg-slate-50 p-2 rounded-2xl border border-slate-200">
-                    <select id="filterType" class="bg-white text-xs font-bold py-2 px-3 rounded-xl border-0 outline-none shadow-sm">
-                        <option value="day" ${filterMode==='day'?'selected':''}>Día</option>
-                        <option value="month" ${filterMode==='month'?'selected':''}>Mes</option>
-                        <option value="year" ${filterMode==='year'?'selected':''}>Año</option>
-                    </select>
-                    
-                    <input type="${filterMode==='year'?'number':(filterMode==='month'?'month':'date')}" 
-                           id="filterInput" 
-                           value="${filterValue}" 
-                           class="flex-1 bg-transparent font-black text-slate-700 text-sm outline-none text-center"
-                           ${filterMode==='year'?`min="2020" max="2030"`:''}
-                    >
+                <div class="space-y-4">
+                    <h3 class="text-xs font-black text-slate-400 uppercase mb-4 tracking-widest">🛵 Plataformas</h3>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="text-[10px] font-bold text-orange-400">GLOVO</label>
+                            <input id="inGlovo" type="number" placeholder="0.0" class="w-full p-3 bg-orange-50 rounded-xl font-bold border-0">
+                        </div>
+                        <div>
+                            <label class="text-[10px] font-bold text-teal-400">DELIVEROO</label>
+                            <input id="inDeliveroo" type="number" placeholder="0.0" class="w-full p-3 bg-teal-50 rounded-xl font-bold border-0">
+                        </div>
+                        <div>
+                            <label class="text-[10px] font-bold text-indigo-400">UBER</label>
+                            <input id="inUber" type="number" placeholder="0.0" class="w-full p-3 bg-indigo-50 rounded-xl font-bold border-0">
+                        </div>
+                        <div>
+                            <label class="text-[10px] font-bold text-rose-400">MADISA</label>
+                            <input id="inMadisa" type="number" placeholder="0.0" class="w-full p-3 bg-rose-50 rounded-xl font-bold border-0">
+                        </div>
+                    </div>
                 </div>
-            </header>
-
-            <div class="flex gap-2 overflow-x-auto pb-2">
-                <label class="bg-emerald-50 text-emerald-600 px-4 py-3 rounded-2xl text-[10px] font-black hover:bg-emerald-100 transition cursor-pointer border border-emerald-100 flex items-center gap-2 whitespace-nowrap">
-                    <span>📂</span> IMPORTAR VENTAS (CSV)
-                    <input type="file" id="csvMenuInput" class="hidden" accept=".csv">
-                </label>
-                <button id="btnPulse" class="bg-indigo-600 text-white px-5 py-3 rounded-2xl text-[10px] font-black shadow-lg hover:bg-indigo-700 transition flex items-center gap-2 whitespace-nowrap">
-                    <span>🔥</span> PULSO HOY
-                </button>
-                <button id="btnAddPlato" class="bg-slate-900 text-white px-5 py-3 rounded-2xl text-[10px] font-black shadow-lg hover:bg-slate-800 transition whitespace-nowrap">
-                    + PLATO
-                </button>
             </div>
 
-            ${data.tips.length > 0 ? `
-            <div class="bg-amber-50 p-4 rounded-[2rem] border border-amber-100 shadow-sm">
-                <h3 class="text-[10px] font-black text-amber-600 uppercase mb-1">🤖 Menu Coach (${filterValue})</h3>
-                <ul class="space-y-1">
-                    ${data.tips.slice(0, 3).map(t => `<li class="text-[10px] text-amber-800 flex gap-2"><span>👉</span> <span>${t}</span></li>`).join('')}
-                </ul>
-            </div>
-            ` : ''}
-
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                ${renderQuad('⭐ Estrellas', 'Alta Venta / Alto Margen', 'yellow', data.stars)}
-                ${renderQuad('🐴 Caballos', 'Alta Venta / Bajo Margen', 'emerald', data.horses)}
-                ${renderQuad('❓ Puzzles', 'Baja Venta / Alto Margen', 'indigo', data.puzzles)}
-                ${renderQuad('🐶 Perros', 'Baja Venta / Bajo Margen', 'rose', data.dogs)}
+            <div class="mt-8 pt-6 border-t border-slate-100 flex flex-col md:flex-row justify-between items-center gap-4">
+                <div class="text-center md:text-left">
+                    <p class="text-[10px] font-black text-slate-400 uppercase">Total Venta Bruta (Z)</p>
+                    <p id="txtTotalCierre" aria-live="polite" class="text-4xl font-black text-indigo-600">0.00€</p>
+                </div>
+                <button id="btnGuardarCierre" class="w-full md:w-auto px-12 py-4 bg-slate-900 text-white rounded-2xl font-black shadow-xl hover:bg-indigo-600 transition-all transform active:scale-95">
+                    GUARDAR CIERRE
+                </button>
             </div>
         </div>
 
-        <div id="modalPlato" class="hidden fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[9999] flex justify-center items-center p-4"></div>
-        <div id="modalPulse" class="hidden fixed inset-0 bg-indigo-900/90 backdrop-blur-md z-[9999] flex justify-center items-center p-4"></div>
-        `;
+        <div class="space-y-3">
+            <h3 id="hdrHistorial" class="text-xs font-black text-slate-400 uppercase tracking-widest px-4">Últimos Cierres</h3>
+            <div id="listaCierres" class="space-y-2"></div>
+        </div>
+    </div>
+    <div id="undoContainer"></div>
+    `;
 
-        // Eventos del Filtro
-        container.querySelector("#filterType").onchange = (e) => {
-            filterMode = e.target.value;
-            // Ajustar formato del valor por defecto al cambiar tipo
-            const now = new Date();
-            if(filterMode === 'day') filterValue = now.toISOString().split('T')[0];
-            if(filterMode === 'month') filterValue = now.toISOString().slice(0, 7);
-            if(filterMode === 'year') filterValue = now.getFullYear().toString();
-            draw();
-        };
-        container.querySelector("#filterInput").onchange = (e) => {
-            filterValue = e.target.value;
-            draw();
-        };
+    // --- ELEMENTOS ---
+    const inputs = [
+        container.querySelector("#inCaja"),
+        container.querySelector("#inTarjeta"),
+        container.querySelector("#inGlovo"),
+        container.querySelector("#inDeliveroo"),
+        container.querySelector("#inUber"),
+        container.querySelector("#inMadisa")
+    ];
+    const txtTotal = container.querySelector("#txtTotalCierre");
+    const [inCaja] = inputs;
 
-        // Eventos Botones
-        container.querySelector("#btnPulse").onclick = abrirModalPulse;
-        container.querySelector("#btnAddPlato").onclick = () => abrirModalEdicion();
-        container.querySelector("#csvMenuInput").onchange = handleImport;
+    // --- CÁLCULO EN VIVO (CON CÉNTIMOS) ---
+    const calcularTotalCents = () => {
+        const totalCents = inputs.reduce((acc, input) => acc + toCents(input.value), 0);
+        txtTotal.innerText = (totalCents / 100).toFixed(2) + "€";
+        return totalCents;
     };
 
-    function renderQuad(title, subtitle, color, list) {
-        return `
-        <div class="bg-white p-5 rounded-[2.5rem] border-2 border-${color}-100 shadow-sm relative overflow-hidden h-64 flex flex-col group hover:shadow-md transition">
-            <div class="absolute top-0 right-0 p-4 opacity-10 text-4xl group-hover:scale-110 transition">●</div>
-            <h3 class="text-sm font-black text-${color}-600 uppercase leading-none">${title}</h3>
-            <p class="text-[9px] text-slate-400 mb-3">${subtitle}</p>
-            <div class="space-y-1 overflow-y-auto custom-scrollbar flex-1">
-                ${list.map(p => `
-                    <div onclick="window.editarPlato('${p.id}')" class="flex justify-between items-center p-2 bg-${color}-50/50 rounded-xl cursor-pointer hover:bg-${color}-100 transition">
-                        <div>
-                            <span class="text-xs font-bold text-slate-700 block truncate w-28 md:w-40">${p.name}</span>
-                            <span class="text-[8px] text-slate-400">${p.sold} uds</span>
-                        </div>
-                        <span class="text-[9px] font-black text-${color}-600">${p.margen.toFixed(1)}€</span>
+    inputs.forEach(input => input.addEventListener("input", calcularTotalCents));
+
+    // --- GUARDADO SEGURO (ANTI-DUPLICADOS) ---
+    container.querySelector("#btnGuardarCierre").onclick = async () => {
+        const totalCents = calcularTotalCents();
+        if (totalCents <= 0) return alert("Introduce importes.");
+
+        const todayLocal = localISODate();
+        const existingIdx = db.cierres.findIndex(c => c.date === todayLocal);
+
+        if (existingIdx >= 0) {
+            if (!confirm("Ya existe un cierre hoy. ¿Deseas sobreescribirlo?")) return;
+        }
+
+        const cierreData = {
+            id: existingIdx >= 0 ? db.cierres[existingIdx].id : Date.now().toString(),
+            date: todayLocal,
+            totalCaja: Number(inCaja.value) || 0,
+            totalTarjeta: Number(inputs[1].value) || 0,
+            glovo: Number(inputs[2].value) || 0,
+            deliveroo: Number(inputs[3].value) || 0,
+            uber: Number(inputs[4].value) || 0,
+            madisa: Number(inputs[5].value) || 0,
+            totalVenta: totalCents / 100
+        };
+
+        if (existingIdx >= 0) db.cierres[existingIdx] = cierreData;
+        else db.cierres.unshift(cierreData);
+
+        await saveFn("Cierre guardado ✅");
+        inputs.forEach(i => i.value = "");
+        calcularTotalCents();
+        pintarCierres();
+    };
+
+    // --- RENDER HISTORIAL ---
+    const pintarCierres = () => {
+        const lista = container.querySelector("#listaCierres");
+        const recent = db.cierres.slice(0, 7);
+        const total7 = recent.reduce((t, c) => t + (Number(c.totalVenta) || 0), 0);
+        const avg7 = (total7 / Math.max(recent.length, 1)).toFixed(2);
+
+        container.querySelector("#hdrHistorial").innerHTML = `Últimos 7 días · <span class="text-indigo-400">Media: ${avg7}€</span>`;
+
+        lista.innerHTML = recent.map(c => `
+            <div class="bg-white p-4 rounded-3xl border border-slate-100 flex justify-between items-center shadow-sm">
+                <div>
+                    <p class="text-[10px] font-black text-slate-400 uppercase">${c.date}</p>
+                    <div class="flex gap-2 mt-1">
+                        <span class="text-[9px] bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full font-bold">💵 ${c.totalCaja.toFixed(2)}</span>
+                        <span class="text-[9px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-bold">💳 ${c.totalTarjeta.toFixed(2)}</span>
                     </div>
-                `).join('') || '<span class="text-[9px] text-slate-300 italic">Vacío</span>'}
+                </div>
+                <div class="text-right">
+                    <p class="text-lg font-black text-slate-800">${c.totalVenta.toFixed(2)}€</p>
+                    <button onclick="window.borrarCierre('${c.id}')" class="text-[8px] text-rose-300 font-bold uppercase hover:text-rose-500">Eliminar</button>
+                </div>
             </div>
-        </div>`;
-    }
-
-    // --- IMPORTACIÓN CSV MEJORADA (CON FECHA) ---
-    const handleImport = async (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-
-        // Preguntar fecha de importación
-        const dateInput = prompt("¿A qué fecha asignamos estas ventas? (YYYY-MM-DD)", new Date().toISOString().split('T')[0]);
-        if(!dateInput) return;
-
-        const reader = new FileReader();
-        reader.onload = async (evt) => {
-            const text = evt.target.result;
-            const rows = text.split('\n').slice(1);
-            let count = 0;
-            const newSales = [];
-
-            // 1. Procesar Filas
-            rows.forEach(row => {
-                if(!row.trim()) return;
-                const cols = row.includes(';') ? row.split(';') : row.split(',');
-                // Formato: Nombre; Categoria; PVP; Coste; Vendidos
-                if(cols.length >= 3) {
-                    const name = cols[0].trim();
-                    const sold = parseFloat(cols[4]?.replace(',','.')) || 0;
-                    
-                    // Buscar si el plato ya existe
-                    let plato = db.platos.find(p => p.name.toLowerCase() === name.toLowerCase());
-                    
-                    // Si no existe, lo creamos
-                    if(!plato) {
-                        plato = {
-                            id: Date.now() + Math.random().toString(),
-                            name: name,
-                            category: cols[1]?.trim() || 'General',
-                            price: parseFloat(cols[2]?.replace(',','.')) || 0,
-                            cost: parseFloat(cols[3]?.replace(',','.')) || 0,
-                        };
-                        db.platos.push(plato);
-                    }
-
-                    // Registrar venta en el histórico
-                    if(sold > 0) {
-                        newSales.push({ date: dateInput, id: plato.id, qty: sold });
-                        count++;
-                    }
-                }
-            });
-
-            // 2. Guardar Ventas
-            db.ventas_menu.push(...newSales);
-            await saveFn(`Importadas ${count} líneas de venta para ${dateInput}`);
-            draw();
-        };
-        reader.readAsText(file);
-        e.target.value = '';
+        `).join('') || '<p class="text-center py-10 text-slate-300 italic text-sm">Sin registros</p>';
     };
 
-    // --- PULSO (Guarda en histórico con fecha HOY) ---
-    const abrirModalPulse = () => {
-        const modal = container.querySelector("#modalPulse");
-        modal.classList.remove("hidden");
-        const candidatos = db.platos.sort(() => 0.5 - Math.random()).slice(0, 5); 
+    // --- BORRADO CON OPCIÓN A DESHACER ---
+    let lastDeleted = null;
+    window.borrarCierre = async (id) => {
+        const idx = db.cierres.findIndex(c => c.id === id);
+        if (idx < 0) return;
         
-        modal.innerHTML = `
-            <div class="bg-white w-full max-w-sm rounded-[2.5rem] p-8 shadow-2xl animate-slide-up relative">
-                <h3 class="text-xl font-black text-indigo-900 mb-2">🔥 Pulso de Hoy</h3>
-                <p class="text-xs text-slate-500 mb-6">Selecciona lo más vendido</p>
-                <div class="space-y-3 mb-6">
-                    ${candidatos.map(p => `
-                        <div class="pulse-item flex items-center justify-between p-3 rounded-xl border border-slate-100 cursor-pointer hover:bg-indigo-50 transition" data-id="${p.id}">
-                            <span class="font-bold text-slate-700 text-sm">${p.name}</span>
-                            <div class="w-6 h-6 rounded-full border-2 border-indigo-100 flex items-center justify-center check-circle"></div>
+        lastDeleted = db.cierres[idx];
+        db.cierres.splice(idx, 1);
+        await saveFn("Cierre eliminado");
+        pintarCierres();
+
+        const undo = document.createElement('div');
+        undo.className = "fixed bottom-24 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-6 py-3 rounded-2xl text-xs font-bold shadow-2xl flex items-center gap-4 z-[9999]";
+        undo.innerHTML = `Cierre borrado <button id="btnUndo" class="text-indigo-400 underline uppercase tracking-widest">Deshacer</button>`;
+        container.querySelector("#undoContainer").appendChild(undo);
+
+        let timer = setTimeout(() => undo.remove(), 8000);
+        undo.querySelector("#btnUndo").onclick = async () => {
+            clearTimeout(timer);
+            if (lastDeleted) db.cierres.unshift(lastDeleted);
+            lastDeleted = null;
+            await saveFn("Cierre restaurado");
+            pintarCierres();
+            undo.remove();
+        };
+    };
+
+    // Focus inicial
+    inCaja.focus();
+    pintarCierres();
+}
+/* =============================================================
+   💰 MÓDULO: CONTROL DE CAJAS & CIERRES (Parte 2: Automatización)
+   ============================================================= */
+
+export async function render(container, supabase, db, opts = {}) {
+    const saveFn = opts.save || (window.save ? window.save : async () => {});
+
+    if (!db.cierres) db.cierres = [];
+    if (!db.facturas) db.facturas = []; // Aseguramos que existan facturas para la Z
+
+    // --- HELPERS ---
+    const toCents = (n) => Math.round((Number(n) || 0) * 100);
+    const localISODate = (d = new Date()) => {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+    };
+
+    // --- INTERFAZ ---
+    container.innerHTML = `
+    <div class="animate-fade-in space-y-6 pb-24">
+        <header class="flex justify-between items-center bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100">
+            <div>
+                <h2 class="text-xl font-black text-slate-800">Cierre de Caja</h2>
+                <p class="text-[10px] text-emerald-500 font-bold uppercase tracking-widest">Contabilidad Automatizada</p>
+            </div>
+            <div class="text-right">
+                <p class="text-[9px] font-black text-slate-400 uppercase">Hoy</p>
+                <p class="text-sm font-black text-slate-800">${localISODate()}</p>
+            </div>
+        </header>
+
+        <div class="bg-white p-8 rounded-[2.5rem] shadow-xl border-2 border-indigo-50 relative overflow-hidden">
+            <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-400 via-indigo-500 to-rose-500"></div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="space-y-4">
+                    <h3 class="text-xs font-black text-slate-400 uppercase tracking-widest">💰 Venta Directa</h3>
+                    <div>
+                        <label class="text-[10px] font-bold text-slate-400 ml-2">EFECTIVO</label>
+                        <input id="inCaja" type="number" placeholder="0.00" class="w-full p-4 bg-slate-50 rounded-2xl text-xl font-black text-slate-800 border-0 focus:ring-2 focus:ring-indigo-500 transition">
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-bold text-slate-400 ml-2">TPV (TARJETAS)</label>
+                        <input id="inTarjeta" type="number" placeholder="0.00" class="w-full p-4 bg-slate-50 rounded-2xl text-xl font-black text-slate-800 border-0 focus:ring-2 focus:ring-indigo-500 transition">
+                    </div>
+                </div>
+
+                <div class="space-y-4">
+                    <h3 class="text-xs font-black text-slate-400 uppercase tracking-widest">🛵 Plataformas</h3>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="text-[10px] font-bold text-orange-400">GLOVO</label>
+                            <input id="inGlovo" type="number" placeholder="0.0" class="w-full p-3 bg-orange-50 rounded-xl font-bold border-0">
                         </div>
-                    `).join('')}
+                        <div>
+                            <label class="text-[10px] font-bold text-teal-400">DELIVEROO</label>
+                            <input id="inDeliveroo" type="number" placeholder="0.0" class="w-full p-3 bg-teal-50 rounded-xl font-bold border-0">
+                        </div>
+                        <div>
+                            <label class="text-[10px] font-bold text-indigo-400">UBER</label>
+                            <input id="inUber" type="number" placeholder="0.0" class="w-full p-3 bg-indigo-50 rounded-xl font-bold border-0">
+                        </div>
+                        <div>
+                            <label class="text-[10px] font-bold text-rose-400">MADISA</label>
+                            <input id="inMadisa" type="number" placeholder="0.0" class="w-full p-3 bg-rose-50 rounded-xl font-bold border-0">
+                        </div>
+                    </div>
                 </div>
-                <button id="btnSavePulse" class="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black shadow-lg">GUARDAR</button>
-                <button onclick="document.getElementById('modalPulse').classList.add('hidden')" class="w-full text-slate-400 text-xs font-bold mt-4">Cancelar</button>
             </div>
-        `;
 
-        modal.querySelectorAll('.pulse-item').forEach(item => {
-            item.onclick = () => {
-                item.classList.toggle('bg-indigo-100');
-                item.querySelector('.check-circle').innerText = item.classList.contains('bg-indigo-100') ? '🔥' : '';
-            };
-        });
+            <div class="mt-8 pt-6 border-t border-slate-100 flex flex-col md:flex-row justify-between items-center gap-4">
+                <div class="text-center md:text-left">
+                    <p class="text-[10px] font-black text-slate-400 uppercase">Total Z</p>
+                    <p id="txtTotalCierre" class="text-4xl font-black text-indigo-600">0.00€</p>
+                </div>
+                <button id="btnGuardarCierre" class="w-full md:w-auto px-12 py-4 bg-slate-900 text-white rounded-2xl font-black shadow-xl hover:bg-indigo-600 transition-all transform active:scale-95">
+                    FINALIZAR DÍA
+                </button>
+            </div>
+        </div>
 
-        modal.querySelector("#btnSavePulse").onclick = async () => {
-            const today = new Date().toISOString().split('T')[0];
-            const newSales = [];
-            modal.querySelectorAll('.pulse-item.bg-indigo-100').forEach(el => {
-                newSales.push({ date: today, id: el.dataset.id, qty: 5 }); // Pulso = 5 unidades aprox
-            });
+        <div class="space-y-3">
+            <h3 id="hdrHistorial" class="text-xs font-black text-slate-400 uppercase tracking-widest px-4">Historial</h3>
+            <div id="listaCierres" class="space-y-2"></div>
+        </div>
+    </div>
+    <div id="undoContainer"></div>
+    `;
 
-            if(newSales.length > 0) {
-                db.ventas_menu.push(...newSales);
-                await saveFn("Pulso registrado");
-            }
-            modal.classList.add("hidden");
-            draw();
-        };
+    const inputs = [
+        container.querySelector("#inCaja"), container.querySelector("#inTarjeta"),
+        container.querySelector("#inGlovo"), container.querySelector("#inDeliveroo"),
+        container.querySelector("#inUber"), container.querySelector("#inMadisa")
+    ];
+    const txtTotal = container.querySelector("#txtTotalCierre");
+
+    const calcularTotalCents = () => {
+        const totalCents = inputs.reduce((acc, input) => acc + toCents(input.value), 0);
+        txtTotal.innerText = (totalCents / 100).toFixed(2) + "€";
+        return totalCents;
     };
 
-    // --- EDICIÓN PLATO ---
-    const abrirModalEdicion = (id = null) => {
-        const p = id ? db.platos.find(x => x.id === id) : { id: Date.now().toString(), name: '', price: '', cost: '', category: 'Principal' };
-        const modal = container.querySelector("#modalPlato");
-        modal.classList.remove("hidden");
+    inputs.forEach(input => input.addEventListener("input", calcularTotalCents));
+
+    // --- GUARDADO + AUTO FACTURA Z ---
+    container.querySelector("#btnGuardarCierre").onclick = async () => {
+        const totalCents = calcularTotalCents();
+        if (totalCents <= 0) return alert("Cierre vacío.");
+
+        const todayLocal = localISODate();
+        const totalVenta = totalCents / 100;
+
+        // 1. Guardar en Cierres
+        const cierreData = {
+            id: Date.now().toString(),
+            date: todayLocal,
+            totalCaja: Number(inputs[0].value) || 0,
+            totalTarjeta: Number(inputs[1].value) || 0,
+            glovo: Number(inputs[2].value) || 0,
+            deliveroo: Number(inputs[3].value) || 0,
+            uber: Number(inputs[4].value) || 0,
+            madisa: Number(inputs[5].value) || 0,
+            totalVenta: totalVenta
+        };
+
+        const existingIdx = db.cierres.findIndex(c => c.date === todayLocal);
+        if (existingIdx >= 0) db.cierres[existingIdx] = cierreData;
+        else db.cierres.unshift(cierreData);
+
+        // 2. MAGIA: Crear Factura Z automática (para Tesorería e IVA)
+        const zNum = `Z-${todayLocal.replace(/-/g,'')}`;
+        const existingFacturaIdx = db.facturas.findIndex(f => f.num === zNum);
         
-        modal.innerHTML = `
-            <div class="bg-white w-full max-w-sm rounded-[2.5rem] p-8 shadow-2xl animate-slide-up relative">
-                <h3 class="text-xl font-black text-slate-800 mb-4">${id?'Editar':'Nuevo'} Plato</h3>
-                <input id="p-name" value="${p.name}" placeholder="Nombre" class="w-full p-3 mb-2 bg-slate-50 rounded-xl font-bold text-sm border border-slate-100">
-                <select id="p-cat" class="w-full p-3 mb-2 bg-slate-50 rounded-xl font-bold text-xs border border-slate-100">
-                    <option value="Entrantes" ${p.category==='Entrantes'?'selected':''}>Entrantes</option>
-                    <option value="Principal" ${p.category==='Principal'?'selected':''}>Principal</option>
-                    <option value="Postre" ${p.category==='Postre'?'selected':''}>Postre</option>
-                    <option value="Bebidas" ${p.category==='Bebidas'?'selected':''}>Bebidas</option>
-                </select>
-                <div class="grid grid-cols-2 gap-2 mb-4">
-                    <input id="p-price" type="number" value="${p.price||''}" placeholder="PVP" class="p-3 bg-slate-50 rounded-xl font-bold text-sm border border-slate-100">
-                    <input id="p-cost" type="number" value="${p.cost||''}" placeholder="Coste" class="p-3 bg-slate-50 rounded-xl font-bold text-sm border border-slate-100">
-                </div>
-                <button id="btnSaveP" class="w-full bg-slate-900 text-white py-3 rounded-2xl font-black">Guardar</button>
-                <button onclick="document.getElementById('modalPlato').classList.add('hidden')" class="w-full mt-2 text-slate-400 font-bold text-xs">Cancelar</button>
-                ${id ? `<button id="btnDelP" class="w-full mt-2 text-rose-400 font-bold text-xs">Eliminar</button>` : ''}
-            </div>
-        `;
-        modal.querySelector("#btnSaveP").onclick = async () => {
-            const nuevo = { ...p,
-                name: modal.querySelector("#p-name").value,
-                category: modal.querySelector("#p-cat").value,
-                price: parseFloat(modal.querySelector("#p-price").value)||0,
-                cost: parseFloat(modal.querySelector("#p-cost").value)||0
-            };
-            if(!nuevo.name) return alert("Falta nombre");
-            if(id) db.platos[db.platos.findIndex(x=>x.id===id)] = nuevo;
-            else db.platos.push(nuevo);
-            await saveFn("Guardado");
-            modal.classList.add("hidden");
-            draw();
+        const facturaZ = {
+            id: existingFacturaIdx >= 0 ? db.facturas[existingFacturaIdx].id : `z-${Date.now()}`,
+            num: zNum,
+            date: todayLocal,
+            cliente: "Venta Diaria Z (Arume)",
+            total: totalVenta,
+            base: Number((totalVenta / 1.10).toFixed(2)), // Estimación 10% IVA
+            tax: Number((totalVenta - (totalVenta / 1.10)).toFixed(2)),
+            paid: true,
+            reconciled: false, // Esperando al banco en Tesorería
+            notes: `Caja: ${cierreData.totalCaja}€ | TPV: ${cierreData.totalTarjeta}€ | Apps: ${cierreData.glovo + cierreData.deliveroo + cierreData.uber + cierreData.madisa}€`
         };
-        if(id) modal.querySelector("#btnDelP").onclick = async () => {
-            if(confirm("¿Borrar?")) {
-                db.platos = db.platos.filter(x => x.id !== id);
-                await saveFn("Borrado");
-                modal.classList.add("hidden");
-                draw();
-            }
-        };
+
+        if (existingFacturaIdx >= 0) db.facturas[existingFacturaIdx] = facturaZ;
+        else db.facturas.push(facturaZ);
+
+        await saveFn("Cierre y Factura Z generados ⚡");
+        inputs.forEach(i => i.value = "");
+        calcularTotalCents();
+        pintarCierres();
     };
 
-    // Exponer para onclick en HTML
-    window.editarPlato = abrirModalEdicion;
+    const pintarCierres = () => {
+        const lista = container.querySelector("#listaCierres");
+        lista.innerHTML = db.cierres.slice(0, 7).map(c => `
+            <div class="bg-white p-4 rounded-3xl border border-slate-100 flex justify-between items-center shadow-sm">
+                <div>
+                    <p class="text-[10px] font-black text-slate-400 uppercase">${c.date}</p>
+                    <div class="flex gap-2 mt-1">
+                        <span class="text-[9px] font-bold text-emerald-600">💵 ${c.totalCaja.toFixed(2)}€</span>
+                        <span class="text-[9px] font-bold text-blue-600">💳 ${c.totalTarjeta.toFixed(2)}€</span>
+                    </div>
+                </div>
+                <div class="text-right">
+                    <p class="text-lg font-black text-slate-800">${c.totalVenta.toFixed(2)}€</p>
+                    <button onclick="window.borrarCierre('${c.id}')" class="text-[8px] text-rose-300 font-bold">Eliminar</button>
+                </div>
+            </div>
+        `).join('') || '<p class="text-center py-10 text-slate-300 italic text-sm">Sin registros</p>';
+    };
 
-    draw();
+    // --- BORRADO ---
+    window.borrarCierre = async (id) => {
+        if(!confirm("¿Borrar cierre?")) return;
+        const cierre = db.cierres.find(c => c.id === id);
+        if(cierre) {
+            // También borramos la Factura Z asociada
+            const zNum = `Z-${cierre.date.replace(/-/g,'')}`;
+            db.facturas = db.facturas.filter(f => f.num !== zNum);
+            db.cierres = db.cierres.filter(c => c.id !== id);
+            await saveFn("Cierre y Z eliminados");
+            pintarCierres();
+        }
+    };
+
+    pintarCierres();
+}
+/* =============================================================
+   💰 MÓDULO: CONTROL DE CAJAS & CIERRES (Parte 3: Final - Dashboard)
+   ============================================================= */
+
+export async function render(container, supabase, db, opts = {}) {
+    const saveFn = opts.save || (window.save ? window.save : async () => {});
+
+    if (!db.cierres) db.cierres = [];
+    if (!db.facturas) db.facturas = [];
+
+    // --- HELPERS ---
+    const toCents = (n) => Math.round((Number(n) || 0) * 100);
+    const localISODate = (d = new Date()) => {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+    };
+
+    // --- CÁLCULOS ESTADÍSTICOS ---
+    const getStats = () => {
+        const recent = db.cierres.slice(0, 7);
+        const totalSemana = recent.reduce((t, c) => t + (Number(c.totalVenta) || 0), 0);
+        const mediaSemana = recent.length > 0 ? totalSemana / recent.length : 0;
+        const ultimoCierre = db.cierres[0]?.totalVenta || 0;
+        const diferencia = mediaSemana > 0 ? ((ultimoCierre - mediaSemana) / mediaSemana) * 100 : 0;
+        
+        return { totalSemana, mediaSemana, ultimoCierre, diferencia };
+    };
+
+    let stats = getStats();
+
+    // --- INTERFAZ ---
+    container.innerHTML = `
+    <div class="animate-fade-in space-y-6 pb-24">
+        
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div class="bg-indigo-600 p-6 rounded-[2.5rem] text-white shadow-lg">
+                <p class="text-[10px] font-black opacity-60 uppercase">Venta Último Z</p>
+                <p class="text-3xl font-black">${stats.ultimoCierre.toLocaleString()}€</p>
+                <p class="text-[10px] mt-2 font-bold ${stats.diferencia >= 0 ? 'text-emerald-300' : 'text-rose-300'}">
+                    ${stats.diferencia >= 0 ? '▲' : '▼'} ${Math.abs(stats.diferencia).toFixed(1)}% vs media 7d
+                </p>
+            </div>
+            <div class="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm">
+                <p class="text-[10px] font-black text-slate-400 uppercase">Media Semanal</p>
+                <p class="text-3xl font-black text-slate-800">${stats.mediaSemana.toLocaleString()}€</p>
+                <p class="text-[10px] mt-2 text-slate-400 font-bold">Últimos 7 cierres</p>
+            </div>
+            <div class="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm">
+                <p class="text-[10px] font-black text-slate-400 uppercase">Acumulado Semana</p>
+                <p class="text-3xl font-black text-indigo-600">${stats.totalSemana.toLocaleString()}€</p>
+                <p class="text-[10px] mt-2 text-slate-400 font-bold">Venta total bruta</p>
+            </div>
+        </div>
+
+        <div class="bg-white p-8 rounded-[2.5rem] shadow-xl border-2 border-indigo-50 relative overflow-hidden">
+            <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-400 via-indigo-500 to-rose-500"></div>
+            
+            <h2 class="text-xl font-black text-slate-800 mb-6">Nuevo Cierre Diario</h2>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div class="space-y-4">
+                    <h3 class="text-[10px] font-black text-indigo-500 uppercase tracking-widest">💰 Caja y TPV</h3>
+                    <div>
+                        <label class="text-[10px] font-bold text-slate-400 ml-2">EFECTIVO TOTAL</label>
+                        <input id="inCaja" type="number" placeholder="0.00" class="w-full p-4 bg-slate-50 rounded-2xl text-xl font-black text-slate-800 border-0 focus:ring-2 focus:ring-indigo-500 transition">
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-bold text-slate-400 ml-2">TARJETAS (DATAfONO)</label>
+                        <input id="inTarjeta" type="number" placeholder="0.00" class="w-full p-4 bg-slate-50 rounded-2xl text-xl font-black text-slate-800 border-0 focus:ring-2 focus:ring-indigo-500 transition">
+                    </div>
+                </div>
+
+                <div class="space-y-4">
+                    <h3 class="text-[10px] font-black text-orange-500 uppercase tracking-widest">🛵 Delivery</h3>
+                    <div class="grid grid-cols-2 gap-3">
+                        <input id="inGlovo" type="number" placeholder="Glovo" class="w-full p-3 bg-orange-50 rounded-xl font-bold border-0">
+                        <input id="inDeliveroo" type="number" placeholder="Deliveroo" class="w-full p-3 bg-teal-50 rounded-xl font-bold border-0">
+                        <input id="inUber" type="number" placeholder="Uber" class="w-full p-3 bg-indigo-50 rounded-xl font-bold border-0">
+                        <input id="inMadisa" type="number" placeholder="Otros" class="w-full p-3 bg-slate-50 rounded-xl font-bold border-0">
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-8 pt-6 border-t border-slate-100 flex flex-col md:flex-row justify-between items-center gap-4">
+                <div class="text-center md:text-left">
+                    <p class="text-[10px] font-black text-slate-400 uppercase">Total Venta Bruta (Z)</p>
+                    <p id="txtTotalCierre" class="text-4xl font-black text-indigo-600">0.00€</p>
+                </div>
+                <button id="btnGuardarCierre" class="w-full md:w-auto px-12 py-4 bg-slate-900 text-white rounded-2xl font-black shadow-xl hover:bg-indigo-600 transition-all transform active:scale-95">
+                    GUARDAR Y GENERAR Z
+                </button>
+            </div>
+        </div>
+
+        <div class="space-y-3">
+            <h3 class="text-xs font-black text-slate-400 uppercase tracking-widest px-4">Historial Reciente</h3>
+            <div id="listaCierres" class="space-y-2"></div>
+        </div>
+    </div>
+    `;
+
+    const inputs = [
+        container.querySelector("#inCaja"), container.querySelector("#inTarjeta"),
+        container.querySelector("#inGlovo"), container.querySelector("#inDeliveroo"),
+        container.querySelector("#inUber"), container.querySelector("#inMadisa")
+    ];
+    const txtTotal = container.querySelector("#txtTotalCierre");
+
+    const calcularTotalCents = () => {
+        const totalCents = inputs.reduce((acc, input) => acc + toCents(input.value), 0);
+        txtTotal.innerText = (totalCents / 100).toFixed(2) + "€";
+        return totalCents;
+    };
+
+    inputs.forEach(input => input.addEventListener("input", calcularTotalCents));
+
+    container.querySelector("#btnGuardarCierre").onclick = async () => {
+        const totalCents = calcularTotalCents();
+        if (totalCents <= 0) return alert("Cierre vacío.");
+
+        const todayLocal = localISODate();
+        const totalVenta = totalCents / 100;
+
+        const cierreData = {
+            id: Date.now().toString(),
+            date: todayLocal,
+            totalCaja: Number(inputs[0].value) || 0,
+            totalTarjeta: Number(inputs[1].value) || 0,
+            glovo: Number(inputs[2].value) || 0,
+            deliveroo: Number(inputs[3].value) || 0,
+            uber: Number(inputs[4].value) || 0,
+            madisa: Number(inputs[5].value) || 0,
+            totalVenta: totalVenta
+        };
+
+        // Guardar Cierre
+        const existingIdx = db.cierres.findIndex(c => c.date === todayLocal);
+        if (existingIdx >= 0) db.cierres[existingIdx] = cierreData;
+        else db.cierres.unshift(cierreData);
+
+        // Crear/Actualizar Factura Z
+        const zNum = `Z-${todayLocal.replace(/-/g,'')}`;
+        const existingFacturaIdx = db.facturas.findIndex(f => f.num === zNum);
+        const facturaZ = {
+            id: existingFacturaIdx >= 0 ? db.facturas[existingFacturaIdx].id : `z-${Date.now()}`,
+            num: zNum, date: todayLocal, cliente: "Venta Diaria Z",
+            total: totalVenta, base: Number((totalVenta / 1.10).toFixed(2)),
+            tax: Number((totalVenta - (totalVenta / 1.10)).toFixed(2)),
+            paid: true, reconciled: false
+        };
+        if (existingFacturaIdx >= 0) db.facturas[existingFacturaIdx] = facturaZ;
+        else db.facturas.push(facturaZ);
+
+        await saveFn("¡Cierre completado! ✨");
+        render(container, supabase, db, opts); // Recargar para actualizar stats
+    };
+
+    const pintarCierres = () => {
+        container.querySelector("#listaCierres").innerHTML = db.cierres.slice(0, 10).map(c => `
+            <div class="bg-white p-5 rounded-3xl border border-slate-100 flex justify-between items-center shadow-sm">
+                <div>
+                    <p class="text-[10px] font-black text-slate-400 uppercase">${c.date}</p>
+                    <div class="flex gap-2 mt-1">
+                        <span class="text-[10px] font-bold text-slate-700">💵 ${c.totalCaja.toFixed(2)}</span>
+                        <span class="text-[10px] font-bold text-indigo-500">💳 ${c.totalTarjeta.toFixed(2)}</span>
+                    </div>
+                </div>
+                <div class="text-right">
+                    <p class="text-xl font-black text-slate-800">${c.totalVenta.toFixed(2)}€</p>
+                    <button onclick="window.borrarCierre('${c.id}')" class="text-[8px] text-rose-300 font-bold hover:text-rose-500 uppercase">Eliminar</button>
+                </div>
+            </div>
+        `).join('');
+    };
+
+    window.borrarCierre = async (id) => {
+        if(!confirm("¿Borrar cierre y su factura Z?")) return;
+        const c = db.cierres.find(x => x.id === id);
+        if(c) {
+            db.facturas = db.facturas.filter(f => f.num !== `Z-${c.date.replace(/-/g,'')}`);
+            db.cierres = db.cierres.filter(x => x.id !== id);
+            await saveFn("Eliminado");
+            render(container, supabase, db, opts);
+        }
+    };
+
+    pintarCierres();
 }
