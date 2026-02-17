@@ -1,5 +1,5 @@
 /* =============================================================
-   🚚 MÓDULO: ALBARANES v10.0 (Sentinel: Control de Precios)
+   🚚 MÓDULO: ALBARANES v10.1 (Fix: KPI Missing & Safety)
    ============================================================= */
 
 import Tesseract from 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.esm.min.js';
@@ -11,7 +11,7 @@ export async function render(container, supabase, db, opts = {}) {
 
     // 1. INICIALIZACIÓN
     if (!Array.isArray(db.albaranes)) db.albaranes = [];
-    if (!db.priceHistory) db.priceHistory = {}; // Histórico de precios
+    if (!db.priceHistory) db.priceHistory = {}; 
     
     const listaSocios = db.listaSocios || ['Jeronimo','Pedro','Pau','Agnes'];
     let filtroOwner = 'Todos';
@@ -28,36 +28,34 @@ export async function render(container, supabase, db, opts = {}) {
 
     const inbox = db.albaranes.filter(a => a.status === 'pending');
 
-    // --- DETECTOR DE SUBIDA DE PRECIOS (NUEVO CEREBRO) ---
+    // --- DETECTOR DE SUBIDA DE PRECIOS ---
     const normalize = (s) => {
         return String(s || '').toLowerCase()
-            .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // sin tildes
-            .replace(/kg|ud|uds|litro|botella|caja|x|-/g, '') // quitar unidades
+            .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+            .replace(/kg|ud|uds|litro|botella|caja|x|-/g, '')
             .replace(/\s+/g, ' ').trim();
     };
 
     const detectPriceIncrease = (name, newUnitPrice) => {
         const key = normalize(name);
-        if(key.length < 3) return null; // Ignorar nombres muy cortos
+        if(key.length < 3) return null;
 
         const history = db.priceHistory[key];
         if (!history || history.length < 1) return null;
 
-        // Comparar con el último precio registrado
         const lastPrice = history[history.length - 1].unit;
         if (lastPrice <= 0) return null;
 
         const diff = newUnitPrice - lastPrice;
         const pct = (diff / lastPrice) * 100;
 
-        // Solo avisar si sube más de un 5% (para evitar céntimos sueltos)
         if (pct >= 5) {
             return { increase: true, pct: pct.toFixed(1), previous: lastPrice, diff: diff.toFixed(2) };
         }
         return null;
     };
 
-    // 2. PARSER INTELIGENTE v3.1 (Con Precio Unitario)
+    // 2. PARSER INTELIGENTE
     const parseSmartLine = (line) => {
         let clean = line.replace(/[€$]/g, '').replace(/,/g, '.').trim();
         if (!clean || clean.length < 5) return null;
@@ -139,6 +137,11 @@ export async function render(container, supabase, db, opts = {}) {
             </div>
         </div>` : ''}
 
+        <div class="bg-white px-6 py-3 rounded-2xl border border-slate-100 shadow-sm flex justify-between items-center">
+            <span class="text-[10px] font-black text-slate-400 uppercase">Gasto Total Acumulado</span>
+            <span class="text-xl font-black text-slate-800" id="total-global-kpi">0.00€</span>
+        </div>
+
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
             
             <div class="lg:col-span-1 space-y-4">
@@ -210,7 +213,7 @@ export async function render(container, supabase, db, opts = {}) {
     const inProv = container.querySelector("#inProv");
     const ocrOverlay = container.querySelector("#ocrLoadingOverlay");
 
-    // 4. CÁLCULO + DETECCIÓN DE SUBIDAS
+    // 4. CÁLCULO
     const recalcular = () => {
         const items = analizarTexto(inText.value);
         const taxes = { 4: {b:0, i:0}, 10: {b:0, i:0}, 21: {b:0, i:0} };
@@ -277,7 +280,7 @@ export async function render(container, supabase, db, opts = {}) {
         finally { ocrOverlay.classList.add("hidden"); e.target.value = ''; }
     };
 
-    // 6. GUARDAR (Y APRENDER PRECIOS)
+    // 6. GUARDAR
     container.querySelector("#btnProcesar").onclick = async () => {
         const items = analizarTexto(inText.value);
         let total = parseFloat(liveTotal.innerText);
@@ -286,11 +289,9 @@ export async function render(container, supabase, db, opts = {}) {
 
         if (total <= 0 || !prov) return alert("Faltan datos.");
 
-        // Anti-Duplicados
         const duplicado = db.albaranes.some(a => a.prov === prov && a.date === date && Math.abs(a.total - total) < 0.1);
         if(duplicado && !confirm("⚠️ Posible duplicado. ¿Guardar igual?")) return;
 
-        // GUARDAR HISTÓRICO DE PRECIOS
         items.forEach(it => {
             const key = normalize(it.n);
             if(key.length > 2) {
@@ -311,7 +312,7 @@ export async function render(container, supabase, db, opts = {}) {
             status: 'ok', attachment_url: null
         });
 
-        await saveFn("Gasto guardado y precios actualizados 📈");
+        await saveFn("Gasto guardado ✅");
         inText.value = ""; inProv.value = ""; 
         inText.dispatchEvent(new Event('input'));
         pintarLista();
@@ -332,7 +333,6 @@ export async function render(container, supabase, db, opts = {}) {
                 <img src="${a.attachment_url}" class="max-w-full max-h-full object-contain">
             </div>` : '';
 
-        // Detectar subidas en el modal también
         const alertasPrecios = (a.items||[]).map(it => detectPriceIncrease(it.n, it.t/it.q)).filter(Boolean);
 
         modal.innerHTML = `
@@ -414,8 +414,13 @@ export async function render(container, supabase, db, opts = {}) {
             </div>
         `).join('') || '<p class="text-center text-slate-300 py-10 text-xs">Sin registros.</p>';
         
-        const totalGlobal = db.albaranes.reduce((acc, a) => acc + (parseFloat(a.total)||0), 0);
-        container.querySelector("#total-global-kpi").innerText = totalGlobal.toLocaleString('es-ES', {minimumFractionDigits:2}) + "€";
+        // --- AQUÍ ESTABA EL ERROR ---
+        // Ahora comprobamos que el elemento existe antes de escribir
+        const kpiElement = container.querySelector("#total-global-kpi");
+        if(kpiElement) {
+            const totalGlobal = db.albaranes.reduce((acc, a) => acc + (parseFloat(a.total)||0), 0);
+            kpiElement.innerText = totalGlobal.toLocaleString('es-ES', {minimumFractionDigits:2}) + "€";
+        }
     };
 
     window.borrarAlbaran = async (id) => {
