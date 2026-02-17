@@ -1,49 +1,90 @@
 /* =============================================================
-   🏦 MÓDULO: TESORERÍA ULTRA (v8.0 Enterprise: AI Matching + Logs)
+   🏦 MÓDULO: TESORERÍA ULTRA (v9.0 Fusion: UI + Motor Inteligente)
    ============================================================= */
 
 import * as XLSX from 'https://cdn.sheetjs.com/xlsx-0.20.1/package/xlsx.mjs';
 
+// --- 0. HELPERS GLOBALES (Fuera del render para limpieza) ---
+const Utils = {
+    normalize: (s) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim().toLowerCase(),
+    
+    hashString: (str) => {
+        let h = 0x811c9dc5;
+        for (let i = 0; i < str.length; i++) {
+            h ^= str.charCodeAt(i);
+            h += (h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24);
+        }
+        return (h >>> 0).toString(16);
+    },
+
+    parseAmountSmart: (raw) => {
+        if (raw == null) return 0;
+        if (typeof raw === 'number') return raw;
+        let s = String(raw).trim();
+        s = s.replace(/[^\d,.-]/g, ''); 
+        if (s.includes(',') && s.includes('.')) {
+            if (s.indexOf(',') > s.indexOf('.')) s = s.replace(/\./g, '').replace(',', '.'); // Eur
+            else s = s.replace(/,/g, ''); // USA
+        } else if (s.includes(',')) s = s.replace(',', '.');
+        return parseFloat(s) || 0;
+    },
+
+    parseDateSmart: (raw) => {
+        if (!raw) return null;
+        if (raw instanceof Date) return raw;
+        if (typeof raw === 'number' && raw > 20000) return new Date((raw - (25567 + 2)) * 86400 * 1000);
+        const s = String(raw).trim();
+        if (/\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}/.test(s)) {
+            let [d, m, y] = s.split(/[\/\-]/);
+            if (y.length === 2) y = '20' + y;
+            return new Date(+y, +m - 1, +d);
+        }
+        return new Date(s); 
+    },
+
+    extractInvoiceNums: (str) => {
+        const matches = str.match(/([a-z]{1,3}[-/\s]?\d{3,})|(\d{4,})/gi);
+        return matches || [];
+    }
+};
+
+// --- 1. PERFILES DE BANCO (Motor de Detección) ---
+const BANK_PROFILES = [
+    {
+        name: 'Banca March',
+        detect: (row) => row.includes('f. operación') && row.includes('importe'),
+        map: (r) => ({ colDate: r.indexOf('f. operación'), colDesc: r.indexOf('concepto'), colAmount: r.indexOf('importe') })
+    },
+    {
+        name: 'CaixaBank',
+        detect: (row) => row.includes('f. valor') && row.includes('importe'),
+        map: (r) => ({ colDate: r.indexOf('f. valor'), colDesc: r.indexOf('concepto'), colAmount: r.indexOf('importe') })
+    },
+    {
+        name: 'Genérico',
+        detect: (row) => (row.includes('fecha') || row.includes('date')) && (row.includes('importe') || row.includes('amount')),
+        map: (r) => ({ 
+            colDate: r.findIndex(c => /fecha|date/i.test(c)), 
+            colDesc: r.findIndex(c => /concepto|desc/i.test(c)), 
+            colAmount: r.findIndex(c => /importe|amount/i.test(c)) 
+        })
+    }
+];
+
 export async function render(container, supabase, db, opts = {}) {
     const saveFn = opts.save || (window.save ? window.save : async () => {});
     
-    // 1. INICIALIZAR DATOS
+    // Inicializar Datos
     if(!db.banco) db.banco = [];
     if(!db.facturas) db.facturas = []; 
     if(!db.albaranes) db.albaranes = [];
+    if(!db.bankImports) db.bankImports = [];
     if(!db.config) db.config = {};
+    if(!db.config.customProfiles) db.config.customProfiles = [];
     if(db.config.saldoInicial === undefined) db.config.saldoInicial = 0;
-    
-    // --- MEJORA 3: LOG DE AUDITORÍA INVISIBLE ---
-    if(!db.logs) db.logs = []; 
+    if(!db.logs) db.logs = [];
 
-    // --- HELPERS AVANZADOS ---
-    // MEJORA 1: Normalización de texto (quita tildes, mayúsculas y símbolos raros)
-    const normalize = (str) => {
-        return String(str || '')
-            .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // Quitar tildes
-            .toLowerCase()
-            .replace(/[^a-z0-9\s]/g, '') // Quitar símbolos
-            .trim();
-    };
-
-    // MEJORA 2: Extractor de Números de Factura (Regex)
-    const extractInvoiceNums = (str) => {
-        // Busca patrones tipo: F-2024, 2024/001, o secuencias largas de números
-        const matches = str.match(/([a-z]{1,3}[-/\s]?\d{3,})|(\d{4,})/gi);
-        return matches || [];
-    };
-
-    const audit = (action, details) => {
-        db.logs.push({ 
-            ts: Date.now(), 
-            date: new Date().toISOString(), 
-            action, 
-            details 
-        });
-    };
-
-    // --- CÁLCULOS EN TIEMPO REAL ---
+    // --- KPIs en tiempo real ---
     const reCalc = () => {
         const sumaMovimientos = db.banco.reduce((acc, b) => acc + (parseFloat(b.amount)||0), 0);
         const saldoReal = (parseFloat(db.config.saldoInicial) || 0) + sumaMovimientos;
@@ -54,8 +95,9 @@ export async function render(container, supabase, db, opts = {}) {
     };
 
     let kpis = reCalc();
+    let selectedBankId = null;
 
-    // --- INTERFAZ ---
+    // --- INTERFAZ PRINCIPAL ---
     container.innerHTML = `
     <div class="animate-fade-in space-y-6 pb-24">
         
@@ -64,8 +106,8 @@ export async function render(container, supabase, db, opts = {}) {
                 <div>
                     <h2 class="text-2xl font-black text-slate-800">Tesorería</h2>
                     <p class="text-[10px] text-indigo-500 font-bold uppercase tracking-widest flex items-center gap-2">
-                        <span>Banca March</span>
-                        <span class="bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full">v8.0 Ent.</span>
+                        <span>Gestión Bancaria</span>
+                        <span class="bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full">v9.0 Fusion</span>
                     </p>
                 </div>
                 <div class="text-right">
@@ -97,6 +139,8 @@ export async function render(container, supabase, db, opts = {}) {
                 </button>
                 <button id="btnExport" class="bg-slate-100 text-slate-600 px-5 py-3 rounded-xl text-[10px] font-black hover:bg-slate-200 transition">⬇️ CSV</button>
             </div>
+            
+            <div id="import-msg" class="mt-2 empty:hidden"></div>
         </header>
 
         <div id="work-area" class="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -119,25 +163,29 @@ export async function render(container, supabase, db, opts = {}) {
                     <div id="match-panel" class="flex-1 flex flex-col relative">
                         <div class="absolute inset-0 flex flex-col items-center justify-center text-center opacity-30 pointer-events-none">
                             <span class="text-6xl mb-4 grayscale">👈</span>
-                            <p class="text-sm font-bold text-slate-800">Selecciona un movimiento</p>
+                            <p class="text-sm font-bold text-slate-800">Selecciona un movimiento para conciliar</p>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
+
+    <div id="wizardModal" class="hidden fixed inset-0 bg-slate-900/90 z-[9999] flex items-center justify-center p-4"></div>
     `;
 
     const listBank = container.querySelector("#list-bank");
     const matchPanel = container.querySelector("#match-panel");
-    let selectedBankId = null;
+    const importMsg = container.querySelector("#import-msg");
 
-    // --- 1. LÓGICA DE IMPORTACIÓN (BANCA MARCH + NORMALIZACIÓN) ---
+    // -------------------------------------------------------------
+    // ⚙️ MOTOR DE IMPORTACIÓN INTELIGENTE
+    // -------------------------------------------------------------
     container.querySelector("#bankCsv").onchange = async (e) => {
         const file = e.target.files[0];
         if(!file) return;
 
-        listBank.innerHTML = `<div class="flex h-full items-center justify-center text-indigo-500 font-bold animate-pulse">Analizando Extracto Banca March...</div>`;
+        importMsg.innerHTML = `<div class="text-xs font-bold text-indigo-500 animate-pulse">Analizando fichero...</div>`;
 
         const reader = new FileReader();
         reader.onload = async (evt) => {
@@ -147,76 +195,120 @@ export async function render(container, supabase, db, opts = {}) {
                 const sheet = workbook.Sheets[workbook.SheetNames[0]];
                 const rows = XLSX.utils.sheet_to_json(sheet, {header:1, raw:false});
 
-                let headerIdx = -1, colFecha = -1, colDesc1 = -1, colDesc2 = -1, colImporte = -1;
-
-                // Buscar cabecera
-                for(let i=0; i < rows.length; i++) {
-                    const r = rows[i].map(x => String(x||'').toLowerCase());
-                    if (r.includes('f. operación') && r.includes('importe')) {
-                        headerIdx = i;
-                        colFecha   = r.indexOf('f. operación');
-                        colDesc1   = r.indexOf('concepto');
-                        colDesc2   = r.indexOf('concepto ordenante');
-                        colImporte = r.indexOf('importe');
-                        break;
+                // 1. Check Hash Duplicado
+                const docHash = Utils.hashString(JSON.stringify(rows.slice(0, 50)));
+                const alreadyImported = db.bankImports.find(x => x.hash === docHash);
+                if (alreadyImported) {
+                    if (!confirm(`⚠️ Este fichero ya fue importado el ${new Date(alreadyImported.date).toLocaleDateString()}. ¿Re-importar?`)) {
+                        importMsg.innerHTML = ''; return;
                     }
                 }
 
-                if(headerIdx === -1) throw new Error("Formato no reconocido (Banca March).");
+                // 2. Detectar Perfil
+                let profile = null, headerRowIdx = -1, mapping = null;
+                const allProfiles = [...BANK_PROFILES, ...db.config.customProfiles];
 
-                let imported = 0;
+                for (let i = 0; i < Math.min(rows.length, 20); i++) {
+                    const rowStr = rows[i].map(c => Utils.normalize(c));
+                    const found = allProfiles.find(p => p.detect(rowStr));
+                    if (found) { profile = found; headerRowIdx = i; mapping = found.map(rowStr); break; }
+                }
 
-                for(let i = headerIdx + 1; i < rows.length; i++) {
+                // 3. Wizard si falla
+                if (!profile) {
+                    mapping = await showMappingWizard(rows[0] || rows[1]);
+                    if (!mapping) { importMsg.innerHTML = ''; return; }
+                    headerRowIdx = 0; profile = { name: 'Manual' };
+                }
+
+                // 4. Procesar
+                let imported = 0, skipped = 0;
+                const newMovs = [];
+
+                for (let i = headerRowIdx + 1; i < rows.length; i++) {
                     const row = rows[i];
-                    if(!row[colFecha] || !row[colImporte]) continue;
+                    if (!row[mapping.colDate] && !row[mapping.colAmount]) continue;
 
-                    // Fecha
-                    let dateISO = '';
-                    try {
-                        let [d,m,y] = String(row[colFecha]).trim().split(/\/|-/);
-                        if(y && y.length === 2) y = '20' + y;
-                        dateISO = `${y}-${m}-${d}`;
-                    } catch(e) { continue; }
+                    const dateObj = Utils.parseDateSmart(row[mapping.colDate]);
+                    const amount = Utils.parseAmountSmart(row[mapping.colAmount]);
+                    const desc = String(row[mapping.colDesc] || 'Sin concepto').trim();
 
-                    // Descripción
-                    const desc = `${row[colDesc1]||''} ${row[colDesc2]||''}`.replace(/\s+/g, ' ').trim();
-                    
-                    // Importe
-                    const num = String(row[colImporte]).replace(/[^0-9.-]/g, '');
-                    const amount = parseFloat(num);
-                    if(isNaN(amount)) continue;
+                    if (!dateObj || isNaN(amount)) continue;
 
-                    // Evitar Duplicados
-                    const exists = db.banco.some(x => 
-                        x.date === dateISO && x.desc === desc && Math.abs(x.amount - amount) < 0.001
-                    );
-                    if(exists) continue;
+                    const dateISO = dateObj.toISOString().split('T')[0];
+                    const movHash = Utils.hashString(`${dateISO}_${amount}_${Utils.normalize(desc)}`);
 
-                    db.banco.push({
-                        id: 'bm-' + Date.now() + Math.random(),
-                        date: dateISO, 
+                    if (db.banco.some(m => m.hash === movHash)) { skipped++; continue; }
+
+                    newMovs.push({
+                        id: 'bm-' + Date.now() + Math.random().toString(36).substr(2,5),
+                        hash: movHash,
+                        date: dateISO,
                         desc,
-                        descNorm: normalize(desc), // Guardamos versión normalizada
-                        amount, 
+                        descNorm: Utils.normalize(desc),
+                        amount,
                         status: 'pending'
                     });
                     imported++;
                 }
 
-                audit('import', `Importados ${imported} movimientos`);
-                await saveFn(`Importados ${imported} movimientos ✅`);
-                updateUI();
+                if (newMovs.length > 0) {
+                    db.banco.unshift(...newMovs);
+                    db.bankImports.push({ hash: docHash, date: new Date().toISOString(), rows: newMovs.length });
+                    await saveFn(`📥 ${imported} movimientos (${profile.name}). Omitidos ${skipped}.`);
+                    updateUI();
+                } else {
+                    alert(`⚠️ No hay movimientos nuevos. ${skipped} duplicados.`);
+                }
+                importMsg.innerHTML = '';
 
-            } catch(err) {
-                alert("Error: " + err.message);
-                updateUI();
+            } catch (err) {
+                console.error(err);
+                alert("Error leyendo fichero: " + err.message);
+                importMsg.innerHTML = '';
+            } finally {
+                e.target.value = '';
             }
         };
         reader.readAsArrayBuffer(file);
-        e.target.value = '';
     };
 
-    // --- 2. RENDERIZADO ---
+    const showMappingWizard = (sampleRow) => {
+        return new Promise((resolve) => {
+            const modal = container.querySelector('#wizardModal');
+            modal.classList.remove('hidden');
+            const options = sampleRow.map((cell, i) => `<option value="${i}">Columna ${i}: ${cell}</option>`).join('');
+            
+            modal.innerHTML = `
+                <div class="bg-white w-full max-w-md p-6 rounded-3xl shadow-2xl animate-slide-up">
+                    <h3 class="text-lg font-black text-slate-800 mb-2">Formato Desconocido</h3>
+                    <p class="text-xs text-slate-500 mb-4">Ayúdame. Indica qué es cada columna:</p>
+                    <div class="space-y-3">
+                        <div><label class="text-[10px] font-bold uppercase text-indigo-500">Fecha</label><select id="w-date" class="w-full p-2 bg-slate-50 rounded border text-xs">${options}</select></div>
+                        <div><label class="text-[10px] font-bold uppercase text-indigo-500">Concepto</label><select id="w-desc" class="w-full p-2 bg-slate-50 rounded border text-xs">${options}</select></div>
+                        <div><label class="text-[10px] font-bold uppercase text-indigo-500">Importe</label><select id="w-amount" class="w-full p-2 bg-slate-50 rounded border text-xs">${options}</select></div>
+                    </div>
+                    <div class="flex gap-2 mt-6">
+                        <button id="w-cancel" class="flex-1 py-3 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100">Cancelar</button>
+                        <button id="w-save" class="flex-1 py-3 rounded-xl text-xs font-black bg-indigo-600 text-white hover:bg-indigo-700">Importar</button>
+                    </div>
+                </div>`;
+
+            modal.querySelector('#w-cancel').onclick = () => { modal.classList.add('hidden'); resolve(null); };
+            modal.querySelector('#w-save').onclick = () => {
+                const map = {
+                    colDate: parseInt(modal.querySelector('#w-date').value),
+                    colDesc: parseInt(modal.querySelector('#w-desc').value),
+                    colAmount: parseInt(modal.querySelector('#w-amount').value)
+                };
+                db.config.customProfiles.push({ name: 'Personalizado '+Date.now(), detect: ()=>true, map: ()=>map });
+                modal.classList.add('hidden');
+                resolve(map);
+            };
+        });
+    };
+
+    // --- 2. RENDERIZADO DE LA LISTA ---
     const updateUI = () => {
         kpis = reCalc();
         container.querySelector("#lblProgress").innerText = `${kpis.matchedItems} / ${kpis.totalItems} Conciliados`;
@@ -231,8 +323,9 @@ export async function render(container, supabase, db, opts = {}) {
         const pending = db.banco
             .filter(b => b.status === 'pending')
             .filter(b => b.desc.toLowerCase().includes(term) || b.amount.toString().includes(term))
-            .sort((a,b) => new Date(b.date) - new Date(a.date));
-        
+            .sort((a,b) => new Date(b.date) - new Date(a.date))
+            .slice(0, 50); // Límite visual
+
         if(pending.length === 0) {
             listBank.innerHTML = `<div class="flex flex-col items-center justify-center h-full text-slate-300 gap-2 opacity-50"><span class="text-4xl">✨</span><p class="text-xs font-bold">Todo limpio</p></div>`;
             return;
@@ -274,55 +367,40 @@ export async function render(container, supabase, db, opts = {}) {
             </div>
         `;
 
+        // LÓGICA DE MATCHING
         let matches = [];
-        
-        // --- MOTOR DE MATCHING (Mejora 2: Regex & Fuzzy) ---
-        const potentialInvoiceNums = extractInvoiceNums(item.desc); // Extraer F-2024, etc.
-        const bankNorm = item.descNorm || normalize(item.desc);
+        const potentialInvoiceNums = Utils.extractInvoiceNums(item.desc);
+        const bankNorm = item.descNorm || Utils.normalize(item.desc);
 
         const checkMatch = (erpItem, type) => {
-            if(erpItem.reconciled) return;
+            if(erpItem.reconciled || erpItem.paid) return; // Solo buscar no pagados
             const diff = Math.abs(parseFloat(erpItem.total) - Math.abs(item.amount));
-            const erpNorm = normalize(erpItem.prov || erpItem.cliente || '');
+            const erpNorm = Utils.normalize(erpItem.prov || erpItem.cliente || '');
             let score = 0;
 
-            // 1. Coincidencia Exacta Importe (Vital)
-            if(diff <= 0.05) score += 50;
-            else if(diff < 5) score += 20;
+            // 1. Importe Exacto (Vital)
+            if(diff <= 0.05) score += 50; else if(diff < 5) score += 10;
 
-            // 2. Coincidencia Texto (Nombre Proveedor)
+            // 2. Nombre
             if(bankNorm.includes(erpNorm) && erpNorm.length > 3) score += 40;
 
-            // 3. Coincidencia Nº Factura (El "Superpoder")
+            // 3. Nº Factura (Superpoder)
             if (potentialInvoiceNums.length > 0) {
-                const erpRef = normalize(erpItem.num || '');
-                if (potentialInvoiceNums.some(num => erpRef.includes(num) || bankNorm.includes(erpRef))) {
-                    score += 100;
-                }
+                const erpRef = Utils.normalize(erpItem.num || '');
+                if (potentialInvoiceNums.some(num => erpRef.includes(num))) score += 100;
             }
 
-            if(score > 30) {
-                matches.push({ 
-                    type, 
-                    data: erpItem, 
-                    text: `${erpItem.prov||erpItem.cliente} (${erpItem.date})`, 
-                    score,
-                    amount: parseFloat(erpItem.total)
-                });
-            }
+            if(score > 30) matches.push({ type, data: erpItem, text: `${erpItem.prov||erpItem.cliente} (${erpItem.date})`, score, amount: parseFloat(erpItem.total) });
         };
 
-        if(item.amount > 0) {
-            db.facturas.forEach(f => checkMatch(f, 'Cierre Z'));
-        } else {
-            db.albaranes.forEach(a => checkMatch(a, 'Albarán'));
-        }
+        if(item.amount > 0) { db.facturas.forEach(f => checkMatch(f, 'Factura/Cierre')); } 
+        else { db.albaranes.forEach(a => checkMatch(a, 'Albarán')); }
         
         matches.sort((a,b) => b.score - a.score);
 
         if(matches.length > 0) {
             html += `<p class="text-[10px] font-bold text-indigo-500 uppercase mb-2">💡 Sugerencia inteligente</p>`;
-            html += `<div class="space-y-2 mb-6">`;
+            html += `<div class="space-y-2 mb-6 max-h-40 overflow-y-auto custom-scrollbar">`;
             html += matches.map(m => `
                 <div class="bg-indigo-50 p-3 rounded-xl border border-indigo-100 flex justify-between items-center cursor-pointer hover:bg-indigo-100 transition" 
                      onclick="window.confirmMatch('${item.id}', '${m.data.id}', '${m.type}')">
@@ -340,44 +418,42 @@ export async function render(container, supabase, db, opts = {}) {
             html += `</div>`;
         }
 
-        // ACCIONES
-        if(item.amount < 0) {
-            html += `
-                <div class="mt-auto">
-                    <p class="text-[9px] font-bold text-slate-400 uppercase mb-2">Crear Gasto Rápido</p>
-                    <div class="grid grid-cols-2 gap-2 mb-2">
-                        <button onclick="window.createQuickExpense('${item.id}', 'Comisión Banco')" class="bg-slate-50 border border-slate-200 text-slate-600 py-2 rounded-lg text-[10px] font-bold hover:bg-slate-100">🏦 Comisión</button>
-                        <button onclick="window.createQuickExpense('${item.id}', 'Alquiler')" class="bg-slate-50 border border-slate-200 text-slate-600 py-2 rounded-lg text-[10px] font-bold hover:bg-slate-100">🏢 Alquiler</button>
-                        <button onclick="window.createQuickExpense('${item.id}', 'Luz/Agua')" class="bg-slate-50 border border-slate-200 text-slate-600 py-2 rounded-lg text-[10px] font-bold hover:bg-slate-100">💡 Suministros</button>
-                        <button onclick="window.createQuickExpense('${item.id}', 'Gestoría')" class="bg-slate-50 border border-slate-200 text-slate-600 py-2 rounded-lg text-[10px] font-bold hover:bg-slate-100">⚖️ Gestoría</button>
-                    </div>
-                    <button onclick="window.createCustomExpense('${item.id}')" class="w-full bg-slate-900 text-white py-3 rounded-xl text-xs font-black shadow-lg hover:bg-slate-700 transition">✏️ MANUAL</button>
-                </div>
-            `;
-        }
+        // ACCIONES MANUALES
+        html += `<div class="mt-auto">
+            <p class="text-[9px] font-bold text-slate-400 uppercase mb-2">Crear Gasto Rápido</p>
+            <div class="grid grid-cols-2 gap-2 mb-2">
+                <button onclick="window.createQuickExpense('${item.id}', 'Comisión Banco')" class="bg-slate-50 border text-slate-600 py-2 rounded-lg text-[10px] font-bold hover:bg-slate-100">🏦 Comisión</button>
+                <button onclick="window.createQuickExpense('${item.id}', 'Alquiler')" class="bg-slate-50 border text-slate-600 py-2 rounded-lg text-[10px] font-bold hover:bg-slate-100">🏢 Alquiler</button>
+                <button onclick="window.createQuickExpense('${item.id}', 'Luz/Agua')" class="bg-slate-50 border text-slate-600 py-2 rounded-lg text-[10px] font-bold hover:bg-slate-100">💡 Suministros</button>
+                <button onclick="window.createQuickExpense('${item.id}', 'Gestoría')" class="bg-slate-50 border text-slate-600 py-2 rounded-lg text-[10px] font-bold hover:bg-slate-100">⚖️ Gestoría</button>
+            </div>
+            <button onclick="window.createCustomExpense('${item.id}')" class="w-full bg-slate-900 text-white py-3 rounded-xl text-xs font-black shadow-lg hover:bg-slate-700 transition">✏️ MANUAL</button>
+        </div>`;
+        
         html += `</div>`;
         matchPanel.innerHTML = html;
     };
 
-    // --- 4. ACCIONES (BOTONES) ---
-    
+    // --- 4. FUNCIONES GLOBALES (Window) ---
     window.confirmMatch = async (bankId, erpId, type) => {
         const bItem = db.banco.find(b => b.id === bankId);
         if(bItem) bItem.status = 'matched';
-        const targetDb = type.includes('Cierre') ? db.facturas : db.albaranes;
+        const targetDb = type.includes('Factura') ? db.facturas : db.albaranes;
         const item = targetDb.find(i => i.id === erpId);
         if(item) { item.reconciled = true; item.paid = true; }
-        
-        audit('match', `Conciliado ${bItem.desc} con ${item.prov||item.cliente}`);
         await saveFn("Conciliado ✅");
         selectedBankId = null; matchPanel.innerHTML = ''; updateUI();
     };
 
-    const createExpense = async (bankId, concepto) => {
-        const item = db.banco.find(b => b.id === bankId);
+    window.createQuickExpense = (id, name) => window.createCustomExpense(id, name);
+    
+    window.createCustomExpense = async (id, name=null) => {
+        const item = db.banco.find(b => b.id === id);
         if(!item) return;
-        const importe = Math.abs(item.amount);
+        const concepto = name || prompt("Nombre del gasto:", item.desc);
+        if(!concepto) return;
         
+        const importe = Math.abs(item.amount);
         db.albaranes.push({
             id: 'auto-' + Date.now(),
             date: item.date,
@@ -387,48 +463,41 @@ export async function render(container, supabase, db, opts = {}) {
             base: importe, taxes: 0, items: [{ q: 1, n: concepto, t: importe, rate: 0 }],
             paid: true, reconciled: true, status: 'ok', notes: "Auto desde Tesorería"
         });
-
         item.status = 'matched';
-        audit('create_expense', `Creado gasto ${concepto} desde banco`);
+        item.cat = concepto;
         await saveFn("Gasto creado ✅");
         selectedBankId = null; matchPanel.innerHTML = ''; updateUI();
     };
 
-    window.createQuickExpense = (id, name) => createExpense(id, name);
-    window.createCustomExpense = (id) => {
-        const item = db.banco.find(b => b.id === id);
-        const name = prompt("Nombre del gasto:", item.desc);
-        if(name) createExpense(id, name);
-    };
-
-    container.querySelector("#btnMagic").onclick = async () => {
+    window.runMagic = async () => {
         let count = 0;
-        const keywords = ['comision', 'mantenimiento', 'intereses', 'liquid.propia', 'recibo'];
-        db.banco.filter(b => b.status === 'pending').forEach(b => {
+        const pendings = db.banco.filter(b => b.status === 'pending');
+        for (const b of pendings) {
+            // Lógica simple para palabras clave en modo Magic
             const desc = b.desc.toLowerCase();
-            if (b.amount < 0 && Math.abs(b.amount) < 50 && keywords.some(k => desc.includes(k))) {
-                createExpense(b.id, b.desc);
+            if (b.amount < 0 && Math.abs(b.amount) < 50 && ['comision','mantenimiento','interes'].some(k => desc.includes(k))) {
+                await window.createQuickExpense(b.id, 'Comisión Banco');
                 count++;
             }
-        });
-        if(count > 0) { await saveFn(`✨ ${count} auto-conciliados`); updateUI(); } 
-        else alert("No encontré movimientos obvios.");
-    };
-
-    container.querySelector("#btnNuke").onclick = async () => {
-        if(confirm("¿Borrar pendientes?")) {
-            db.banco = db.banco.filter(b => b.status === 'matched');
-            audit('nuke', 'Borrada lista de pendientes');
-            await saveFn("Limpio 🧹"); updateUI();
         }
+        if(count > 0) { await saveFn(`✨ ${count} auto-conciliados`); updateUI(); } 
+        else alert("No encontré movimientos obvios (comisiones, etc).");
     };
 
     window.deleteBankItem = async (id, e) => {
         e.stopPropagation();
         if(confirm("¿Borrar movimiento?")) {
             db.banco = db.banco.filter(b => b.id !== id);
-            audit('delete', `Borrado movimiento manual ${id}`);
             await saveFn("Borrado"); selectedBankId = null; matchPanel.innerHTML = ''; updateUI();
+        }
+    };
+
+    window.conciliarManual = window.selectBankItem; // Alias
+
+    container.querySelector("#btnNuke").onclick = async () => {
+        if(confirm("¿Borrar TODOS los pendientes?")) {
+            db.banco = db.banco.filter(b => b.status === 'matched');
+            await saveFn("Limpio 🧹"); updateUI();
         }
     };
 
@@ -438,12 +507,6 @@ export async function render(container, supabase, db, opts = {}) {
             db.config.saldoInicial = parseFloat(nuevo.replace(',','.')) || 0;
             await saveFn("Saldo actualizado"); updateUI();
         }
-    };
-
-    container.querySelector("#btnExport").onclick = () => {
-        const csv = "Fecha;Concepto;Importe;Estado\n" + db.banco.map(b => `${b.date};${b.desc};${b.amount};${b.status}`).join('\n');
-        const a = document.createElement('a'); a.href = 'data:text/csv;charset=utf-8,' + encodeURI(csv);
-        a.download = 'Tesoreria.csv'; a.click();
     };
 
     container.querySelector("#searchBank").addEventListener('input', renderBankList);
