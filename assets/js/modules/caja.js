@@ -1,5 +1,5 @@
 /* =============================================================
-   💰 MÓDULO: CAJAS (v5.0: Filtro Mensual + Auto-Reparación)
+   💰 MÓDULO: CAJAS (v6.0: Fusión 'Diario' -> 'Cierres')
    ============================================================= */
 
 export async function render(container, supabase, db, opts = {}) {
@@ -7,34 +7,43 @@ export async function render(container, supabase, db, opts = {}) {
 
     // 1. INICIALIZACIÓN
     if (!db.cierres) db.cierres = [];
-    
-    // --- 🚨 ZONA DE REPARACIÓN DE DATOS (MIGRACIÓN) 🚨 ---
-    // Esto se ejecuta al abrir para arreglar los formatos viejos de Supabase
-    let reparados = 0;
-    db.cierres.forEach(c => {
-        // A. Arreglar Fechas (DD/MM/YYYY -> YYYY-MM-DD)
-        if (c.date && c.date.includes('/')) {
-            const parts = c.date.split('/'); // [Día, Mes, Año]
-            if (parts.length === 3) {
-                // Forzamos formato Año-Mes-Día
-                let y = parts[2];
-                if (y.length === 2) y = '20' + y; // Si pone "26" lo cambiamos a "2026"
-                c.date = `${y}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}`;
-                reparados++;
-            }
-        }
-        
-        // B. Arreglar Nombres de campos antiguos
-        if (c.totalVenta === undefined && c.total !== undefined) c.totalVenta = c.total;
-        if (c.efectivo === undefined && c.totalCaja !== undefined) c.efectivo = c.totalCaja;
-        if (c.tarjeta === undefined && c.totalTarjeta !== undefined) c.tarjeta = c.totalTarjeta;
-        if (c.apps === undefined) c.apps = (parseFloat(c.glovo)||0) + (parseFloat(c.uber)||0);
-    });
+    if (!db.facturas) db.facturas = [];
+    if (!db.albaranes) db.albaranes = [];
 
-    if(reparados > 0) {
-        console.log(`🔧 Se han reparado ${reparados} fechas antiguas.`);
-        // Guardamos silenciosamente para fijar el cambio
-        // (La próxima vez que guardes algo, se subirá todo arreglado a Supabase)
+    // --- 🚨 MIGRACIÓN DE EMERGENCIA: DIARIO -> CIERRES 🚨 ---
+    // Si existe la carpeta antigua 'diario', la fusionamos con 'cierres'
+    if (db.diario && Array.isArray(db.diario) && db.diario.length > 0) {
+        console.log(`📦 Encontrados ${db.diario.length} registros antiguos en 'diario'. Migrando...`);
+        
+        db.diario.forEach(oldItem => {
+            // Evitar duplicados (si ya existe un cierre con esa fecha, no lo sobrescribimos)
+            // Pero primero normalizamos la fecha antigua
+            let oldDate = oldItem.date || oldItem.fecha || oldItem.day;
+            if (oldDate && oldDate.includes('/')) {
+                const [d, m, y] = oldDate.split('/');
+                let fullY = y.length === 2 ? '20'+y : y;
+                oldDate = `${fullY}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`;
+            }
+
+            const exists = db.cierres.some(c => c.date === oldDate);
+            if (!exists) {
+                // Creamos el nuevo objeto compatible
+                db.cierres.push({
+                    id: oldItem.id || `migrated-${Date.now()}-${Math.random()}`,
+                    date: oldDate,
+                    totalVenta: parseFloat(oldItem.total || oldItem.totalVenta || 0),
+                    efectivo: parseFloat(oldItem.efectivo || oldItem.caja || oldItem.totalCaja || 0),
+                    tarjeta: parseFloat(oldItem.tarjeta || oldItem.totalTarjeta || 0),
+                    apps: parseFloat(oldItem.apps || oldItem.glovo || 0) + parseFloat(oldItem.uber || 0) + parseFloat(oldItem.deliveroo || 0),
+                    notas: oldItem.notas || "",
+                    descuadre: parseFloat(oldItem.descuadre || 0)
+                });
+            }
+        });
+        
+        // Opcional: Vaciar 'diario' para no migrar siempre (o dejarlo por seguridad)
+        // db.diario = []; 
+        console.log("✅ Migración completada. Total cierres ahora:", db.cierres.length);
     }
 
     // Filtro inicial: Mes Actual (YYYY-MM)
@@ -49,7 +58,7 @@ export async function render(container, supabase, db, opts = {}) {
         return `${y}-${m}-${day}`;
     };
 
-    // --- CÁLCULO (FILTRADO POR MES) ---
+    // --- CÁLCULO DE KPIS (ESTADÍSTICAS) ---
     const getKpis = () => {
         const cierresMes = db.cierres.filter(c => c.date && c.date.startsWith(currentFilterDate));
         
@@ -123,8 +132,7 @@ export async function render(container, supabase, db, opts = {}) {
 
             <div class="text-center py-4 opacity-50">
                 <p class="text-[9px] text-slate-400 font-mono">
-                    Total registros en base de datos: <b>${db.cierres.length}</b>
-                    <br>Registros en este mes: <b>${kpis.cierresMes.length}</b>
+                    Registros en 'cierres': <b>${db.cierres.length}</b> | Registros en 'diario' (old): <b>${db.diario ? db.diario.length : 0}</b>
                 </p>
             </div>
 
@@ -250,12 +258,8 @@ export async function render(container, supabase, db, opts = {}) {
             };
 
             const idx = db.cierres.findIndex(c => c.date === fechaSeleccionada);
-            if(idx >= 0) {
-                if(!confirm(`Ya existe caja el ${fechaSeleccionada}. ¿Sobrescribir?`)) return;
-                db.cierres[idx] = cierreData;
-            } else {
-                db.cierres.unshift(cierreData);
-            }
+            if(idx >= 0) db.cierres[idx] = cierreData;
+            else db.cierres.unshift(cierreData);
 
             // Factura Z
             const zNum = `Z-${fechaSeleccionada.replace(/-/g,'')}`;
@@ -276,7 +280,6 @@ export async function render(container, supabase, db, opts = {}) {
     };
 
     const pintarListaCierres = (list) => {
-        // Ordenar: Más reciente arriba
         const sorted = list.sort((a,b) => new Date(b.date) - new Date(a.date));
 
         container.querySelector("#listaCierres").innerHTML = sorted.map(c => `
