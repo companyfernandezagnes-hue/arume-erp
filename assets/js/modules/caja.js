@@ -1,41 +1,51 @@
 /* =============================================================
-   💰 MÓDULO: CAJAS & GERENCIA (v3.0: Retro-Compatibility Fix)
+   💰 MÓDULO: CAJAS & GERENCIA (v4.0: Reparador de Fechas)
    ============================================================= */
 
 export async function render(container, supabase, db, opts = {}) {
     const saveFn = opts.save || (window.save ? window.save : async () => {});
 
-    // 1. INICIALIZACIÓN Y MIGRACIÓN AUTOMÁTICA
+    // 1. INICIALIZACIÓN
     if (!db.cierres) db.cierres = [];
     if (!db.facturas) db.facturas = [];
     if (!db.albaranes) db.albaranes = [];
 
-    // --- 🛠️ PARCHE DE RESCATE (MIGRACIÓN) ---
-    // Si hay cierres antiguos sin fecha normalizada o con estructura vieja, los arreglamos
+    // --- 🚑 REPARADOR DE FECHAS (EJECUTAR AL INICIO) ---
+    let cambiosRealizados = 0;
+    
     db.cierres.forEach(c => {
-        // 1. Asegurar formato de fecha YYYY-MM-DD
-        if (c.date && c.date.includes('/')) {
-            const parts = c.date.split('/');
+        const originalDate = c.date;
+        let newDate = originalDate;
+
+        // Caso 1: Fechas con barras (DD/MM/YYYY) -> Convertir a YYYY-MM-DD
+        if (newDate && newDate.includes('/')) {
+            const parts = newDate.split('/'); // [15, 01, 2026]
             if (parts.length === 3) {
-                // Asumimos DD/MM/YYYY -> YYYY-MM-DD
-                c.date = `${parts[2]}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}`;
+                let y = parts[2];
+                if (y.length === 2) y = '20' + y; // Arreglar año corto (26 -> 2026)
+                newDate = `${y}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}`;
             }
         }
-        
-        // 2. Asegurar totales numéricos (evitar nulos)
-        c.totalVenta = parseFloat(c.totalVenta) || parseFloat(c.total) || 0;
-        c.efectivo = parseFloat(c.efectivo) || parseFloat(c.totalCaja) || 0;
-        c.tarjeta = parseFloat(c.tarjeta) || parseFloat(c.totalTarjeta) || 0;
-        
-        // 3. Reconstruir desglose de apps si falta (para que no de error)
-        if (c.apps === undefined) {
-            // Intentar sumar campos antiguos si existen (glovo, uber...)
-            const appsTotal = (parseFloat(c.glovo)||0) + (parseFloat(c.deliveroo)||0) + (parseFloat(c.uber)||0) + (parseFloat(c.madisa)||0);
-            c.apps = appsTotal;
+
+        // Caso 2: Asegurar campos numéricos vacíos
+        if (c.apps === undefined || isNaN(c.apps)) {
+            // Intentar sumar campos antiguos (glovo, uber...) si existían
+            c.apps = (parseFloat(c.glovo)||0) + (parseFloat(c.deliveroo)||0) + (parseFloat(c.uber)||0);
+        }
+        c.totalVenta = parseFloat(c.totalVenta) || 0;
+
+        // Aplicar cambio si es necesario
+        if (newDate !== originalDate) {
+            c.date = newDate;
+            cambiosRealizados++;
         }
     });
-    // Guardamos la base de datos "arreglada" para que no vuelva a pasar
-    // (Nota: No llamamos a save() directo para no saturar, se guardará en la próxima acción)
+
+    // Si hubo reparaciones, guardamos silenciosamente para no molestar
+    if (cambiosRealizados > 0) {
+        console.log(`🔧 Reparados ${cambiosRealizados} registros de fecha.`);
+        // No llamamos a save() aquí para evitar bucles, se guardará al usar la app
+    }
 
     // Estado del filtro (Por defecto: Mes Actual)
     let currentFilterDate = new Date().toISOString().slice(0, 7); // "2026-02"
@@ -63,14 +73,27 @@ export async function render(container, supabase, db, opts = {}) {
         const tarj = cierresMes.reduce((acc, c) => acc + (parseFloat(c.tarjeta) || 0), 0);
         const apps = cierresMes.reduce((acc, c) => acc + (parseFloat(c.apps) || 0), 0);
 
-        return { total, media, dias, efec, tarj, apps };
+        return { total, media, dias, efec, tarj, apps, cierresMes };
     };
 
     // --- INTERFAZ ---
     const draw = () => {
         const kpis = getKpis();
         const [year, month] = currentFilterDate.split('-');
-        const nombreMes = new Date(year, month - 1).toLocaleString('es-ES', { month: 'long', year: 'numeric' });
+        const dateObj = new Date(year, month - 1);
+        const nombreMes = dateObj.toLocaleString('es-ES', { month: 'long', year: 'numeric' }).toUpperCase();
+
+        // 🔍 DIAGNÓSTICO: Buscar qué fechas existen realmente en la BD
+        const fechasDisponibles = {};
+        db.cierres.forEach(c => {
+            const mes = c.date.slice(0, 7); // "2026-01"
+            fechasDisponibles[mes] = (fechasDisponibles[mes] || 0) + 1;
+        });
+        const debugHtml = Object.entries(fechasDisponibles)
+            .sort()
+            .map(([m, count]) => `<span class="bg-slate-200 px-2 py-1 rounded text-[9px] text-slate-600">${m}: ${count} reg.</span>`)
+            .join(' ');
+
 
         container.innerHTML = `
         <div class="animate-fade-in space-y-6 pb-24">
@@ -78,13 +101,13 @@ export async function render(container, supabase, db, opts = {}) {
             <header class="flex flex-col md:flex-row justify-between items-center bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 gap-4">
                 <div>
                     <h2 class="text-xl font-black text-slate-800 tracking-tight">Control de Caja</h2>
-                    <p class="text-[10px] text-indigo-500 font-bold uppercase tracking-widest">Visión Mensual</p>
+                    <p class="text-[10px] text-indigo-500 font-bold uppercase tracking-widest">Vista Mensual</p>
                 </div>
                 
                 <div class="flex items-center gap-2 bg-slate-100 p-1.5 rounded-2xl">
-                    <button id="btnPrevMonth" class="w-8 h-8 flex items-center justify-center bg-white rounded-xl text-slate-600 shadow-sm hover:bg-indigo-50 transition">‹</button>
-                    <input id="monthPicker" type="month" value="${currentFilterDate}" class="bg-transparent border-0 text-xs font-black text-slate-700 uppercase outline-none text-center w-32 cursor-pointer">
-                    <button id="btnNextMonth" class="w-8 h-8 flex items-center justify-center bg-white rounded-xl text-slate-600 shadow-sm hover:bg-indigo-50 transition">›</button>
+                    <button id="btnPrevMonth" class="w-10 h-10 flex items-center justify-center bg-white rounded-xl text-slate-600 shadow-sm hover:bg-indigo-50 transition font-bold text-lg">‹</button>
+                    <input id="monthPicker" type="month" value="${currentFilterDate}" class="bg-transparent border-0 text-sm font-black text-slate-700 uppercase outline-none text-center w-36 cursor-pointer">
+                    <button id="btnNextMonth" class="w-10 h-10 flex items-center justify-center bg-white rounded-xl text-slate-600 shadow-sm hover:bg-indigo-50 transition font-bold text-lg">›</button>
                 </div>
             </header>
 
@@ -127,7 +150,21 @@ export async function render(container, supabase, db, opts = {}) {
                 </div>
             </div>
 
-            <div class="bg-white p-8 rounded-[3rem] shadow-xl border border-slate-100 relative overflow-hidden">
+            <div class="p-4 bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl">
+                <p class="text-[10px] font-black text-slate-400 uppercase mb-2">🔍 ESTADO DE LA BASE DE DATOS (CHIVATO)</p>
+                <div class="flex flex-wrap gap-2">
+                    ${debugHtml || '<span class="text-xs text-red-400">No se encontraron datos de cierres.</span>'}
+                </div>
+            </div>
+
+            <div class="space-y-4">
+                <h3 class="text-xs font-black text-slate-400 uppercase tracking-widest px-6">
+                    Movimientos Detallados (${nombreMes})
+                </h3>
+                <div id="listaCierres" class="grid grid-cols-1 md:grid-cols-2 gap-4 pb-10"></div>
+            </div>
+
+            <div class="bg-white p-8 rounded-[3rem] shadow-xl border border-slate-100 relative overflow-hidden mt-8">
                 <div class="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-indigo-500 to-emerald-400"></div>
                 
                 <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
@@ -213,18 +250,11 @@ export async function render(container, supabase, db, opts = {}) {
                     </div>
                 </div>
             </div>
-
-            <div class="space-y-4">
-                <h3 class="text-xs font-black text-slate-400 uppercase tracking-widest px-6">
-                    Movimientos de ${nombreMes} (${kpis.dias})
-                </h3>
-                <div id="listaCierres" class="grid grid-cols-1 md:grid-cols-2 gap-4 pb-10"></div>
-            </div>
         </div>
         `;
 
         setupEvents();
-        pintarListaCierres();
+        pintarListaCierres(kpis.cierresMes);
     };
 
     // --- LOGICA DE EVENTOS ---
@@ -234,7 +264,7 @@ export async function render(container, supabase, db, opts = {}) {
         
         monthPicker.onchange = (e) => {
             currentFilterDate = e.target.value;
-            draw(); // Redibujar todo con los nuevos datos
+            draw();
         };
 
         container.querySelector("#btnPrevMonth").onclick = () => {
@@ -348,17 +378,14 @@ export async function render(container, supabase, db, opts = {}) {
             else db.facturas.push(fZ);
 
             await saveFn(`Cierre del ${fechaSeleccionada} guardado ✅`);
-            draw(); // Recargar todo para actualizar gráficos
+            draw();
         };
     };
 
-    const pintarListaCierres = () => {
-        // Filtrar SOLO los de este mes para la lista de abajo
-        const filtrados = db.cierres
-            .filter(c => c.date && c.date.startsWith(currentFilterDate))
-            .sort((a,b) => new Date(b.date) - new Date(a.date));
+    const pintarListaCierres = (list) => {
+        const sorted = list.sort((a,b) => new Date(b.date) - new Date(a.date));
 
-        container.querySelector("#listaCierres").innerHTML = filtrados.map(c => `
+        container.querySelector("#listaCierres").innerHTML = sorted.map(c => `
             <div class="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm flex justify-between items-center group relative hover:shadow-md transition">
                 <div>
                     <p class="text-[10px] font-black text-indigo-500 uppercase tracking-widest bg-indigo-50 px-2 py-1 rounded-lg w-fit mb-2">${c.date}</p>
@@ -379,13 +406,13 @@ export async function render(container, supabase, db, opts = {}) {
     };
 
     window.borrarCierre = async (id) => {
-        if(!confirm("¿Borrar cierre y Z?")) return;
+        if(!confirm("¿Seguro que quieres borrar este cierre y su Z asociada?")) return;
         const c = db.cierres.find(x => x.id === id);
         if(c) {
             const zNum = `Z-${c.date.replace(/-/g,'')}`;
             db.facturas = db.facturas.filter(f => f.num !== zNum);
             db.cierres = db.cierres.filter(x => x.id !== id);
-            await saveFn("Eliminado");
+            await saveFn("Cierre eliminado");
             draw();
         }
     };
