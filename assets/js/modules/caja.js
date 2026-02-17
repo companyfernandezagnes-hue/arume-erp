@@ -1,17 +1,44 @@
 /* =============================================================
-   💰 MÓDULO: CAJAS & GERENCIA (Dashboard Mensual + Operativa)
+   💰 MÓDULO: CAJAS & GERENCIA (v3.0: Retro-Compatibility Fix)
    ============================================================= */
 
 export async function render(container, supabase, db, opts = {}) {
     const saveFn = opts.save || (window.save ? window.save : async () => {});
 
-    // 1. INICIALIZACIÓN
+    // 1. INICIALIZACIÓN Y MIGRACIÓN AUTOMÁTICA
     if (!db.cierres) db.cierres = [];
     if (!db.facturas) db.facturas = [];
     if (!db.albaranes) db.albaranes = [];
 
+    // --- 🛠️ PARCHE DE RESCATE (MIGRACIÓN) ---
+    // Si hay cierres antiguos sin fecha normalizada o con estructura vieja, los arreglamos
+    db.cierres.forEach(c => {
+        // 1. Asegurar formato de fecha YYYY-MM-DD
+        if (c.date && c.date.includes('/')) {
+            const parts = c.date.split('/');
+            if (parts.length === 3) {
+                // Asumimos DD/MM/YYYY -> YYYY-MM-DD
+                c.date = `${parts[2]}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}`;
+            }
+        }
+        
+        // 2. Asegurar totales numéricos (evitar nulos)
+        c.totalVenta = parseFloat(c.totalVenta) || parseFloat(c.total) || 0;
+        c.efectivo = parseFloat(c.efectivo) || parseFloat(c.totalCaja) || 0;
+        c.tarjeta = parseFloat(c.tarjeta) || parseFloat(c.totalTarjeta) || 0;
+        
+        // 3. Reconstruir desglose de apps si falta (para que no de error)
+        if (c.apps === undefined) {
+            // Intentar sumar campos antiguos si existen (glovo, uber...)
+            const appsTotal = (parseFloat(c.glovo)||0) + (parseFloat(c.deliveroo)||0) + (parseFloat(c.uber)||0) + (parseFloat(c.madisa)||0);
+            c.apps = appsTotal;
+        }
+    });
+    // Guardamos la base de datos "arreglada" para que no vuelva a pasar
+    // (Nota: No llamamos a save() directo para no saturar, se guardará en la próxima acción)
+
     // Estado del filtro (Por defecto: Mes Actual)
-    let currentFilterDate = new Date().toISOString().slice(0, 7); // "2023-10"
+    let currentFilterDate = new Date().toISOString().slice(0, 7); // "2026-02"
 
     // --- HELPERS ---
     const toCents = (n) => Math.round((Number(n) || 0) * 100);
@@ -25,7 +52,7 @@ export async function render(container, supabase, db, opts = {}) {
     // --- CÁLCULO DE KPIS (ESTADÍSTICAS) ---
     const getKpis = () => {
         // Filtrar por el mes seleccionado
-        const cierresMes = db.cierres.filter(c => c.date.startsWith(currentFilterDate));
+        const cierresMes = db.cierres.filter(c => c.date && c.date.startsWith(currentFilterDate));
         
         const total = cierresMes.reduce((acc, c) => acc + (parseFloat(c.totalVenta) || 0), 0);
         const dias = cierresMes.length;
@@ -328,7 +355,7 @@ export async function render(container, supabase, db, opts = {}) {
     const pintarListaCierres = () => {
         // Filtrar SOLO los de este mes para la lista de abajo
         const filtrados = db.cierres
-            .filter(c => c.date.startsWith(currentFilterDate))
+            .filter(c => c.date && c.date.startsWith(currentFilterDate))
             .sort((a,b) => new Date(b.date) - new Date(a.date));
 
         container.querySelector("#listaCierres").innerHTML = filtrados.map(c => `
