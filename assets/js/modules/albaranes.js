@@ -215,13 +215,19 @@ const analizarTexto = (texto) => {
         pintarLista();
     };
 
-    // --- FUNCIÓN DE EDICIÓN (AUDITORÍA) ---
+   // --- FUNCIÓN DE EDICIÓN (CON BASE E IVA VISIBLES) ---
     window.editarAlbaran = (id) => {
         const a = db.albaranes.find(x => x.id === id);
         if(!a) return;
         const modal = container.querySelector("#modalDetalle");
         modal.classList.remove("hidden");
 
+        // 1. Calculamos Base e IVA para mostrarlos (incluso si son antiguos)
+        // Si ya tiene base guardada la usamos, si no, calculamos una estimada al 10% (estándar hostelería)
+        const baseMostrar = a.base ? a.base : (a.total / 1.10); 
+        const ivaMostrar = a.taxes ? a.taxes : (a.total - baseMostrar);
+
+        // 2. Generamos el HTML de los productos
         let productosHTML = '';
         if (Array.isArray(a.items) && a.items.length > 0) {
             productosHTML = `
@@ -230,33 +236,60 @@ const analizarTexto = (texto) => {
                     <div class="space-y-1 max-h-48 overflow-y-auto pr-2 custom-scrollbar bg-slate-50 p-2 rounded-2xl">
                         ${a.items.map(it => `
                             <div class="flex justify-between items-center text-[11px] py-1 border-b border-white last:border-0">
-                                <span><b class="text-slate-400">${it.q}x</b> ${it.n}</span>
-                                <span class="font-black text-slate-900">${(it.t || 0).toFixed(2)}€</span>
+                                <span><b class="text-slate-600">${it.q}x</b> ${it.n}</span>
+                                <div class="flex gap-2">
+                                    <span class="text-[9px] text-slate-400 mt-0.5">${it.rate}% IVA</span>
+                                    <span class="font-black text-slate-900">${(it.t || 0).toFixed(2)}€</span>
+                                </div>
                             </div>
                         `).join('')}
                     </div>
                 </div>
             `;
         } else {
-            productosHTML = `<p class="text-[10px] text-slate-400 italic mt-4 text-center">Este albarán no tiene desglose de productos</p>`;
+            productosHTML = `<p class="text-[10px] text-slate-400 italic mt-4 text-center">Sin desglose de productos</p>`;
         }
 
+        // 3. Pintamos el Modal con las Tarjetas de Base e IVA
         modal.innerHTML = `
             <div class="bg-white w-full max-w-lg rounded-[2.5rem] p-8 shadow-2xl animate-slide-up relative">
                 <button onclick="document.getElementById('modalDetalle').classList.add('hidden')" class="absolute top-6 right-6 text-slate-300 hover:text-slate-600 text-2xl">✕</button>
                 <h3 class="text-2xl font-black text-slate-800 mb-6">Detalle Albarán</h3>
                 
                 <div class="grid grid-cols-2 gap-4 mb-4">
-                    <input id="ed-prov" type="text" value="${a.prov}" class="p-3 bg-slate-50 rounded-xl font-bold border border-slate-100">
-                    <input id="ed-date" type="date" value="${a.date}" class="p-3 bg-slate-50 rounded-xl font-bold border border-slate-100">
+                    <div>
+                        <label class="text-[9px] font-bold text-slate-400 uppercase ml-2">Proveedor</label>
+                        <input id="ed-prov" type="text" value="${a.prov}" class="w-full p-3 bg-slate-50 rounded-xl font-bold border border-slate-100">
+                    </div>
+                    <div>
+                        <label class="text-[9px] font-bold text-slate-400 uppercase ml-2">Fecha</label>
+                        <input id="ed-date" type="date" value="${a.date}" class="w-full p-3 bg-slate-50 rounded-xl font-bold border border-slate-100">
+                    </div>
                 </div>
 
                 <div class="grid grid-cols-2 gap-4 mb-4">
-                    <input id="ed-total" type="number" value="${a.total}" class="p-3 bg-slate-900 text-white rounded-xl font-black text-lg">
-                    <select id="ed-socio" class="p-3 bg-slate-50 rounded-xl font-bold border border-slate-100">
-                        <option value="Arume" ${a.socio==='Arume'?'selected':''}>Arume</option>
-                        ${listaSocios.map(s => `<option value="${s}" ${a.socio===s?'selected':''}>${s}</option>`).join('')}
-                    </select>
+                    <div class="bg-slate-50 p-3 rounded-2xl border border-slate-200">
+                        <p class="text-[9px] font-bold text-slate-400 uppercase">Base Imponible</p>
+                        <p class="text-lg font-black text-slate-700">${parseFloat(baseMostrar).toFixed(2)}€</p>
+                    </div>
+                    <div class="bg-emerald-50 p-3 rounded-2xl border border-emerald-200">
+                        <p class="text-[9px] font-bold text-emerald-600 uppercase">Cuota IVA</p>
+                        <p class="text-lg font-black text-emerald-600">+${parseFloat(ivaMostrar).toFixed(2)}€</p>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <label class="text-[9px] font-bold text-slate-400 uppercase ml-2">Total (€)</label>
+                        <input id="ed-total" type="number" value="${a.total}" class="w-full p-3 bg-slate-900 text-white rounded-xl font-black text-lg">
+                    </div>
+                    <div>
+                        <label class="text-[9px] font-bold text-slate-400 uppercase ml-2">Socio / Gasto</label>
+                        <select id="ed-socio" class="w-full p-3 bg-slate-50 rounded-xl font-bold border border-slate-100">
+                            <option value="Arume" ${a.socio==='Arume'?'selected':''}>Arume</option>
+                            ${listaSocios.map(s => `<option value="${s}" ${a.socio===s?'selected':''}>${s}</option>`).join('')}
+                        </select>
+                    </div>
                 </div>
 
                 ${productosHTML}
@@ -267,10 +300,28 @@ const analizarTexto = (texto) => {
                 </div>
 
                 <button id="btnSaveEd" class="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black shadow-lg hover:bg-indigo-700 transition">GUARDAR CAMBIOS</button>
-                <button onclick="borrarAlbaran('${a.id}')" class="w-full text-rose-500 text-[10px] font-black mt-4 uppercase tracking-widest">Eliminar Registro</button>
+                <button onclick="window.borrarAlbaran('${a.id}')" class="w-full text-rose-500 text-[10px] font-black mt-4 uppercase tracking-widest">Eliminar Registro Definitivamente</button>
             </div>
         `;
 
+        modal.querySelector("#btnSaveEd").onclick = async () => {
+            a.prov = modal.querySelector("#ed-prov").value;
+            a.date = modal.querySelector("#ed-date").value;
+            // Al editar el total a mano, recalculamos base e iva proporcionalmente (al 10% por defecto para no romper nada)
+            const nuevoTotal = parseFloat(modal.querySelector("#ed-total").value);
+            a.total = nuevoTotal;
+            // Si el total cambia, ajustamos base y tax proporcionalmente
+            a.base = nuevoTotal / 1.10; 
+            a.taxes = nuevoTotal - a.base;
+            
+            a.socio = modal.querySelector("#ed-socio").value;
+            a.paid = modal.querySelector("#ed-paid").checked;
+            
+            await saveFn("Albarán actualizado ✅");
+            modal.classList.add("hidden");
+            pintarLista();
+        };
+    };
         modal.querySelector("#btnSaveEd").onclick = async () => {
             a.prov = modal.querySelector("#ed-prov").value;
             a.date = modal.querySelector("#ed-date").value;
