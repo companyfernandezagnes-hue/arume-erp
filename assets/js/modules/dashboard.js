@@ -1,9 +1,31 @@
 /* =============================================================
-   📊 DASHBOARD v7.0 (FUSIÓN PERFECTA: Lógica Real + UI Premium)
+   📊 DASHBOARD v8.0 (Blindado + Lógica Real + UI Premium)
    ============================================================= */
 
 const CONF = {
     META_VENTAS: 40000      
+};
+
+// --- HELPERS INTERNOS (Para que no falle si app.js tarda en cargar) ---
+const U = {
+    parseNum: (val) => {
+        if (window.Num && window.Num.parse) return window.Num.parse(val);
+        // Fallback de emergencia
+        if (val == null || val === '') return 0;
+        if (typeof val === 'number') return val;
+        let s = String(val).replace(/[^\d,.-]/g, ''); 
+        if (s.includes(',') && s.includes('.')) s = s.replace(/\./g, '').replace(',', '.');
+        else if (s.includes(',')) s = s.replace(',', '.');
+        return parseFloat(s) || 0;
+    },
+    parseDate: (val) => {
+        if (window.DateUtil && window.DateUtil.parse) return window.DateUtil.parse(val);
+        // Fallback de emergencia
+        if (!val) return new Date();
+        if (val instanceof Date) return val;
+        return new Date(val); // ISO básica
+    },
+    fmt: (val) => new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(val || 0)
 };
 
 export async function render(container, supabase, db, opts = {}) {
@@ -32,19 +54,19 @@ export async function render(container, supabase, db, opts = {}) {
     // A. INGRESOS REALES (Caja Z + Facturas Extra)
     const ventasCierres = (db.diario || [])
         .filter(c => {
-            const d = window.DateUtil.parse(c.date || c.fecha);
+            const d = U.parseDate(c.date || c.fecha);
             return d.getMonth() === mesActual && d.getFullYear() === yearActual;
         })
-        .reduce((acc, c) => acc + window.Num.parse(c.totalCaja) + window.Num.parse(c.totalTarjeta), 0);
+        .reduce((acc, c) => acc + U.parseNum(c.totalCaja) + U.parseNum(c.totalTarjeta), 0);
 
     const ventasFacturas = (db.facturas || [])
         .filter(f => {
-            const d = window.DateUtil.parse(f.date || f.fecha);
+            const d = U.parseDate(f.date || f.fecha);
             return d.getMonth() === mesActual && 
                    d.getFullYear() === yearActual && 
                    !String(f.num || '').toUpperCase().startsWith('Z');
         })
-        .reduce((acc, f) => acc + window.Num.parse(f.total), 0);
+        .reduce((acc, f) => acc + U.parseNum(f.total), 0);
 
     const ventasMes = ventasCierres + ventasFacturas;
 
@@ -52,12 +74,12 @@ export async function render(container, supabase, db, opts = {}) {
     let gastosComida = 0, gastosBebida = 0, gastosOtros = 0;
     const albaranesMes = (db.albaranes || [])
         .filter(a => {
-            const d = window.DateUtil.parse(a.date || a.fecha);
+            const d = U.parseDate(a.date || a.fecha);
             return d.getMonth() === mesActual && d.getFullYear() === yearActual;
         });
 
     const gastosMes = albaranesMes.reduce((acc, a) => {
-        const total = window.Num.parse(a.total);
+        const total = U.parseNum(a.total);
         const p = (a.prov || '').toLowerCase();
         // Lógica heurística para categorizar por proveedor
         if (p.match(/fruta|carne|pesca|makro|mercadona|pan|huevo|verdu|aliment|chef/)) gastosComida += total;
@@ -68,7 +90,7 @@ export async function render(container, supabase, db, opts = {}) {
 
     // C. GASTOS FIJOS (Estructura)
     const fijosMes = (db.gastos_fijos || []).filter(g => g.active !== false).reduce((acc, g) => {
-        let val = window.Num.parse(g.amount);
+        let val = U.parseNum(g.amount);
         if (g.freq === 'anual') val /= 12; 
         else if (g.freq === 'trimestral') val /= 3;
         else if (g.freq === 'bimensual') val /= 2;
@@ -104,7 +126,7 @@ export async function render(container, supabase, db, opts = {}) {
                 const last = hist[hist.length - 1];
                 const prev = hist[hist.length - 2];
                 // Si subió más de un 5% este mes
-                const dLast = window.DateUtil.parse(last.date);
+                const dLast = U.parseDate(last.date);
                 if (dLast.getMonth() === mesActual && last.unit > (prev.unit * 1.05)) {
                     subidas.push({ prod, diff: ((last.unit - prev.unit) / prev.unit * 100).toFixed(1), old: prev.unit, new: last.unit });
                 }
@@ -119,22 +141,20 @@ export async function render(container, supabase, db, opts = {}) {
         const m = d.getMonth(), y = d.getFullYear();
         
         // Ventas Z + Facturas del mes 'm'
-        const vZ = (db.diario||[]).filter(c => {const f=window.DateUtil.parse(c.date); return f.getMonth()===m && f.getFullYear()===y})
-                   .reduce((a,c)=>a+window.Num.parse(c.totalCaja)+window.Num.parse(c.totalTarjeta),0);
-        const vF = (db.facturas||[]).filter(f => {const d=window.DateUtil.parse(f.date); return d.getMonth()===m && d.getFullYear()===y && !String(f.num).startsWith('Z')})
-                   .reduce((a,f)=>a+window.Num.parse(f.total),0);
+        const vZ = (db.diario||[]).filter(c => {const f=U.parseDate(c.date); return f.getMonth()===m && f.getFullYear()===y})
+                   .reduce((a,c)=>a+U.parseNum(c.totalCaja)+U.parseNum(c.totalTarjeta),0);
+        const vF = (db.facturas||[]).filter(f => {const dx=U.parseDate(f.date); return dx.getMonth()===m && dx.getFullYear()===y && !String(f.num).startsWith('Z')})
+                   .reduce((a,f)=>a+U.parseNum(f.total),0);
         
-        const gVar = (db.albaranes||[]).filter(a => {const f=window.DateUtil.parse(a.date); return f.getMonth()===m && f.getFullYear()===y})
-                     .reduce((a,x)=>a+window.Num.parse(x.total),0);
+        const gVar = (db.albaranes||[]).filter(a => {const f=U.parseDate(a.date); return f.getMonth()===m && f.getFullYear()===y})
+                     .reduce((a,x)=>a+U.parseNum(x.total),0);
 
         labels.push(d.toLocaleDateString('es-ES', { month: 'short' }).toUpperCase());
         dataV.push(vZ + vF); 
-        dataG.push(gVar + fijosMes); // Simplificación: usamos los fijos actuales como proxy del pasado
-        dataB.push((vZ+vF) - (gVar+fijosMes+amortizaciones));
+        dataG.push(gVar); // Solo variable para gráfica limpia
+        dataB.push((vZ+vF) - gVar); // Margen Bruto
     }
 
-    // Formateadores UI
-    const fmt = window.Num.fmt;
     const pctSafe = (v) => Math.min(100, Math.max(0, v || 0));
 
     // --- 4. RENDERIZADO VISUAL ---
@@ -158,15 +178,15 @@ export async function render(container, supabase, db, opts = {}) {
                 <div class="flex justify-between items-start relative z-10">
                     <div class="space-y-1">
                         <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Facturación Real (Z + Fra)</p>
-                        <h3 class="text-5xl font-black tracking-tight">${fmt(ventasMes)}</h3>
+                        <h3 class="text-5xl font-black tracking-tight">${U.fmt(ventasMes)}</h3>
                         <div class="flex items-center gap-2 mt-2 bg-white/10 px-3 py-1.5 rounded-lg w-fit backdrop-blur-md border border-white/10">
                             <span class="text-lg">🔮</span>
-                            <p class="text-xs font-black text-white leading-none">Proyección ~${fmt(forecastVentas)}</p>
+                            <p class="text-xs font-black text-white leading-none">Proyección ~${U.fmt(forecastVentas)}</p>
                         </div>
                     </div>
                 </div>
                 <div class="mt-6">
-                    <div class="flex justify-between text-[9px] font-bold text-slate-400 mb-1"><span>Objetivo (${fmt(CONF.META_VENTAS)})</span><span>${pctSafe(ventasMes/CONF.META_VENTAS*100).toFixed(0)}%</span></div>
+                    <div class="flex justify-between text-[9px] font-bold text-slate-400 mb-1"><span>Objetivo (${U.fmt(CONF.META_VENTAS)})</span><span>${pctSafe(ventasMes/CONF.META_VENTAS*100).toFixed(0)}%</span></div>
                     <div class="w-full h-2 bg-slate-800 rounded-full overflow-hidden"><div class="h-full bg-indigo-400" style="width: ${pctSafe(ventasMes/CONF.META_VENTAS*100)}%"></div></div>
                 </div>
             </div>
@@ -174,11 +194,11 @@ export async function render(container, supabase, db, opts = {}) {
             <div class="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm flex flex-col justify-between">
                 <div>
                     <p class="text-[10px] font-black text-slate-400 uppercase">Beneficio Neto</p>
-                    <h3 class="text-3xl font-black ${beneficio >= 0 ? 'text-slate-800' : 'text-rose-500'}">${fmt(beneficio)}</h3>
+                    <h3 class="text-3xl font-black ${beneficio >= 0 ? 'text-slate-800' : 'text-rose-500'}">${U.fmt(beneficio)}</h3>
                 </div>
                 <div class="mt-4 space-y-1 text-[10px] text-slate-400">
-                    <div class="flex justify-between"><span>Gastos Var.</span><span class="font-bold text-rose-400">-${fmt(gastosMes)}</span></div>
-                    <div class="flex justify-between"><span>Estructura</span><span class="font-bold text-amber-400">-${fmt(fijosMes + amortizaciones)}</span></div>
+                    <div class="flex justify-between"><span>Gastos Var.</span><span class="font-bold text-rose-400">-${U.fmt(gastosMes)}</span></div>
+                    <div class="flex justify-between"><span>Estructura</span><span class="font-bold text-amber-400">-${U.fmt(fijosMes + amortizaciones)}</span></div>
                 </div>
             </div>
 
@@ -190,8 +210,8 @@ export async function render(container, supabase, db, opts = {}) {
                         <div class="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden"><div class="h-full bg-orange-400" style="width: ${pctSafe(gastosComida/ventasMes*100)}%"></div></div>
                     </div>
                     <div>
-                        <div class="flex justify-between text-[10px] font-bold text-slate-600 mb-1"><span>🍷 Bebida</span><span>${(ventasMes>0?(gastosBebida/ventasMes*100).toFixed(1):0)}%</span></div>
-                        <div class="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden"><div class="h-full bg-purple-400" style="width: ${pctSafe(gastosBebida/ventasMes*100)}%"></div></div>
+                        <div class="flex justify-between text-[10px] font-bold text-slate-600 mb-1"><span>🔧 Otros</span><span>${(ventasMes>0?(gastosOtros/ventasMes*100).toFixed(1):0)}%</span></div>
+                        <div class="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden"><div class="h-full bg-slate-400" style="width: ${pctSafe(gastosOtros/ventasMes*100)}%"></div></div>
                     </div>
                 </div>
             </div>
@@ -199,7 +219,7 @@ export async function render(container, supabase, db, opts = {}) {
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div class="lg:col-span-2 bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm">
-                <h3 class="font-black text-slate-800 mb-4">Evolución Semestral</h3>
+                <h3 class="font-black text-slate-800 mb-4">Margen Bruto (Últimos 6 meses)</h3>
                 <div class="h-64 w-full relative"><canvas id="chartSemestral"></canvas></div>
             </div>
             
@@ -235,9 +255,9 @@ export async function render(container, supabase, db, opts = {}) {
             data: {
                 labels: labels,
                 datasets: [
-                    { label: 'Beneficio', data: dataB, type: 'line', borderColor: '#10b981', borderWidth: 3, tension: 0.4, order: 1, fill: false, pointRadius: 3 },
+                    { label: 'Margen Bruto', data: dataB, type: 'line', borderColor: '#10b981', borderWidth: 3, tension: 0.4, order: 1, fill: false, pointRadius: 3 },
                     { label: 'Ventas', data: dataV, backgroundColor: '#6366f1', borderRadius: 6, order: 2, barPercentage: 0.6 },
-                    { label: 'Gastos', data: dataG, backgroundColor: '#fb7185', borderRadius: 6, order: 3, barPercentage: 0.6 }
+                    { label: 'Gastos Var.', data: dataG, backgroundColor: '#fb7185', borderRadius: 6, order: 3, barPercentage: 0.6 }
                 ]
             },
             options: {
