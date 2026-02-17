@@ -1,5 +1,5 @@
 /* =============================================================
-   🔐 MÓDULO: CIERRE CONTABLE (El Candado Mensual)
+   🔐 MÓDULO: CIERRE CONTABLE (Corrección: Sumar Cajas Reales)
    ============================================================= */
 
 export async function render(container, sb, db) {
@@ -13,28 +13,61 @@ export async function render(container, sb, db) {
 
     // 2. FUNCIÓN: CALCULAR DATOS DEL MES (EN VIVO)
     const getSnapshot = (mesIndex, anio) => {
-        // Ingresos
-        const ventas = (db.facturas || [])
-            .filter(f => { const d = new Date(f.fecha); return d.getMonth() === mesIndex && d.getFullYear() === anio; })
+        
+        // --- A. INGRESOS (CORREGIDO: CAJAS + FACTURAS) ---
+        
+        // 1. Sumar Cajas Diarias (Z)
+        const ventasCaja = (db.diario || [])
+            .filter(d => {
+                // Usamos helper seguro si existe, si no fallback
+                const fecha = new Date(d.date || d.fecha);
+                return fecha.getMonth() === mesIndex && fecha.getFullYear() === anio;
+            })
+            .reduce((acc, d) => {
+                const caja = parseFloat(d.totalCaja || 0);
+                const tarjeta = parseFloat(d.totalTarjeta || 0);
+                return acc + caja + tarjeta;
+            }, 0);
+
+        // 2. Sumar Facturas Extra (Eventos B2B que no pasan por caja)
+        const ventasFacturas = (db.facturas || [])
+            .filter(f => {
+                const d = new Date(f.date || f.fecha);
+                // Excluimos las que sean tickets Z automáticos para no duplicar
+                const esZ = String(f.num || '').toUpperCase().startsWith('Z');
+                return d.getMonth() === mesIndex && 
+                       d.getFullYear() === anio && 
+                       !esZ;
+            })
             .reduce((acc, f) => acc + (parseFloat(f.total) || 0), 0);
 
-        // Gastos Variables
+        const ventasTotal = ventasCaja + ventasFacturas;
+
+        // --- B. GASTOS VARIABLES ---
         const compras = (db.albaranes || [])
-            .filter(a => { const d = new Date(a.date); return d.getMonth() === mesIndex && d.getFullYear() === anio; })
+            .filter(a => { 
+                const d = new Date(a.date || a.fecha); 
+                return d.getMonth() === mesIndex && d.getFullYear() === anio; 
+            })
             .reduce((acc, a) => acc + (parseFloat(a.total) || 0), 0);
 
-        // Gastos Fijos (Estimados/Prorrateados)
+        // --- C. GASTOS FIJOS (Prorrateados) ---
         const fijos = (db.gastos_fijos || [])
             .filter(g => g.active !== false)
             .reduce((acc, g) => {
                 let amount = parseFloat(g.amount) || 0;
-                // Simplificación para snapshot
                 if(g.freq === 'mensual') return acc + amount;
+                if(g.freq === 'trimestral') return acc + (amount/3);
                 if(g.freq === 'anual') return acc + (amount/12);
                 return acc + amount; 
             }, 0);
 
-        return { ventas, compras, fijos, resultado: ventas - compras - fijos };
+        return { 
+            ventas: ventasTotal, 
+            compras, 
+            fijos, 
+            resultado: ventasTotal - compras - fijos 
+        };
     };
 
     // 3. RENDERIZADO
@@ -62,6 +95,9 @@ export async function render(container, sb, db) {
                     let estadoColor = isClosed ? 'bg-slate-800 text-white' : (i > currentMonth ? 'bg-slate-50 opacity-50' : 'bg-white border border-slate-100');
                     let icon = isClosed ? '🔒 CERRADO' : '🔓 ABIERTO';
 
+                    // Formateador moneda local
+                    const fmt = (n) => new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(n);
+
                     return `
                     <div class="${estadoColor} p-6 rounded-[2rem] shadow-sm relative overflow-hidden transition hover:shadow-md group">
                         <div class="flex justify-between items-start mb-4">
@@ -71,17 +107,23 @@ export async function render(container, sb, db) {
 
                         <div class="space-y-1 mb-4">
                             <div class="flex justify-between text-xs">
-                                <span class="${isClosed?'text-slate-400':'text-slate-500'}">Ventas</span>
-                                <span class="font-bold">${datos.ventas.toLocaleString('es-ES',{style:'currency', currency:'EUR'})}</span>
+                                <span class="${isClosed?'text-slate-400':'text-slate-500'}">Ventas (Z + Fra)</span>
+                                <span class="font-bold">${fmt(datos.ventas)}</span>
                             </div>
                             <div class="flex justify-between text-xs">
-                                <span class="${isClosed?'text-slate-400':'text-slate-500'}">Gastos</span>
-                                <span class="font-bold">${(datos.compras + datos.fijos).toLocaleString('es-ES',{style:'currency', currency:'EUR'})}</span>
+                                <span class="${isClosed?'text-slate-400':'text-slate-500'}">Gastos Var.</span>
+                                <span class="font-bold text-rose-400">-${fmt(datos.compras)}</span>
                             </div>
+                            <div class="flex justify-between text-xs">
+                                <span class="${isClosed?'text-slate-400':'text-slate-500'}">Estructura</span>
+                                <span class="font-bold text-orange-400">-${fmt(datos.fijos)}</span>
+                            </div>
+                            
                             <div class="w-full h-px ${isClosed?'bg-slate-600':'bg-slate-100'} my-2"></div>
+                            
                             <div class="flex justify-between text-sm font-black">
                                 <span class="${isClosed?'text-slate-300':'text-slate-800'}">Resultado</span>
-                                <span class="${datos.resultado >= 0 ? 'text-emerald-500' : 'text-rose-500'}">${datos.resultado.toLocaleString('es-ES',{style:'currency', currency:'EUR'})}</span>
+                                <span class="${datos.resultado >= 0 ? 'text-emerald-500' : 'text-rose-500'}">${fmt(datos.resultado)}</span>
                             </div>
                         </div>
 
