@@ -121,16 +121,18 @@ export async function render(container, supabase, db, opts = {}) {
         } catch (err) { console.error(err); }
         finally { ocrOverlay.classList.add("hidden"); e.target.value = ''; }
     };
-
-    const analizarTexto = (texto) => {
+const analizarTexto = (texto) => {
         return texto.split('\n').filter(l => l.trim()).map(line => {
             let clean = line.trim();
-            let rate = 10;
-            const taxMatch = clean.match(/\s(\d{1,2})%?$/);
-            if(taxMatch && [0,4,10,21].includes(parseInt(taxMatch[1]))) {
+            let rate = 10; // IVA por defecto (Hostelería)
+            
+            // BUSCAR IVA AL FINAL: Detecta 4, 10 o 21 al final de la línea
+            const taxMatch = clean.match(/\s(4|10|21)%?$/);
+            if (taxMatch) {
                 rate = parseInt(taxMatch[1]);
                 clean = clean.substring(0, taxMatch.index).trim();
             }
+
             const priceMatch = clean.match(/(\d+[\.,]?\d*)\s*€?$/);
             if (priceMatch) {
                 const priceVal = parseFloat(priceMatch[1].replace(',', '.'));
@@ -142,26 +144,48 @@ export async function render(container, supabase, db, opts = {}) {
                     rest = rest.substring(qtyMatch[0].length).trim();
                 }
                 const totalLine = qty * priceVal;
+                
+                // CÁLCULO PRECISO SEGÚN EL IVA DETECTADO
                 const baseLine = totalLine / (1 + rate/100);
-                // RETORNAMOS EL OBJETO COMPLETO CON P (precio unitario)
-                return { q: qty, n: rest || "Varios", p: priceVal, rate, t: totalLine, base: baseLine, tax: totalLine - baseLine };
+                const taxLine = totalLine - baseLine;
+                
+                return { q: qty, n: rest || "Varios", p: priceVal, rate, t: totalLine, base: baseLine, tax: taxLine };
             }
             return null;
         }).filter(Boolean);
     };
-
-    inText.addEventListener('input', () => {
+   inText.addEventListener('input', () => {
         const items = analizarTexto(inText.value);
+        // Preparamos los contenedores para los 3 tipos de IVA
+        const taxes = { 4: {b:0, i:0}, 10: {b:0, i:0}, 21: {b:0, i:0} };
         let grandTotal = 0;
-        const taxes = { 10: {b:0, i:0}, 21: {b:0, i:0}, 4: {b:0, i:0}, 0: {b:0, i:0} };
+        
         items.forEach(it => {
             if(!taxes[it.rate]) taxes[it.rate] = {b:0, i:0};
             taxes[it.rate].b += it.base;
             taxes[it.rate].i += it.tax;
             grandTotal += it.t;
         });
-        livePreview.innerHTML = items.map(it => `<div class="flex justify-between text-[10px] py-1 border-b border-slate-100"><span><b>${it.q}x</b> ${it.n}</span><span class="font-black">${it.t.toFixed(2)}€</span></div>`).join('') || '<p class="text-[10px] text-slate-300 text-center italic py-2">Escribe líneas...</p>';
-        taxSummary.innerHTML = Object.keys(taxes).map(r => taxes[r].b > 0 ? `<div class="flex justify-between text-[10px] text-slate-400"><span>IVA ${r}%</span><span>${taxes[r].b.toFixed(2)}€ + ${taxes[r].i.toFixed(2)}€</span></div>` : '').join('');
+
+        // Actualizar la lista de productos arriba
+        livePreview.innerHTML = items.map(it => `
+            <div class="flex justify-between items-center text-[10px] py-1 border-b border-slate-200 last:border-0">
+                <span><b>${it.q}x</b> ${it.n} <small class="text-indigo-400 font-bold">(${it.rate}%)</small></span>
+                <span class="font-black text-slate-900">${it.t.toFixed(2)}€</span>
+            </div>
+        `).join('') || '<p class="text-[10px] text-slate-300 text-center italic py-2">Escribe líneas...</p>';
+
+        // ACTUALIZAR EL RESUMEN DE IMPUESTOS (Desglose real)
+        taxSummary.innerHTML = Object.keys(taxes).map(r => {
+            if(taxes[r].b === 0) return '';
+            return `
+                <div class="flex justify-between text-[10px] text-slate-400">
+                    <span class="font-bold">IVA ${r}%</span>
+                    <span>Base: ${taxes[r].b.toFixed(2)}€</span>
+                    <span class="text-emerald-400 font-black">+${taxes[r].i.toFixed(2)}€</span>
+                </div>`;
+        }).join('');
+        
         liveTotal.innerText = grandTotal.toFixed(2) + "€";
     });
 
@@ -171,18 +195,18 @@ export async function render(container, supabase, db, opts = {}) {
         const total = parseFloat(liveTotal.innerText);
         if(total <= 0) return alert("Introduce datos");
 
-        const nuevo = {
+       const nuevo = {
             id: Date.now().toString(),
-            prov: inProv.value || "Varios",
+            prov: container.querySelector("#inProv").value || "Varios",
             num: container.querySelector("#inRef").value || "S/N",
-            date: inDate.value,
+            date: container.querySelector("#inDate").value,
             socio: container.querySelector("#inSocio").value,
-            items: itemsParaGuardar, // <--- GUARDAMOS EL ARRAY
+            items: items,
             total: total,
-            taxes: itemsParaGuardar.reduce((a,b) => a + b.tax, 0),
-            paid: container.querySelector("#inPaid").checked,
+            taxes: totalTax, // Este es el IVA total para la lista rápida
             invoiced: false,
-            notes: container.querySelector("#inNotes").value
+            paid: container.querySelector("#inPaid").checked,
+            notes: notes
         };
 
         db.albaranes.push(nuevo);
