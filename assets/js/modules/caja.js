@@ -1,5 +1,5 @@
 /* =============================================================
-   💰 MÓDULO: CAJAS (Versión Híbrida: Dashboard Mensual + Lista Completa)
+   💰 MÓDULO: CAJAS (v5.0: Filtro Mensual + Auto-Reparación)
    ============================================================= */
 
 export async function render(container, supabase, db, opts = {}) {
@@ -7,36 +7,37 @@ export async function render(container, supabase, db, opts = {}) {
 
     // 1. INICIALIZACIÓN
     if (!db.cierres) db.cierres = [];
-    if (!db.facturas) db.facturas = [];
-    if (!db.albaranes) db.albaranes = [];
-
-    // --- 🛠️ TRADUCTOR UNIVERSAL (PARCHE DE COMPATIBILIDAD) ---
-    // Esto arregla tus datos de Enero automáticamente al cargar
+    
+    // --- 🚨 ZONA DE REPARACIÓN DE DATOS (MIGRACIÓN) 🚨 ---
+    // Esto se ejecuta al abrir para arreglar los formatos viejos de Supabase
+    let reparados = 0;
     db.cierres.forEach(c => {
-        // 1. Recuperar Totales Antiguos (Mapeo de nombres viejos a nuevos)
-        // Antes se llamaba 'total', ahora 'totalVenta'
-        if (c.totalVenta === undefined && c.total !== undefined) c.totalVenta = c.total;
-        
-        // Antes se llamaba 'totalCaja', ahora 'efectivo'
-        if (c.efectivo === undefined && c.totalCaja !== undefined) c.efectivo = c.totalCaja;
-        
-        // Antes se llamaba 'totalTarjeta', ahora 'tarjeta'
-        if (c.tarjeta === undefined && c.totalTarjeta !== undefined) c.tarjeta = c.totalTarjeta;
-
-        // 2. Arreglar Fechas (Si están en formato DD/MM/YYYY pasarlas a YYYY-MM-DD)
+        // A. Arreglar Fechas (DD/MM/YYYY -> YYYY-MM-DD)
         if (c.date && c.date.includes('/')) {
-            const parts = c.date.split('/'); // Ej: 25/01/2026
+            const parts = c.date.split('/'); // [Día, Mes, Año]
             if (parts.length === 3) {
-                // Convertir a 2026-01-25 para que el ordenador lo entienda
+                // Forzamos formato Año-Mes-Día
                 let y = parts[2];
-                if (y.length === 2) y = '20' + y;
+                if (y.length === 2) y = '20' + y; // Si pone "26" lo cambiamos a "2026"
                 c.date = `${y}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}`;
+                reparados++;
             }
         }
+        
+        // B. Arreglar Nombres de campos antiguos
+        if (c.totalVenta === undefined && c.total !== undefined) c.totalVenta = c.total;
+        if (c.efectivo === undefined && c.totalCaja !== undefined) c.efectivo = c.totalCaja;
+        if (c.tarjeta === undefined && c.totalTarjeta !== undefined) c.tarjeta = c.totalTarjeta;
+        if (c.apps === undefined) c.apps = (parseFloat(c.glovo)||0) + (parseFloat(c.uber)||0);
     });
-    // (Los datos arreglados se guardarán la próxima vez que pulses un botón de guardar)
 
-    // Estado del filtro para el Dashboard (Por defecto: Mes Actual)
+    if(reparados > 0) {
+        console.log(`🔧 Se han reparado ${reparados} fechas antiguas.`);
+        // Guardamos silenciosamente para fijar el cambio
+        // (La próxima vez que guardes algo, se subirá todo arreglado a Supabase)
+    }
+
+    // Filtro inicial: Mes Actual (YYYY-MM)
     let currentFilterDate = new Date().toISOString().slice(0, 7); 
 
     // --- HELPERS ---
@@ -48,9 +49,8 @@ export async function render(container, supabase, db, opts = {}) {
         return `${y}-${m}-${day}`;
     };
 
-    // --- CÁLCULO DE KPIS (SOLO PARA LAS TARJETAS DE ARRIBA) ---
+    // --- CÁLCULO (FILTRADO POR MES) ---
     const getKpis = () => {
-        // Aquí SÍ filtramos por mes para que los números de arriba tengan sentido
         const cierresMes = db.cierres.filter(c => c.date && c.date.startsWith(currentFilterDate));
         
         const total = cierresMes.reduce((acc, c) => acc + (parseFloat(c.totalVenta) || 0), 0);
@@ -61,7 +61,7 @@ export async function render(container, supabase, db, opts = {}) {
         const tarj = cierresMes.reduce((acc, c) => acc + (parseFloat(c.tarjeta) || 0), 0);
         const apps = cierresMes.reduce((acc, c) => acc + (parseFloat(c.apps) || 0), 0);
 
-        return { total, media, dias, efec, tarj, apps };
+        return { total, media, dias, efec, tarj, apps, cierresMes };
     };
 
     // --- INTERFAZ ---
@@ -76,7 +76,7 @@ export async function render(container, supabase, db, opts = {}) {
             <header class="flex flex-col md:flex-row justify-between items-center bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 gap-4">
                 <div>
                     <h2 class="text-xl font-black text-slate-800 tracking-tight">Control de Caja</h2>
-                    <p class="text-[10px] text-indigo-500 font-bold uppercase tracking-widest">Estadísticas Mensuales</p>
+                    <p class="text-[10px] text-indigo-500 font-bold uppercase tracking-widest">Vista Mensual</p>
                 </div>
                 
                 <div class="flex items-center gap-2 bg-slate-100 p-1.5 rounded-2xl">
@@ -90,7 +90,7 @@ export async function render(container, supabase, db, opts = {}) {
                 <div class="bg-slate-900 p-6 rounded-[2.5rem] text-white shadow-xl relative overflow-hidden">
                     <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Facturación ${nombreMes}</p>
                     <p class="text-4xl font-black mt-2">${kpis.total.toLocaleString('es-ES', {minimumFractionDigits: 0})}€</p>
-                    <p class="text-[10px] text-emerald-400 mt-1 font-bold">Media diaria: ${kpis.media.toFixed(0)}€</p>
+                    <p class="text-[10px] text-emerald-400 mt-1 font-bold">Media diaria: ${kpis.media.toFixed(0)}€ (${kpis.dias} días)</p>
                 </div>
 
                 <div class="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm flex flex-col justify-center">
@@ -116,13 +116,16 @@ export async function render(container, supabase, db, opts = {}) {
 
             <div class="space-y-4 mt-4">
                 <div class="flex justify-between items-center px-6">
-                    <h3 class="text-xs font-black text-slate-400 uppercase tracking-widest">Historial Completo</h3>
-                    <div class="relative">
-                        <span class="absolute left-3 top-2.5 text-slate-400 text-xs">🔍</span>
-                        <input id="searchHistorial" type="text" placeholder="Buscar fecha..." class="pl-8 pr-4 py-2 bg-white border border-slate-100 rounded-full text-[10px] font-bold outline-none shadow-sm w-48">
-                    </div>
+                    <h3 class="text-xs font-black text-slate-400 uppercase tracking-widest">Movimientos de ${nombreMes}</h3>
                 </div>
-                <div id="listaCierres" class="grid grid-cols-1 md:grid-cols-2 gap-4 pb-10"></div>
+                <div id="listaCierres" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+            </div>
+
+            <div class="text-center py-4 opacity-50">
+                <p class="text-[9px] text-slate-400 font-mono">
+                    Total registros en base de datos: <b>${db.cierres.length}</b>
+                    <br>Registros en este mes: <b>${kpis.cierresMes.length}</b>
+                </p>
             </div>
 
             <div class="bg-white p-8 rounded-[3rem] shadow-xl border border-slate-100 relative overflow-hidden mt-8">
@@ -169,12 +172,11 @@ export async function render(container, supabase, db, opts = {}) {
         `;
 
         setupEvents();
-        pintarListaCierres(); // Pintar la lista SIN filtrar por mes
+        pintarListaCierres(kpis.cierresMes); // PINTAMOS LA LISTA FILTRADA
     };
 
     // --- LOGICA DE EVENTOS ---
     const setupEvents = () => {
-        // Selector de Mes (Solo refresca el dashboard de arriba)
         container.querySelector("#monthPicker").onchange = (e) => {
             currentFilterDate = e.target.value;
             draw();
@@ -192,7 +194,7 @@ export async function render(container, supabase, db, opts = {}) {
             draw();
         };
 
-        // Inputs del Formulario
+        // Inputs
         const flds = {
             vEf: container.querySelector("#inVentaEfectivo"),
             vTr: container.querySelector("#inVentaTarjeta"),
@@ -243,15 +245,19 @@ export async function render(container, supabase, db, opts = {}) {
                 efectivo: Number(flds.vEf.value) || 0,
                 tarjeta: Number(flds.vTr.value) || 0,
                 apps: (toCents(flds.gl.value) + toCents(flds.de.value) + toCents(flds.ub.value) + toCents(flds.ma.value)) / 100,
-                descuadre: (toCents(flds.fis.value) - (toCents(flds.vEf.value) + 30000)) / 100, // Suponiendo fondo 300
+                descuadre: (toCents(flds.fis.value) - (toCents(flds.vEf.value) + 30000)) / 100,
                 notas: flds.not.value
             };
 
             const idx = db.cierres.findIndex(c => c.date === fechaSeleccionada);
-            if(idx >= 0) db.cierres[idx] = cierreData;
-            else db.cierres.unshift(cierreData);
+            if(idx >= 0) {
+                if(!confirm(`Ya existe caja el ${fechaSeleccionada}. ¿Sobrescribir?`)) return;
+                db.cierres[idx] = cierreData;
+            } else {
+                db.cierres.unshift(cierreData);
+            }
 
-            // Generar Z
+            // Factura Z
             const zNum = `Z-${fechaSeleccionada.replace(/-/g,'')}`;
             const fIdx = db.facturas.findIndex(f => f.num === zNum);
             const fZ = {
@@ -269,16 +275,11 @@ export async function render(container, supabase, db, opts = {}) {
         };
     };
 
-    const pintarListaCierres = () => {
-        // AQUÍ ESTÁ EL TRUCO: NO FILTRAMOS POR FECHA, MOSTRAMOS TODO (limitado a 50)
-        // Solo filtramos si el usuario escribe en el buscador
-        const term = (container.querySelector("#searchHistorial")?.value || "").toLowerCase();
-        
-        const filtrados = db.cierres
-            .filter(c => !term || c.date.includes(term) || (c.notas && c.notas.toLowerCase().includes(term)))
-            .sort((a,b) => new Date(b.date) - new Date(a.date));
+    const pintarListaCierres = (list) => {
+        // Ordenar: Más reciente arriba
+        const sorted = list.sort((a,b) => new Date(b.date) - new Date(a.date));
 
-        container.querySelector("#listaCierres").innerHTML = filtrados.slice(0, 50).map(c => `
+        container.querySelector("#listaCierres").innerHTML = sorted.map(c => `
             <div class="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm flex justify-between items-center group relative hover:shadow-md transition">
                 <div>
                     <p class="text-[10px] font-black text-indigo-500 uppercase tracking-widest bg-indigo-50 px-2 py-1 rounded-lg w-fit mb-2">${c.date}</p>
@@ -293,7 +294,7 @@ export async function render(container, supabase, db, opts = {}) {
                     <button onclick="window.borrarCierre('${c.id}')" class="text-[8px] text-rose-300 font-bold uppercase hover:text-rose-500 opacity-0 group-hover:opacity-100 transition mt-1">Borrar</button>
                 </div>
             </div>
-        `).join('') || '<div class="col-span-full text-center py-10 text-slate-300 italic text-sm">No hay registros.</div>';
+        `).join('') || '<div class="col-span-full text-center py-10 text-slate-300 italic text-sm">No hay cierres este mes.</div>';
     };
 
     window.borrarCierre = async (id) => {
@@ -308,8 +309,6 @@ export async function render(container, supabase, db, opts = {}) {
         }
     };
 
-    const searchInput = container.querySelector("#searchHistorial");
-    if(searchInput) searchInput.oninput = pintarListaCierres;
-
+    // Arrancar la primera vez
     draw();
 }
