@@ -1,5 +1,5 @@
 /* =============================================================
-   🔐 MÓDULO: CIERRE CONTABLE (Corrección: Sumar Cajas Reales)
+   🔐 MÓDULO: CIERRE CONTABLE (Ventas = Caja Z | Gastos = Albaranes)
    ============================================================= */
 
 export async function render(container, sb, db) {
@@ -11,62 +11,78 @@ export async function render(container, sb, db) {
     let year = new Date().getFullYear();
     const meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
 
+    // Helper para formatear dinero
+    const fmt = (n) => new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(n);
+
+    // Helper ROBUSTO para fechas (Anti-fallos)
+    const parseDateSafe = (d) => {
+        if (!d) return null;
+        if (d instanceof Date) return d;
+        // Si es timestamp numérico
+        if (typeof d === 'number') return new Date(d);
+        
+        let s = String(d).trim();
+        // Si es formato DD/MM/YYYY
+        if (s.match(/^\d{1,2}\/\d{1,2}\/\d{4}$/)) {
+            const parts = s.split('/');
+            return new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
+        }
+        // Si es formato YYYY-MM-DD (ISO)
+        return new Date(s);
+    };
+
+    // Helper para limpiar números (1.200,50 -> 1200.50)
+    const parseNum = (v) => {
+        if (!v) return 0;
+        if (typeof v === 'number') return v;
+        let s = String(v).replace(/[^\d,.-]/g, '');
+        if (s.includes(',') && s.includes('.')) s = s.replace(/\./g, '').replace(',', '.');
+        else if (s.includes(',')) s = s.replace(',', '.');
+        return parseFloat(s) || 0;
+    };
+
     // 2. FUNCIÓN: CALCULAR DATOS DEL MES (EN VIVO)
     const getSnapshot = (mesIndex, anio) => {
         
-        // --- A. INGRESOS (CORREGIDO: CAJAS + FACTURAS) ---
-        
-        // 1. Sumar Cajas Diarias (Z)
+        // --- A. INGRESOS REALES (SOLO CAJA DIARIA) ---
         const ventasCaja = (db.diario || [])
             .filter(d => {
-                // Usamos helper seguro si existe, si no fallback
-                const fecha = new Date(d.date || d.fecha);
+                const fecha = parseDateSafe(d.date || d.fecha);
+                if (!fecha || isNaN(fecha.getTime())) return false; // Fecha inválida
                 return fecha.getMonth() === mesIndex && fecha.getFullYear() === anio;
             })
             .reduce((acc, d) => {
-                const caja = parseFloat(d.totalCaja || 0);
-                const tarjeta = parseFloat(d.totalTarjeta || 0);
+                const caja = parseNum(d.totalCaja);
+                const tarjeta = parseNum(d.totalTarjeta);
                 return acc + caja + tarjeta;
             }, 0);
 
-        // 2. Sumar Facturas Extra (Eventos B2B que no pasan por caja)
-        const ventasFacturas = (db.facturas || [])
-            .filter(f => {
-                const d = new Date(f.date || f.fecha);
-                // Excluimos las que sean tickets Z automáticos para no duplicar
-                const esZ = String(f.num || '').toUpperCase().startsWith('Z');
-                return d.getMonth() === mesIndex && 
-                       d.getFullYear() === anio && 
-                       !esZ;
-            })
-            .reduce((acc, f) => acc + (parseFloat(f.total) || 0), 0);
-
-        const ventasTotal = ventasCaja + ventasFacturas;
-
-        // --- B. GASTOS VARIABLES ---
+        // --- B. GASTOS VARIABLES (TUS COMPRAS / ALBARANES) ---
         const compras = (db.albaranes || [])
             .filter(a => { 
-                const d = new Date(a.date || a.fecha); 
-                return d.getMonth() === mesIndex && d.getFullYear() === anio; 
+                const fecha = parseDateSafe(a.date || a.fecha); 
+                if (!fecha || isNaN(fecha.getTime())) return false;
+                return fecha.getMonth() === mesIndex && fecha.getFullYear() === anio; 
             })
-            .reduce((acc, a) => acc + (parseFloat(a.total) || 0), 0);
+            .reduce((acc, a) => acc + parseNum(a.total), 0);
 
-        // --- C. GASTOS FIJOS (Prorrateados) ---
+        // --- C. GASTOS FIJOS (ESTRUCTURA) ---
         const fijos = (db.gastos_fijos || [])
             .filter(g => g.active !== false)
             .reduce((acc, g) => {
-                let amount = parseFloat(g.amount) || 0;
+                let amount = parseNum(g.amount);
                 if(g.freq === 'mensual') return acc + amount;
                 if(g.freq === 'trimestral') return acc + (amount/3);
                 if(g.freq === 'anual') return acc + (amount/12);
+                if(g.freq === 'bimensual') return acc + (amount/2);
                 return acc + amount; 
             }, 0);
 
         return { 
-            ventas: ventasTotal, 
+            ventas: ventasCaja, 
             compras, 
             fijos, 
-            resultado: ventasTotal - compras - fijos 
+            resultado: ventasCaja - compras - fijos 
         };
     };
 
@@ -95,9 +111,6 @@ export async function render(container, sb, db) {
                     let estadoColor = isClosed ? 'bg-slate-800 text-white' : (i > currentMonth ? 'bg-slate-50 opacity-50' : 'bg-white border border-slate-100');
                     let icon = isClosed ? '🔒 CERRADO' : '🔓 ABIERTO';
 
-                    // Formateador moneda local
-                    const fmt = (n) => new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(n);
-
                     return `
                     <div class="${estadoColor} p-6 rounded-[2rem] shadow-sm relative overflow-hidden transition hover:shadow-md group">
                         <div class="flex justify-between items-start mb-4">
@@ -107,22 +120,22 @@ export async function render(container, sb, db) {
 
                         <div class="space-y-1 mb-4">
                             <div class="flex justify-between text-xs">
-                                <span class="${isClosed?'text-slate-400':'text-slate-500'}">Ventas (Z + Fra)</span>
+                                <span class="${isClosed?'text-slate-400':'text-slate-500'}">Ingresos (Caja Real)</span>
                                 <span class="font-bold">${fmt(datos.ventas)}</span>
                             </div>
                             <div class="flex justify-between text-xs">
-                                <span class="${isClosed?'text-slate-400':'text-slate-500'}">Gastos Var.</span>
+                                <span class="${isClosed?'text-slate-400':'text-slate-500'}">Compras (Albaranes)</span>
                                 <span class="font-bold text-rose-400">-${fmt(datos.compras)}</span>
                             </div>
                             <div class="flex justify-between text-xs">
-                                <span class="${isClosed?'text-slate-400':'text-slate-500'}">Estructura</span>
+                                <span class="${isClosed?'text-slate-400':'text-slate-500'}">Gastos Fijos</span>
                                 <span class="font-bold text-orange-400">-${fmt(datos.fijos)}</span>
                             </div>
                             
                             <div class="w-full h-px ${isClosed?'bg-slate-600':'bg-slate-100'} my-2"></div>
                             
                             <div class="flex justify-between text-sm font-black">
-                                <span class="${isClosed?'text-slate-300':'text-slate-800'}">Resultado</span>
+                                <span class="${isClosed?'text-slate-300':'text-slate-800'}">Beneficio</span>
                                 <span class="${datos.resultado >= 0 ? 'text-emerald-500' : 'text-rose-500'}">${fmt(datos.resultado)}</span>
                             </div>
                         </div>
@@ -146,7 +159,7 @@ export async function render(container, sb, db) {
 
     // 4. LÓGICA DE CIERRE
     window.cerrarMes = async (mesIndex, anio) => {
-        if(!confirm(`¿Estás SEGURO de cerrar ${meses[mesIndex]} ${anio}?\n\n⚠️ Esta acción guardará una copia fija de los datos. Si editas facturas antiguas después de esto, el cierre no cambiará.`)) return;
+        if(!confirm(`¿Estás SEGURO de cerrar ${meses[mesIndex]} ${anio}?\n\n⚠️ Esta acción guardará una copia fija de los datos del mes.`)) return;
 
         const snapshot = getSnapshot(mesIndex, anio);
         
@@ -155,7 +168,7 @@ export async function render(container, sb, db) {
             mes: mesIndex,
             anio: anio,
             fecha_cierre: new Date().toISOString(),
-            snapshot: snapshot // Guardamos los valores, no las referencias
+            snapshot: snapshot 
         });
 
         await saveFn(`Mes de ${meses[mesIndex]} cerrado correctamente`);
