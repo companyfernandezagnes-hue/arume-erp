@@ -1,5 +1,5 @@
 /* =============================================================
-   🏦 MÓDULO: TESORERÍA ULTRA (Versión Final Definitiva)
+   🏦 MÓDULO: TESORERÍA ULTRA (v8.0 Enterprise: AI Matching + Logs)
    ============================================================= */
 
 import * as XLSX from 'https://cdn.sheetjs.com/xlsx-0.20.1/package/xlsx.mjs';
@@ -13,6 +13,35 @@ export async function render(container, supabase, db, opts = {}) {
     if(!db.albaranes) db.albaranes = [];
     if(!db.config) db.config = {};
     if(db.config.saldoInicial === undefined) db.config.saldoInicial = 0;
+    
+    // --- MEJORA 3: LOG DE AUDITORÍA INVISIBLE ---
+    if(!db.logs) db.logs = []; 
+
+    // --- HELPERS AVANZADOS ---
+    // MEJORA 1: Normalización de texto (quita tildes, mayúsculas y símbolos raros)
+    const normalize = (str) => {
+        return String(str || '')
+            .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // Quitar tildes
+            .toLowerCase()
+            .replace(/[^a-z0-9\s]/g, '') // Quitar símbolos
+            .trim();
+    };
+
+    // MEJORA 2: Extractor de Números de Factura (Regex)
+    const extractInvoiceNums = (str) => {
+        // Busca patrones tipo: F-2024, 2024/001, o secuencias largas de números
+        const matches = str.match(/([a-z]{1,3}[-/\s]?\d{3,})|(\d{4,})/gi);
+        return matches || [];
+    };
+
+    const audit = (action, details) => {
+        db.logs.push({ 
+            ts: Date.now(), 
+            date: new Date().toISOString(), 
+            action, 
+            details 
+        });
+    };
 
     // --- CÁLCULOS EN TIEMPO REAL ---
     const reCalc = () => {
@@ -36,11 +65,11 @@ export async function render(container, supabase, db, opts = {}) {
                     <h2 class="text-2xl font-black text-slate-800">Tesorería</h2>
                     <p class="text-[10px] text-indigo-500 font-bold uppercase tracking-widest flex items-center gap-2">
                         <span>Banca March</span>
-                        <span class="bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full">v7.0 Ultra</span>
+                        <span class="bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full">v8.0 Ent.</span>
                     </p>
                 </div>
                 <div class="text-right">
-                    <p class="text-[9px] font-black text-slate-400 uppercase mb-1">Saldo Real en Banco</p>
+                    <p class="text-[9px] font-black text-slate-400 uppercase mb-1">Saldo Real</p>
                     <div class="flex items-center justify-end gap-2 group cursor-pointer" id="btnEditSaldo">
                         <span class="text-3xl font-black text-slate-800 tracking-tight">${kpis.saldoReal.toLocaleString('es-ES', {style:'currency', currency:'EUR'})}</span>
                         <span class="opacity-0 group-hover:opacity-100 text-slate-400 text-xs">✏️</span>
@@ -103,7 +132,7 @@ export async function render(container, supabase, db, opts = {}) {
     const matchPanel = container.querySelector("#match-panel");
     let selectedBankId = null;
 
-    // --- 1. LÓGICA DE IMPORTACIÓN (BANCA MARCH ULTRA-ROBUSTA) ---
+    // --- 1. LÓGICA DE IMPORTACIÓN (BANCA MARCH + NORMALIZACIÓN) ---
     container.querySelector("#bankCsv").onchange = async (e) => {
         const file = e.target.files[0];
         if(!file) return;
@@ -118,26 +147,22 @@ export async function render(container, supabase, db, opts = {}) {
                 const sheet = workbook.Sheets[workbook.SheetNames[0]];
                 const rows = XLSX.utils.sheet_to_json(sheet, {header:1, raw:false});
 
-                let headerIdx = -1;
-                let colFecha = -1, colDesc1 = -1, colDesc2 = -1, colImporte = -1;
+                let headerIdx = -1, colFecha = -1, colDesc1 = -1, colDesc2 = -1, colImporte = -1;
 
-                // --- Detección robusta de cabecera ---
-                for (let i = 0; i < rows.length; i++) {
-                    const rowNorm = rows[i].map(c => String(c || "").trim().toLowerCase());
-                    const condFecha = rowNorm.some(x => x.includes("f.") && x.includes("oper"));
-                    const condImporte = rowNorm.some(x => x.includes("importe"));
-                    
-                    if (condFecha && condImporte) {
+                // Buscar cabecera
+                for(let i=0; i < rows.length; i++) {
+                    const r = rows[i].map(x => String(x||'').toLowerCase());
+                    if (r.includes('f. operación') && r.includes('importe')) {
                         headerIdx = i;
-                        colFecha   = rowNorm.findIndex(x => x.includes("oper"));
-                        colDesc1   = rowNorm.indexOf("concepto");
-                        colDesc2   = rowNorm.findIndex(x => x.includes("ordenante"));
-                        colImporte = rowNorm.findIndex(x => x.includes("importe"));
+                        colFecha   = r.indexOf('f. operación');
+                        colDesc1   = r.indexOf('concepto');
+                        colDesc2   = r.indexOf('concepto ordenante');
+                        colImporte = r.indexOf('importe');
                         break;
                     }
                 }
 
-                if(headerIdx === -1) throw new Error("No encuentro la cabecera del Excel de Banca March.");
+                if(headerIdx === -1) throw new Error("Formato no reconocido (Banca March).");
 
                 let imported = 0;
 
@@ -145,42 +170,45 @@ export async function render(container, supabase, db, opts = {}) {
                     const row = rows[i];
                     if(!row[colFecha] || !row[colImporte]) continue;
 
-                    // --- FECHA ---
-                    let fechaStr = String(row[colFecha]).trim();
-                    let d,m,y;
-                    if (fechaStr.includes("/")) [d, m, y] = fechaStr.split("/");
-                    else if (fechaStr.includes("-")) [d, m, y] = fechaStr.split("-");
-                    else continue;
+                    // Fecha
+                    let dateISO = '';
+                    try {
+                        let [d,m,y] = String(row[colFecha]).trim().split(/\/|-/);
+                        if(y && y.length === 2) y = '20' + y;
+                        dateISO = `${y}-${m}-${d}`;
+                    } catch(e) { continue; }
 
-                    if (y.length === 2) y = "20" + y;
-                    const dateISO = `${y}-${m}-${d}`;
-
-                    // --- DESCRIPCIÓN ---
-                    const desc = `${row[colDesc1] || ""} ${row[colDesc2] || ""}`.replace(/\s+/g, " ").trim();
-
-                    // --- IMPORTE ---
-                    const num = String(row[colImporte]).replace(/[^0-9.-]/g, "");
+                    // Descripción
+                    const desc = `${row[colDesc1]||''} ${row[colDesc2]||''}`.replace(/\s+/g, ' ').trim();
+                    
+                    // Importe
+                    const num = String(row[colImporte]).replace(/[^0-9.-]/g, '');
                     const amount = parseFloat(num);
-                    if (isNaN(amount)) continue;
+                    if(isNaN(amount)) continue;
 
-                    // --- EVITAR DUPLICADOS ---
-                    const exists = db.banco.some(x =>
+                    // Evitar Duplicados
+                    const exists = db.banco.some(x => 
                         x.date === dateISO && x.desc === desc && Math.abs(x.amount - amount) < 0.001
                     );
-                    if (exists) continue;
+                    if(exists) continue;
 
                     db.banco.push({
-                        id: "bm-" + Date.now() + Math.random(),
-                        date: dateISO, desc, amount, status: "pending"
+                        id: 'bm-' + Date.now() + Math.random(),
+                        date: dateISO, 
+                        desc,
+                        descNorm: normalize(desc), // Guardamos versión normalizada
+                        amount, 
+                        status: 'pending'
                     });
                     imported++;
                 }
 
+                audit('import', `Importados ${imported} movimientos`);
                 await saveFn(`Importados ${imported} movimientos ✅`);
                 updateUI();
 
             } catch(err) {
-                alert("Error al leer extracto: " + err.message);
+                alert("Error: " + err.message);
                 updateUI();
             }
         };
@@ -188,7 +216,7 @@ export async function render(container, supabase, db, opts = {}) {
         e.target.value = '';
     };
 
-    // --- 2. RENDERIZADO INTELIGENTE ---
+    // --- 2. RENDERIZADO ---
     const updateUI = () => {
         kpis = reCalc();
         container.querySelector("#lblProgress").innerText = `${kpis.matchedItems} / ${kpis.totalItems} Conciliados`;
@@ -227,7 +255,7 @@ export async function render(container, supabase, db, opts = {}) {
         `).join('');
     };
 
-    // --- 3. CEREBRO DE CONCILIACIÓN (MATCH PANEL) ---
+    // --- 3. CEREBRO INTELIGENTE (MATCHING PRO) ---
     window.selectBankItem = (id) => {
         selectedBankId = id;
         renderBankList();
@@ -247,37 +275,64 @@ export async function render(container, supabase, db, opts = {}) {
         `;
 
         let matches = [];
-        // Buscar en Facturas (Ingresos - Cierres Z)
-        if(item.amount > 0) {
-            db.facturas.filter(f => !f.reconciled).forEach(f => {
-                const diff = Math.abs(parseFloat(f.total) - item.amount);
-                if(diff <= 0.05) matches.push({ type: 'Cierre Z', data: f, text: `Z del ${f.date}`, score: 100 });
-                else if(diff < 5) matches.push({ type: 'Cierre Z', data: f, text: `Z del ${f.date}`, score: 50 });
-            });
-        } 
-        // Buscar en Albaranes (Gastos)
-        else {
-            const target = Math.abs(item.amount);
-            db.albaranes.filter(a => !a.reconciled).forEach(a => {
-                const diff = Math.abs(parseFloat(a.total) - target);
-                if(diff <= 0.05) matches.push({ type: 'Albarán', data: a, text: a.prov, score: 100 });
-                else if (item.desc.toLowerCase().includes((a.prov||'').toLowerCase()) && diff < 20) {
-                    matches.push({ type: 'Albarán', data: a, text: a.prov, score: 80 });
+        
+        // --- MOTOR DE MATCHING (Mejora 2: Regex & Fuzzy) ---
+        const potentialInvoiceNums = extractInvoiceNums(item.desc); // Extraer F-2024, etc.
+        const bankNorm = item.descNorm || normalize(item.desc);
+
+        const checkMatch = (erpItem, type) => {
+            if(erpItem.reconciled) return;
+            const diff = Math.abs(parseFloat(erpItem.total) - Math.abs(item.amount));
+            const erpNorm = normalize(erpItem.prov || erpItem.cliente || '');
+            let score = 0;
+
+            // 1. Coincidencia Exacta Importe (Vital)
+            if(diff <= 0.05) score += 50;
+            else if(diff < 5) score += 20;
+
+            // 2. Coincidencia Texto (Nombre Proveedor)
+            if(bankNorm.includes(erpNorm) && erpNorm.length > 3) score += 40;
+
+            // 3. Coincidencia Nº Factura (El "Superpoder")
+            if (potentialInvoiceNums.length > 0) {
+                const erpRef = normalize(erpItem.num || '');
+                if (potentialInvoiceNums.some(num => erpRef.includes(num) || bankNorm.includes(erpRef))) {
+                    score += 100;
                 }
-            });
+            }
+
+            if(score > 30) {
+                matches.push({ 
+                    type, 
+                    data: erpItem, 
+                    text: `${erpItem.prov||erpItem.cliente} (${erpItem.date})`, 
+                    score,
+                    amount: parseFloat(erpItem.total)
+                });
+            }
+        };
+
+        if(item.amount > 0) {
+            db.facturas.forEach(f => checkMatch(f, 'Cierre Z'));
+        } else {
+            db.albaranes.forEach(a => checkMatch(a, 'Albarán'));
         }
+        
         matches.sort((a,b) => b.score - a.score);
 
         if(matches.length > 0) {
-            html += `<p class="text-[10px] font-bold text-indigo-500 uppercase mb-2">💡 Sugerencia encontrada</p>`;
+            html += `<p class="text-[10px] font-bold text-indigo-500 uppercase mb-2">💡 Sugerencia inteligente</p>`;
             html += `<div class="space-y-2 mb-6">`;
             html += matches.map(m => `
                 <div class="bg-indigo-50 p-3 rounded-xl border border-indigo-100 flex justify-between items-center cursor-pointer hover:bg-indigo-100 transition" 
                      onclick="window.confirmMatch('${item.id}', '${m.data.id}', '${m.type}')">
                     <div>
-                        <span class="text-[8px] font-bold uppercase text-indigo-400">${m.type}</span>
+                        <div class="flex items-center gap-2">
+                            <span class="text-[8px] font-bold uppercase text-indigo-400">${m.type}</span>
+                            ${m.score >= 100 ? '<span class="text-[8px] bg-emerald-400 text-white px-1 rounded">🔥 MATCH</span>' : ''}
+                        </div>
                         <p class="font-bold text-sm text-indigo-900">${m.text}</p>
-                        <p class="text-[10px] text-indigo-600">${parseFloat(m.data.total).toFixed(2)}€</p>
+                        <p class="text-[10px] text-indigo-600">${m.amount.toFixed(2)}€</p>
                     </div>
                     <button class="bg-indigo-600 text-white w-8 h-8 rounded-full shadow-lg font-bold">✓</button>
                 </div>
@@ -285,7 +340,7 @@ export async function render(container, supabase, db, opts = {}) {
             html += `</div>`;
         }
 
-        // ACCIONES DE CREACIÓN DE GASTO
+        // ACCIONES
         if(item.amount < 0) {
             html += `
                 <div class="mt-auto">
@@ -306,20 +361,18 @@ export async function render(container, supabase, db, opts = {}) {
 
     // --- 4. ACCIONES (BOTONES) ---
     
-    // Conciliar
     window.confirmMatch = async (bankId, erpId, type) => {
         const bItem = db.banco.find(b => b.id === bankId);
         if(bItem) bItem.status = 'matched';
-
         const targetDb = type.includes('Cierre') ? db.facturas : db.albaranes;
         const item = targetDb.find(i => i.id === erpId);
         if(item) { item.reconciled = true; item.paid = true; }
-
+        
+        audit('match', `Conciliado ${bItem.desc} con ${item.prov||item.cliente}`);
         await saveFn("Conciliado ✅");
         selectedBankId = null; matchPanel.innerHTML = ''; updateUI();
     };
 
-    // Crear Gasto
     const createExpense = async (bankId, concepto) => {
         const item = db.banco.find(b => b.id === bankId);
         if(!item) return;
@@ -331,16 +384,12 @@ export async function render(container, supabase, db, opts = {}) {
             prov: concepto,
             num: "BANCO",
             total: importe,
-            base: importe, 
-            taxes: 0, 
-            items: [{ q: 1, n: concepto, t: importe, rate: 0 }],
-            paid: true, 
-            reconciled: true,
-            status: 'ok', 
-            notes: "Auto desde Tesorería"
+            base: importe, taxes: 0, items: [{ q: 1, n: concepto, t: importe, rate: 0 }],
+            paid: true, reconciled: true, status: 'ok', notes: "Auto desde Tesorería"
         });
 
         item.status = 'matched';
+        audit('create_expense', `Creado gasto ${concepto} desde banco`);
         await saveFn("Gasto creado ✅");
         selectedBankId = null; matchPanel.innerHTML = ''; updateUI();
     };
@@ -352,7 +401,6 @@ export async function render(container, supabase, db, opts = {}) {
         if(name) createExpense(id, name);
     };
 
-    // Auto-Conciliar
     container.querySelector("#btnMagic").onclick = async () => {
         let count = 0;
         const keywords = ['comision', 'mantenimiento', 'intereses', 'liquid.propia', 'recibo'];
@@ -363,14 +411,15 @@ export async function render(container, supabase, db, opts = {}) {
                 count++;
             }
         });
-        if(count > 0) { await saveFn(`✨ ${count} movimientos auto-conciliados`); updateUI(); } 
-        else alert("No encontré movimientos obvios para auto-conciliar.");
+        if(count > 0) { await saveFn(`✨ ${count} auto-conciliados`); updateUI(); } 
+        else alert("No encontré movimientos obvios.");
     };
 
     container.querySelector("#btnNuke").onclick = async () => {
-        if(confirm("¿Borrar todos los movimientos pendientes?")) {
+        if(confirm("¿Borrar pendientes?")) {
             db.banco = db.banco.filter(b => b.status === 'matched');
-            await saveFn("Lista limpia 🧹"); updateUI();
+            audit('nuke', 'Borrada lista de pendientes');
+            await saveFn("Limpio 🧹"); updateUI();
         }
     };
 
@@ -378,6 +427,7 @@ export async function render(container, supabase, db, opts = {}) {
         e.stopPropagation();
         if(confirm("¿Borrar movimiento?")) {
             db.banco = db.banco.filter(b => b.id !== id);
+            audit('delete', `Borrado movimiento manual ${id}`);
             await saveFn("Borrado"); selectedBankId = null; matchPanel.innerHTML = ''; updateUI();
         }
     };
@@ -397,7 +447,5 @@ export async function render(container, supabase, db, opts = {}) {
     };
 
     container.querySelector("#searchBank").addEventListener('input', renderBankList);
-    
-    // Inicializar
     updateUI();
 }
