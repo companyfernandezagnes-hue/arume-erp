@@ -1,35 +1,30 @@
 /* =============================================================
-   🏦 MÓDULO: TESORERÍA PRO (Banca March + Excel Inteligente)
+   🏦 MÓDULO: TESORERÍA PRO (Corrección Banca March)
    ============================================================= */
 
-// Librería para leer Excel
 import * as XLSX from 'https://cdn.sheetjs.com/xlsx-0.20.1/package/xlsx.mjs';
 
 export async function render(container, supabase, db, opts = {}) {
     const saveFn = opts.save || (window.save ? window.save : async () => {});
     
-    // 1. INICIALIZAR DATOS
     if(!db.banco) db.banco = [];
-    if(!db.facturas) db.facturas = []; // Ingresos (Cierres Z)
-    if(!db.albaranes) db.albaranes = []; // Gastos (Proveedores)
+    if(!db.facturas) db.facturas = []; 
+    if(!db.albaranes) db.albaranes = []; 
 
-    // --- CÁLCULOS FINANCIEROS (KPIS) ---
+    // --- CÁLCULOS ---
     const now = new Date();
     const currentMonth = now.getMonth();
     const currentYear = now.getFullYear();
 
-    // Saldo Teórico (Suma de todo lo importado)
     const saldoTeorico = db.banco.reduce((acc, b) => acc + (parseFloat(b.amount)||0), 0);
 
-    // Comisiones del Mes (Detectadas por palabras clave)
     const comisionesMes = db.banco.filter(b => {
         const d = new Date(b.date);
         const desc = (b.desc || '').toLowerCase();
         return d.getMonth() === currentMonth && d.getFullYear() === currentYear && 
-               (desc.includes('comision') || desc.includes('mantenimiento') || desc.includes('intereses') || desc.includes('liquid.propia'));
+               (desc.includes('comision') || desc.includes('mantenimiento') || desc.includes('intereses'));
     }).reduce((acc, b) => acc + (parseFloat(b.amount)||0), 0);
 
-    // Ingresos TPV del Mes
     const tpvMes = db.banco.filter(b => {
         const d = new Date(b.date);
         const desc = (b.desc || '').toLowerCase();
@@ -38,7 +33,6 @@ export async function render(container, supabase, db, opts = {}) {
                (desc.includes('tpv') || desc.includes('tarjeta') || desc.includes('redsys') || desc.includes('bizum'));
     }).reduce((acc, b) => acc + (parseFloat(b.amount)||0), 0);
 
-    // Pagos Pendientes (Albaranes de este mes no pagados)
     const pagosPendientes = db.albaranes.filter(a => {
         const d = new Date(a.date);
         return !a.paid && d.getMonth() === currentMonth && d.getFullYear() === currentYear;
@@ -49,12 +43,11 @@ export async function render(container, supabase, db, opts = {}) {
     // --- INTERFAZ ---
     container.innerHTML = `
     <div class="animate-fade-in space-y-6 pb-24">
-        
         <header class="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 flex flex-col gap-4">
             <div class="flex justify-between items-center">
                 <div>
-                    <h2 class="text-xl font-black text-slate-800">Tesorería & Banco</h2>
-                    <p class="text-[10px] text-indigo-500 font-bold uppercase tracking-widest">Control Banca March</p>
+                    <h2 class="text-xl font-black text-slate-800">Tesorería</h2>
+                    <p class="text-[10px] text-indigo-500 font-bold uppercase tracking-widest">Banca March & Excel</p>
                 </div>
                 <label class="bg-slate-900 text-white px-5 py-3 rounded-2xl text-[10px] font-black hover:bg-slate-800 transition cursor-pointer flex items-center gap-2 shadow-lg">
                     <span>📥</span> SUBIR EXCEL
@@ -80,16 +73,9 @@ export async function render(container, supabase, db, opts = {}) {
                     <p class="text-lg font-black text-indigo-600">${tpvMes.toLocaleString('es-ES', {style:'currency', currency:'EUR'})}</p>
                 </div>
             </div>
-
-            ${comisionesMes < 0 ? `
-            <div class="bg-amber-50 px-4 py-2 rounded-xl border border-amber-100 flex justify-between items-center">
-                <span class="text-[10px] font-bold text-amber-600">⚠️ Comisiones bancarias este mes</span>
-                <span class="text-xs font-black text-amber-700">${comisionesMes.toLocaleString('es-ES', {style:'currency', currency:'EUR'})}</span>
-            </div>` : ''}
         </header>
 
         <div id="work-area" class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            
             <div class="space-y-4">
                 <div class="flex justify-between items-end px-2">
                     <h3 class="text-xs font-black text-slate-400 uppercase">Movimientos Pendientes</h3>
@@ -106,31 +92,27 @@ export async function render(container, supabase, db, opts = {}) {
             <div class="bg-slate-50 p-6 rounded-[2.5rem] border border-slate-100 relative h-[500px] flex flex-col shadow-inner">
                 <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-500 to-purple-500 opacity-50"></div>
                 <h3 class="text-xs font-black text-indigo-500 uppercase mb-4 flex items-center gap-2">
-                    <span>🤖</span> Arume Brain (Coincidencias)
+                    <span>🤖</span> Coincidencias
                 </h3>
                 <div id="match-panel" class="flex-1 flex flex-col">
                     <div class="flex-1 flex flex-col justify-center items-center text-center opacity-50">
                         <span class="text-4xl animate-bounce mb-2">👈</span>
-                        <p class="text-sm font-bold text-slate-400">Selecciona un movimiento<br>de la izquierda</p>
+                        <p class="text-sm font-bold text-slate-400">Selecciona un movimiento</p>
                     </div>
                 </div>
             </div>
-
         </div>
-    </div>
-    `;
+    </div>`;
 
-    // --- VARIABLES ---
     const listBank = container.querySelector("#list-bank");
     const matchPanel = container.querySelector("#match-panel");
     let selectedBankId = null;
 
-    // --- 1. IMPORTAR EXCEL (LÓGICA BANCA MARCH) ---
+    // --- IMPORTACIÓN ROBUSTA BANCA MARCH ---
     container.querySelector("#bankCsv").onchange = async (e) => {
         const file = e.target.files[0];
         if(!file) return;
 
-        // Feedback visual
         listBank.innerHTML = `<div class="flex h-full items-center justify-center text-indigo-500 font-bold animate-pulse">Analizando Banca March...</div>`;
 
         const reader = new FileReader();
@@ -140,72 +122,83 @@ export async function render(container, supabase, db, opts = {}) {
                 const workbook = XLSX.read(data, {type: 'array'});
                 const worksheet = workbook.Sheets[workbook.SheetNames[0]];
                 
-                // Convertimos a matriz para inspeccionar fila por fila
+                // Usamos raw: false para obtener los strings formateados y buscar cabeceras
                 const rows = XLSX.utils.sheet_to_json(worksheet, {header: 1, raw: false});
 
                 let headerIdx = -1;
                 let colFecha = -1, colDesc1 = -1, colDesc2 = -1, colImporte = -1;
 
-                // 1. BUSCAR LA CABECERA REAL (Saltando las líneas iniciales)
+                // 1. Encontrar la fila de cabecera
                 for(let i=0; i < rows.length; i++) {
                     const rowStr = rows[i].join(' ').toLowerCase();
-                    // Buscamos palabras clave de la cabecera de Banca March
                     if(rowStr.includes('f. operación') && rowStr.includes('importe')) {
                         headerIdx = i;
-                        // Mapeamos índices de columnas dinámicamente
                         rows[i].forEach((cell, idx) => {
                             const txt = String(cell).toLowerCase();
                             if(txt.includes('f. operación')) colFecha = idx;
                             if(txt === 'concepto') colDesc1 = idx;
-                            if(txt.includes('ordenante')) colDesc2 = idx; // Columna extra importante
+                            if(txt.includes('ordenante')) colDesc2 = idx; 
                             if(txt.includes('importe')) colImporte = idx;
                         });
                         break;
                     }
                 }
 
-                if (headerIdx === -1) throw new Error("No encuentro la tabla de movimientos en este Excel.");
+                if (headerIdx === -1) throw new Error("No encuentro la cabecera 'F. operación' e 'Importe'.");
 
                 let imported = 0;
                 
-                // 2. PROCESAR FILAS (Desde la siguiente a la cabecera)
+                // 2. Procesar filas de datos
                 for(let i = headerIdx + 1; i < rows.length; i++) {
                     const row = rows[i];
-                    // Si no hay fecha o importe, saltamos
                     if(!row[colFecha] || !row[colImporte]) continue;
 
-                    // Parsear FECHA (DD/MM/YY -> YYYY-MM-DD)
+                    // A. Parsear FECHA (DD/MM/YY a YYYY-MM-DD)
                     let dateClean = row[colFecha]; 
                     if(dateClean.includes('/')) {
-                        const parts = dateClean.split('/'); // [12, 02, 26]
-                        if(parts[2].length === 2) parts[2] = '20' + parts[2]; // 2026
+                        const parts = dateClean.split('/'); 
+                        if(parts[2].length === 2) parts[2] = '20' + parts[2]; 
                         dateClean = `${parts[2]}-${parts[1]}-${parts[0]}`;
                     }
 
-                    // Parsear DESCRIPCIÓN (Fusionar Concepto + Ordenante)
+                    // B. Parsear CONCEPTO (Unir las dos columnas)
                     let fullDesc = (row[colDesc1] || '') + ' ' + (row[colDesc2] || '');
-                    fullDesc = fullDesc.trim().replace(/\s+/g, ' '); // Limpiar espacios extra
+                    fullDesc = fullDesc.trim().replace(/\s+/g, ' '); 
 
-                    // Parsear IMPORTE (Formato español 1.200,50 €)
+                    // C. Parsear IMPORTE (Lógica Universal)
                     let amountStr = String(row[colImporte]).replace('€','').trim();
-                    // Quitamos puntos de miles y cambiamos coma decimal por punto
-                    if(amountStr.includes(',') && amountStr.includes('.')) {
-                        amountStr = amountStr.replace('.','').replace(',','.'); 
-                    } else if (amountStr.includes(',')) {
-                        amountStr = amountStr.replace(',','.');
+                    let amount = 0;
+
+                    // Detectamos formato:
+                    // Si tiene "," y "." -> El último es el decimal
+                    // Si solo tiene "," -> Es decimal (formato ES) o miles (formato US)?
+                    // Banca March suele usar "," como decimal en sus PDF/Web, pero "." en CSV interno a veces.
+                    
+                    // Limpiamos todo lo que no sea número, punto, coma o signo menos
+                    let cleanNum = amountStr.replace(/[^0-9.,-]/g, '');
+                    
+                    if (cleanNum.indexOf(',') > cleanNum.indexOf('.')) {
+                        // Formato Español: 1.200,50
+                        cleanNum = cleanNum.replace(/\./g, '').replace(',', '.');
+                    } else if (cleanNum.indexOf('.') > cleanNum.indexOf(',')) {
+                        // Formato Inglés: 1,200.50
+                        cleanNum = cleanNum.replace(/,/g, '');
+                    } else if (cleanNum.includes(',')) {
+                        // Solo tiene coma: asumo decimal (Banca March estándar)
+                        cleanNum = cleanNum.replace(',', '.');
                     }
-                    const amount = parseFloat(amountStr);
+                    
+                    amount = parseFloat(cleanNum);
 
                     if(!isNaN(amount)) {
-                        // Evitar duplicados si ya existe en la DB
                         const exists = db.banco.some(b => b.date === dateClean && b.desc === fullDesc && Math.abs(b.amount - amount) < 0.01);
                         if(!exists) {
                             db.banco.push({
                                 id: 'bm-' + Date.now() + Math.random(),
                                 date: dateClean,
-                                desc: fullDesc || "Movimiento sin nombre",
+                                desc: fullDesc || "Movimiento Banco",
                                 amount: amount,
-                                status: 'pending' // Estado inicial: Pendiente de conciliar
+                                status: 'pending'
                             });
                             imported++;
                         }
@@ -213,19 +206,19 @@ export async function render(container, supabase, db, opts = {}) {
                 }
 
                 await saveFn(`Importados ${imported} movimientos ✅`);
-                render(container, supabase, db, opts); // Recargar pantalla
+                render(container, supabase, db, opts);
 
             } catch (err) {
                 console.error(err);
-                alert("Error al leer Excel: " + err.message);
+                alert("Error al procesar: " + err.message);
                 render(container, supabase, db, opts);
             }
         };
         reader.readAsArrayBuffer(file);
-        e.target.value = ''; // Limpiar input para poder subir el mismo archivo si hace falta
+        e.target.value = '';
     };
 
-    // --- 2. RENDER LISTA BANCO ---
+    // --- RENDER Y LOGICA ---
     const renderBankList = () => {
         const pending = db.banco.filter(b => b.status === 'pending').sort((a,b) => new Date(b.date) - new Date(a.date));
         
@@ -251,7 +244,6 @@ export async function render(container, supabase, db, opts = {}) {
         `).join('');
     };
 
-    // --- 3. MATCHING (BUSCADOR DE COINCIDENCIAS) ---
     window.selectBankItem = (id) => {
         selectedBankId = id;
         renderBankList();
@@ -261,7 +253,6 @@ export async function render(container, supabase, db, opts = {}) {
 
         let html = `<div class="animate-fade-in w-full h-full flex flex-col">`;
         
-        // Tarjeta del Movimiento
         html += `
             <div class="bg-white p-4 rounded-2xl border border-indigo-100 mb-6 shadow-sm">
                 <p class="text-[9px] font-black text-indigo-400 uppercase">Movimiento Seleccionado</p>
@@ -272,23 +263,21 @@ export async function render(container, supabase, db, opts = {}) {
         `;
 
         let matches = [];
-        const tolerance = 0.05; // 5 céntimos de margen
+        const tolerance = 0.05;
 
         if(item.amount > 0) {
-            // Si es ingreso (+) -> Buscamos en Ventas (Cierres/Facturas)
+            // INGRESOS -> BUSCAR EN VENTAS
             db.facturas.filter(f => !f.reconciled).forEach(f => {
                 const diff = Math.abs(parseFloat(f.total) - item.amount);
-                if(diff <= tolerance) matches.push({ type: 'Venta/Cierre', data: f, score: 100 });
-                else if(diff < 5) matches.push({ type: 'Venta/Cierre', data: f, score: 50 });
+                if(diff <= tolerance) matches.push({ type: 'Venta', data: f, score: 100 });
+                else if(diff < 5) matches.push({ type: 'Venta', data: f, score: 50 });
             });
         } else {
-            // Si es gasto (-) -> Buscamos en Albaranes
+            // GASTOS -> BUSCAR EN ALBARANES
             const target = Math.abs(item.amount);
             db.albaranes.filter(a => !a.reconciled).forEach(a => {
                 const diff = Math.abs(parseFloat(a.total) - target);
-                // 1. Por importe exacto
                 if(diff <= tolerance) matches.push({ type: 'Albarán', data: a, score: 100 });
-                // 2. Por texto similar
                 else if (item.desc.toLowerCase().includes((a.prov||'').toLowerCase()) && diff < 20) {
                     matches.push({ type: 'Albarán', data: a, score: 80 });
                 }
@@ -321,7 +310,6 @@ export async function render(container, supabase, db, opts = {}) {
             `;
         }
 
-        // OPCIÓN: CREAR GASTO AUTOMÁTICO (Si es un gasto y no hay match)
         if(item.amount < 0 && matches.length === 0) {
             html += `
                 <div class="mt-4 pt-4 border-t border-slate-200">
@@ -337,12 +325,11 @@ export async function render(container, supabase, db, opts = {}) {
         matchPanel.innerHTML = html;
     };
 
-    // --- 4. ACCIONES (CONCILIAR Y CREAR) ---
     window.confirmMatch = async (bankId, erpId, type) => {
         const bItem = db.banco.find(b => b.id === bankId);
         if(bItem) bItem.status = 'matched';
 
-        if(type === 'Albarán' || type === 'Gasto') {
+        if(type === 'Albarán') {
             const alb = db.albaranes.find(a => a.id === erpId);
             if(alb) { alb.reconciled = true; alb.paid = true; }
         } else {
@@ -362,7 +349,6 @@ export async function render(container, supabase, db, opts = {}) {
         const concepto = prompt("Concepto para el nuevo gasto:", item.desc) || item.desc;
         const importe = Math.abs(item.amount);
 
-        // Crear Albarán Automático (IVA 0 por defecto al venir de banco)
         db.albaranes.push({
             id: 'auto-' + Date.now(),
             date: item.date,
