@@ -14,7 +14,7 @@ window.Num = {
 
 // 1. CONFIGURACIÓN SUPABASE
 const SUPABASE_URL = "https://awbgboucnbsuzojocbuy.supabase.co";
-const SUPABASE_KEY = "sb_publishable_drOQ5PsFA8eox_aRTXNATQ_5kibM6ST";
+const SUPABASE_KEY = "sb_publishable_drOQ5PsFA8eox_aRTXNATQ_5kibM6ST"; // Nota: Asegúrate de que esta key sea correcta
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 window.sb = sb;
@@ -56,6 +56,11 @@ async function cargarDatosDeLaNube() {
         if(!window.db.facturas) window.db.facturas = []; // Ventas
         if(!window.db.albaranes) window.db.albaranes = []; // Gastos
         if(!window.db.gastos_fijos) window.db.gastos_fijos = []; // Alquileres, luz...
+        
+        // --- NUEVO: Módulo Amortizaciones ---
+        if(!window.db.activos) window.db.activos = []; 
+        // ------------------------------------
+
         if(!window.db.config) window.db.config = { objetivoMensual: 30000 };
         // ---------------------------------------------------
         
@@ -98,8 +103,7 @@ window.loadModule = async function(name) {
         if (mod.render) {
             await mod.render(container, window.sb, window.db);
             
-            // --- GESTIÓN DE BOTONES ACTIVOS (CORREGIDA) ---
-            // Usamos clases seguras 'nav-icon' y 'nav-text'
+            // --- GESTIÓN DE BOTONES ACTIVOS ---
             document.querySelectorAll('.nav-icon').forEach(icon => {
                 icon.style.opacity = '0.5';
                 icon.style.transform = 'scale(1)';
@@ -139,7 +143,8 @@ window.loadModule = async function(name) {
             </div>`;
     }
 };
-// 5. MENÚ DE NAVEGACIÓN (Navbar con Nombres Lógicos)
+
+// 5. MENÚ DE NAVEGACIÓN (Navbar con Amortizaciones Añadido)
 function renderNav() {
     const nav = document.getElementById('navbar');
     if (!nav) return;
@@ -172,6 +177,10 @@ function renderNav() {
                 <span class="text-[8px] font-black uppercase text-slate-400 group-hover:text-indigo-500 nav-text">Fijos</span>
             </button>
 
+            <button onclick="loadModule('amortizaciones')" class="flex flex-col items-center gap-1 min-w-[45px] shrink-0 group">
+                <span class="text-xl transition-all nav-icon">📉</span>
+                <span class="text-[8px] font-black uppercase text-slate-400 group-hover:text-indigo-500 nav-text">Amort.</span>
+            </button>
             <div class="w-px h-6 bg-slate-200 shrink-0"></div> 
 
             <button onclick="loadModule('menu')" class="flex flex-col items-center gap-1 min-w-[45px] shrink-0 group">
@@ -192,6 +201,7 @@ function renderNav() {
         </div>
     `;
 }
+
 // 6. FUNCIÓN GLOBAL PARA GUARDAR (Sincronización)
 window.save = async function(mensaje = "Datos guardados") {
     // Marca de tiempo
@@ -220,7 +230,33 @@ window.save = async function(mensaje = "Datos guardados") {
     }
 };
 
-// 7. LÓGICA DE BARRA DINÁMICA (Esconder al bajar, mostrar al subir)
+// 7. LÓGICA DE NEGOCIO GLOBAL
+// Cálculo de amortizaciones (se usa en Dashboard y en el módulo Amortizaciones)
+window.calcularAmortizacionMensual = function(activos) {
+    if (!activos || activos.length === 0) return 0;
+    
+    const hoy = new Date();
+    let gastoTotalMes = 0;
+
+    activos.forEach(activo => {
+        // Validación básica
+        if(!activo.fecha_compra || !activo.importe || !activo.vida_util_meses) return;
+
+        const fechaCompra = new Date(activo.fecha_compra);
+        // Calculamos diferencia en meses exacta
+        const mesesTranscurridos = (hoy.getFullYear() - fechaCompra.getFullYear()) * 12 + (hoy.getMonth() - fechaCompra.getMonth());
+        
+        // Si aún está dentro de su vida útil
+        if (mesesTranscurridos >= 0 && mesesTranscurridos < activo.vida_util_meses) {
+            const cuotaMensual = activo.importe / activo.vida_util_meses;
+            gastoTotalMes += cuotaMensual;
+        }
+    });
+
+    return gastoTotalMes;
+};
+
+// 8. LÓGICA DE BARRA DINÁMICA (Esconder al bajar, mostrar al subir)
 let lastScrollTop = 0;
 window.addEventListener("scroll", function() {
     const nav = document.getElementById("navbar");
