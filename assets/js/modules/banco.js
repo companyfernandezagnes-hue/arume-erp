@@ -1,6 +1,9 @@
 /* =============================================================
-   🏦 MÓDULO: TESORERÍA PRO (Conciliación + Previsión + TPV)
+   🏦 MÓDULO: TESORERÍA PRO (Soporte EXCEL + Conciliación)
    ============================================================= */
+
+// IMPORTAMOS LA LIBRERÍA PARA LEER EXCEL
+import * as XLSX from 'https://cdn.sheetjs.com/xlsx-0.20.1/package/xlsx.mjs';
 
 export async function render(container, supabase, db, opts = {}) {
     const saveFn = opts.save || (window.save ? window.save : async () => {});
@@ -18,7 +21,7 @@ export async function render(container, supabase, db, opts = {}) {
     // A. Saldo Teórico (Suma de todo lo importado)
     const saldoTeorico = db.banco.reduce((acc, b) => acc + (parseFloat(b.amount)||0), 0);
 
-    // B. Comisiones del Mes (Detectadas por palabras clave)
+    // B. Comisiones del Mes
     const comisionesMes = db.banco
         .filter(b => {
             const d = new Date(b.date);
@@ -29,7 +32,7 @@ export async function render(container, supabase, db, opts = {}) {
         })
         .reduce((acc, b) => acc + (parseFloat(b.amount)||0), 0);
 
-    // C. Ingresos TPV del Mes (Detectados por 'tpv', 'tarjeta', 'redsys')
+    // C. Ingresos TPV del Mes
     const tpvMes = db.banco
         .filter(b => {
             const d = new Date(b.date);
@@ -41,7 +44,7 @@ export async function render(container, supabase, db, opts = {}) {
         })
         .reduce((acc, b) => acc + (parseFloat(b.amount)||0), 0);
 
-    // D. Previsión Fin de Mes (Pagos pendientes de Albaranes con fecha de este mes)
+    // D. Previsión Fin de Mes
     const pagosPendientes = db.albaranes
         .filter(a => {
             const d = new Date(a.date);
@@ -49,7 +52,7 @@ export async function render(container, supabase, db, opts = {}) {
         })
         .reduce((acc, a) => acc + (parseFloat(a.total)||0), 0);
 
-    // E. Capacidad Real (Saldo Banco - Pagos que faltan por salir)
+    // E. Capacidad Real
     const capacidadReal = saldoTeorico - pagosPendientes;
 
 
@@ -61,11 +64,11 @@ export async function render(container, supabase, db, opts = {}) {
             <div class="flex justify-between items-center">
                 <div>
                     <h2 class="text-xl font-black text-slate-800">Tesorería & Banco</h2>
-                    <p class="text-[10px] text-indigo-500 font-bold uppercase tracking-widest">Control Financiero 360º</p>
+                    <p class="text-[10px] text-indigo-500 font-bold uppercase tracking-widest">Soporte Excel (.xlsx)</p>
                 </div>
                 <label class="bg-slate-900 text-white px-5 py-3 rounded-2xl text-[10px] font-black hover:bg-slate-800 transition cursor-pointer flex items-center gap-2 shadow-lg">
-                    <span>📥</span> IMPORTAR CSV
-                    <input type="file" id="bankCsv" class="hidden" accept=".csv,.txt">
+                    <span>📥</span> IMPORTAR EXCEL
+                    <input type="file" id="bankCsv" class="hidden" accept=".csv, .xlsx, .xls">
                 </label>
             </div>
 
@@ -109,7 +112,7 @@ export async function render(container, supabase, db, opts = {}) {
                 <div id="list-bank" class="space-y-3 h-[500px] overflow-y-auto custom-scrollbar pb-10">
                     <div class="flex flex-col items-center justify-center h-full text-slate-300 gap-2">
                         <span class="text-4xl">🏦</span>
-                        <p class="text-xs">Sube tu extracto para empezar</p>
+                        <p class="text-xs">Sube tu Excel del banco para empezar</p>
                     </div>
                 </div>
             </div>
@@ -138,53 +141,95 @@ export async function render(container, supabase, db, opts = {}) {
     const matchPanel = container.querySelector("#match-panel");
     let selectedBankId = null;
 
-    // --- 1. IMPORTAR CSV (Detecta formato auto) ---
-    container.querySelector("#bankCsv").onchange = (e) => {
+    // --- 1. LÓGICA DE IMPORTACIÓN EXCEL (Nueva y Potente) ---
+    container.querySelector("#bankCsv").onchange = async (e) => {
         const file = e.target.files[0];
         if(!file) return;
 
+        // Overlay de carga
+        listBank.innerHTML = `<div class="flex h-full items-center justify-center text-indigo-500 font-bold animate-pulse">Analizando Excel...</div>`;
+
         const reader = new FileReader();
         reader.onload = async (evt) => {
-            const text = evt.target.result;
-            const lines = text.split('\n');
-            let imported = 0;
+            try {
+                const data = new Uint8Array(evt.target.result);
+                // Leemos el Excel
+                const workbook = XLSX.read(data, {type: 'array'});
+                // Cogemos la primera hoja
+                const firstSheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[firstSheetName];
+                // Convertimos a JSON (Array de Arrays para ser más flexibles)
+                const rows = XLSX.utils.sheet_to_json(worksheet, {header: 1, raw: false, dateNF: 'yyyy-mm-dd'});
 
-            lines.forEach((line, idx) => {
-                if(idx === 0 || !line.trim()) return; // Saltar header
-                
-                // Detectar separador
-                const cols = line.includes(';') ? line.split(';') : line.split(',');
-                
-                // Intentar leer columnas (Fecha, Desc, Importe)
-                if(cols.length >= 3) {
-                    const date = cols[0].trim(); 
-                    const desc = cols[1].trim().replace(/"/g, '');
-                    // Limpieza agresiva de importe
-                    let amountStr = cols[2] || cols[3] || "0"; 
-                    if(cols.length > 3 && !cols[2].match(/[0-9]/)) amountStr = cols[3];
-                    const amount = parseFloat(amountStr.replace(/[^0-9,-]/g, '').replace(',','.'));
+                if (!rows || rows.length === 0) return alert("El Excel parece vacío");
 
-                    if(!isNaN(amount)) {
-                        // Evitar duplicados
-                        const exists = db.banco.some(b => b.date === date && b.desc === desc && Math.abs(b.amount - amount) < 0.01);
+                let imported = 0;
+                
+                // INTELIGENCIA PARA DETECTAR COLUMNAS
+                // Buscamos en las primeras 10 filas qué índice tiene pinta de qué
+                let dateIdx = -1, descIdx = -1, amountIdx = -1;
+
+                // Buscamos cabeceras o datos
+                for(let i=0; i<Math.min(rows.length, 10); i++) {
+                    const row = rows[i];
+                    row.forEach((cell, idx) => {
+                        const txt = String(cell).toLowerCase();
+                        if (txt.includes('fecha') || txt.includes('date') || txt.match(/\d{2}\/\d{2}/)) dateIdx = idx;
+                        if (txt.includes('concepto') || txt.includes('desc') || txt.length > 15) descIdx = idx;
+                        if (txt.includes('importe') || txt.includes('cantidad') || txt.includes('amount') || (!isNaN(parseFloat(txt)) && txt.includes(','))) amountIdx = idx;
+                    });
+                    if (dateIdx > -1 && descIdx > -1 && amountIdx > -1) break;
+                }
+
+                // Fallback si no encuentra cabeceras (asumimos estándar A=Fecha, B=Desc, C=Importe)
+                if (dateIdx === -1) dateIdx = 0;
+                if (descIdx === -1) descIdx = 1;
+                if (amountIdx === -1) amountIdx = 2; // A veces el importe está en la 3 o 4
+
+                // PROCESAMOS FILAS
+                rows.forEach((row, idx) => {
+                    // Saltamos filas muy cortas o vacías
+                    if (!row[dateIdx] || !row[amountIdx]) return;
+
+                    const dateRaw = row[dateIdx];
+                    const descRaw = row[descIdx] || "Sin concepto";
+                    // Limpieza agresiva de importe (quita 'EUR', espacios, etc)
+                    let amountStr = String(row[amountIdx]).replace(/[^\d.,-]/g, '');
+                    // Si tiene coma y punto, asumimos formato español (1.000,00) -> 1000.00
+                    if (amountStr.includes('.') && amountStr.includes(',')) {
+                        amountStr = amountStr.replace('.', '').replace(',', '.');
+                    } else if (amountStr.includes(',')) {
+                        amountStr = amountStr.replace(',', '.');
+                    }
+                    
+                    const amount = parseFloat(amountStr);
+
+                    if (!isNaN(amount) && Math.abs(amount) > 0) {
+                        // Evitar duplicados exactos
+                        const exists = db.banco.some(b => b.date === dateRaw && b.desc === descRaw && Math.abs(b.amount - amount) < 0.01);
                         if(!exists) {
                             db.banco.push({
                                 id: 'bank-' + Date.now() + Math.random(),
-                                date: date,
-                                desc: desc,
+                                date: dateRaw,
+                                desc: descRaw,
                                 amount: amount,
                                 status: 'pending'
                             });
                             imported++;
                         }
                     }
-                }
-            });
+                });
 
-            await saveFn(`Importados ${imported} movimientos 📥`);
-            render(container, supabase, db, opts); // Recargar para actualizar KPIs
+                await saveFn(`Excel Procesado: ${imported} nuevos 📥`);
+                render(container, supabase, db, opts);
+
+            } catch (err) {
+                console.error(err);
+                alert("Error leyendo el Excel. Asegúrate que no esté corrupto.");
+                render(container, supabase, db, opts); // Restaurar vista
+            }
         };
-        reader.readAsText(file);
+        reader.readAsArrayBuffer(file); // IMPORTANTE: ArrayBuffer para Excel
         e.target.value = '';
     };
 
@@ -214,7 +259,7 @@ export async function render(container, supabase, db, opts = {}) {
         `).join('');
     };
 
-    // --- 3. MATCHING INTELLIGENCE ---
+    // --- 3. MATCHING INTELLIGENCE (CEREBRO) ---
     window.selectBankItem = (id) => {
         selectedBankId = id;
         renderBankList();
@@ -224,7 +269,7 @@ export async function render(container, supabase, db, opts = {}) {
 
         let html = `<div class="animate-fade-in w-full h-full flex flex-col">`;
         
-        // Tarjeta Item
+        // Tarjeta Item Seleccionado
         html += `
             <div class="bg-white p-4 rounded-2xl border border-indigo-100 mb-6 shadow-sm">
                 <p class="text-[9px] font-black text-indigo-400 uppercase">Movimiento Banco</p>
@@ -239,7 +284,7 @@ export async function render(container, supabase, db, opts = {}) {
         const tolerance = 0.05;
 
         if(item.amount > 0) {
-            // Ingresos -> Buscar en Ventas
+            // Ingresos -> Buscar en Ventas (Facturas)
             db.facturas.filter(f => !f.reconciled).forEach(f => {
                 const diff = Math.abs(parseFloat(f.total) - item.amount);
                 if(diff <= tolerance) matches.push({ type: 'Venta/Z', data: f, score: 100 });
@@ -286,7 +331,7 @@ export async function render(container, supabase, db, opts = {}) {
             `;
         }
 
-        // CREAR GASTO RÁPIDO (Solo para salidas)
+        // CREAR GASTO RÁPIDO (Solo para salidas sin match)
         if(item.amount < 0 && matches.length === 0) {
             html += `
                 <div class="mt-4 pt-4 border-t border-slate-200">
@@ -317,7 +362,7 @@ export async function render(container, supabase, db, opts = {}) {
 
         await saveFn("Conciliado ✅");
         selectedBankId = null;
-        render(container, supabase, db, opts); // Recargar para actualizar KPIs
+        render(container, supabase, db, opts);
     };
 
     window.createExpenseFromBank = async (bankId) => {
@@ -327,16 +372,17 @@ export async function render(container, supabase, db, opts = {}) {
         const concepto = prompt("Confirma el concepto:", item.desc) || item.desc;
         const importe = Math.abs(item.amount);
 
+        // Creamos el albarán automáticamente
         db.albaranes.push({
             id: 'auto-' + Date.now(),
-            date: item.date,
+            date: item.date, // Usamos la fecha del banco
             prov: concepto,
             num: "BANCO",
             total: importe,
-            base: importe,
-            tax: 0,
+            base: importe, // Asumimos sin IVA por defecto al crear desde banco
+            taxes: 0,
             paid: true,
-            reconciled: true, // Ya nace conciliado
+            reconciled: true,
             notes: "Creado desde Banco"
         });
 
@@ -348,9 +394,7 @@ export async function render(container, supabase, db, opts = {}) {
 
     // Botón Limpiar
     container.querySelector("#btnClearBank").onclick = async () => {
-        if(confirm("¿Ocultar los movimientos ya conciliados (verde)?")) {
-            // No los borramos de la DB, solo cambiamos su status o filtramos
-            // Para simplificar, asumimos que 'matched' ya no se pinta en pending
+        if(confirm("¿Ocultar los movimientos ya conciliados?")) {
             renderBankList();
             render(container, supabase, db, opts);
         }
