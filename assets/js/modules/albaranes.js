@@ -1,5 +1,5 @@
 /* =============================================================
-   🚚 MÓDULO: ALBARANES MAESTRO PRO (Fusión Total & Corrección Final)
+   🚚 MÓDULO: ALBARANES PRO (Gestión Total: OCR + GMAIL + VISOR)
    ============================================================= */
 
 import Tesseract from 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.esm.min.js';
@@ -7,10 +7,14 @@ import Tesseract from 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesserac
 export async function render(container, supabase, db, opts = {}) {
     const saveFn = opts.save || (window.save ? window.save : async () => {});
 
-    // 1. INICIALIZACIÓN DE DATOS
+    // 1. INICIALIZACIÓN
     if (!Array.isArray(db.albaranes)) db.albaranes = [];
     const listaSocios = db.listaSocios || ['Jeronimo','Pedro','Pau','Agnes'];
     let filtroOwner = 'Todos'; 
+
+    // --- DETECTAR ENTRADAS DE GMAIL (NUEVO) ---
+    // El script de Google pone status: 'pending'. Filtramos esos.
+    const inbox = db.albaranes.filter(a => a.status === 'pending');
 
     // 2. FUNCIÓN OCR (IA)
     const runOCR = async (file) => {
@@ -26,21 +30,42 @@ export async function render(container, supabase, db, opts = {}) {
         
         <header class="flex flex-col md:flex-row justify-between items-center bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 gap-4">
             <div>
-                <h2 class="text-xl font-black text-slate-800">Escáner Multi-IVA</h2>
+                <h2 class="text-xl font-black text-slate-800">Gestión de Compras</h2>
                 <p class="text-[10px] text-indigo-500 font-bold uppercase tracking-widest">Digitalización & Auditoría</p>
             </div>
             <div class="flex gap-2 items-center flex-wrap justify-center">
                 <label class="bg-indigo-600 text-white px-5 py-3 rounded-2xl text-[10px] font-black hover:bg-indigo-700 transition cursor-pointer shadow-lg flex items-center gap-2">
-                    <span>📷</span> ESCANEAR TICKET
+                    <span>📷</span> FOTO TICKET
                     <input type="file" id="ocrInput" class="hidden" accept="image/*" capture="environment">
                 </label>
                 <button id="btnExport" class="bg-slate-800 text-white px-5 py-3 rounded-2xl text-[10px] font-black shadow-md transition">⬇️ CSV</button>
-                <label class="bg-indigo-50 text-indigo-600 px-5 py-3 rounded-2xl text-[10px] font-black hover:bg-indigo-100 transition cursor-pointer border border-indigo-100 flex items-center gap-2">
-                    <span>📂</span> IMPORTAR
-                    <input type="file" id="csvInput" class="hidden" accept=".csv">
-                </label>
             </div>
         </header>
+
+        ${inbox.length > 0 ? `
+        <div class="bg-indigo-50 p-4 rounded-[2rem] border border-indigo-100 relative overflow-hidden animate-pulse-slow">
+            <div class="flex justify-between items-center relative z-10">
+                <div class="flex items-center gap-3">
+                    <span class="bg-indigo-500 text-white w-10 h-10 rounded-full flex items-center justify-center text-lg shadow-md">📧</span>
+                    <div>
+                        <h3 class="font-black text-indigo-900 text-sm">Recibidos por Email</h3>
+                        <p class="text-[10px] text-indigo-600">Tienes <b>${inbox.length}</b> facturas sin revisar</p>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-4 space-y-2 relative z-10">
+                ${inbox.map(item => `
+                    <div onclick="window.editarAlbaran('${item.id}')" class="bg-white p-3 rounded-xl shadow-sm flex justify-between items-center cursor-pointer hover:scale-[1.01] transition">
+                        <div>
+                            <p class="text-xs font-bold text-slate-700">${item.prov || 'Proveedor Desconocido'}</p>
+                            <p class="text-[9px] text-slate-400">${item.date} · ${item.notes || 'Sin asunto'}</p>
+                        </div>
+                        <button class="text-[9px] bg-indigo-100 text-indigo-600 px-3 py-1 rounded-lg font-bold">REVISAR</button>
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+        ` : ''}
 
         <div class="bg-white px-6 py-3 rounded-2xl border border-slate-100 shadow-sm flex justify-between items-center">
             <span class="text-[10px] font-black text-slate-400 uppercase">Total Soportado</span>
@@ -58,7 +83,7 @@ export async function render(container, supabase, db, opts = {}) {
                         <p class="text-xs font-black text-indigo-600 animate-pulse">ANALIZANDO TICKET...</p>
                     </div>
 
-                    <h3 class="text-sm font-black text-slate-800 mb-4 flex items-center gap-2">⚡ Entrada Rápida</h3>
+                    <h3 class="text-sm font-black text-slate-800 mb-4 flex items-center gap-2">⚡ Entrada Manual</h3>
 
                     <div class="space-y-3 mb-4">
                         <input id="inProv" type="text" placeholder="Proveedor" class="w-full p-3 bg-slate-50 rounded-xl text-sm font-bold border-0 outline-none focus:ring-2 focus:ring-indigo-500 transition">
@@ -70,7 +95,6 @@ export async function render(container, supabase, db, opts = {}) {
                             <option value="Arume">Gasto: Restaurante (Arume)</option>
                             ${listaSocios.map(s => `<option value="${s}">Gasto: ${s}</option>`).join('')}
                         </select>
-                        <input id="inNotes" type="text" placeholder="📝 Notas..." class="w-full p-3 bg-amber-50 text-amber-900 rounded-xl text-xs font-bold border border-amber-100 outline-none">
                     </div>
 
                     <textarea id="inText" placeholder="Ej: 2 Tomates 15.00&#10;1 Ginebra 20.00 21" class="w-full h-40 bg-slate-50 rounded-2xl p-4 text-xs font-mono border-0 outline-none resize-none mb-3 shadow-inner focus:bg-white transition"></textarea>
@@ -107,7 +131,8 @@ export async function render(container, supabase, db, opts = {}) {
             </div>
         </div>
     </div>
-    <div id="modalDetalle" class="hidden fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[200] flex justify-center items-center p-4"></div>
+    
+    <div id="modalDetalle" class="hidden fixed inset-0 bg-slate-900/90 backdrop-blur-sm z-[200] flex justify-center items-center p-2 md:p-6 transition-all"></div>
     `;
 
     // --- REFERENCIAS DOM ---
@@ -119,57 +144,48 @@ export async function render(container, supabase, db, opts = {}) {
     const inDate = container.querySelector("#inDate");
     const ocrOverlay = container.querySelector("#ocrLoadingOverlay");
 
-    // 4. LÓGICA DEL MOTOR (IA + PARSEO)
+    // 4. LÓGICA OCR (CÁMARA)
     container.querySelector("#ocrInput").onchange = async (e) => {
         const file = e.target.files[0];
         if (!file) return;
         ocrOverlay.classList.remove("hidden");
         try {
             const text = await runOCR(file);
-            // Busca números que parezcan precios
             const prices = [...text.matchAll(/(\d+[.,]\d{2})/g)].map(m => parseFloat(m[1].replace(',','.')));
             const total = prices.length > 0 ? Math.max(...prices) : 0;
             if(total > 0) {
                 inText.value = `Compra Escaneada ${total.toFixed(2)}`;
                 inText.dispatchEvent(new Event('input'));
             }
-            // Intentar adivinar proveedor
             const conocidos = ["makro", "mercadona", "repsol", "iberdrola", "amazon", "mahou", "estrella"];
             conocidos.forEach(p => { if(text.toLowerCase().includes(p)) inProv.value = p.toUpperCase(); });
-            
-            container.querySelector("#inNotes").value = "Escaneado OCR";
         } catch (err) { console.error(err); alert("Error en lectura OCR"); }
         finally { ocrOverlay.classList.add("hidden"); e.target.value = ''; }
     };
 
+    // 5. PARSEADOR DE TEXTO (Líneas a Números)
     const analizarTexto = (texto) => {
         return texto.split('\n').filter(l => l.trim()).map(line => {
             let clean = line.trim();
             let rate = 10; // IVA por defecto
-            
-            // Detectar 4, 10 o 21 al final
             const taxMatch = clean.match(/\s(4|10|21)%?$/);
             if (taxMatch) {
                 rate = parseInt(taxMatch[1]);
                 clean = clean.substring(0, taxMatch.index).trim();
             }
-
             const priceMatch = clean.match(/(\d+[\.,]?\d*)\s*€?$/);
             if (priceMatch) {
                 const priceVal = parseFloat(priceMatch[1].replace(',', '.'));
                 let rest = clean.substring(0, priceMatch.index).trim();
                 let qty = 1;
-                
                 const qtyMatch = rest.match(/^(\d+[\.,]?\d*)\s+/);
                 if (qtyMatch) {
                     qty = parseFloat(qtyMatch[1].replace(',', '.'));
                     rest = rest.substring(qtyMatch[0].length).trim();
                 }
-                
                 const totalLine = qty * priceVal;
                 const baseLine = totalLine / (1 + rate/100);
                 const taxLine = totalLine - baseLine;
-                
                 return { q: qty, n: rest || "Varios", p: priceVal, rate, t: totalLine, base: baseLine, tax: taxLine };
             }
             return null;
@@ -208,13 +224,13 @@ export async function render(container, supabase, db, opts = {}) {
         liveTotal.innerText = grandTotal.toFixed(2) + "€";
     });
 
-    // 5. GUARDAR (CON BASE E IVA SEPARADOS)
+    // 6. GUARDAR (MANUAL)
     container.querySelector("#btnProcesar").onclick = async () => {
         const items = analizarTexto(inText.value);
         const total = parseFloat(liveTotal.innerText);
         if(total <= 0) return alert("Introduce datos");
 
-        const nuevo = {
+        db.albaranes.push({
             id: Date.now().toString(),
             prov: container.querySelector("#inProv").value || "Varios",
             num: container.querySelector("#inRef").value || "S/N",
@@ -226,17 +242,16 @@ export async function render(container, supabase, db, opts = {}) {
             base: items.reduce((acc, it) => acc + it.base, 0),
             invoiced: false,
             paid: container.querySelector("#inPaid").checked,
-            notes: container.querySelector("#inNotes").value
-        };
+            status: 'ok' // Guardado manual es OK
+        });
 
-        db.albaranes.push(nuevo);
         await saveFn("Gasto guardado ✅");
-        inText.value = ""; inProv.value = ""; container.querySelector("#inNotes").value = "";
+        inText.value = ""; inProv.value = ""; 
         inText.dispatchEvent(new Event('input'));
         pintarLista();
     };
 
-    // 6. MODAL DE EDICIÓN Y AUDITORÍA (AQUÍ ESTABA LA MAGIA QUE NECESITAS)
+    // 7. MODAL DE EDICIÓN & VISOR PDF (¡AQUÍ ESTÁ LA INTEGRACIÓN!)
     window.editarAlbaran = (id) => {
         const a = db.albaranes.find(x => x.id === id);
         if(!a) return;
@@ -246,67 +261,71 @@ export async function render(container, supabase, db, opts = {}) {
         const baseMostrar = a.base ? a.base : (a.total / 1.10);
         const ivaMostrar = a.taxes ? a.taxes : (a.total - baseMostrar);
 
-        // Generador de lista de productos para el modal
-        let productosHTML = '';
-        if (Array.isArray(a.items) && a.items.length > 0) {
-            productosHTML = `
-                <div class="mt-4 border-t border-slate-100 pt-4">
-                    <p class="text-[10px] font-black text-indigo-500 uppercase mb-2">Desglose:</p>
-                    <div class="space-y-1 max-h-48 overflow-y-auto pr-2 custom-scrollbar bg-slate-50 p-2 rounded-2xl">
-                        ${a.items.map(it => `
-                            <div class="flex justify-between items-center text-[11px] py-1 border-b border-white last:border-0">
-                                <span><b class="text-slate-600">${it.q}x</b> ${it.n}</span>
-                                <div class="flex gap-2">
-                                    <span class="text-[9px] text-slate-400 mt-0.5">${it.rate}% IVA</span>
-                                    <span class="font-black text-slate-900">${(it.t || 0).toFixed(2)}€</span>
-                                </div>
-                            </div>
-                        `).join('')}
-                    </div>
-                </div>
-            `;
-        } else {
-            productosHTML = `<p class="text-[10px] text-slate-400 italic mt-4 text-center">Sin desglose de productos</p>`;
-        }
+        // Si hay PDF/Imagen, preparamos el visor
+        const viewerHtml = a.attachment_url ? `
+            <div class="h-64 lg:h-auto bg-slate-800 rounded-xl overflow-hidden flex items-center justify-center relative mb-4 lg:mb-0 lg:mr-4 border border-slate-700">
+                ${a.attachment_url.toLowerCase().includes('.pdf') 
+                    ? `<iframe src="${a.attachment_url}" class="w-full h-full" frameborder="0"></iframe>`
+                    : `<img src="${a.attachment_url}" class="max-w-full max-h-full object-contain">`
+                }
+                <a href="${a.attachment_url}" target="_blank" class="absolute top-2 right-2 bg-black/50 text-white px-2 py-1 rounded text-[10px] hover:bg-black">↗️ Abrir</a>
+            </div>
+        ` : '';
+
+        // Layout del modal: Si hay adjunto, hacemos 2 columnas. Si no, 1.
+        const gridClass = a.attachment_url ? 'grid grid-cols-1 lg:grid-cols-2' : '';
 
         modal.innerHTML = `
-            <div class="bg-white w-full max-w-lg rounded-[2.5rem] p-8 shadow-2xl animate-slide-up relative">
-                <button onclick="document.getElementById('modalDetalle').classList.add('hidden')" class="absolute top-6 right-6 text-slate-300 hover:text-slate-600 text-2xl">✕</button>
-                <h3 class="text-2xl font-black text-slate-800 mb-6">Detalle Albarán</h3>
+            <div class="bg-white w-full max-w-5xl rounded-[2.5rem] p-6 shadow-2xl animate-slide-up relative h-[90vh] overflow-hidden flex flex-col">
+                <button onclick="document.getElementById('modalDetalle').classList.add('hidden')" class="absolute top-6 right-6 text-slate-300 hover:text-slate-600 text-2xl z-50">✕</button>
+                <h3 class="text-xl font-black text-slate-800 mb-4 px-2">Revisión Gasto</h3>
                 
-                <div class="grid grid-cols-2 gap-4 mb-4">
-                    <input id="ed-prov" type="text" value="${a.prov}" class="p-3 bg-slate-50 rounded-xl font-bold border border-slate-100">
-                    <input id="ed-date" type="date" value="${a.date}" class="p-3 bg-slate-50 rounded-xl font-bold border border-slate-100">
-                </div>
+                <div class="flex-1 overflow-y-auto ${gridClass} gap-6 p-2">
+                    
+                    ${a.attachment_url ? `<div class="h-full min-h-[300px] flex flex-col">${viewerHtml}</div>` : ''}
 
-                <div class="grid grid-cols-2 gap-4 mb-4">
-                    <div class="bg-slate-50 p-3 rounded-2xl border border-slate-200">
-                        <p class="text-[9px] font-bold text-slate-400 uppercase">Base</p>
-                        <p class="text-lg font-black text-slate-700">${parseFloat(baseMostrar).toFixed(2)}€</p>
+                    <div class="space-y-4">
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="text-[9px] font-bold text-slate-400 uppercase">Proveedor</label>
+                                <input id="ed-prov" type="text" value="${a.prov}" class="w-full p-3 bg-slate-50 rounded-xl font-bold border border-slate-100">
+                            </div>
+                            <div>
+                                <label class="text-[9px] font-bold text-slate-400 uppercase">Fecha</label>
+                                <input id="ed-date" type="date" value="${a.date}" class="w-full p-3 bg-slate-50 rounded-xl font-bold border border-slate-100">
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="bg-slate-50 p-3 rounded-2xl border border-slate-200">
+                                <p class="text-[9px] font-bold text-slate-400 uppercase">Base</p>
+                                <p class="text-lg font-black text-slate-700">${parseFloat(baseMostrar).toFixed(2)}€</p>
+                            </div>
+                            <div class="bg-emerald-50 p-3 rounded-2xl border border-emerald-200">
+                                <p class="text-[9px] font-bold text-emerald-600 uppercase">IVA</p>
+                                <p class="text-lg font-black text-emerald-600">+${parseFloat(ivaMostrar).toFixed(2)}€</p>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="text-[9px] font-bold text-slate-400 uppercase">Total (€)</label>
+                            <input id="ed-total" type="number" value="${a.total}" class="w-full p-4 bg-slate-900 text-white rounded-xl font-black text-2xl">
+                            <p class="text-[9px] text-slate-400 mt-1">Modifica el total si el Robot no lo leyó bien.</p>
+                        </div>
+
+                        <div class="flex items-center gap-3 py-2">
+                            <input type="checkbox" id="ed-paid" ${a.paid ? 'checked' : ''} class="w-5 h-5 accent-emerald-500">
+                            <label class="text-sm font-bold text-slate-700">Ya está pagado</label>
+                        </div>
+
+                        <div class="pt-4 border-t border-slate-100 mt-4">
+                            <button id="btnSaveEd" class="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black shadow-lg hover:bg-indigo-700 transition">
+                                ${a.status === 'pending' ? '✅ APROBAR Y GUARDAR' : 'GUARDAR CAMBIOS'}
+                            </button>
+                            <button onclick="window.borrarAlbaran('${a.id}')" class="w-full text-rose-500 text-[10px] font-black mt-4 uppercase tracking-widest hover:text-rose-700">Eliminar / Rechazar</button>
+                        </div>
                     </div>
-                    <div class="bg-emerald-50 p-3 rounded-2xl border border-emerald-200">
-                        <p class="text-[9px] font-bold text-emerald-600 uppercase">IVA</p>
-                        <p class="text-lg font-black text-emerald-600">+${parseFloat(ivaMostrar).toFixed(2)}€</p>
-                    </div>
                 </div>
-
-                <div class="grid grid-cols-2 gap-4 mb-4">
-                    <input id="ed-total" type="number" value="${a.total}" class="p-3 bg-slate-900 text-white rounded-xl font-black text-lg">
-                    <select id="ed-socio" class="p-3 bg-slate-50 rounded-xl font-bold border border-slate-100">
-                        <option value="Arume" ${a.socio==='Arume'?'selected':''}>Arume</option>
-                        ${listaSocios.map(s => `<option value="${s}" ${a.socio===s?'selected':''}>${s}</option>`).join('')}
-                    </select>
-                </div>
-
-                ${productosHTML}
-
-                <div class="flex items-center gap-3 mt-6 mb-6">
-                    <input type="checkbox" id="ed-paid" ${a.paid ? 'checked' : ''} class="w-5 h-5 accent-emerald-500">
-                    <label class="text-sm font-bold text-slate-700">Gasto Pagado</label>
-                </div>
-
-                <button id="btnSaveEd" class="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black shadow-lg hover:bg-indigo-700 transition">GUARDAR CAMBIOS</button>
-                <button onclick="window.borrarAlbaran('${a.id}')" class="w-full text-rose-500 text-[10px] font-black mt-4 uppercase tracking-widest">Eliminar Registro</button>
             </div>
         `;
 
@@ -315,23 +334,28 @@ export async function render(container, supabase, db, opts = {}) {
             a.date = modal.querySelector("#ed-date").value;
             const nuevoTotal = parseFloat(modal.querySelector("#ed-total").value);
             
+            // Recálculo simple si cambia el total manual
             if (nuevoTotal !== a.total) {
                 a.total = nuevoTotal;
                 a.base = nuevoTotal / 1.10;
                 a.taxes = nuevoTotal - a.base;
             }
             
-            a.socio = modal.querySelector("#ed-socio").value;
             a.paid = modal.querySelector("#ed-paid").checked;
-            await saveFn("Albarán actualizado ✅");
+            a.status = 'ok'; // Quitamos el estado 'pending'
+            
+            await saveFn("Factura procesada ✅");
             modal.classList.add("hidden");
-            pintarLista();
+            render(container, supabase, db, opts); // Recargamos para quitar de pendientes
         };
     };
 
     const pintarLista = () => {
         const term = container.querySelector("#searchBox").value.toLowerCase();
+        
+        // Filtramos solo los que NO están pendientes (los pendientes salen arriba)
         const filtered = db.albaranes.filter(a => {
+            if (a.status === 'pending') return false; // Ya salen en la bandeja de entrada
             const esSocio = a.socio && a.socio !== 'Arume';
             if (filtroOwner === 'Arume' && esSocio) return false;
             if (filtroOwner === 'Socios' && !esSocio) return false;
@@ -343,27 +367,27 @@ export async function render(container, supabase, db, opts = {}) {
                 <div>
                     <div class="flex items-center gap-2">
                         <h4 class="font-black text-slate-800">${a.prov}</h4>
-                        <span class="text-[8px] font-bold px-2 py-0.5 rounded ${a.socio === 'Arume' ? 'bg-slate-100 text-slate-400' : 'bg-indigo-100 text-indigo-600'} uppercase">${a.socio || 'Arume'}</span>
+                        ${a.attachment_url ? '<span class="text-xs">📎</span>' : ''}
                     </div>
-                    <p class="text-[10px] text-slate-400 mt-1">${a.date} · ${a.num}</p>
+                    <p class="text-[10px] text-slate-400 mt-1">${a.date}</p>
                 </div>
                 <div class="text-right">
                     <p class="font-black text-slate-900 text-lg">${parseFloat(a.total).toFixed(2)}€</p>
                     <span class="text-[8px] font-bold ${a.paid ? 'text-emerald-500' : 'text-rose-500'} uppercase">${a.paid ? 'Pagado' : 'Pendiente'}</span>
                 </div>
             </div>
-        `).join('') || '<p class="text-center text-slate-300 py-10">Sin resultados</p>';
+        `).join('') || '<p class="text-center text-slate-300 py-10">Sin historial</p>';
         
         const totalGlobal = db.albaranes.reduce((acc, a) => acc + (parseFloat(a.total)||0), 0);
         container.querySelector("#total-global-kpi").innerText = totalGlobal.toLocaleString('es-ES', {minimumFractionDigits:2}) + "€";
     };
 
     window.borrarAlbaran = async (id) => {
-        if(!confirm("¿Borrar definitivamente?")) return;
+        if(!confirm("¿Eliminar definitivamente?")) return;
         db.albaranes = db.albaranes.filter(x => x.id !== id);
         await saveFn("Borrado");
         container.querySelector("#modalDetalle").classList.add("hidden");
-        pintarLista();
+        render(container, supabase, db, opts);
     };
 
     // Filtros y Eventos
@@ -380,33 +404,6 @@ export async function render(container, supabase, db, opts = {}) {
         };
     });
 
-    container.querySelector("#searchBox").oninput = pintarLista;
-
-    // IMPORTAR CSV
-    container.querySelector("#csvInput").onchange = (e) => {
-        const file = e.target.files[0];
-        if(!file) return;
-        const reader = new FileReader();
-        reader.onload = async (evt) => {
-            const rows = evt.target.result.split('\n').slice(1);
-            rows.forEach(row => {
-                const c = row.split(';');
-                if(c.length >= 4) {
-                    const total = parseFloat(c[3]) || 0;
-                    db.albaranes.push({ 
-                        id: Date.now()+Math.random(), 
-                        date: c[0], prov: c[1], num: c[2], 
-                        total: total, base: total/1.10, taxes: total - (total/1.10),
-                        items: [], invoiced: false, paid: true 
-                    });
-                }
-            });
-            await saveFn("Datos Importados");
-            pintarLista();
-        };
-        reader.readAsText(file);
-    };
-
     // EXPORTAR CSV
     container.querySelector("#btnExport").onclick = () => {
         const csv = "Fecha;Proveedor;Ref;Total;Base;IVA\n" + db.albaranes.map(a => `${a.date};${a.prov};${a.num};${a.total};${(a.base||0).toFixed(2)};${(a.taxes||0).toFixed(2)}`).join('\n');
@@ -416,5 +413,6 @@ export async function render(container, supabase, db, opts = {}) {
         link.click();
     };
 
+    container.querySelector("#searchBox").oninput = pintarLista;
     pintarLista();
 }
