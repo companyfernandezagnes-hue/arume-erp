@@ -1,164 +1,224 @@
 /* =============================================================
-   📊 MÓDULO: INFORMES FINANCIEROS (P&L - Cuenta de Resultados)
+   📈 MÓDULO: INFORMES & P&L PRO (Inteligencia Fiscal)
    ============================================================= */
 
 export async function render(container, supabase, db, opts = {}) {
-    // 1. Asegurar datos
-    const facts = db.facturas || [];
-    const albs = db.albaranes || [];
-    const fijos = db.gastos_fijos || [];
+    const saveFn = opts.save || (window.save ? window.save : async () => {});
 
+    // 1. OBTENCIÓN DE DATOS CENTRALIZADOS
+    const albaranes = db.albaranes || []; // Tus Compras (IVA Soportado)
+    const cierres = db.cierres || [];     // Tus Ventas (IVA Repercutido)
+    const fijos = db.gastosFijos || [];   // Gastos Estructurales
+
+    // Filtros de Tiempo
     let year = new Date().getFullYear();
+    // Calculamos trimestre actual (1, 2, 3, 4)
+    let trimActual = Math.ceil((new Date().getMonth() + 1) / 3);
+    let trimestre = "T" + trimActual;
 
-    // 2. INTERFAZ
+    // --- INTERFAZ ---
     container.innerHTML = `
-    <div class="animate-fade-in space-y-6">
+    <div class="animate-fade-in space-y-6 pb-24">
         
-        <header class="flex justify-between items-center bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100">
+        <header class="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 flex flex-col md:flex-row justify-between items-center gap-4">
             <div>
-                <h2 class="text-xl font-black text-slate-800">Cuenta de Resultados</h2>
-                <p class="text-[10px] text-indigo-500 font-bold uppercase tracking-widest">Profit & Loss (P&L)</p>
+                <h2 class="text-xl font-black text-slate-800">Inteligencia Financiera</h2>
+                <p class="text-[10px] text-indigo-500 font-bold uppercase tracking-widest">P&L + Liquidación IVA</p>
             </div>
-            <div class="flex items-center gap-2 bg-slate-100 p-1 rounded-xl">
-                <button id="btnPrevYear" class="w-8 h-8 flex items-center justify-center bg-white rounded-lg text-slate-600 shadow-sm font-bold hover:text-indigo-600 transition">‹</button>
-                <span id="lblYear" class="font-black text-slate-800 w-12 text-center text-sm">${year}</span>
-                <button id="btnNextYear" class="w-8 h-8 flex items-center justify-center bg-white rounded-lg text-slate-600 shadow-sm font-bold hover:text-indigo-600 transition">›</button>
+            
+            <div class="flex items-center gap-4">
+                <div class="flex bg-slate-100 p-1 rounded-xl">
+                    <button onclick="window.changeTrim('T1')" class="trim-btn px-3 py-1 rounded-lg text-[10px] font-bold ${trimestre=='T1'?'bg-white shadow text-indigo-600':'text-slate-400'}">T1</button>
+                    <button onclick="window.changeTrim('T2')" class="trim-btn px-3 py-1 rounded-lg text-[10px] font-bold ${trimestre=='T2'?'bg-white shadow text-indigo-600':'text-slate-400'}">T2</button>
+                    <button onclick="window.changeTrim('T3')" class="trim-btn px-3 py-1 rounded-lg text-[10px] font-bold ${trimestre=='T3'?'bg-white shadow text-indigo-600':'text-slate-400'}">T3</button>
+                    <button onclick="window.changeTrim('T4')" class="trim-btn px-3 py-1 rounded-lg text-[10px] font-bold ${trimestre=='T4'?'bg-white shadow text-indigo-600':'text-slate-400'}">T4</button>
+                </div>
+                <div class="font-black text-slate-300 text-xl">${year}</div>
             </div>
         </header>
 
-        <div class="bg-slate-900 text-white p-8 rounded-[2.5rem] shadow-2xl relative overflow-hidden text-center">
-            <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-400 via-indigo-500 to-rose-500"></div>
-            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">RESULTADO NETO (BENEFICIO)</p>
-            <h3 id="net-profit" class="text-5xl font-black tracking-tight mb-4">0.00€</h3>
-            <div id="net-margin-badge" class="inline-block px-4 py-1 rounded-full bg-white/10 text-white text-[10px] font-black uppercase border border-white/20">
-                0% MARGEN NETO
-            </div>
-        </div>
-
-        <div class="grid grid-cols-1 gap-4">
+        <div class="bg-slate-900 text-white p-8 rounded-[2.5rem] shadow-xl relative overflow-hidden">
+            <div class="absolute top-0 right-0 w-40 h-40 bg-indigo-500 rounded-full blur-3xl opacity-20 -mr-10 -mt-10"></div>
             
-            <div class="bg-white p-6 rounded-[2rem] border border-emerald-100 shadow-sm">
-                <div class="flex justify-between items-center mb-2">
-                    <div class="flex items-center gap-2">
-                        <span class="w-8 h-8 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center text-xs">💰</span>
-                        <h4 class="font-black text-slate-800">(+) VENTAS TOTALES</h4>
-                    </div>
-                    <span id="val-ventas" class="text-xl font-black text-emerald-600">0.00€</span>
+            <div class="flex justify-between items-start mb-6 relative z-10">
+                <div>
+                    <h3 class="text-sm font-bold text-slate-400 uppercase mb-1">🏛️ Liquidación IVA Estimada</h3>
+                    <p class="text-[10px] text-slate-500">Diferencia entre IVA cobrado y pagado</p>
                 </div>
-                <p class="text-[10px] text-slate-400 pl-10">Facturación sin IVA</p>
-            </div>
-
-            <div class="bg-white p-6 rounded-[2rem] border border-rose-50 shadow-sm relative">
-                <div class="absolute left-8 -top-3 h-4 w-0.5 bg-slate-200"></div> <div class="flex justify-between items-center mb-2">
-                    <div class="flex items-center gap-2">
-                        <span class="w-8 h-8 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center text-xs">📦</span>
-                        <h4 class="font-black text-slate-800">(-) MERCADERÍAS</h4>
-                    </div>
-                    <span id="val-cos" class="text-xl font-black text-rose-500">0.00€</span>
+                <div class="text-right">
+                    <p class="text-[10px] font-bold text-slate-300 uppercase mb-1">A PAGAR / DEVOLVER</p>
+                    <p class="text-4xl font-black text-white" id="kpi-iva-resultado">0.00€</p>
                 </div>
-                <p class="text-[10px] text-slate-400 pl-10">Albaranes y Compras (Sin IVA)</p>
             </div>
 
-            <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 flex justify-between items-center mx-4">
-                <span class="text-xs font-black text-slate-500 uppercase">= MARGEN BRUTO</span>
-                <span id="val-gross" class="text-lg font-black text-slate-700">0.00€</span>
-            </div>
-
-            <div class="bg-white p-6 rounded-[2rem] border border-amber-50 shadow-sm relative">
-                <div class="absolute left-8 -top-6 h-8 w-0.5 bg-slate-200"></div>
-                <div class="flex justify-between items-center mb-2">
-                    <div class="flex items-center gap-2">
-                        <span class="w-8 h-8 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center text-xs">🏢</span>
-                        <h4 class="font-black text-slate-800">(-) ESTRUCTURA</h4>
-                    </div>
-                    <span id="val-opex" class="text-xl font-black text-amber-600">0.00€</span>
+            <div class="grid grid-cols-2 gap-4 relative z-10">
+                <div class="bg-white/5 p-4 rounded-2xl border border-white/10">
+                    <p class="text-[9px] text-emerald-400 uppercase font-bold mb-1">IVA REPERCUTIDO (+)</p>
+                    <p class="text-lg font-black" id="kpi-iva-rep">0.00€</p>
+                    <p class="text-[8px] text-slate-500 mt-1">Cobrado a clientes (Caja)</p>
                 </div>
-                <p class="text-[10px] text-slate-400 pl-10">Personal, Alquiler, Suministros (Fijos)</p>
-            </div>
-
-            <div class="bg-indigo-50 p-6 rounded-[2rem] border border-indigo-100 shadow-sm flex justify-between items-center relative overflow-hidden">
-                <div class="relative z-10">
-                    <h4 class="font-black text-indigo-900 text-lg">EBITDA</h4>
-                    <p class="text-[9px] text-indigo-400 font-bold uppercase">Resultado Operativo</p>
+                <div class="bg-white/5 p-4 rounded-2xl border border-white/10">
+                    <p class="text-[9px] text-rose-400 uppercase font-bold mb-1">IVA SOPORTADO (-)</p>
+                    <p class="text-lg font-black" id="kpi-iva-sop">0.00€</p>
+                    <p class="text-[8px] text-slate-500 mt-1">Pagado a proveedores (Albaranes)</p>
                 </div>
-                <span id="val-ebitda" class="text-3xl font-black text-indigo-600 relative z-10">0.00€</span>
             </div>
-
         </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            
+            <div class="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm">
+                <h3 class="text-xs font-black text-slate-800 uppercase mb-4">💰 Resultado Neto (P&L)</h3>
+                <div class="space-y-3">
+                    <div class="flex justify-between text-xs py-1 border-b border-slate-50">
+                        <span class="text-slate-500 font-bold">Ventas Netas (Sin IVA)</span>
+                        <span class="font-black text-slate-900" id="pnl-ventas">0.00€</span>
+                    </div>
+                    <div class="flex justify-between text-xs py-1 border-b border-slate-50">
+                        <span class="text-slate-500 font-bold">Compras (Sin IVA)</span>
+                        <span class="font-black text-rose-500" id="pnl-compras">-0.00€</span>
+                    </div>
+                    <div class="flex justify-between text-xs py-1 border-b border-slate-50">
+                        <span class="text-slate-500 font-bold">Gastos Fijos</span>
+                        <span class="font-black text-rose-500" id="pnl-fijos">-0.00€</span>
+                    </div>
+                    
+                    <div class="pt-4 flex justify-between items-center">
+                        <div class="flex flex-col">
+                            <span class="font-black text-slate-800 uppercase text-[10px]">Beneficio</span>
+                            <span class="text-[9px] text-slate-400" id="pnl-margen-pct">0% Margen</span>
+                        </div>
+                        <span class="font-black text-2xl text-indigo-600" id="pnl-beneficio">0.00€</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-indigo-50 p-6 rounded-[2.5rem] border border-indigo-100 shadow-sm flex flex-col justify-center items-center text-center relative overflow-hidden">
+                <div class="absolute top-0 left-0 w-full h-1 bg-indigo-200"></div>
+                <p class="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-3">Food Cost Real</p>
+                <div class="w-28 h-28 rounded-full border-8 border-white flex flex-col items-center justify-center bg-indigo-500 text-white shadow-xl mb-3">
+                    <span class="font-black text-2xl" id="kpi-foodcost">0%</span>
+                    <span class="text-[8px] opacity-80">DE VENTA</span>
+                </div>
+                <p class="text-[9px] text-indigo-400 px-4 leading-tight">
+                    Porcentaje de tus ventas netas destinado a la compra de materia prima.
+                    <br><strong>Objetivo ideal: < 30%</strong>
+                </p>
+            </div>
+        </div>
+
     </div>
     `;
 
-    // 3. LÓGICA DE CÁLCULO
-    const calcular = () => {
-        // Filtramos por año seleccionado
-        const isYear = (d) => new Date(d).getFullYear() === year;
+    // --- CEREBRO FINANCIERO ---
+    const calcularDatos = () => {
+        // 1. Definir rango de fechas del trimestre
+        const mesesTrimestre = { 'T1': [0,1,2], 'T2': [3,4,5], 'T3': [6,7,8], 'T4': [9,10,11] };
+        const meses = mesesTrimestre[trimestre];
 
-        // A) VENTAS (Base Imponible de Facturas)
-        // Si la factura tiene campo 'base', usamos eso. Si no, calculamos base = total / 1.10 (aprox)
-        const ventas = facts.filter(f => isYear(f.date)).reduce((acc, f) => {
-            const base = f.base || (parseFloat(f.total) / 1.10); 
-            return acc + base;
-        }, 0);
+        const isInTrim = (dateStr) => {
+            if(!dateStr) return false;
+            const d = new Date(dateStr);
+            return d.getFullYear() === year && meses.includes(d.getMonth());
+        };
 
-        // B) COSTE DE MERCANCÍAS (Base Imponible de Albaranes)
-        // Albaranes siempre restan el IVA (taxes) para tener el coste real
-        const cogs = albs.filter(a => isYear(a.date)).reduce((acc, a) => {
-            const total = parseFloat(a.total) || 0;
-            const tax = parseFloat(a.taxes) || 0;
-            return acc + (total - tax);
-        }, 0);
+        // --- A. CÁLCULO DE VENTAS (CIERRES Z) ---
+        // Sumamos lo que has facturado realmente
+        let ventasBrutas = 0; // Con IVA
+        cierres.forEach(c => {
+            if(isInTrim(c.date)) {
+                // Sumamos Efectivo + Tarjeta de cada cierre
+                const diaTotal = (parseFloat(c.totalCaja)||0) + (parseFloat(c.totalTarjeta)||0);
+                ventasBrutas += diaTotal;
+            }
+        });
 
-        // C) MARGEN BRUTO
-        const grossMargin = ventas - cogs;
+        // Desglose fiscal Ventas (Estimación Estándar Hostelería: 10% IVA)
+        // Si tuvieras datos exactos de IVA por cierre, los usaríamos, pero esto es una gran aproximación.
+        const ventasBase = ventasBrutas / 1.10;
+        const ivaRepercutido = ventasBrutas - ventasBase;
 
-        // D) GASTOS FIJOS (OPEX)
-        // Calculamos el coste anual de la "Mochila"
-        // Si el usuario mete "Alquiler 1000 mensual", son 12.000 al año
-        const opex = fijos.reduce((acc, g) => {
-            let amount = parseFloat(g.amount) || 0;
-            if(g.freq === 'mensual') amount *= 12;
-            if(g.freq === 'trimestral') amount *= 4;
-            return acc + amount;
-        }, 0);
+        // --- B. CÁLCULO DE COMPRAS (ALBARANES) ---
+        // Aquí usamos los datos exactos que guardas en el módulo Albaranes
+        let comprasBase = 0;
+        let ivaSoportado = 0;
 
-        // E) EBITDA
-        const ebitda = grossMargin - opex;
+        albaranes.forEach(a => {
+            if(isInTrim(a.date)) {
+                // Si guardamos el desglose exacto (versión nueva), lo usamos
+                if(a.base && a.taxes) {
+                    comprasBase += parseFloat(a.base);
+                    ivaSoportado += parseFloat(a.taxes);
+                } else {
+                    // Si es un albarán viejo, estimamos al 10%
+                    const total = parseFloat(a.total) || 0;
+                    const baseEst = total / 1.10;
+                    comprasBase += baseEst;
+                    ivaSoportado += (total - baseEst);
+                }
+            }
+        });
 
-        // --- PINTAR RESULTADOS ---
-        const fmt = (n) => n.toLocaleString('es-ES', {style:'currency', currency:'EUR'});
+        // --- C. GASTOS FIJOS (OPEX) ---
+        // Calculamos el coste fijo del trimestre (3 meses x Gasto Mensual)
+        let totalFijos = 0;
+        fijos.forEach(f => {
+            const importe = parseFloat(f.amount) || 0;
+            // Si es mensual, lo multiplicamos por 3 para el trimestre
+            if(f.freq === 'mensual') totalFijos += (importe * 3);
+            else if(f.freq === 'anual') totalFijos += (importe / 4);
+            else totalFijos += importe; // Asumimos trimestral por defecto
+        });
+
+        // --- PINTAR TARJETA FISCAL (IVA) ---
+        const diffIva = ivaRepercutido - ivaSoportado;
         
-        container.querySelector("#lblYear").innerText = year;
+        container.querySelector("#kpi-iva-rep").innerText = ivaRepercutido.toLocaleString('es-ES', {minimumFractionDigits: 2}) + "€";
+        container.querySelector("#kpi-iva-sop").innerText = ivaSoportado.toLocaleString('es-ES', {minimumFractionDigits: 2}) + "€";
         
-        container.querySelector("#val-ventas").innerText = fmt(ventas);
-        container.querySelector("#val-cos").innerText = fmt(cogs);
-        container.querySelector("#val-gross").innerText = fmt(grossMargin);
+        const elTotalIva = container.querySelector("#kpi-iva-resultado");
+        elTotalIva.innerText = diffIva.toLocaleString('es-ES', {minimumFractionDigits: 2}) + "€";
         
-        // OPEX es una estimación anual basada en los fijos actuales
-        // Para ser más precisos, si estamos en el año actual, podríamos prorratear, 
-        // pero para P&L anual, proyectamos el coste anual.
-        container.querySelector("#val-opex").innerText = fmt(opex);
-        
-        container.querySelector("#val-ebitda").innerText = fmt(ebitda);
-        container.querySelector("#net-profit").innerText = fmt(ebitda); // Asumimos Net = EBITDA (sin impuestos sociedad aun)
+        // Semáforo Fiscal
+        if(diffIva > 0) {
+            elTotalIva.classList.remove('text-emerald-400');
+            elTotalIva.classList.add('text-rose-400'); // Toca pagar
+        } else {
+            elTotalIva.classList.remove('text-rose-400');
+            elTotalIva.classList.add('text-emerald-400'); // Te devuelven
+        }
 
-        // Color EBITDA
-        const ebitdaEl = container.querySelector("#val-ebitda");
-        if(ebitda >= 0) ebitdaEl.className = "text-3xl font-black text-indigo-600 relative z-10";
-        else ebitdaEl.className = "text-3xl font-black text-rose-500 relative z-10";
+        // --- PINTAR P&L (BENEFICIO) ---
+        const beneficio = ventasBase - comprasBase - totalFijos;
+        const margen = ventasBase > 0 ? ((beneficio / ventasBase) * 100) : 0;
 
-        // Margen %
-        const marginPct = ventas > 0 ? ((ebitda / ventas) * 100).toFixed(1) : 0;
-        container.querySelector("#net-margin-badge").innerText = `${marginPct}% MARGEN EBITDA`;
+        container.querySelector("#pnl-ventas").innerText = ventasBase.toLocaleString('es-ES', {minimumFractionDigits: 2}) + "€";
+        container.querySelector("#pnl-compras").innerText = "-" + comprasBase.toLocaleString('es-ES', {minimumFractionDigits: 2}) + "€";
+        container.querySelector("#pnl-fijos").innerText = "-" + totalFijos.toLocaleString('es-ES', {minimumFractionDigits: 2}) + "€";
         
-        // Color Resultado Header
-        const headerRes = container.querySelector("#net-profit");
-        if(ebitda >= 0) headerRes.classList.remove('text-rose-300');
-        else headerRes.classList.add('text-rose-300');
+        const elBen = container.querySelector("#pnl-beneficio");
+        elBen.innerText = beneficio.toLocaleString('es-ES', {minimumFractionDigits: 2}) + "€";
+        if(beneficio >= 0) elBen.className = "font-black text-2xl text-emerald-500";
+        else elBen.className = "font-black text-2xl text-rose-500";
+
+        container.querySelector("#pnl-margen-pct").innerText = `${margen.toFixed(1)}% Margen Neto`;
+
+        // --- PINTAR FOOD COST ---
+        const foodCost = ventasBase > 0 ? (comprasBase / ventasBase) * 100 : 0;
+        container.querySelector("#kpi-foodcost").innerText = foodCost.toFixed(1) + "%";
     };
 
-    // Navegación Años
-    container.querySelector("#btnPrevYear").onclick = () => { year--; calcular(); };
-    container.querySelector("#btnNextYear").onclick = () => { year++; calcular(); };
+    // Controladores de UI
+    window.changeTrim = (t) => {
+        trimestre = t;
+        // Actualizar visualmente los botones
+        container.querySelectorAll(".trim-btn").forEach(b => {
+            if(b.innerText === t) b.className = "trim-btn px-3 py-1 rounded-lg text-[10px] font-bold bg-white shadow text-indigo-600 transition";
+            else b.className = "trim-btn px-3 py-1 rounded-lg text-[10px] font-bold text-slate-400 transition";
+        });
+        calcularDatos();
+    };
 
-    calcular();
+    // Inicializar
+    calcularDatos();
 }
