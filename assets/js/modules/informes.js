@@ -1,301 +1,356 @@
 /* =============================================================
-   📈 MÓDULO: INFORMES 360º (Gestión + Fiscalidad)
+   📈 MÓDULO: INFORMES & FISCALIDAD (P&L + IVA 303 + KPIs)
    ============================================================= */
 
 export async function render(container, sb, db) {
-    // --- ESTADO INTERNO ---
-    let currentTab = 'gestion'; // 'gestion' (Mensual) o 'fiscal' (Trimestral)
     
-    // Fechas para Gestión
+    // --- ESTADO INTERNO ---
+    let activeTab = 'pnl'; // pnl | fiscal | kpis
     const today = new Date();
-    let selectedMonth = today.getMonth();
-    let selectedYear = today.getFullYear();
-
-    // Fechas para Fiscal
-    let yearFiscal = today.getFullYear();
-    let trimActual = Math.ceil((today.getMonth() + 1) / 3);
-    let selectedTrimestre = "T" + trimActual; // T1, T2, T3, T4
-
-    // Formateador de moneda
-    const fmt = (num) => new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(num || 0);
-
-    // =========================================================
-    // 🧠 1. LÓGICA DE CÁLCULO (EL CEREBRO)
-    // =========================================================
-
-    // A. CÁLCULO MENSUAL (Gestión P&L)
-    const calcularPnL = (mes, anio) => {
-        // 1. VENTAS
-        const ventas = (db.facturas || []).filter(f => {
-            const d = new Date(f.fecha || f.date);
-            return d.getMonth() === mes && d.getFullYear() === anio;
-        }).reduce((acc, f) => acc + (parseFloat(f.total) || 0), 0);
-
-        // 2. COSTE VENTAS (Albaranes)
-        const compras = (db.albaranes || []).filter(a => {
-            const d = new Date(a.fecha || a.date);
-            return d.getMonth() === mes && d.getFullYear() === anio;
-        }).reduce((acc, c) => acc + (parseFloat(c.total) || 0), 0);
-
-        // 3. GASTOS FIJOS (Prorrateados)
-        const fijos = (db.gastos_fijos || []).filter(g => g.active !== false).reduce((acc, g) => {
-            let amount = parseFloat(g.amount) || 0;
-            if (g.freq === 'anual') return acc + (amount / 12);
-            if (g.freq === 'trimestral') return acc + (amount / 3);
-            if (g.freq === 'semestral') return acc + (amount / 6);
-            if (g.freq === 'bimensual') return acc + (amount / 2);
-            if (g.freq === 'semanal') return acc + (amount * 4.33);
-            return acc + amount;
-        }, 0);
-
-        // 4. AMORTIZACIONES (Del módulo Activos)
-        const amortizaciones = (db.activos || []).reduce((acc, a) => {
-            // importe / (vida_años * 12)
-            return acc + ((parseFloat(a.importe) || 0) / ((parseInt(a.vida) || 10) * 12));
-        }, 0);
-
-        const totalGastos = compras + fijos + amortizaciones;
-        const beneficio = ventas - totalGastos;
-        const foodCostPct = ventas > 0 ? (compras / ventas) * 100 : 0;
-
-        return { ventas, compras, fijos, amortizaciones, totalGastos, beneficio, foodCostPct };
+    
+    // Filtros de fecha (Inicial: Mes actual)
+    let filters = {
+        month: today.getMonth(),
+        year: today.getFullYear(),
+        trimestre: Math.ceil((today.getMonth() + 1) / 3) // 1, 2, 3, 4
     };
 
-    // B. CÁLCULO TRIMESTRAL (Fiscal IVA)
-    const calcularFiscal = (trim, anio) => {
-        const mesesMap = { 'T1': [0,1,2], 'T2': [3,4,5], 'T3': [6,7,8], 'T4': [9,10,11] };
-        const meses = mesesMap[trim];
+    // Helpers de Formato
+    const fmt = (n) => new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(n || 0);
+    const pct = (n) => (n || 0).toFixed(1) + '%';
+    const num = (n) => new Intl.NumberFormat('es-ES').format(n || 0);
 
-        const isInTrim = (dateStr) => {
-            if(!dateStr) return false;
-            const d = new Date(dateStr);
-            return d.getFullYear() === anio && meses.includes(d.getMonth());
+    // =========================================================
+    // 🧠 1. MOTOR DE CÁLCULO FISCAL (Desglose IVA)
+    // =========================================================
+    const calcularModelo303 = () => {
+        // Definir meses del trimestre seleccionado
+        const t = filters.trimestre;
+        const monthsInTrim = [(t-1)*3, (t-1)*3+1, (t-1)*3+2];
+        
+        const inPeriod = (dateStr) => {
+            const d = window.DateUtil.parse(dateStr);
+            return d.getFullYear() === filters.year && monthsInTrim.includes(d.getMonth());
         };
 
-        // 1. IVA REPERCUTIDO (Ventas)
-        // Estimación: Si no hay desglose, asumimos 10% IVA incluido
-        let totalVentas = 0;
-        let baseVentas = 0;
-        let ivaRep = 0;
+        // A. IVA DEVENGADO (VENTAS)
+        // Asumimos que la gran mayoría de hostelería va al 10%
+        let devengado = { base: 0, iva: 0, total: 0 };
+        
+        // Sumar Cajas Z (Diario)
+        (db.diario||[]).filter(z => inPeriod(z.date)).forEach(z => {
+            const total = window.Num.parse(z.totalVenta);
+            const base = total / 1.10; // Estándar hostelería 10%
+            devengado.base += base;
+            devengado.iva += (total - base);
+            devengado.total += total;
+        });
 
-        (db.facturas || []).forEach(f => {
-            if(isInTrim(f.fecha || f.date)) {
-                const tot = parseFloat(f.total) || 0;
-                totalVentas += tot;
-                // Si tuvieras campo f.iva lo usas, sino estimamos:
-                const base = tot / 1.10; 
-                baseVentas += base;
-                ivaRep += (tot - base);
+        // Sumar Facturas Extra
+        (db.facturas||[]).filter(f => inPeriod(f.date) && !String(f.num).startsWith('Z')).forEach(f => {
+            const total = window.Num.parse(f.total);
+            // Si tienes desglose guardado úsalo, si no estima al 10% (o 21% si es evento alcohol)
+            const base = total / 1.10; 
+            devengado.base += base;
+            devengado.iva += (total - base);
+            devengado.total += total;
+        });
+
+        // B. IVA DEDUCIBLE (GASTOS)
+        // Aquí intentamos ser listos con las categorías
+        let deducible = { 
+            base4: 0, iva4: 0,
+            base10: 0, iva10: 0,
+            base21: 0, iva21: 0,
+            total: 0
+        };
+
+        (db.albaranes||[]).filter(a => inPeriod(a.date)).forEach(a => {
+            const total = window.Num.parse(a.total);
+            const prov = (a.prov || '').toLowerCase();
+            let tipo = 10; // Por defecto alimentación
+
+            if (prov.match(/luz|agua|tel|gestor|seguro|alquiler|reparacion|maquinaria|limpieza/)) tipo = 21;
+            else if (prov.match(/pan|leche|huevo|fruta|verdura|harina/)) tipo = 4;
+            else if (prov.match(/alcohol|bebida|vino|cerveza/)) tipo = 21;
+
+            const div = 1 + (tipo/100);
+            const base = total / div;
+            const quota = total - base;
+
+            if(tipo===4) { deducible.base4+=base; deducible.iva4+=quota; }
+            if(tipo===10) { deducible.base10+=base; deducible.iva10+=quota; }
+            if(tipo===21) { deducible.base21+=base; deducible.iva21+=quota; }
+            deducible.total += total;
+        });
+
+        // Sumar también Gastos Fijos que tengan factura (Alquileres, suministros...)
+        (db.gastos_fijos||[]).filter(g => g.active !== false).forEach(g => {
+            // Prorrateo trimestral
+            let amount = window.Num.parse(g.amount);
+            if(g.freq === 'mensual') amount *= 3;
+            if(g.freq === 'anual') amount /= 4;
+            
+            // Estimación IVA gastos fijos (casi todo es 21% servicios)
+            if (g.cat !== 'personal') { // Personal no lleva IVA
+                const base = amount / 1.21;
+                deducible.base21 += base;
+                deducible.iva21 += (amount - base);
+                deducible.total += amount;
             }
         });
 
-        // 2. IVA SOPORTADO (Compras/Gastos)
-        let totalCompras = 0;
-        let ivaSop = 0;
+        const totalSoportado = deducible.iva4 + deducible.iva10 + deducible.iva21;
+        const resultado = devengado.iva - totalSoportado;
 
-        // Albaranes
-        (db.albaranes || []).forEach(a => {
-            if(isInTrim(a.fecha || a.date)) {
-                const tot = parseFloat(a.total) || 0;
-                totalCompras += tot;
-                if(a.taxes) {
-                    ivaSop += parseFloat(a.taxes);
-                } else {
-                    // Estimación 10% si no hay datos OCR
-                    const base = tot / 1.10;
-                    ivaSop += (tot - base);
-                }
-            }
-        });
-
-        // Gastos Fijos (Solo facturas reales, no nóminas ni alquileres sin iva)
-        // Aquí simplificamos asumiendo que el 21% de los suministros/software llevan IVA
-        (db.gastos_fijos || []).forEach(g => {
-            if(g.cat === 'suministros' || g.cat === 'software' || g.cat === 'varios') {
-                // Cálculo simple trimestral
-                let mensual = parseFloat(g.amount) || 0;
-                // Ajustar frecuencia
-                let gastoTrim = 0;
-                if(g.freq === 'mensual') gastoTrim = mensual * 3;
-                else if(g.freq === 'trimestral') gastoTrim = mensual;
-                
-                // Estimamos 21% IVA en estos gastos
-                const base = gastoTrim / 1.21;
-                ivaSop += (gastoTrim - base);
-            }
-        });
-
-        const liquidacion = ivaRep - ivaSop;
-        return { totalVentas, ivaRep, ivaSop, liquidacion };
+        return { devengado, deducible, resultado, totalSoportado };
     };
 
+    // =========================================================
+    // 📊 2. MOTOR DE KPIS OPERATIVOS (Hostelería)
+    // =========================================================
+    const calcularKPIs = () => {
+        const inMonth = (dateStr) => {
+            const d = window.DateUtil.parse(dateStr);
+            return d.getFullYear() === filters.year && d.getMonth() === filters.month;
+        };
+
+        // Ventas
+        const ventasZ = (db.diario||[]).filter(z => inMonth(z.date));
+        const totalVentas = ventasZ.reduce((acc,z)=>acc+window.Num.parse(z.totalVenta),0);
+        const numTickets = ventasZ.reduce((acc,z)=>acc+(parseInt(z.tickets)||0),0); // Necesitas campo 'tickets' en diario
+
+        // Ticket Medio
+        const ticketMedio = numTickets > 0 ? totalVentas / numTickets : 0;
+
+        // Costes
+        const albaranesMes = (db.albaranes||[]).filter(a=>inMonth(a.date));
+        const costeComida = albaranesMes.filter(a=>(a.prov||'').match(/fruta|carne|pesca|makro|mercadona/i))
+                            .reduce((acc,a)=>acc+window.Num.parse(a.total),0);
+        const costeBebida = albaranesMes.filter(a=>(a.prov||'').match(/bebida|vino|cerveza|cola|agua/i))
+                            .reduce((acc,a)=>acc+window.Num.parse(a.total),0);
+        
+        const personal = (db.gastos_fijos||[]).filter(g=>g.cat==='personal')
+                         .reduce((acc,g)=>acc+window.Num.parse(g.amount),0); // Mensual
+
+        return {
+            ticketMedio,
+            numTickets,
+            ratioComida: totalVentas > 0 ? (costeComida/totalVentas)*100 : 0,
+            ratioBebida: totalVentas > 0 ? (costeBebida/totalVentas)*100 : 0,
+            ratioPersonal: totalVentas > 0 ? (personal/totalVentas)*100 : 0,
+            primeCost: totalVentas > 0 ? ((costeComida+costeBebida+personal)/totalVentas)*100 : 0
+        };
+    };
 
     // =========================================================
-    // 🎨 2. RENDERIZADO (LA VISTA)
+    // 🎨 3. RENDERIZADO UI
     // =========================================================
-    
     const pintar = () => {
         container.innerHTML = `
         <div class="animate-fade-in space-y-6 pb-24">
             
-            <div class="bg-white p-2 rounded-[2rem] border border-slate-100 shadow-sm flex relative z-10">
-                <button id="tab-gestion" class="flex-1 py-3 rounded-2xl text-xs font-black uppercase transition-all ${currentTab === 'gestion' ? 'bg-slate-800 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-50'}">
-                    📅 Gestión Mensual
-                </button>
-                <button id="tab-fiscal" class="flex-1 py-3 rounded-2xl text-xs font-black uppercase transition-all ${currentTab === 'fiscal' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-50'}">
-                    🏛️ Fiscal / IVA
-                </button>
+            <div class="flex flex-col gap-4">
+                <header class="flex justify-between items-center px-2">
+                    <h2 class="text-2xl font-black text-slate-800">Informes 360º</h2>
+                    <div class="flex bg-white p-1 rounded-xl shadow-sm border border-slate-100">
+                        <button onclick="window.setTab('pnl')" class="px-4 py-2 rounded-lg text-[10px] font-black uppercase transition ${activeTab==='pnl'?'bg-slate-800 text-white shadow':'text-slate-400 hover:bg-slate-50'}">Resultados</button>
+                        <button onclick="window.setTab('fiscal')" class="px-4 py-2 rounded-lg text-[10px] font-black uppercase transition ${activeTab==='fiscal'?'bg-indigo-600 text-white shadow':'text-slate-400 hover:bg-slate-50'}">Fiscal (IVA)</button>
+                        <button onclick="window.setTab('kpis')" class="px-4 py-2 rounded-lg text-[10px] font-black uppercase transition ${activeTab==='kpis'?'bg-emerald-500 text-white shadow':'text-slate-400 hover:bg-slate-50'}">KPIs Pro</button>
+                    </div>
+                </header>
             </div>
 
-            <div id="view-container"></div>
+            <div id="report-content"></div>
         </div>`;
 
-        // Lógica de Tabs
-        container.querySelector('#tab-gestion').onclick = () => { currentTab = 'gestion'; pintar(); };
-        container.querySelector('#tab-fiscal').onclick = () => { currentTab = 'fiscal'; pintar(); };
+        const content = container.querySelector('#report-content');
 
-        // Inyectar la vista correspondiente
-        const viewContainer = container.querySelector('#view-container');
-        
-        if (currentTab === 'gestion') {
-            renderGestion(viewContainer);
-        } else {
-            renderFiscal(viewContainer);
+        // --- VISTA A: P&L (Cuenta Resultados) ---
+        if(activeTab === 'pnl') {
+            // Reutilizamos lógica básica del Dashboard pero expandida
+            // (Simplificado para este ejemplo, ya lo tienes en Dashboard.js pero aquí podrías poner la tabla detallada)
+            content.innerHTML = `
+                <div class="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100 text-center py-20">
+                    <p class="text-slate-400 text-sm">Utiliza el <b>Dashboard</b> principal para ver la Cuenta de Resultados en tiempo real.</p>
+                    <button onclick="loadModule('dashboard')" class="mt-4 bg-slate-900 text-white px-6 py-3 rounded-xl text-xs font-bold">Ir al Dashboard</button>
+                </div>
+            `;
+        }
+
+        // --- VISTA B: FISCAL (MODELO 303) ---
+        if(activeTab === 'fiscal') {
+            const data = calcularModelo303();
+            const colorRes = data.resultado > 0 ? 'text-rose-500' : 'text-emerald-500';
+            const txtRes = data.resultado > 0 ? 'A PAGAR' : 'A DEVOLVER';
+
+            content.innerHTML = `
+                <div class="flex justify-center mb-6">
+                    <div class="flex bg-slate-100 p-1 rounded-xl">
+                        ${[1,2,3,4].map(t => `
+                            <button onclick="window.setTrim(${t})" class="px-4 py-2 rounded-lg text-[10px] font-black transition ${filters.trimestre===t?'bg-white shadow text-indigo-600':'text-slate-400'}">Trimestre ${t}</button>
+                        `).join('')}
+                    </div>
+                </div>
+
+                <div class="bg-slate-900 text-white p-8 rounded-[2.5rem] shadow-xl relative overflow-hidden mb-6">
+                    <div class="absolute top-0 right-0 w-60 h-60 bg-indigo-500 rounded-full blur-[80px] opacity-20 -mr-10 -mt-10"></div>
+                    <div class="relative z-10 flex justify-between items-start">
+                        <div>
+                            <h3 class="text-lg font-bold text-slate-300">Liquidación IVA (Est.)</h3>
+                            <p class="text-xs text-slate-500 uppercase tracking-widest mb-4">Modelo 303 - T${filters.trimestre} ${filters.year}</p>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-[10px] font-bold text-slate-400 uppercase">${txtRes}</p>
+                            <p class="text-4xl font-black ${colorRes}">${fmt(data.resultado)}</p>
+                        </div>
+                    </div>
+                    
+                    <div class="grid grid-cols-2 gap-4 mt-6">
+                        <div class="bg-white/5 p-4 rounded-2xl border border-white/10">
+                            <p class="text-[10px] text-emerald-400 font-bold uppercase mb-1">Repercutido (Ventas)</p>
+                            <p class="text-xl font-black">${fmt(data.devengado.iva)}</p>
+                            <p class="text-[9px] text-slate-500 mt-1">Base: ${fmt(data.devengado.base)}</p>
+                        </div>
+                        <div class="bg-white/5 p-4 rounded-2xl border border-white/10">
+                            <p class="text-[10px] text-rose-400 font-bold uppercase mb-1">Soportado (Gastos)</p>
+                            <p class="text-xl font-black">${fmt(data.totalSoportado)}</p>
+                            <p class="text-[9px] text-slate-500 mt-1">Deducible est.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-[2rem] shadow-sm border border-slate-100 overflow-hidden">
+                    <table class="w-full text-left border-collapse">
+                        <thead class="bg-slate-50 border-b border-slate-100">
+                            <tr>
+                                <th class="p-4 text-[9px] font-black text-slate-400 uppercase">Concepto</th>
+                                <th class="p-4 text-[9px] font-black text-slate-400 uppercase text-right">Base</th>
+                                <th class="p-4 text-[9px] font-black text-slate-400 uppercase text-right">Cuota IVA</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-50 text-xs font-medium text-slate-600">
+                            <tr>
+                                <td class="p-4 font-bold text-slate-800">IVA Devengado (10% Gen)</td>
+                                <td class="p-4 text-right font-mono">${fmt(data.devengado.base)}</td>
+                                <td class="p-4 text-right font-bold text-emerald-600">${fmt(data.devengado.iva)}</td>
+                            </tr>
+                            <tr class="bg-rose-50/30">
+                                <td class="p-4 font-bold text-slate-800">Soportado 4% (Super)</td>
+                                <td class="p-4 text-right font-mono">${fmt(data.deducible.base4)}</td>
+                                <td class="p-4 text-right font-bold text-rose-500">${fmt(data.deducible.iva4)}</td>
+                            </tr>
+                            <tr class="bg-rose-50/30">
+                                <td class="p-4 font-bold text-slate-800">Soportado 10% (Alim)</td>
+                                <td class="p-4 text-right font-mono">${fmt(data.deducible.base10)}</td>
+                                <td class="p-4 text-right font-bold text-rose-500">${fmt(data.deducible.iva10)}</td>
+                            </tr>
+                            <tr class="bg-rose-50/30">
+                                <td class="p-4 font-bold text-slate-800">Soportado 21% (Serv)</td>
+                                <td class="p-4 text-right font-mono">${fmt(data.deducible.base21)}</td>
+                                <td class="p-4 text-right font-bold text-rose-500">${fmt(data.deducible.iva21)}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                
+                <button onclick="window.exportIVA()" class="mt-4 w-full py-4 bg-slate-200 text-slate-600 font-black text-xs rounded-2xl hover:bg-slate-300 transition flex items-center justify-center gap-2">
+                    📄 DESCARGAR CSV PARA GESTOR
+                </button>
+            `;
+        }
+
+        // --- VISTA C: KPIs HOSTELERÍA ---
+        if(activeTab === 'kpis') {
+            const data = calcularKPIs();
+            const mesNombre = new Date(filters.year, filters.month).toLocaleDateString('es-ES',{month:'long'});
+
+            content.innerHTML = `
+                <div class="flex justify-between items-center bg-white p-4 rounded-2xl border border-slate-100 mb-6">
+                    <button onclick="window.changeMonth(-1)" class="w-8 h-8 rounded-full bg-slate-50 hover:bg-indigo-100 text-indigo-600 font-black">◀</button>
+                    <h3 class="text-sm font-black text-slate-800 uppercase">${mesNombre} ${filters.year}</h3>
+                    <button onclick="window.changeMonth(1)" class="w-8 h-8 rounded-full bg-slate-50 hover:bg-indigo-100 text-indigo-600 font-black">▶</button>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4 mb-6">
+                    <div class="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm text-center">
+                        <p class="text-3xl mb-1">🧾</p>
+                        <p class="text-[9px] font-bold text-slate-400 uppercase">Ticket Medio</p>
+                        <p class="text-2xl font-black text-slate-800">${fmt(data.ticketMedio)}</p>
+                    </div>
+                    <div class="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm text-center">
+                        <p class="text-3xl mb-1">⭐</p>
+                        <p class="text-[9px] font-bold text-slate-400 uppercase">Prime Cost</p>
+                        <p class="text-2xl font-black ${data.primeCost>60?'text-rose-500':'text-emerald-500'}">${pct(data.primeCost)}</p>
+                        <p class="text-[8px] text-slate-400">Objetivo: < 60%</p>
+                    </div>
+                </div>
+
+                <div class="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm space-y-6">
+                    <h3 class="font-black text-slate-800 text-sm">Distribución de Costes</h3>
+                    
+                    <div>
+                        <div class="flex justify-between text-xs font-bold mb-1">
+                            <span class="text-slate-600">Personal</span>
+                            <span class="${data.ratioPersonal>35?'text-rose-500':'text-slate-800'}">${pct(data.ratioPersonal)}</span>
+                        </div>
+                        <div class="w-full bg-slate-100 h-2 rounded-full overflow-hidden"><div class="bg-blue-500 h-full" style="width:${Math.min(100, data.ratioPersonal)}%"></div></div>
+                        <p class="text-[9px] text-slate-400 mt-1 text-right">Ideal: 30-35%</p>
+                    </div>
+
+                    <div>
+                        <div class="flex justify-between text-xs font-bold mb-1">
+                            <span class="text-slate-600">Comida (Food Cost)</span>
+                            <span class="${data.ratioComida>30?'text-rose-500':'text-slate-800'}">${pct(data.ratioComida)}</span>
+                        </div>
+                        <div class="w-full bg-slate-100 h-2 rounded-full overflow-hidden"><div class="bg-orange-500 h-full" style="width:${Math.min(100, data.ratioComida)}%"></div></div>
+                        <p class="text-[9px] text-slate-400 mt-1 text-right">Ideal: 25-30%</p>
+                    </div>
+
+                    <div>
+                        <div class="flex justify-between text-xs font-bold mb-1">
+                            <span class="text-slate-600">Bebida (Pour Cost)</span>
+                            <span class="${data.ratioBebida>25?'text-rose-500':'text-slate-800'}">${pct(data.ratioBebida)}</span>
+                        </div>
+                        <div class="w-full bg-slate-100 h-2 rounded-full overflow-hidden"><div class="bg-purple-500 h-full" style="width:${Math.min(100, data.ratioBebida)}%"></div></div>
+                        <p class="text-[9px] text-slate-400 mt-1 text-right">Ideal: 18-22%</p>
+                    </div>
+                </div>
+            `;
         }
     };
 
-    // --- VISTA A: GESTIÓN MENSUAL (Tu P&L estilo Cascada) ---
-    const renderGestion = (target) => {
-        const datos = calcularPnL(selectedMonth, selectedYear);
-        const nombreMes = new Date(selectedYear, selectedMonth).toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
-        
-        // Color beneficio
-        const colorBen = datos.beneficio >= 0 ? 'text-emerald-600' : 'text-rose-600';
-        const bgBen = datos.beneficio >= 0 ? 'bg-emerald-50' : 'bg-rose-50';
-
-        target.innerHTML = `
-            <div class="animate-slide-up space-y-4">
-                <div class="flex justify-between items-center bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
-                    <button id="prevMonth" class="w-8 h-8 rounded-full bg-slate-50 text-slate-400 font-black hover:bg-indigo-50 hover:text-indigo-600 transition">◀</button>
-                    <div class="text-center">
-                        <h2 class="text-lg font-black text-slate-800 uppercase">${nombreMes}</h2>
-                        <p class="text-[9px] font-bold text-slate-400 tracking-widest uppercase">Cuenta de Resultados</p>
-                    </div>
-                    <button id="nextMonth" class="w-8 h-8 rounded-full bg-slate-50 text-slate-400 font-black hover:bg-indigo-50 hover:text-indigo-600 transition">▶</button>
-                </div>
-
-                <div class="${bgBen} p-8 rounded-[2.5rem] shadow-sm border border-slate-100 text-center relative overflow-hidden">
-                    <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Beneficio Neto Real</p>
-                    <h1 class="text-4xl font-black ${colorBen} tracking-tight">${fmt(datos.beneficio)}</h1>
-                    <p class="text-[10px] text-slate-500 mt-2 font-bold opacity-70">
-                        ${datos.ventas > 0 ? ((datos.beneficio/datos.ventas)*100).toFixed(1) : 0}% Rentabilidad
-                    </p>
-                </div>
-
-                <div class="space-y-2">
-                    <div class="bg-white p-4 rounded-2xl border border-slate-100 flex justify-between items-center">
-                        <span class="text-[10px] font-bold text-slate-400 uppercase">1. Ventas</span>
-                        <span class="text-lg font-black text-indigo-600">${fmt(datos.ventas)}</span>
-                    </div>
-
-                    <div class="bg-white p-4 rounded-2xl border border-slate-100 flex justify-between items-center relative overflow-hidden">
-                         <div class="absolute left-0 top-0 bottom-0 w-1 bg-rose-400"></div>
-                        <div>
-                            <span class="text-[10px] font-bold text-slate-400 uppercase">2. Compras (Food Cost)</span>
-                            <span class="text-[9px] text-rose-400 ml-2 font-bold">${datos.foodCostPct.toFixed(1)}%</span>
-                        </div>
-                        <span class="text-base font-black text-rose-500">-${fmt(datos.compras)}</span>
-                    </div>
-
-                    <div class="bg-white p-4 rounded-2xl border border-slate-100 flex justify-between items-center relative overflow-hidden">
-                        <div class="absolute left-0 top-0 bottom-0 w-1 bg-orange-400"></div>
-                        <span class="text-[10px] font-bold text-slate-400 uppercase">3. Estructura (Fijos)</span>
-                        <span class="text-base font-black text-orange-500">-${fmt(datos.fijos)}</span>
-                    </div>
-
-                    <div class="bg-white p-4 rounded-2xl border border-slate-100 flex justify-between items-center relative overflow-hidden">
-                        <div class="absolute left-0 top-0 bottom-0 w-1 bg-blue-400"></div>
-                        <span class="text-[10px] font-bold text-slate-400 uppercase">4. Amortizaciones</span>
-                        <span class="text-base font-black text-blue-500">-${fmt(datos.amortizaciones)}</span>
-                    </div>
-                </div>
-            </div>
-        `;
-
-        // Eventos gestión
-        target.querySelector("#prevMonth").onclick = () => {
-            selectedMonth--; if(selectedMonth < 0) { selectedMonth=11; selectedYear--; }
-            pintar();
-        };
-        target.querySelector("#nextMonth").onclick = () => {
-            selectedMonth++; if(selectedMonth > 11) { selectedMonth=0; selectedYear++; }
-            pintar();
-        };
+    // --- 4. FUNCIONES GLOBALES (Tabs y Filtros) ---
+    window.setTab = (tab) => {
+        activeTab = tab;
+        pintar();
     };
 
-    // --- VISTA B: FISCAL TRIMESTRAL (Tu estilo Dark Mode) ---
-    const renderFiscal = (target) => {
-        const datos = calcularFiscal(selectedTrimestre, yearFiscal);
+    window.setTrim = (t) => {
+        filters.trimestre = t;
+        pintar();
+    };
+
+    window.changeMonth = (delta) => {
+        filters.month += delta;
+        if(filters.month > 11) { filters.month=0; filters.year++; }
+        if(filters.month < 0) { filters.month=11; filters.year--; }
+        pintar();
+    };
+
+    window.exportIVA = () => {
+        const data = calcularModelo303();
+        const csv = `CONCEPTO;BASE;IVA\n` +
+                    `Repercutido;${data.devengado.base.toFixed(2)};${data.devengado.iva.toFixed(2)}\n` +
+                    `Soportado 4%;${data.deducible.base4.toFixed(2)};${data.deducible.iva4.toFixed(2)}\n` +
+                    `Soportado 10%;${data.deducible.base10.toFixed(2)};${data.deducible.iva10.toFixed(2)}\n` +
+                    `Soportado 21%;${data.deducible.base21.toFixed(2)};${data.deducible.iva21.toFixed(2)}\n` +
+                    `RESULTADO LIQUIDACION;;${data.resultado.toFixed(2)}`;
         
-        // Color Resultado IVA
-        const colorIva = datos.liquidacion > 0 ? 'text-rose-400' : 'text-emerald-400'; // Positivo = Pagar a Hacienda
-        const textoIva = datos.liquidacion > 0 ? 'A PAGAR' : 'A DEVOLVER';
-
-        target.innerHTML = `
-            <div class="animate-slide-up space-y-6">
-                
-                <div class="flex justify-between items-center bg-white p-2 rounded-2xl shadow-sm border border-slate-100">
-                    <div class="flex bg-slate-100 p-1 rounded-xl">
-                        ${['T1','T2','T3','T4'].map(t => `
-                            <button class="trim-btn px-4 py-2 rounded-lg text-[10px] font-black transition ${selectedTrimestre===t ? 'bg-white shadow text-indigo-600' : 'text-slate-400'}" data-t="${t}">
-                                ${t}
-                            </button>
-                        `).join('')}
-                    </div>
-                    <div class="px-4 font-black text-slate-300 text-lg">${yearFiscal}</div>
-                </div>
-
-                <div class="bg-slate-900 text-white p-8 rounded-[2.5rem] shadow-xl relative overflow-hidden">
-                    <div class="absolute top-0 right-0 w-40 h-40 bg-indigo-500 rounded-full blur-3xl opacity-20 -mr-10 -mt-10"></div>
-                    
-                    <div class="flex justify-between items-start mb-8 relative z-10">
-                        <div>
-                            <h3 class="text-sm font-bold text-slate-400 uppercase mb-1">🏛️ Liquidación IVA</h3>
-                            <p class="text-[10px] text-slate-500">Modelo 303 (Estimado)</p>
-                        </div>
-                        <div class="text-right">
-                            <p class="text-[10px] font-bold text-slate-300 uppercase mb-1">${textoIva}</p>
-                            <p class="text-4xl font-black text-white ${colorIva}">${fmt(datos.liquidacion)}</p>
-                        </div>
-                    </div>
-
-                    <div class="grid grid-cols-2 gap-4 relative z-10">
-                        <div class="bg-white/5 p-4 rounded-2xl border border-white/10 backdrop-blur-sm">
-                            <p class="text-[9px] text-emerald-400 uppercase font-bold mb-1">REPERCUTIDO (+)</p>
-                            <p class="text-lg font-black">${fmt(datos.ivaRep)}</p>
-                            <p class="text-[8px] text-slate-500 mt-1">Cobrado en Ventas</p>
-                        </div>
-                        <div class="bg-white/5 p-4 rounded-2xl border border-white/10 backdrop-blur-sm">
-                            <p class="text-[9px] text-rose-400 uppercase font-bold mb-1">SOPORTADO (-)</p>
-                            <p class="text-lg font-black">${fmt(datos.ivaSop)}</p>
-                            <p class="text-[8px] text-slate-500 mt-1">Pagado en Gastos</p>
-                        </div>
-                    </div>
-                </div>
-
-                <button class="w-full bg-slate-200 text-slate-600 py-4 rounded-2xl font-black text-xs uppercase hover:bg-slate-300 transition flex items-center justify-center gap-2">
-                    📄 Descargar Borrador CSV
-                </button>
-            </div>
-        `;
-
-        // Eventos Fiscal
-        target.querySelectorAll('.trim-btn').forEach(btn => {
-            btn.onclick = (e) => {
-                selectedTrimestre = e.target.dataset.t;
-                pintar();
-            };
-        });
+        const a = document.createElement('a');
+        a.href = 'data:text/csv;charset=utf-8,' + encodeURI(csv);
+        a.download = `IVA_T${filters.trimestre}_${filters.year}.csv`;
+        a.click();
     };
 
     // Arrancar
