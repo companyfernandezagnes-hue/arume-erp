@@ -1,5 +1,5 @@
 /* =============================================================
-   🚚 MÓDULO: ALBARANES MAESTRO PRO (VERSIÓN BLINDADA & LIMPIA)
+   🚚 MÓDULO: ALBARANES MAESTRO PRO (Fusión Total & Corrección Final)
    ============================================================= */
 
 import Tesseract from 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.esm.min.js';
@@ -7,10 +7,12 @@ import Tesseract from 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesserac
 export async function render(container, supabase, db, opts = {}) {
     const saveFn = opts.save || (window.save ? window.save : async () => {});
 
+    // 1. INICIALIZACIÓN DE DATOS
     if (!Array.isArray(db.albaranes)) db.albaranes = [];
     const listaSocios = db.listaSocios || ['Jeronimo','Pedro','Pau','Agnes'];
     let filtroOwner = 'Todos'; 
 
+    // 2. FUNCIÓN OCR (IA)
     const runOCR = async (file) => {
         const worker = await Tesseract.createWorker('spa');
         const { data: { text } } = await worker.recognize(file);
@@ -18,9 +20,10 @@ export async function render(container, supabase, db, opts = {}) {
         return text;
     };
 
-    // --- INTERFAZ ---
+    // 3. INTERFAZ GRÁFICA
     container.innerHTML = `
     <div class="animate-fade-in space-y-6 pb-24">
+        
         <header class="flex flex-col md:flex-row justify-between items-center bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 gap-4">
             <div>
                 <h2 class="text-xl font-black text-slate-800">Escáner Multi-IVA</h2>
@@ -32,6 +35,10 @@ export async function render(container, supabase, db, opts = {}) {
                     <input type="file" id="ocrInput" class="hidden" accept="image/*" capture="environment">
                 </label>
                 <button id="btnExport" class="bg-slate-800 text-white px-5 py-3 rounded-2xl text-[10px] font-black shadow-md transition">⬇️ CSV</button>
+                <label class="bg-indigo-50 text-indigo-600 px-5 py-3 rounded-2xl text-[10px] font-black hover:bg-indigo-100 transition cursor-pointer border border-indigo-100 flex items-center gap-2">
+                    <span>📂</span> IMPORTAR
+                    <input type="file" id="csvInput" class="hidden" accept=".csv">
+                </label>
             </div>
         </header>
 
@@ -41,15 +48,18 @@ export async function render(container, supabase, db, opts = {}) {
         </div>
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
             <div class="lg:col-span-1 space-y-4">
                 <div class="bg-white p-6 rounded-[2.5rem] shadow-xl border-2 border-indigo-50 relative overflow-hidden">
                     <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-400 via-indigo-500 to-rose-500"></div>
+                    
                     <div id="ocrLoadingOverlay" class="hidden absolute inset-0 bg-white/90 z-20 flex flex-col items-center justify-center text-center p-4">
                         <div class="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-2"></div>
                         <p class="text-xs font-black text-indigo-600 animate-pulse">ANALIZANDO TICKET...</p>
                     </div>
 
                     <h3 class="text-sm font-black text-slate-800 mb-4 flex items-center gap-2">⚡ Entrada Rápida</h3>
+
                     <div class="space-y-3 mb-4">
                         <input id="inProv" type="text" placeholder="Proveedor" class="w-full p-3 bg-slate-50 rounded-xl text-sm font-bold border-0 outline-none focus:ring-2 focus:ring-indigo-500 transition">
                         <div class="flex gap-2">
@@ -60,9 +70,10 @@ export async function render(container, supabase, db, opts = {}) {
                             <option value="Arume">Gasto: Restaurante (Arume)</option>
                             ${listaSocios.map(s => `<option value="${s}">Gasto: ${s}</option>`).join('')}
                         </select>
+                        <input id="inNotes" type="text" placeholder="📝 Notas..." class="w-full p-3 bg-amber-50 text-amber-900 rounded-xl text-xs font-bold border border-amber-100 outline-none">
                     </div>
 
-                    <textarea id="inText" placeholder="Ej: 2 Tomates 15.00" class="w-full h-40 bg-slate-50 rounded-2xl p-4 text-xs font-mono border-0 outline-none resize-none mb-3 shadow-inner focus:bg-white transition"></textarea>
+                    <textarea id="inText" placeholder="Ej: 2 Tomates 15.00&#10;1 Ginebra 20.00 21" class="w-full h-40 bg-slate-50 rounded-2xl p-4 text-xs font-mono border-0 outline-none resize-none mb-3 shadow-inner focus:bg-white transition"></textarea>
                     
                     <div id="livePreview" class="mt-3 space-y-1 max-h-40 overflow-y-auto custom-scrollbar px-1 bg-slate-50/50 rounded-xl p-2 min-h-[50px]"></div>
 
@@ -73,10 +84,12 @@ export async function render(container, supabase, db, opts = {}) {
                             <span id="liveTotal" class="text-2xl font-black text-white">0.00€</span>
                         </div>
                     </div>
+
                     <div class="flex items-center gap-2 mt-4 px-2">
                         <input type="checkbox" id="inPaid" class="w-4 h-4 accent-indigo-600 cursor-pointer">
                         <label for="inPaid" class="text-xs font-bold text-slate-600 cursor-pointer">Marcar como PAGADO</label>
                     </div>
+
                     <button id="btnProcesar" class="w-full mt-4 bg-indigo-600 text-white py-4 rounded-2xl font-black shadow-xl hover:bg-indigo-700 transition">GUARDAR ALBARÁN</button>
                 </div>
             </div>
@@ -97,6 +110,7 @@ export async function render(container, supabase, db, opts = {}) {
     <div id="modalDetalle" class="hidden fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[200] flex justify-center items-center p-4"></div>
     `;
 
+    // --- REFERENCIAS DOM ---
     const inText = container.querySelector("#inText");
     const livePreview = container.querySelector("#livePreview");
     const liveTotal = container.querySelector("#liveTotal");
@@ -105,45 +119,57 @@ export async function render(container, supabase, db, opts = {}) {
     const inDate = container.querySelector("#inDate");
     const ocrOverlay = container.querySelector("#ocrLoadingOverlay");
 
-    // Lógica OCR
+    // 4. LÓGICA DEL MOTOR (IA + PARSEO)
     container.querySelector("#ocrInput").onchange = async (e) => {
         const file = e.target.files[0];
         if (!file) return;
         ocrOverlay.classList.remove("hidden");
         try {
             const text = await runOCR(file);
+            // Busca números que parezcan precios
             const prices = [...text.matchAll(/(\d+[.,]\d{2})/g)].map(m => parseFloat(m[1].replace(',','.')));
             const total = prices.length > 0 ? Math.max(...prices) : 0;
             if(total > 0) {
                 inText.value = `Compra Escaneada ${total.toFixed(2)}`;
                 inText.dispatchEvent(new Event('input'));
             }
-        } catch (err) { console.error(err); }
+            // Intentar adivinar proveedor
+            const conocidos = ["makro", "mercadona", "repsol", "iberdrola", "amazon", "mahou", "estrella"];
+            conocidos.forEach(p => { if(text.toLowerCase().includes(p)) inProv.value = p.toUpperCase(); });
+            
+            container.querySelector("#inNotes").value = "Escaneado OCR";
+        } catch (err) { console.error(err); alert("Error en lectura OCR"); }
         finally { ocrOverlay.classList.add("hidden"); e.target.value = ''; }
     };
 
     const analizarTexto = (texto) => {
         return texto.split('\n').filter(l => l.trim()).map(line => {
             let clean = line.trim();
-            let rate = 10;
+            let rate = 10; // IVA por defecto
+            
+            // Detectar 4, 10 o 21 al final
             const taxMatch = clean.match(/\s(4|10|21)%?$/);
             if (taxMatch) {
                 rate = parseInt(taxMatch[1]);
                 clean = clean.substring(0, taxMatch.index).trim();
             }
+
             const priceMatch = clean.match(/(\d+[\.,]?\d*)\s*€?$/);
             if (priceMatch) {
                 const priceVal = parseFloat(priceMatch[1].replace(',', '.'));
                 let rest = clean.substring(0, priceMatch.index).trim();
                 let qty = 1;
+                
                 const qtyMatch = rest.match(/^(\d+[\.,]?\d*)\s+/);
                 if (qtyMatch) {
                     qty = parseFloat(qtyMatch[1].replace(',', '.'));
                     rest = rest.substring(qtyMatch[0].length).trim();
                 }
+                
                 const totalLine = qty * priceVal;
                 const baseLine = totalLine / (1 + rate/100);
                 const taxLine = totalLine - baseLine;
+                
                 return { q: qty, n: rest || "Varios", p: priceVal, rate, t: totalLine, base: baseLine, tax: taxLine };
             }
             return null;
@@ -182,6 +208,7 @@ export async function render(container, supabase, db, opts = {}) {
         liveTotal.innerText = grandTotal.toFixed(2) + "€";
     });
 
+    // 5. GUARDAR (CON BASE E IVA SEPARADOS)
     container.querySelector("#btnProcesar").onclick = async () => {
         const items = analizarTexto(inText.value);
         const total = parseFloat(liveTotal.innerText);
@@ -195,9 +222,7 @@ export async function render(container, supabase, db, opts = {}) {
             socio: container.querySelector("#inSocio").value,
             items: items,
             total: total,
-            // Calculamos el total de impuestos sumando todas las líneas
             taxes: items.reduce((acc, it) => acc + it.tax, 0),
-            // Calculamos la base total
             base: items.reduce((acc, it) => acc + it.base, 0),
             invoiced: false,
             paid: container.querySelector("#inPaid").checked,
@@ -206,25 +231,27 @@ export async function render(container, supabase, db, opts = {}) {
 
         db.albaranes.push(nuevo);
         await saveFn("Gasto guardado ✅");
-        inText.value = ""; inProv.value = ""; inText.dispatchEvent(new Event('input'));
+        inText.value = ""; inProv.value = ""; container.querySelector("#inNotes").value = "";
+        inText.dispatchEvent(new Event('input'));
         pintarLista();
     };
 
+    // 6. MODAL DE EDICIÓN Y AUDITORÍA (AQUÍ ESTABA LA MAGIA QUE NECESITAS)
     window.editarAlbaran = (id) => {
         const a = db.albaranes.find(x => x.id === id);
         if(!a) return;
         const modal = container.querySelector("#modalDetalle");
         modal.classList.remove("hidden");
 
-        // Calculamos visualización segura
         const baseMostrar = a.base ? a.base : (a.total / 1.10);
         const ivaMostrar = a.taxes ? a.taxes : (a.total - baseMostrar);
 
+        // Generador de lista de productos para el modal
         let productosHTML = '';
         if (Array.isArray(a.items) && a.items.length > 0) {
             productosHTML = `
                 <div class="mt-4 border-t border-slate-100 pt-4">
-                    <p class="text-[10px] font-black text-indigo-500 uppercase mb-2">Desglose Detallado:</p>
+                    <p class="text-[10px] font-black text-indigo-500 uppercase mb-2">Desglose:</p>
                     <div class="space-y-1 max-h-48 overflow-y-auto pr-2 custom-scrollbar bg-slate-50 p-2 rounded-2xl">
                         ${a.items.map(it => `
                             <div class="flex justify-between items-center text-[11px] py-1 border-b border-white last:border-0">
@@ -288,7 +315,6 @@ export async function render(container, supabase, db, opts = {}) {
             a.date = modal.querySelector("#ed-date").value;
             const nuevoTotal = parseFloat(modal.querySelector("#ed-total").value);
             
-            // Si el total cambia manualmente, recalculamos proporcionalmente (asumiendo 10% por defecto para no romper)
             if (nuevoTotal !== a.total) {
                 a.total = nuevoTotal;
                 a.base = nuevoTotal / 1.10;
@@ -305,9 +331,6 @@ export async function render(container, supabase, db, opts = {}) {
 
     const pintarLista = () => {
         const term = container.querySelector("#searchBox").value.toLowerCase();
-        const totalGlobal = db.albaranes.reduce((acc, a) => acc + (parseFloat(a.total)||0), 0);
-        container.querySelector("#total-global-kpi").innerText = totalGlobal.toLocaleString('es-ES', {minimumFractionDigits:2}) + "€";
-        
         const filtered = db.albaranes.filter(a => {
             const esSocio = a.socio && a.socio !== 'Arume';
             if (filtroOwner === 'Arume' && esSocio) return false;
@@ -330,6 +353,9 @@ export async function render(container, supabase, db, opts = {}) {
                 </div>
             </div>
         `).join('') || '<p class="text-center text-slate-300 py-10">Sin resultados</p>';
+        
+        const totalGlobal = db.albaranes.reduce((acc, a) => acc + (parseFloat(a.total)||0), 0);
+        container.querySelector("#total-global-kpi").innerText = totalGlobal.toLocaleString('es-ES', {minimumFractionDigits:2}) + "€";
     };
 
     window.borrarAlbaran = async (id) => {
@@ -340,23 +366,29 @@ export async function render(container, supabase, db, opts = {}) {
         pintarLista();
     };
 
+    // Filtros y Eventos
     container.querySelectorAll(".filter-btn").forEach(btn => {
         btn.onclick = () => {
             filtroOwner = btn.dataset.filter;
-            container.querySelectorAll(".filter-btn").forEach(b => { b.classList.remove('bg-slate-900','text-white'); b.classList.add('bg-slate-100','text-slate-400'); });
+            container.querySelectorAll(".filter-btn").forEach(b => { 
+                b.classList.remove('bg-slate-900','text-white'); 
+                b.classList.add('bg-slate-100','text-slate-400'); 
+            });
+            btn.classList.remove('bg-slate-100','text-slate-400');
             btn.classList.add('bg-slate-900','text-white');
             pintarLista();
         };
     });
 
-    // Importar CSV
+    container.querySelector("#searchBox").oninput = pintarLista;
+
+    // IMPORTAR CSV
     container.querySelector("#csvInput").onchange = (e) => {
         const file = e.target.files[0];
         if(!file) return;
         const reader = new FileReader();
         reader.onload = async (evt) => {
             const rows = evt.target.result.split('\n').slice(1);
-            let count = 0;
             rows.forEach(row => {
                 const c = row.split(';');
                 if(c.length >= 4) {
@@ -367,16 +399,15 @@ export async function render(container, supabase, db, opts = {}) {
                         total: total, base: total/1.10, taxes: total - (total/1.10),
                         items: [], invoiced: false, paid: true 
                     });
-                    count++;
                 }
             });
-            await saveFn(`Importados ${count}`);
+            await saveFn("Datos Importados");
             pintarLista();
         };
         reader.readAsText(file);
     };
 
-    // Exportar CSV
+    // EXPORTAR CSV
     container.querySelector("#btnExport").onclick = () => {
         const csv = "Fecha;Proveedor;Ref;Total;Base;IVA\n" + db.albaranes.map(a => `${a.date};${a.prov};${a.num};${a.total};${(a.base||0).toFixed(2)};${(a.taxes||0).toFixed(2)}`).join('\n');
         const link = document.createElement('a');
@@ -385,6 +416,5 @@ export async function render(container, supabase, db, opts = {}) {
         link.click();
     };
 
-    container.querySelector("#searchBox").oninput = pintarLista;
     pintarLista();
 }
