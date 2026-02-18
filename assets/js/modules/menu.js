@@ -1,6 +1,7 @@
 /* =============================================================
-   🍽️ MÓDULO: MENU INTELLIGENCE MASTER v7.1 (Fix Carga)
+   🍽️ MÓDULO: MENU INTELLIGENCE MASTER v7.5 (Fix Importación)
    ============================================================= */
+// 👇 ESTA ES LA LÍNEA QUE ARREGLA EL ERROR DE CARGA 👇
 import * as XLSX from 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/xlsx.mjs';
 
 export async function render(container, sb, db, opts = {}) {
@@ -11,7 +12,7 @@ export async function render(container, sb, db, opts = {}) {
     if (!Array.isArray(db.ventas_menu)) db.ventas_menu = [];
     if (!Array.isArray(db.cierres)) db.cierres = [];
 
-    // AUTO-MIGRACIÓN
+    // AUTO-MIGRACIÓN: Recuperar ventas antiguas
     db.platos.forEach(p => {
         if(p.sold > 0) {
             const hasHistory = db.ventas_menu.some(v => v.id === p.id);
@@ -29,9 +30,9 @@ export async function render(container, sb, db, opts = {}) {
     let filterMode = 'month'; 
     let filterValue = new Date().toISOString().slice(0, 7);
 
-    // Helpers
-    const parse = (v) => window.Num ? window.Num.parse(v) : (parseFloat(v)||0);
-    const fmt = (v) => window.Num ? window.Num.fmt(v) : (v||0).toFixed(2)+'€';
+    // Helpers (Si window.Num no existe, usamos fallback)
+    const parse = (v) => (window.Num && window.Num.parse) ? window.Num.parse(v) : (parseFloat(String(v).replace(',','.'))||0);
+    const fmt = (v) => (window.Num && window.Num.fmt) ? window.Num.fmt(v) : (v||0).toFixed(2)+'€';
     const normalize = (s) => String(s || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
 
     // --- 2. CEREBRO MATEMÁTICO ---
@@ -47,11 +48,13 @@ export async function render(container, sb, db, opts = {}) {
             return false;
         };
 
-        const ventasFiltradas = db.ventas_menu.filter(v => checkDate(v.date));
+        // A. Caja Real (Dinero)
         result.totalCajaReal = db.cierres
             .filter(c => checkDate(c.date))
             .reduce((acc, c) => acc + parse(c.totalVenta), 0);
 
+        // B. Ventas Platos
+        const ventasFiltradas = db.ventas_menu.filter(v => checkDate(v.date));
         const ventasPorPlato = {};
         ventasFiltradas.forEach(v => {
             ventasPorPlato[v.id] = (ventasPorPlato[v.id] || 0) + parse(v.qty);
@@ -60,17 +63,21 @@ export async function render(container, sb, db, opts = {}) {
         let totalQty = 0;
         let sumMargenPonderado = 0;
         
+        // C. Análisis
         const analisis = db.platos.map(p => {
             const precio = parse(p.price);
-            const coste = parse(p.cost) || (precio * 0.30);
+            const coste = parse(p.cost) || (precio * 0.30); 
             const margenUnitario = precio - coste;
             const qty = ventasPorPlato[p.id] || 0;
+            
             totalQty += qty;
             sumMargenPonderado += (margenUnitario * qty);
             result.totalTeorico += (precio * qty);
+
             return { ...p, qty, margenUnitario };
         });
 
+        // D. Clasificación
         if (totalQty > 0) {
             const mediaPop = (100 / db.platos.length) * 0.7; 
             const mediaMargen = sumMargenPonderado / totalQty; 
@@ -85,10 +92,10 @@ export async function render(container, sb, db, opts = {}) {
                 else if (!esPop && esRent) result.puzzles.push(p);
                 else result.dogs.push(p);
 
-                // AI Coach
-                if (esPop && !esRent && p.qty > 5) result.tips.push(`🐴 <b>${p.name}</b> vende mucho, poco margen. Sube precio.`);
-                if (!esPop && !esRent && p.qty === 0) result.tips.push(`🧟 <b>${p.name}</b> 0 ventas. ¿Eliminar?`);
-                if (!esPop && esRent && p.qty > 0) result.tips.push(`💎 <b>${p.name}</b> muy rentable. ¡Poténcialo!`);
+                // Coach
+                if (esPop && !esRent && p.qty > 5) result.tips.push(`🐴 <b>${p.name}</b>: Vende mucho, poco margen. Sube precio.`);
+                if (!esPop && !esRent && p.qty === 0) result.tips.push(`🧟 <b>${p.name}</b>: 0 ventas. ¿Eliminar?`);
+                if (!esPop && esRent && p.qty > 0) result.tips.push(`💎 <b>${p.name}</b>: Muy rentable. ¡Poténcialo!`);
             });
         }
         return result;
@@ -113,7 +120,7 @@ export async function render(container, sb, db, opts = {}) {
                 <div class="flex justify-between items-center">
                     <div>
                         <h2 class="text-xl font-black text-slate-800">Menu Intelligence</h2>
-                        <p class="text-[10px] text-indigo-500 font-bold uppercase tracking-widest">v7.1 - Master Edition</p>
+                        <p class="text-[10px] text-indigo-500 font-bold uppercase tracking-widest">v7.5 - Universal Fix</p>
                     </div>
                     <div class="flex items-center gap-2 bg-slate-50 p-2 rounded-2xl border border-slate-200">
                         <select id="filterType" class="bg-white text-xs font-bold py-2 px-3 rounded-xl border-0 outline-none shadow-sm cursor-pointer">
@@ -131,14 +138,14 @@ export async function render(container, sb, db, opts = {}) {
                     </div>
                     <div class="text-right flex gap-6">
                         <div><p class="text-[8px] uppercase font-bold text-slate-400">Platos</p><p class="text-sm font-black text-${auditColor}-800">${fmt(data.totalTeorico)}</p></div>
-                        <div><p class="text-[8px] uppercase font-bold text-slate-400">Caja Real</p><p class="text-sm font-black text-${auditColor}-800">${fmt(data.totalCajaReal)}</p></div>
+                        <div><p class="text-[8px] uppercase font-bold text-slate-400">Caja</p><p class="text-sm font-black text-${auditColor}-800">${fmt(data.totalCajaReal)}</p></div>
                     </div>
                 </div>
             </header>
 
             <div class="flex flex-wrap gap-2 overflow-x-auto no-scrollbar pb-2">
                 <label class="bg-slate-900 text-white px-5 py-3 rounded-2xl text-[10px] font-black cursor-pointer shadow-lg flex items-center gap-2 whitespace-nowrap">
-                    <span>🔄</span> SUBIR TPV <input type="file" id="universalInput" class="hidden" accept=".csv, .xlsx, .xls">
+                    <span>🔄</span> SUBIR EXCEL <input type="file" id="universalInput" class="hidden" accept=".csv, .xlsx, .xls">
                 </label>
                 <button id="btnPaste" class="bg-indigo-600 text-white px-5 py-3 rounded-2xl text-[10px] font-black shadow-lg flex items-center gap-2 whitespace-nowrap"><span>📋</span> PEGAR TABLA</button>
                 <button id="btnPulse" class="bg-emerald-500 text-white px-5 py-3 rounded-2xl text-[10px] font-black shadow-lg flex items-center gap-2">🔥 PULSO</button>
@@ -179,9 +186,9 @@ export async function render(container, sb, db, opts = {}) {
             </div>
         </div>`;
 
-    // --- PROCESADOR UNIVERSAL ---
+    // --- 4. IMPORTADOR UNIVERSAL ---
     const processSalesData = async (rows, source) => {
-        const dateInput = prompt(`📅 ¿Fecha de ventas? (YYYY-MM-DD):`, new Date().toISOString().split('T')[0]);
+        const dateInput = prompt(`Fecha de referencia (${source}):`, new Date().toISOString().split('T')[0]);
         if(!dateInput) return;
 
         let colName = -1, colQty = -1, colPrice = -1;
@@ -189,10 +196,10 @@ export async function render(container, sb, db, opts = {}) {
             const r = rows[i].map(c => String(c).toLowerCase());
             if(colName === -1) colName = r.findIndex(c => c.match(/articulo|nombre|producto|item|descrip/));
             if(colQty === -1) colQty = r.findIndex(c => c.match(/cantidad|unidades|vendidos|qty|uds/));
-            if(colPrice === -1) colPrice = r.findIndex(c => c.match(/precio|pvp|price|importe unit/));
+            if(colPrice === -1) colPrice = r.findIndex(c => c.match(/precio|pvp|price/));
         }
 
-        if(colName === -1 || colQty === -1) return alert("⚠️ No encontré columnas 'Artículo' y 'Cantidad'.");
+        if(colName === -1 || colQty === -1) return alert("⚠️ No encontré columnas 'Artículo' y 'Cantidad'");
 
         let count = 0;
         const startRow = rows.findIndex(r => r[colName] && String(r[colName]).toLowerCase().match(/articulo|nombre|producto/)) + 1 || 1;
@@ -210,12 +217,11 @@ export async function render(container, sb, db, opts = {}) {
                 } else if(priceFound > 0 && plato.price !== priceFound) { plato.price = priceFound; }
 
                 const existing = db.ventas_menu.find(v => v.date === dateInput && v.id === plato.id);
-                if(existing) existing.qty += sold; 
-                else db.ventas_menu.push({ date: dateInput, id: plato.id, qty: sold });
+                if(existing) existing.qty += sold; else db.ventas_menu.push({ date: dateInput, id: plato.id, qty: sold });
                 count++;
             }
         });
-        await saveFn(`✅ Importadas ${count} ventas.`); draw();
+        await saveFn(`✅ Importadas ${count} líneas de venta.`); draw();
     };
 
     const handleImportFile = async (e) => {
@@ -226,7 +232,7 @@ export async function render(container, sb, db, opts = {}) {
                 const wb = XLSX.read(new Uint8Array(evt.target.result), {type:'array'});
                 const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {header:1});
                 processSalesData(rows, "Excel");
-            } catch (err) { alert("Error al leer Excel."); }
+            } catch (err) { alert("Error al leer Excel. Asegúrate de que no esté corrupto."); }
         };
         reader.readAsArrayBuffer(file);
     };
@@ -238,6 +244,7 @@ export async function render(container, sb, db, opts = {}) {
         } catch(e) { alert("Permite el acceso al portapapeles."); }
     };
 
+    // --- 5. PULSO & CRUD ---
     const abrirModalPulse = () => {
         const modal = container.querySelector("#modalPulse");
         modal.classList.remove("hidden");
