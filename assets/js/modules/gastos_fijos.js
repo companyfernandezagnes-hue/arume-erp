@@ -1,18 +1,17 @@
 /* =============================================================
-   🏢 MÓDULO: GASTOS FIJOS v2.2 (Con botón Editar Visible)
+   🏢 MÓDULO: GASTOS FIJOS v2.3 (Optimizado para ArumeEngine)
    ============================================================= */
 
 export async function render(container, supabase, db, opts = {}) {
     const saveFn = opts.save || (window.save ? window.save : async () => {});
     
-    // 1. AUTO-MIGRACIÓN (Limpieza de datos antiguos)
+    // 1. AUTO-MIGRACIÓN
     if (!Array.isArray(db.gastos_fijos)) db.gastos_fijos = [];
     
     db.gastos_fijos.forEach(g => {
         if (!g.dia_pago) g.dia_pago = 1;
         if (!g.notas) g.notas = "";
-        // Si no tiene nombre o es cadena vacía, le ponemos una etiqueta de aviso
-        if (!g.name || g.name.trim() === "") g.name = "⚠️ (Sin Nombre) - Editar aquí";
+        if (!g.name || g.name.trim() === "") g.name = "⚠️ (Sin Nombre)";
     });
 
     const today = new Date();
@@ -26,8 +25,8 @@ export async function render(container, supabase, db, opts = {}) {
         let amount = parseFloat(g.amount) || 0;
         if (g.active === false) return 0;
         if (g.freq === 'anual') return amount / 12;
-        if (g.freq === 'trimestral') return amount / 3;
         if (g.freq === 'semestral') return amount / 6;
+        if (g.freq === 'trimestral') return amount / 3;
         if (g.freq === 'bimensual') return amount / 2;
         if (g.freq === 'semanal') return amount * 4.33; 
         return amount;
@@ -68,7 +67,7 @@ export async function render(container, supabase, db, opts = {}) {
 
         <div class="flex items-center gap-2 bg-white p-2 rounded-2xl border border-slate-100 shadow-sm sticky top-2 z-10">
             <span class="text-slate-400 pl-2">🔍</span>
-            <input id="txtSearch" type="text" placeholder="Buscar gasto..." class="bg-transparent outline-none text-xs font-bold text-slate-600 w-full">
+            <input id="txtSearch" type="text" placeholder="Buscar nómina, alquiler..." class="bg-transparent outline-none text-xs font-bold text-slate-600 w-full">
             <button onclick="window.editarGasto()" class="bg-indigo-600 text-white px-4 py-2 rounded-xl text-[10px] font-black hover:bg-indigo-700 transition flex-shrink-0 shadow-lg shadow-indigo-200">
                 + NUEVO
             </button>
@@ -98,7 +97,7 @@ export async function render(container, supabase, db, opts = {}) {
         });
 
         if (filtered.length === 0) {
-            lista.innerHTML = `<div class="col-span-full text-center py-10 opacity-50 italic text-sm">No tienes gastos fijos activos.</div>`;
+            lista.innerHTML = `<div class="col-span-full text-center py-10 opacity-50 italic text-sm">No hay gastos activos.</div>`;
             return;
         }
 
@@ -106,10 +105,12 @@ export async function render(container, supabase, db, opts = {}) {
             const isPaid = pagados.includes(g.id);
             const mensual = getMensual(g);
             
-            // Iconos
+            // Iconos y colores por categoría
             let icon = '📦';
             let catColor = 'bg-slate-100 text-slate-500';
-            if(g.cat === 'personal') { icon = '👨‍🍳'; catColor = 'bg-blue-50 text-blue-500'; }
+            
+            // Aquí es donde aseguramos visualmente que es Personal
+            if(g.cat === 'personal') { icon = '👨‍🍳'; catColor = 'bg-blue-50 text-blue-600 border border-blue-100'; }
             if(g.cat === 'local') { icon = '🏢'; catColor = 'bg-orange-50 text-orange-500'; }
             if(g.cat === 'suministros') { icon = '💡'; catColor = 'bg-yellow-50 text-yellow-600'; }
             if(g.cat === 'impuestos') { icon = '⚖️'; catColor = 'bg-red-50 text-red-500'; }
@@ -117,8 +118,6 @@ export async function render(container, supabase, db, opts = {}) {
 
             const diaHoy = today.getDate();
             const esUrgente = !isPaid && (g.dia_pago - diaHoy <= 3) && (g.dia_pago - diaHoy >= -5);
-            
-            // Nombre seguro
             const safeName = (g.name || "Sin Nombre").replace(/'/g, "\\'"); 
 
             return `
@@ -126,7 +125,7 @@ export async function render(container, supabase, db, opts = {}) {
                 
                 <div class="flex justify-between items-center mb-3">
                     <div class="flex items-center gap-3 overflow-hidden flex-1">
-                        <div class="w-10 h-10 rounded-2xl ${catColor} flex items-center justify-center text-xl shrink-0">
+                        <div class="w-10 h-10 rounded-2xl ${catColor} flex items-center justify-center text-xl shrink-0 shadow-sm">
                             ${icon}
                         </div>
                         <div class="overflow-hidden">
@@ -135,6 +134,7 @@ export async function render(container, supabase, db, opts = {}) {
                                 <span>${g.freq}</span>
                                 <span>•</span>
                                 <span>Día ${g.dia_pago}</span>
+                                ${g.cat === 'personal' ? '<span class="text-blue-500">• Nómina</span>' : ''}
                             </div>
                         </div>
                     </div>
@@ -175,11 +175,12 @@ export async function render(container, supabase, db, opts = {}) {
         
         if (idx === -1) {
             pagados.push(id);
-            if(confirm("¿Registrar pago en Banco?")) {
+            // Al pagar, creamos un movimiento espejo en el banco si no existe
+            if(confirm("¿Registrar salida de dinero en Banco?")) {
                 db.banco.unshift({
                     id: 'gf-' + Date.now(),
                     date: new Date().toISOString().split('T')[0],
-                    desc: `Pago Gasto Fijo: ${nombreGasto}`,
+                    desc: `Pago: ${nombreGasto}`,
                     amount: -Math.abs(importeMensual),
                     cat: 'Fijos',
                     status: 'conciliado_auto'
@@ -194,7 +195,7 @@ export async function render(container, supabase, db, opts = {}) {
         render(container, supabase, db, opts);
     };
 
-    // 5. MODAL DE EDICIÓN (COMPLETO)
+    // 5. MODAL DE EDICIÓN
     window.editarGasto = (id = null) => {
         const g = id ? db.gastos_fijos.find(x => x.id === id) : { 
             id: Date.now().toString(), name: '', amount: '', freq: 'mensual', cat: 'varios', active: true, dia_pago: 1, notes: '' 
@@ -207,43 +208,49 @@ export async function render(container, supabase, db, opts = {}) {
         modal.innerHTML = `
             <div class="bg-white w-full max-w-sm rounded-[2.5rem] p-8 shadow-2xl animate-slide-up relative max-h-[90vh] overflow-y-auto custom-scrollbar">
                 <button onclick="cerrarModalGasto()" class="absolute top-6 right-6 text-slate-300 hover:text-slate-600 text-2xl transition">✕</button>
-                <h3 class="text-xl font-black text-slate-800 mb-6">${id ? 'Editar' : 'Nuevo'}</h3>
+                <h3 class="text-xl font-black text-slate-800 mb-6">${id ? 'Editar' : 'Nuevo Gasto'}</h3>
                 
                 <div class="space-y-4">
                     <div>
-                        <label class="text-[9px] font-bold text-slate-400 uppercase ml-2">Nombre</label>
-                        <input id="g-name" type="text" value="${g.name || ''}" class="w-full p-3 bg-slate-50 rounded-xl font-bold text-sm border border-slate-100 outline-none">
+                        <label class="text-[9px] font-bold text-slate-400 uppercase ml-2">Nombre / Concepto</label>
+                        <input id="g-name" type="text" value="${g.name || ''}" placeholder="Ej: Nómina Juan, Alquiler..." class="w-full p-3 bg-slate-50 rounded-xl font-bold text-sm border border-slate-100 outline-none">
                     </div>
                     <div class="grid grid-cols-2 gap-3">
                         <div>
                             <label class="text-[9px] font-bold text-slate-400 uppercase ml-2">Importe (€)</label>
-                            <input id="g-amount" type="number" value="${g.amount}" class="w-full p-3 bg-slate-50 rounded-xl font-bold text-lg border border-slate-100 outline-none">
+                            <input id="g-amount" type="number" value="${g.amount}" placeholder="0.00" class="w-full p-3 bg-slate-50 rounded-xl font-bold text-lg border border-slate-100 outline-none">
                         </div>
                         <div>
                             <label class="text-[9px] font-bold text-slate-400 uppercase ml-2">Día Pago</label>
                             <input id="g-day" type="number" value="${g.dia_pago || 1}" class="w-full p-3 bg-slate-50 rounded-xl font-bold text-lg border border-slate-100 outline-none">
                         </div>
                     </div>
+                    
                     <div>
                         <label class="text-[9px] font-bold text-slate-400 uppercase ml-2">Frecuencia</label>
                         <select id="g-freq" class="w-full p-3 bg-slate-50 rounded-xl font-bold text-xs border border-slate-100 outline-none">
-                            <option value="mensual" ${g.freq==='mensual'?'selected':''}>Mensual</option>
-                            <option value="trimestral" ${g.freq==='trimestral'?'selected':''}>Trimestral</option>
-                            <option value="anual" ${g.freq==='anual'?'selected':''}>Anual</option>
+                            <option value="mensual" ${g.freq==='mensual'?'selected':''}>Mensual (12 pagos/año)</option>
+                            <option value="trimestral" ${g.freq==='trimestral'?'selected':''}>Trimestral (4 pagos/año)</option>
+                            <option value="anual" ${g.freq==='anual'?'selected':''}>Anual (1 pago/año)</option>
+                            <option value="semestral" ${g.freq==='semestral'?'selected':''}>Semestral (2 pagos/año)</option>
                         </select>
                     </div>
-                     <div>
-                        <label class="text-[9px] font-bold text-slate-400 uppercase ml-2">Categoría</label>
-                        <select id="g-cat" class="w-full p-3 bg-slate-50 rounded-xl font-bold text-xs border border-slate-100 outline-none">
-                            <option value="varios" ${g.cat==='varios'?'selected':''}>📦 Varios</option>
-                            <option value="local" ${g.cat==='local'?'selected':''}>🏢 Local</option>
-                            <option value="personal" ${g.cat==='personal'?'selected':''}>👨‍🍳 Personal</option>
-                            <option value="suministros" ${g.cat==='suministros'?'selected':''}>💡 Suministros</option>
-                            <option value="software" ${g.cat==='software'?'selected':''}>💻 Software</option>
+                    
+                    <div class="p-4 bg-indigo-50 rounded-xl border border-indigo-100">
+                        <label class="text-[9px] font-black text-indigo-500 uppercase ml-2 mb-2 block">Categoría Contable</label>
+                        <select id="g-cat" class="w-full p-3 bg-white rounded-xl font-bold text-xs border border-indigo-100 outline-none shadow-sm">
+                            <option value="varios" ${g.cat==='varios'?'selected':''}>📦 Varios / Otros</option>
+                            <option value="personal" ${g.cat==='personal'?'selected':''}>👨‍🍳 Personal (Nóminas)</option>
+                            <option value="local" ${g.cat==='local'?'selected':''}>🏢 Local (Alquiler)</option>
+                            <option value="suministros" ${g.cat==='suministros'?'selected':''}>💡 Suministros (Luz/Agua)</option>
+                            <option value="impuestos" ${g.cat==='impuestos'?'selected':''}>⚖️ Impuestos / Tasas</option>
                         </select>
+                        <p class="text-[9px] text-indigo-400 mt-2 ml-1">ℹ️ Selecciona 'Personal' para que cuente como coste de equipo.</p>
                     </div>
-                    <button id="btnSaveGasto" class="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black shadow-lg mt-2">GUARDAR</button>
-                    ${id ? `<button id="btnArchiveGasto" class="w-full text-rose-400 text-[10px] font-bold uppercase mt-2">Eliminar</button>` : ''}
+
+                    <button id="btnSaveGasto" class="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black shadow-lg hover:bg-indigo-700 transition active:scale-95 mt-2">GUARDAR</button>
+                    
+                    ${id ? `<button id="btnArchiveGasto" class="w-full text-rose-400 text-[10px] font-bold uppercase mt-2 hover:text-rose-600">Eliminar este gasto</button>` : ''}
                 </div>
             </div>
         `;
@@ -278,7 +285,7 @@ export async function render(container, supabase, db, opts = {}) {
 
         if(id) {
              modal.querySelector("#btnArchiveGasto").onclick = async () => {
-                if(!confirm("¿Borrar?")) return;
+                if(!confirm("¿Seguro que quieres eliminar este gasto fijo?")) return;
                 const idx = db.gastos_fijos.findIndex(x => x.id === id);
                 if(idx >= 0) db.gastos_fijos[idx].active = false;
                 await saveFn("Eliminado");
