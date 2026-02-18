@@ -1,5 +1,5 @@
 /* =============================================================
-   🚀 ARUME ERP - NÚCLEO CENTRAL (app.js) v2.0 (Con Cerebro Unificado)
+   🚀 ARUME ERP - NÚCLEO CENTRAL (app.js) v3.0 [MASTER BRAIN]
    ============================================================= */
 
 // 0. UTILIDADES GLOBALES
@@ -10,7 +10,8 @@ window.Num = {
         let clean = val.toString().replace(/\./g, '').replace(',', '.');
         return parseFloat(clean) || 0;
     },
-    fmt: (val) => new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(val || 0)
+    fmt: (val) => new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(val || 0),
+    fmtDec: (val) => new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(val || 0)
 };
 
 window.DateUtil = {
@@ -18,10 +19,13 @@ window.DateUtil = {
     getMonthBounds: (month, year) => {
         const start = new Date(year, month, 1);
         const end = new Date(year, month + 1, 0); // Último día del mes
-        return {
-            start: start.toISOString().split('T')[0],
-            end: end.toISOString().split('T')[0]
-        };
+        return { start, end };
+    },
+    parse: (d) => {
+        if (!d) return new Date();
+        if (d instanceof Date) return d;
+        // Soporte básico para strings
+        return new Date(d);
     }
 };
 
@@ -39,13 +43,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     await cargarDatosDeLaNube();
 });
 
-// 3. RECUPERAR DATOS REALES (CON BLOQUE DE SEGURIDAD)
+// 3. RECUPERAR DATOS REALES
 async function cargarDatosDeLaNube() {
     console.log("📡 Conectando con Supabase...");
     
-    // UI de carga inicial
     const container = document.getElementById('app');
-    if(container) container.innerHTML = `<div class="flex h-full items-center justify-center flex-col gap-4"><div class="w-12 h-12 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div><p class="animate-pulse text-slate-400 font-bold text-xs uppercase tracking-widest">Sincronizando Sistema...</p></div>`;
+    if(container) container.innerHTML = `<div class="flex h-full items-center justify-center flex-col gap-4"><div class="w-12 h-12 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div><p class="animate-pulse text-slate-400 font-bold text-xs uppercase tracking-widest">Sincronizando Cerebro...</p></div>`;
 
     const { data, error } = await sb
         .from('arume_data') 
@@ -61,23 +64,14 @@ async function cargarDatosDeLaNube() {
         window.db = data.data || {};
         
         // --- BLOQUE DE SEGURIDAD: INICIALIZAR ESTRUCTURAS ---
-        if(!window.db.banco) window.db.banco = [];
-        if(!window.db.platos) window.db.platos = [];
-        if(!window.db.recetas) window.db.recetas = []; 
-        if(!window.db.ingredientes) window.db.ingredientes = [];
-        if(!window.db.ventas_menu) window.db.ventas_menu = [];
-        if(!window.db.diario) window.db.diario = []; // Se mantiene por compatibilidad
-        if(!window.db.cierres) window.db.cierres = []; // NUEVO: Aquí van los cierres Z
-        if(!window.db.facturas) window.db.facturas = []; 
-        if(!window.db.albaranes) window.db.albaranes = []; 
-        if(!window.db.gastos_fijos) window.db.gastos_fijos = []; 
-        if(!window.db.activos) window.db.activos = []; 
-        if(!window.db.proveedores) window.db.proveedores = [];
-        if(!window.db.cierres_mensuales) window.db.cierres_mensuales = [];
-        if(!window.db.priceHistory) window.db.priceHistory = {};
+        ['banco','platos','recetas','ingredientes','ventas_menu','cierres','facturas','albaranes','gastos_fijos','activos','proveedores','cierres_mensuales'].forEach(k => {
+            if(!window.db[k]) window.db[k] = [];
+        });
         
-        if(!window.db.config) window.db.config = { objetivoMensual: 30000 };
-        // ---------------------------------------------------
+        // Compatibilidad con versiones antiguas
+        if(!window.db.diario) window.db.diario = []; 
+        if(!window.db.priceHistory) window.db.priceHistory = {};
+        if(!window.db.config) window.db.config = { objetivoMensual: 40000 };
         
         // Guardar copia local por seguridad
         localStorage.setItem('arume_backup_local', JSON.stringify(window.db));
@@ -104,40 +98,14 @@ window.loadModule = async function(name) {
         let fileName = name;
         if (name === 'diario') fileName = 'caja'; 
         
-        // Cache-busting para asegurar carga fresca
         const modulePath = `./modules/${fileName}.js?v=${Date.now()}`;
-        
         const mod = await import(modulePath);
         
         container.innerHTML = "";
         
         if (mod.render) {
             await mod.render(container, window.sb, window.db);
-            
-            // Gestión de botones activos
-            document.querySelectorAll('.nav-icon').forEach(icon => {
-                icon.style.opacity = '0.5';
-                icon.style.transform = 'scale(1)';
-            });
-            document.querySelectorAll('.nav-text').forEach(text => {
-                text.classList.remove('text-indigo-600');
-                text.classList.add('text-slate-400');
-            });
-
-            const activeBtn = document.querySelector(`button[onclick="loadModule('${name}')"]`);
-            if (activeBtn) {
-                const icon = activeBtn.querySelector('.nav-icon');
-                const text = activeBtn.querySelector('.nav-text');
-                if(icon) {
-                    icon.style.opacity = '1';
-                    icon.style.transform = 'scale(1.2)';
-                    icon.style.transition = 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
-                }
-                if(text) {
-                    text.classList.remove('text-slate-400');
-                    text.classList.add('text-indigo-600');
-                }
-            }
+            updateNavState(name);
         }
         
     } catch (e) {
@@ -154,80 +122,55 @@ window.loadModule = async function(name) {
     }
 };
 
+function updateNavState(name) {
+    document.querySelectorAll('.nav-icon').forEach(icon => {
+        icon.style.opacity = '0.5';
+        icon.style.transform = 'scale(1)';
+    });
+    document.querySelectorAll('.nav-text').forEach(text => {
+        text.classList.remove('text-indigo-600');
+        text.classList.add('text-slate-400');
+    });
+
+    const activeBtn = document.querySelector(`button[onclick="loadModule('${name}')"]`);
+    if (activeBtn) {
+        const icon = activeBtn.querySelector('.nav-icon');
+        const text = activeBtn.querySelector('.nav-text');
+        if(icon) {
+            icon.style.opacity = '1';
+            icon.style.transform = 'scale(1.2)';
+            icon.style.transition = 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+        }
+        if(text) {
+            text.classList.remove('text-slate-400');
+            text.classList.add('text-indigo-600');
+        }
+    }
+}
+
 // 5. MENÚ DE NAVEGACIÓN
 function renderNav() {
     const nav = document.getElementById('navbar');
     if (!nav) return;
 
+    // Iconos mapeados
+    const icons = {
+        dashboard: '📊', diario: '💵', facturas: '📄', albaranes: '🚚',
+        tesoreria: '⚖️', liquidez: '🔮', banco: '🏦', gastos_fijos: '🏢',
+        informes: '📈', cierre: '🔒', proveedores: '🤝', amortizaciones: '📉'
+    };
+
+    const menuItems = ['dashboard', 'diario', 'facturas', 'albaranes', 'tesoreria', 'liquidez', 'banco', 'gastos_fijos', 'informes', 'cierre', 'proveedores', 'amortizaciones'];
+
     nav.innerHTML = `
         <div class="flex items-center justify-between w-full overflow-x-auto gap-4 px-2 py-1 no-scrollbar">
-            
-            <button onclick="loadModule('dashboard')" class="flex flex-col items-center gap-1 min-w-[45px] shrink-0 group">
-                <span class="text-xl transition-all nav-icon">📊</span>
-                <span class="text-[8px] font-black uppercase text-slate-400 group-hover:text-indigo-500 nav-text">Dash</span>
-            </button>
-            
-            <div class="w-px h-6 bg-slate-200 shrink-0"></div> 
-
-            <button onclick="loadModule('diario')" class="flex flex-col items-center gap-1 min-w-[45px] shrink-0 group">
-                <span class="text-xl transition-all nav-icon">💵</span>
-                <span class="text-[8px] font-black uppercase text-slate-400 group-hover:text-indigo-500 nav-text">Caja</span>
-            </button>
-            
-            <button onclick="loadModule('facturas')" class="flex flex-col items-center gap-1 min-w-[45px] shrink-0 group">
-                <span class="text-xl transition-all nav-icon">📄</span>
-                <span class="text-[8px] font-black uppercase text-slate-400 group-hover:text-indigo-500 nav-text">Ventas</span>
-            </button>
-            
-            <button onclick="loadModule('albaranes')" class="flex flex-col items-center gap-1 min-w-[45px] shrink-0 group">
-                <span class="text-xl transition-all nav-icon">🚚</span>
-                <span class="text-[8px] font-black uppercase text-slate-400 group-hover:text-indigo-500 nav-text">Gastos</span>
-            </button>
-
-            <button onclick="loadModule('tesoreria')" class="flex flex-col items-center gap-1 min-w-[45px] shrink-0 group">
-                <span class="text-xl transition-all nav-icon">⚖️</span>
-                <span class="text-[8px] font-black uppercase text-slate-400 group-hover:text-indigo-500 nav-text">Deuda</span>
-            </button>
-
-            <div class="w-px h-6 bg-slate-200 shrink-0"></div> 
-
-            <button onclick="loadModule('liquidez')" class="flex flex-col items-center gap-1 min-w-[45px] shrink-0 group">
-                <span class="text-xl transition-all nav-icon">🔮</span>
-                <span class="text-[8px] font-black uppercase text-slate-400 group-hover:text-indigo-500 nav-text">Futuro</span>
-            </button>
-
-            <button onclick="loadModule('banco')" class="flex flex-col items-center gap-1 min-w-[45px] shrink-0 group">
-                <span class="text-xl transition-all nav-icon">🏦</span>
-                <span class="text-[8px] font-black uppercase text-slate-400 group-hover:text-indigo-500 nav-text">Banco</span>
-            </button>
-
-            <button onclick="loadModule('gastos_fijos')" class="flex flex-col items-center gap-1 min-w-[45px] shrink-0 group">
-                <span class="text-xl transition-all nav-icon">🏢</span>
-                <span class="text-[8px] font-black uppercase text-slate-400 group-hover:text-indigo-500 nav-text">Fijos</span>
-            </button>
-
-            <div class="w-px h-6 bg-slate-200 shrink-0"></div> 
-
-            <button onclick="loadModule('informes')" class="flex flex-col items-center gap-1 min-w-[45px] shrink-0 group">
-                <span class="text-xl transition-all nav-icon">📈</span>
-                <span class="text-[8px] font-black uppercase text-slate-400 group-hover:text-indigo-500 nav-text">P&L</span>
-            </button>
-
-            <button onclick="loadModule('cierre')" class="flex flex-col items-center gap-1 min-w-[45px] shrink-0 group">
-                <span class="text-xl transition-all nav-icon">🔒</span>
-                <span class="text-[8px] font-black uppercase text-slate-400 group-hover:text-indigo-500 nav-text">Cierre</span>
-            </button>
-
-            <button onclick="loadModule('proveedores')" class="flex flex-col items-center gap-1 min-w-[45px] shrink-0 group">
-                <span class="text-xl transition-all nav-icon">🤝</span>
-                <span class="text-[8px] font-black uppercase text-slate-400 group-hover:text-indigo-500 nav-text">Provs</span>
-            </button>
-
-            <button onclick="loadModule('amortizaciones')" class="flex flex-col items-center gap-1 min-w-[45px] shrink-0 group">
-                <span class="text-xl transition-all nav-icon">📉</span>
-                <span class="text-[8px] font-black uppercase text-slate-400 group-hover:text-indigo-500 nav-text">Amort.</span>
-            </button>
-
+            ${menuItems.map(item => `
+                <button onclick="loadModule('${item}')" class="flex flex-col items-center gap-1 min-w-[45px] shrink-0 group">
+                    <span class="text-xl transition-all nav-icon">${icons[item] || '●'}</span>
+                    <span class="text-[8px] font-black uppercase text-slate-400 group-hover:text-indigo-500 nav-text">${item.substr(0,4)}</span>
+                </button>
+                ${['dashboard','tesoreria','gastos_fijos'].includes(item) ? '<div class="w-px h-6 bg-slate-200 shrink-0"></div>' : ''}
+            `).join('')}
         </div>
     `;
 }
@@ -256,7 +199,7 @@ window.save = async function(mensaje = "Datos guardados") {
 };
 
 // =============================================================
-// 7. LÓGICA DE NEGOCIO GLOBAL (El "Cerebro")
+// 🧠 7. ARUME ENGINE v3.0 (Cerebro Analítico Master)
 // =============================================================
 
 // Cálculo de amortizaciones
@@ -278,63 +221,106 @@ window.calcularAmortizacionMensual = function(activos) {
     return gastoTotalMes;
 };
 
-// Motor Central de Cálculos (ArumeEngine)
+// Motor Central de Cálculos
 window.ArumeEngine = {
-    // 1. OBTENER VENTAS REALES (Cajas Z + Facturas Extras)
-    getVentas: (desde, hasta) => {
-        const cajaTotal = (window.db.cierres || [])
-            .filter(c => c.date >= desde && c.date <= hasta)
-            .reduce((acc, c) => acc + (parseFloat(c.totalVenta) || 0), 0);
+    
+    // Obtener Beneficio Detallado (Usado por Dashboard y P&L)
+    getProfit: (month, year) => {
+        const { start, end } = window.DateUtil.getMonthBounds(month, year);
+        const sTime = start.getTime();
+        const eTime = end.getTime();
+
+        // A. INGRESOS (Desglose Caja vs Facturas)
+        let cajaZ = 0, facturasB2B = 0;
+        
+        // 1. Cajas Z (Cierres diarios)
+        (window.db.cierres || []).forEach(c => {
+            const d = new Date(c.date).getTime();
+            if(d >= sTime && d <= eTime) cajaZ += window.Num.parse(c.totalVenta);
+        });
+
+        // 2. Facturas Extra (Eventos, Catering) - Ignoramos las que empiezan por Z (duplicadas de cierres)
+        (window.db.facturas || []).forEach(f => {
+            const d = new Date(f.date).getTime();
+            if(d >= sTime && d <= eTime && !String(f.num).toUpperCase().startsWith('Z')) {
+                facturasB2B += window.Num.parse(f.total);
+            }
+        });
+
+        const totalIngresos = cajaZ + facturasB2B;
+
+        // B. GASTOS VARIABLES (Categorización Automática)
+        let gComida = 0, gBebida = 0, gOtros = 0;
+        
+        (window.db.albaranes || []).forEach(a => {
+            const d = new Date(a.date).getTime();
+            if(d >= sTime && d <= eTime) {
+                const total = window.Num.parse(a.total);
+                const p = (a.prov || '').toLowerCase();
+                
+                // Heurística de categorización por palabras clave
+                if (p.match(/fruta|carne|pesca|makro|mercadona|pan|huevo|verdu|aliment|chef|congelado|lidl|dia|eroski/)) {
+                    gComida += total;
+                } else if (p.match(/estrella|mahou|coca|vino|bebida|licor|bodega|drinks|cerveza|agua|cafe|schweppes/)) {
+                    gBebida += total;
+                } else {
+                    gOtros += total; // Limpieza, suministros, reparaciones
+                }
+            }
+        });
+
+        // C. GASTOS FIJOS (Estructura)
+        let gPersonal = 0, gEstructura = 0;
+        (window.db.gastos_fijos || []).filter(g => g.active !== false).forEach(g => {
+            let val = window.Num.parse(g.amount);
+            // Prorrateo según frecuencia
+            if(g.freq === 'anual') val /= 12;
+            if(g.freq === 'semestral') val /= 6;
+            if(g.freq === 'trimestral') val /= 3;
+            if(g.freq === 'bimensual') val /= 2;
             
-        const facturasTotal = (window.db.facturas || [])
-            .filter(f => f.date >= desde && f.date <= hasta && !String(f.num).startsWith('Z-')) // Excluir Z duplicadas
-            .reduce((acc, f) => acc + (parseFloat(f.total) || 0), 0);
+            if(g.cat === 'personal') gPersonal += val;
+            else gEstructura += val; // Alquiler, luz, gestoria...
+        });
 
-        return cajaTotal + facturasTotal;
-    },
+        // D. AMORTIZACIONES
+        const gAmort = window.calcularAmortizacionMensual(window.db.activos);
 
-    // 2. OBTENER GASTOS REALES (Albaranes)
-    getGastos: (desde, hasta) => {
-        return (window.db.albaranes || [])
-            .filter(a => a.date >= desde && a.date <= hasta)
-            .reduce((acc, a) => acc + (parseFloat(a.total) || 0), 0);
-    },
+        const totalGastos = gComida + gBebida + gOtros + gPersonal + gEstructura + gAmort;
 
-    // 3. BENEFICIO NETO (Profit)
-    getProfit: (mes, año) => {
-        const { start, end } = window.DateUtil.getMonthBounds(mes, año);
-        
-        const ingresos = window.ArumeEngine.getVentas(start, end);
-        const gastosVariables = window.ArumeEngine.getGastos(start, end);
-        
-        // Gastos Fijos (Prorrateo inteligente)
-        const fijos = (window.db.gastos_fijos || [])
-            .filter(g => g.active !== false)
-            .reduce((acc, g) => {
-                let val = parseFloat(g.amount) || 0;
-                if(g.freq === 'anual') val = val / 12;
-                if(g.freq === 'trimestral') val = val / 3;
-                return acc + val;
-            }, 0);
-            
-        const amortizaciones = window.calcularAmortizacionMensual(window.db.activos || []);
-        
         return {
-            ingresos,
-            gastos: gastosVariables + fijos + amortizaciones,
-            neto: ingresos - (gastosVariables + fijos + amortizaciones),
-            desglose: { variables: gastosVariables, fijos, amortizaciones }
+            ingresos: { 
+                total: totalIngresos, 
+                caja: cajaZ, 
+                b2b: facturasB2B 
+            },
+            gastos: { 
+                total: totalGastos,
+                comida: gComida,
+                bebida: gBebida,
+                personal: gPersonal,
+                otros: gOtros,
+                estructura: gEstructura,
+                amortizacion: gAmort
+            },
+            neto: totalIngresos - totalGastos,
+            // Ratios listos para usar en Dashboard
+            ratios: {
+                foodCost: totalIngresos ? (gComida/totalIngresos)*100 : 0,
+                drinkCost: totalIngresos ? (gBebida/totalIngresos)*100 : 0,
+                staffCost: totalIngresos ? (gPersonal/totalIngresos)*100 : 0,
+                primeCost: totalIngresos ? ((gComida+gBebida+gPersonal)/totalIngresos)*100 : 0
+            }
         };
     }
 };
 
-// Comprobador de periodos
+// Comprobador de periodos (Helper global)
 window.isInPeriod = function(dateStr) {
-    // Por defecto true, pero preparado para filtros globales futuros
     return true; 
 };
 
-// 8. LÓGICA DE BARRA DINÁMICA
+// 8. LÓGICA DE BARRA DINÁMICA (UX Móvil)
 let lastScrollTop = 0;
 window.addEventListener("scroll", function() {
     const nav = document.getElementById("navbar");
