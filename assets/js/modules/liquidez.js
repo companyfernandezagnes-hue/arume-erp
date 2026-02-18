@@ -1,29 +1,36 @@
 /* =============================================================
-   🔮 MÓDULO: PREVISIÓN DE LIQUIDEZ (Cashflow a 30 días)
+   🔮 MÓDULO: PREVISIÓN DE LIQUIDEZ (Cashflow Realista)
    ============================================================= */
 
 export async function render(container, sb, db) {
+    
     // 1. ANÁLISIS DE SITUACIÓN ACTUAL
     const today = new Date();
     
     // A. Saldo Actual (Suma de todos los movimientos del banco)
-    // Si no hay movimientos, empezamos en 0
-    const saldoActual = (db.banco || []).reduce((acc, m) => acc + (parseFloat(m.amount) || 0), 0);
+    const saldoActual = (db.banco || []).reduce((acc, m) => acc + window.Num.parse(m.amount), 0);
 
     // B. Calcular Promedios Diarios (Basado en los últimos 30 días)
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(today.getDate() - 30);
 
-    // B1. Promedio Ventas Diarias (Ingresos)
-    const ventasUltimos30 = (db.facturas || [])
-        .filter(f => new Date(f.fecha) >= thirtyDaysAgo)
-        .reduce((acc, f) => acc + (parseFloat(f.total) || 0), 0);
-    const promedioVentas = ventasUltimos30 / 30 || 0;
+    // --- CORRECCIÓN CLAVE: Sumar Cierres Z + Facturas ---
+    // Ingresos por Cierre Z (TPV)
+    const ingresosCaja = (db.cierres || [])
+        .filter(c => new Date(c.date) >= thirtyDaysAgo)
+        .reduce((acc, c) => acc + window.Num.parse(c.totalVenta), 0);
 
-    // B2. Promedio Compras Variables Diarias (Albaranes - Food Cost)
+    // Ingresos por Factura (Eventos)
+    const ingresosFacturas = (db.facturas || [])
+        .filter(f => new Date(f.date) >= thirtyDaysAgo && !String(f.num).startsWith('Z-'))
+        .reduce((acc, f) => acc + window.Num.parse(f.total), 0);
+
+    const promedioVentas = (ingresosCaja + ingresosFacturas) / 30 || 0;
+
+    // B2. Promedio Compras Variables Diarias (Albaranes)
     const comprasUltimos30 = (db.albaranes || [])
         .filter(a => new Date(a.date) >= thirtyDaysAgo)
-        .reduce((acc, a) => acc + (parseFloat(a.total) || 0), 0);
+        .reduce((acc, a) => acc + window.Num.parse(a.total), 0);
     const promedioCompras = comprasUltimos30 / 30 || 0;
 
     // 2. MOTOR DE PROYECCIÓN (La Bola de Cristal)
@@ -45,17 +52,15 @@ export async function render(container, sb, db) {
         saldoProyectado -= promedioCompras;
 
         // 3. Restar Gastos Fijos (Si tocan hoy)
-        // Buscamos gastos activos que se paguen este día del mes
         const gastosHoy = (db.gastos_fijos || []).filter(g => {
             if (g.active === false) return false;
-            // Simplificación: Asumimos pago mensual para la proyección
-            // (Para hacerlo perfecto habría que mirar frecuencias, pero esto cubre el 90% de casos críticos como alquiler/nóminas)
+            // Asumimos que si el día de pago es el 31 y el mes tiene 30, se paga el 30 (simplificación)
             return (g.dia_pago || 1) === diaMes; 
         });
 
         let impactoFijos = 0;
         gastosHoy.forEach(g => {
-            impactoFijos += (parseFloat(g.amount) || 0);
+            impactoFijos += window.Num.parse(g.amount);
         });
 
         saldoProyectado -= impactoFijos;
@@ -67,12 +72,12 @@ export async function render(container, sb, db) {
         diasProyeccion.push({
             dia: fechaFutura.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' }),
             saldo: saldoProyectado,
-            gastosFijos: impactoFijos // Para marcar hitos en la gráfica
+            gastosFijos: impactoFijos 
         });
     }
 
-    // Formateador
-    const fmt = (n) => new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(n);
+    // Formateador Global
+    const fmt = window.Num.fmt;
 
     // 3. RENDERIZADO UI
     container.innerHTML = `
@@ -133,14 +138,13 @@ export async function render(container, sb, db) {
                     ${(db.gastos_fijos || [])
                         .filter(g => g.active !== false)
                         .sort((a,b) => {
-                            // Ordenar por cercanía del día de pago respecto a hoy
                             let d1 = (a.dia_pago || 1) - today.getDate();
                             let d2 = (b.dia_pago || 1) - today.getDate();
-                            if(d1 < 0) d1 += 30; // Si ya pasó, es el mes que viene
+                            if(d1 < 0) d1 += 30; 
                             if(d2 < 0) d2 += 30;
                             return d1 - d2;
                         })
-                        .slice(0, 3) // Solo los 3 próximos
+                        .slice(0, 3) 
                         .map(g => `
                             <div class="flex justify-between items-center py-2 border-b border-slate-50 last:border-0">
                                 <div>
@@ -159,7 +163,6 @@ export async function render(container, sb, db) {
     setTimeout(() => {
         const ctx = document.getElementById('chartLiquidez');
         if (ctx) {
-            // Destruir anterior si existe para evitar solapamientos
             if (window.myLiquidezChart) window.myLiquidezChart.destroy();
 
             window.myLiquidezChart = new Chart(ctx, {
@@ -169,7 +172,7 @@ export async function render(container, sb, db) {
                     datasets: [{
                         label: 'Saldo Proyectado',
                         data: diasProyeccion.map(d => d.saldo),
-                        borderColor: '#4f46e5', // Indigo 600
+                        borderColor: '#4f46e5', 
                         backgroundColor: (context) => {
                             const ctx = context.chart.ctx;
                             const gradient = ctx.createLinearGradient(0, 0, 0, 300);
@@ -181,7 +184,7 @@ export async function render(container, sb, db) {
                         pointRadius: 0,
                         pointHoverRadius: 6,
                         fill: true,
-                        tension: 0.4 // Curva suave
+                        tension: 0.4
                     }]
                 },
                 options: {
@@ -193,13 +196,8 @@ export async function render(container, sb, db) {
                             mode: 'index',
                             intersect: false,
                             backgroundColor: 'rgba(15, 23, 42, 0.9)',
-                            titleFont: { size: 10, family: "'Plus Jakarta Sans', sans-serif" },
-                            bodyFont: { size: 12, family: "'Plus Jakarta Sans', sans-serif", weight: 'bold' },
-                            padding: 10,
                             callbacks: {
-                                label: function(context) {
-                                    return context.parsed.y.toLocaleString('es-ES', {style:'currency', currency:'EUR', maximumFractionDigits: 0});
-                                }
+                                label: (c) => c.parsed.y.toLocaleString('es-ES', {style:'currency', currency:'EUR', maximumFractionDigits: 0})
                             }
                         }
                     },
@@ -207,8 +205,7 @@ export async function render(container, sb, db) {
                         x: { grid: { display: false }, ticks: { font: { size: 9 }, maxTicksLimit: 6 } },
                         y: { 
                             grid: { color: '#f1f5f9' }, 
-                            ticks: { font: { size: 9 }, callback: (v) => v/1000 + 'k' },
-                            suggestedMin: 0 // Intentar empezar en 0
+                            ticks: { font: { size: 9 }, callback: (v) => v/1000 + 'k' }
                         }
                     }
                 }
