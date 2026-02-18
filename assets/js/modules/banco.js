@@ -1,5 +1,5 @@
 /* =============================================================
-   🏦 MÓDULO: TESORERÍA ULTRA v10.0 (Conciliación TPV + Bancaria)
+   🏦 MÓDULO: TESORERÍA ULTRA v10.5 (Auto-Conciliación TPV Real)
    ============================================================= */
 
 import * as XLSX from 'https://cdn.sheetjs.com/xlsx-0.20.1/package/xlsx.mjs';
@@ -23,8 +23,8 @@ const Utils = {
         let s = String(raw).trim();
         s = s.replace(/[^\d,.-]/g, ''); 
         if (s.includes(',') && s.includes('.')) {
-            if (s.indexOf(',') > s.indexOf('.')) s = s.replace(/\./g, '').replace(',', '.'); // Eur
-            else s = s.replace(/,/g, ''); // USA
+            if (s.indexOf(',') > s.indexOf('.')) s = s.replace(/\./g, '').replace(',', '.'); 
+            else s = s.replace(/,/g, ''); 
         } else if (s.includes(',')) s = s.replace(',', '.');
         return parseFloat(s) || 0;
     },
@@ -107,7 +107,7 @@ export async function render(container, supabase, db, opts = {}) {
                     <h2 class="text-2xl font-black text-slate-800">Tesoreria</h2>
                     <p class="text-[10px] text-indigo-500 font-bold uppercase tracking-widest flex items-center gap-2">
                         <span>Gestión Bancaria</span>
-                        <span class="bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full">TPV Connected</span>
+                        <span class="bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full">v10.5 Auto-Match</span>
                     </p>
                 </div>
                 <div class="text-right">
@@ -341,7 +341,7 @@ export async function render(container, supabase, db, opts = {}) {
         `).join('');
     };
 
-    // --- 3. MATCHING INTELLIGENCE (ACTUALIZADO: CIERRES + AMEX/MADISA) ---
+    // --- 3. MATCHING INTELLIGENCE ---
     window.selectBankItem = (id) => {
         selectedBankId = id;
         renderBankList();
@@ -396,22 +396,16 @@ export async function render(container, supabase, db, opts = {}) {
                 const t = parseFloat(c.tarjeta) || 0;
                 const apps = parseFloat(c.apps) || 0;
                 
-                // Opción 1: Coincide con el total de tarjeta del día (TPV Genérico)
+                // Opción 1: TPV Genérico
                 const diffT = Math.abs(t - item.amount);
-                if (diffT < 5) { // Margen de 5€ por comisiones
+                if (diffT < 5) { 
                     matches.push({ type: 'TPV Diario', data: c, text: `Cierre Caja Z: ${c.date}`, score: 80 - diffT, amount: t, targetField: 'tarjeta' });
                 }
 
-                // Opción 2: Coincide con Apps (Glovo/Uber/Madisa)
+                // Opción 2: Apps (Delivery)
                 const diffA = Math.abs(apps - item.amount);
                 if (diffA < 2) {
                     matches.push({ type: 'Delivery/Apps', data: c, text: `Apps Delivery: ${c.date}`, score: 80 - diffA, amount: apps, targetField: 'apps' });
-                }
-                
-                // Opción 3: Coincide con AMEX (si tuvieras campo amex, o si es un parcial)
-                // Aquí asumimos que si la descripción pone AMEX, buscamos coincidencia aproximada
-                if (item.desc.toUpperCase().includes('AMEX') && t > item.amount) {
-                     matches.push({ type: 'Cobro AMEX', data: c, text: `Parte de Cierre: ${c.date}`, score: 60, amount: item.amount, targetField: 'parcial' });
                 }
             });
         }
@@ -459,20 +453,14 @@ export async function render(container, supabase, db, opts = {}) {
         const bItem = db.banco.find(b => b.id === bankId);
         if(bItem) bItem.status = 'matched';
         
-        // Si es Cierre de Caja (TPV/Apps)
-        if (type.includes('TPV') || type.includes('Apps') || type.includes('AMEX') || type.includes('Cierre')) {
+        if (type.includes('TPV') || type.includes('Apps') || type.includes('Cierre')) {
             const cierre = db.cierres.find(c => c.id === erpId);
-            if (cierre) {
-                // Marcamos como conciliado (parcialmente si es necesario, pero simple por ahora)
-                cierre.conciliado_banco = true; 
-            }
+            if (cierre) cierre.conciliado_banco = true; 
         } else {
-            // Si es Factura o Gasto
             const targetDb = type.includes('Factura') ? db.facturas : db.albaranes;
             const item = targetDb.find(i => i.id === erpId);
             if(item) { item.reconciled = true; item.paid = true; }
         }
-        
         await saveFn("Conciliado ✅");
         selectedBankId = null; matchPanel.innerHTML = ''; updateUI();
     };
@@ -484,7 +472,6 @@ export async function render(container, supabase, db, opts = {}) {
         if(!item) return;
         const concepto = name || prompt("Nombre del gasto:", item.desc);
         if(!concepto) return;
-        
         const importe = Math.abs(item.amount);
         db.albaranes.push({
             id: 'auto-' + Date.now(),
@@ -501,18 +488,34 @@ export async function render(container, supabase, db, opts = {}) {
         selectedBankId = null; matchPanel.innerHTML = ''; updateUI();
     };
 
+    // --- MAGIA: AUTO-CONCILIAR (TPV INCLUIDO) ---
     window.runMagic = async () => {
         let count = 0;
         const pendings = db.banco.filter(b => b.status === 'pending');
         for (const b of pendings) {
+            // 1. GASTOS OBVIOS
             const desc = b.desc.toLowerCase();
             if (b.amount < 0 && Math.abs(b.amount) < 50 && ['comision','mantenimiento','interes'].some(k => desc.includes(k))) {
                 await window.createQuickExpense(b.id, 'Comisión Banco');
                 count++;
+                continue;
+            }
+            // 2. INGRESOS TPV (Auto-Match)
+            if (b.amount > 0) {
+                const cierreMatch = db.cierres.find(c => {
+                    if(c.conciliado_banco) return false;
+                    const diffT = Math.abs((parseFloat(c.tarjeta)||0) - b.amount);
+                    return diffT < 2; // Margen 2€
+                });
+                if (cierreMatch) {
+                    b.status = 'matched';
+                    cierreMatch.conciliado_banco = true;
+                    count++;
+                }
             }
         }
         if(count > 0) { await saveFn(`✨ ${count} auto-conciliados`); updateUI(); } 
-        else alert("No encontré movimientos obvios (comisiones, etc).");
+        else alert("No se encontraron coincidencias automáticas.");
     };
 
     window.deleteBankItem = async (id, e) => {
