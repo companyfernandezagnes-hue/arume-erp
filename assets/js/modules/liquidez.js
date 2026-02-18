@@ -1,291 +1,272 @@
 /* =============================================================
-   🔮 MÓDULO: LIQUIDEZ PRO v2.0 (Cashflow Realista + Cerebro)
+   ⚖️ MÓDULO: TESORERÍA PRO v3.1 (Gestión de Deuda y Riesgo)
    ============================================================= */
 
 export async function render(container, sb, db) {
-
-    // --- HELPERS INTERNOS ---
-    // Usamos los helpers globales definidos en app.js
-    const fmt = window.Num.fmt;
+    const saveFn = window.save || (async()=>{});
+    
+    // Helpers Globales (Vital para que no falle)
     const parse = window.Num.parse;
-    const today = new Date();
-    
-    // ===============================
-    // 1) SALDO ACTUAL (BANCO + EFECTIVO)
-    // ===============================
-    const saldoBanco = (db.banco || []).reduce((acc, m) => acc + parse(m.amount), 0);
+    const fmt = window.Num.fmt;
 
-    // Caja física acumulada del mes actual (Estimación simple)
-    // Nota: Para precisión total, deberías tener un módulo de arqueo de caja fuerte.
-    // Aquí sumamos el efectivo de los cierres de este mes que no se ha ingresado en banco.
-    // (Asumimos que lo ingresas cuando hay un movimiento en banco tipo "Ingreso Efectivo")
-    // Por seguridad, para liquidez bancaria, contaremos solo banco, pero mostramos efectivo aparte.
-    
-    const saldoActual = saldoBanco; 
+    // Inicialización Segura
+    if(!db.albaranes) db.albaranes = [];
+    if(!db.facturas) db.facturas = [];
+    if(!db.banco) db.banco = [];
 
-    // ===============================
-    // 2) INGRESOS FUTUROS (FORECAST INTELIGENTE)
-    // ===============================
-    // Usamos lógica interna si ArumeEngine no tiene forecast diario específico
-    const calcForecastDiario = (dias) => {
-        const historico = db.cierres || [];
-        // Calculamos media por día de la semana (Lunes, Martes...) de los últimos 3 meses
-        const mediasSemana = [0,0,0,0,0,0,0]; // Dom-Sab
-        const conteos = [0,0,0,0,0,0,0];
-        
-        const tresMesesAtras = new Date();
-        tresMesesAtras.setDate(today.getDate() - 90);
-
-        historico.forEach(c => {
-            const d = new Date(c.date);
-            if(d >= tresMesesAtras) {
-                const day = d.getDay();
-                mediasSemana[day] += parse(c.totalVenta);
-                conteos[day]++;
-            }
-        });
-
-        // Forecast para los próximos X días
-        const proyeccion = [];
-        for(let i=1; i<=dias; i++) {
-            const futura = new Date();
-            futura.setDate(today.getDate() + i);
-            const day = futura.getDay();
-            const media = conteos[day] > 0 ? mediasSemana[day] / conteos[day] : 500; // 500€ fallback
-            proyeccion.push(media);
+    // ==========================
+    // 1. NORMALIZACIÓN DE DATOS (Auto-Fix)
+    // ==========================
+    db.albaranes.forEach(a => {
+        if(a.paid === undefined) a.paid = false;
+        if(!a.dueDate){
+            const d = new Date(a.date);
+            // Días de crédito: Si no está definido, 30 días
+            const dias = a.creditDays || 30;   
+            d.setDate(d.getDate() + dias);
+            a.dueDate = d.toISOString().split('T')[0];
         }
-        return proyeccion;
-    };
+    });
 
-    const ventasPrev = calcForecastDiario(30);
+    db.facturas.forEach(f => {
+        if(f.paid === undefined) f.paid = false;
+        if(!f.dueDate){
+            const d = new Date(f.date);
+            d.setDate(d.getDate() + 30);
+            f.dueDate = d.toISOString().split('T')[0];
+        }
+    });
 
-    // ===============================
-    // 3) COBROS PENDIENTES (CxC - Facturas emitidas no cobradas)
-    // ===============================
-    const cobrosPendientes = (db.facturas || [])
-        .filter(f => !f.paid && !String(f.num).startsWith('Z-')) // Excluir Cierres Z
-        .reduce((a,f) => a + parse(f.total), 0);
+    // ==========================
+    // 2. EXTRAER PENDIENTES
+    // ==========================
+    // IMPORTANTE: Excluimos las facturas que empiezan por "Z-" (Cierres de Caja)
+    // Porque la caja diaria no es una "deuda de cliente", es dinero ya ingresado.
+    const pendientesCobrar = db.facturas
+        .filter(f => !f.paid && !String(f.num).toUpperCase().startsWith('Z-'))
+        .sort((a,b) => a.dueDate.localeCompare(b.dueDate));
 
-    // ===============================
-    // 4) PAGOS PENDIENTES (CxP - Proveedores no pagados)
-    // ===============================
-    const pagosPendientes = (db.albaranes || [])
+    const pendientesPagar = db.albaranes
         .filter(a => !a.paid)
-        .reduce((a,f) => a + parse(f.total), 0);
+        .sort((a,b) => a.dueDate.localeCompare(b.dueDate));
 
-    // ===============================
-    // 5) GASTOS FIJOS DEL PRÓXIMO MES
-    // ===============================
-    function prorrateoDiario(g){
-        if(g.active === false) return 0;
-        const amt = parse(g.amount);
-        // Si es gasto puntual (ej: anual), solo cuenta el día que toca
-        // Aquí simplificamos para impacto mensual
-        return amt; 
+    const totalCobrar = pendientesCobrar.reduce((t,f) => t + parse(f.total), 0);
+    const totalPagar  = pendientesPagar.reduce((t,a) => t + parse(a.total), 0);
+    const posicionNeta = totalCobrar - totalPagar;
+
+    // ==========================
+    // 3. CÁLCULO DE RIESGO (SEMÁFORO)
+    // ==========================
+    const hoy = new Date();
+
+    function getRiesgo(fecha){
+        const d = new Date(fecha);
+        // Días de diferencia (negativo = vencido)
+        const diff = Math.ceil((d - hoy)/(1000*60*60*24));
+        
+        if(diff < 0) return {
+            label: `Vencido hace ${Math.abs(diff)} días`, 
+            cls: 'text-rose-600 font-black animate-pulse', 
+            icon: '🔥'
+        };
+        if(diff <= 3) return {
+            label: `Vence en ${diff} días`, 
+            cls: 'text-orange-500 font-bold', 
+            icon: '🟠'
+        };
+        if(diff <= 10) return {
+            label: `Vence en ${diff} días`, 
+            cls: 'text-amber-500 font-bold', 
+            icon: '🟡'
+        };
+        return {
+            label: `Vence en ${diff} días`, 
+            cls: 'text-slate-400', 
+            icon: '🟢'
+        };
     }
 
-    // ===============================
-    // 6) AMORTIZACIONES (Mensual)
-    // ===============================
-    const amortMes = window.calcularAmortizacionMensual ? window.calcularAmortizacionMensual(db.activos) : 0;
+    // ==========================
+    // 4. PANEL "TOP PROVEEDORES CRÍTICOS"
+    // ==========================
+    const mapaProveedores = {};
+    pendientesPagar.forEach(a => {
+        const key = a.prov || 'Varios';
+        if(!mapaProveedores[key]) mapaProveedores[key] = {total:0, count:0, maxRiesgo: 0};
+        
+        mapaProveedores[key].total += parse(a.total);
+        mapaProveedores[key].count++;
+        
+        // Calcular nivel de urgencia (0=verde, 3=fuego)
+        const r = getRiesgo(a.dueDate);
+        let nivel = 0;
+        if(r.icon === '🔥') nivel = 3;
+        else if(r.icon === '🟠') nivel = 2;
+        else if(r.icon === '🟡') nivel = 1;
+        
+        if(nivel > mapaProveedores[key].maxRiesgo) mapaProveedores[key].maxRiesgo = nivel;
+    });
 
-    // ===============================
-    // 7) IVA TRIMESTRAL (Estimación)
-    // ===============================
-    // Usamos el cálculo simple del módulo Informes
-    let ivaAcumulado = 0;
-    // (Aquí podríamos conectar con ArumeEngine.getProfit para más precisión, pero lo dejamos simple por ahora)
-    const ivaProx = 2000; // Valor seguro por defecto si no hay datos suficientes
+    const proveedoresOrdenados = Object.entries(mapaProveedores)
+        .sort(([,A],[,B]) => {
+            // Ordenar por urgencia primero, luego por importe
+            if(B.maxRiesgo !== A.maxRiesgo) return B.maxRiesgo - A.maxRiesgo;
+            return B.total - A.total;
+        })
+        .slice(0, 3); // Top 3
 
-    // ===============================
-    // 8) PROYECCIÓN DÍA POR DÍA
-    // ===============================
-    let saldo = saldoActual;
-    let minSaldo = saldoActual;
-    let diaCritico = null;
-    let proyeccion = [];
-
-    for (let i=1; i<=30; i++){
-        const f = new Date();
-        f.setDate(today.getDate() + i);
-        const diaMes = f.getDate();
-
-        // A. INGRESOS ESTIMADOS DIARIOS
-        const ventaDia = ventasPrev[i-1] || 0;
-        saldo += ventaDia;
-
-        // B. GASTOS VARIABLES (Promedio histórico por día)
-        // Calculamos un % sobre la venta (ej: 30% coste producto)
-        // Esto es más realista que un fijo diario
-        const gastVarDia = ventaDia * 0.35; // Estimación del 35% de coste mercadería
-        saldo -= gastVarDia;
-
-        // C. GASTOS FIJOS (día marcado en gasto.dia_pago)
-        let fijosHoy = 0;
-        (db.gastos_fijos || [])
-            .filter(g => g.active !== false && parseInt(g.dia_pago || 1) === diaMes)
-            .forEach(g => {
-                // Solo sumamos si la frecuencia coincide (simplificación: asumimos mensual o anual que toca)
-                fijosHoy += parse(g.amount);
-            });
-        saldo -= fijosHoy;
-
-        // D. COBROS / PAGOS PENDIENTES REPARTIDOS (Heurística)
-        if (i===3) saldo += cobrosPendientes * 0.5;       // 50% cobramos pronto
-        if (i===10) saldo += cobrosPendientes * 0.5;      // 50% resto
-        if (i===5) saldo -= pagosPendientes * 0.4;        // Pagamos 40% pronto
-        if (i===15) saldo -= pagosPendientes * 0.6;       // Resto a 15 días
-
-        // E. IVA (si toca este mes, días 20 de Abril, Julio, Oct, Ene)
-        const month = f.getMonth(); // 0-11
-        if ([3,6,9,0].includes(month) && diaMes===20) { // Abr(3), Jul(6)...
-            saldo -= ivaProx;
-        }
-
-        // F. AMORTIZACIÓN (Salida contable, no de caja, pero afecta a beneficio. 
-        // Para LIQUIDEZ (dinero en banco), NO restamos amortización)
-        // saldo -= amortMes; // COMENTADO: La amortización no quita dinero del banco.
-
-        // Registrar Hitos
-        if (saldo < minSaldo) minSaldo = saldo;
-        if (saldo < 0 && !diaCritico) diaCritico = f;
-
-        proyeccion.push({
-            fecha: f.toLocaleDateString('es-ES',{day:'2-digit',month:'short'}),
-            saldo,
-            fijosHoy,
-            ventaDia
-        });
-    }
-
-    // ============================================================
-    // =====================  RENDER UI  ===========================
-    // ============================================================
-
+    // ==========================
+    // 5. RENDER UI
+    // ==========================
     container.innerHTML = `
-        <div class="animate-fade-in space-y-6 pb-24">
-            
-            <header class="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 flex flex-col md:flex-row justify-between items-center gap-4">
-                <div>
-                    <h2 class="text-xl font-black text-slate-800">Tesorería Futura</h2>
-                    <p class="text-[10px] text-indigo-500 font-bold uppercase tracking-widest">IA Forecast 30 Días</p>
-                </div>
-                <div class="text-right">
-                    <p class="text-[9px] font-bold text-slate-400 uppercase">Liquidez Real Hoy</p>
-                    <p class="text-3xl font-black ${saldoActual >= 0 ? 'text-slate-800' : 'text-rose-500'}">${fmt(saldoActual)}</p>
-                </div>
-            </header>
-
-            ${minSaldo < 0 ? `
-                <div class="bg-rose-50 border border-rose-100 p-4 rounded-2xl flex items-center gap-4 animate-pulse">
-                    <span class="text-3xl">🚨</span>
-                    <div>
-                        <p class="text-xs font-black text-rose-600 uppercase">RIESGO DE QUIEBRA TÉCNICA</p>
-                        <p class="text-xs text-rose-800 mt-1">
-                            Atención: El día <strong>${diaCritico?.toLocaleDateString()}</strong> podrías quedarte sin fondos.
-                            Déficit previsto: <strong>${fmt(minSaldo)}</strong>.
-                        </p>
-                    </div>
-                </div>
-            ` : `
-                <div class="bg-emerald-50 border border-emerald-100 p-4 rounded-2xl flex items-center gap-4">
-                    <span class="text-3xl">✅</span>
-                    <div>
-                        <p class="text-xs font-black text-emerald-600 uppercase">SALUD FINANCIERA ROBUSTA</p>
-                        <p class="text-xs text-emerald-800 mt-1">
-                            Tu previsión a 30 días es positiva. El punto más bajo será de ${fmt(minSaldo)}.
-                            Puedes afrontar tus pagos.
-                        </p>
-                    </div>
-                </div>
-            `}
-
-            <div class="bg-white p-4 rounded-[2.5rem] shadow-sm border border-slate-100 h-80 relative">
-                <canvas id="chartLiquidez"></canvas>
+    <div class="animate-fade-in space-y-6 pb-24">
+        
+        <header class="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div>
+                <h2 class="text-xl font-black text-slate-800">Tesoreria Operativa</h2>
+                <p class="text-[10px] text-indigo-500 font-bold uppercase tracking-widest">Saldo Futuro · Riesgo · Obligaciones</p>
             </div>
-
-            <div class="grid grid-cols-2 gap-4">
-                <div class="bg-white p-4 rounded-2xl border border-slate-100">
-                    <p class="text-[9px] font-bold text-slate-400 uppercase">CxC (Te deben)</p>
-                    <p class="text-lg font-black text-indigo-500">+${fmt(cobrosPendientes)}</p>
-                </div>
-                <div class="bg-white p-4 rounded-2xl border border-slate-100">
-                    <p class="text-[9px] font-bold text-slate-400 uppercase">CxP (Debes)</p>
-                    <p class="text-lg font-black text-rose-500">-${fmt(pagosPendientes)}</p>
-                </div>
+            <div class="text-right">
+                <p class="text-[9px] font-bold text-slate-400 uppercase">Posición Neta</p>
+                <p class="text-3xl font-black ${posicionNeta >= 0 ? 'text-emerald-500' : 'text-rose-500'}">
+                    ${fmt(posicionNeta)}
+                </p>
             </div>
+        </header>
 
-             <div class="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100">
-                <h3 class="text-xs font-black text-slate-800 uppercase mb-4">Próximos Hitos (Calendario)</h3>
-                <div class="space-y-2">
-                    ${proyeccion.filter(d => d.fijosHoy > 0).slice(0, 4).map(d => `
-                        <div class="flex justify-between items-center py-2 border-b border-slate-50 last:border-0">
-                            <div>
-                                <p class="font-bold text-slate-700 text-xs">${d.fecha}</p>
-                                <p class="text-[9px] text-slate-400">Salida Fijos</p>
-                            </div>
-                            <p class="font-black text-rose-500 text-xs">-${fmt(d.fijosHoy)}</p>
+        <div class="bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm">
+            <h3 class="text-xs font-black text-slate-800 uppercase mb-4">⚠️ Top Deudas Críticas</h3>
+            ${proveedoresOrdenados.map(([prov,info]) => {
+                const icon = info.maxRiesgo === 3 ? '🔥' : (info.maxRiesgo === 2 ? '🟠' : '🟢');
+                return `
+                <div class="flex justify-between items-center py-3 border-b border-slate-50 last:border-0 hover:bg-slate-50 transition px-2 rounded-lg">
+                    <div>
+                        <div class="flex items-center gap-2">
+                             <span class="text-lg">${icon}</span>
+                             <p class="font-bold text-slate-700 text-sm">${prov}</p>
                         </div>
-                    `).join('') || '<p class="text-xs text-slate-400 italic">Sin pagos fijos inminentes.</p>'}
+                        <p class="text-[9px] text-slate-400 mt-1 ml-7">${info.count} facturas pendientes</p>
+                    </div>
+                    <p class="font-black text-rose-500 text-sm">-${fmt(info.total)}</p>
                 </div>
-             </div>
+            `}).join('') || '<p class="text-xs text-slate-400 italic text-center py-4">¡Genial! No hay deudas críticas 🎉</p>'}
         </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            
+            <div>
+                <div class="flex justify-between items-center px-2 mb-2">
+                    <h3 class="font-black text-emerald-600 text-sm uppercase flex items-center gap-2">
+                        ⬇️ Por Cobrar <span class="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full text-[10px]">${pendientesCobrar.length}</span>
+                    </h3>
+                    <span class="font-bold text-emerald-600 text-xs">${fmt(totalCobrar)}</span>
+                </div>
+                <div class="bg-emerald-50/50 p-2 rounded-3xl border border-emerald-100 min-h-[150px] space-y-2">
+                    ${pendientesCobrar.length === 0 
+                        ? `<div class="text-center py-10 text-emerald-300 text-xs font-bold italic">Todo cobrado ✅</div>` 
+                        : pendientesCobrar.map(f => {
+                            const r = getRiesgo(f.dueDate);
+                            return `
+                            <div class="bg-white p-4 rounded-2xl border border-emerald-100 shadow-sm flex justify-between items-center relative overflow-hidden group hover:shadow-md transition">
+                                <div class="absolute left-0 top-0 bottom-0 w-1 bg-emerald-400"></div>
+                                <div>
+                                    <p class="font-bold text-slate-700 text-sm">${f.cliente || f.prov || 'Cliente'}</p>
+                                    <p class="text-[9px] ${r.cls} uppercase mt-0.5">${r.icon} ${r.label}</p>
+                                    <p class="text-[8px] text-slate-400 font-mono">Ref: ${f.num}</p>
+                                </div>
+                                <div class="text-right">
+                                    <p class="font-black text-emerald-600 text-lg">${fmt(f.total)}</p>
+                                    <button onclick="window.cobrar('${f.id}')" class="text-[9px] bg-emerald-100 text-emerald-700 px-3 py-1.5 rounded-lg font-black mt-1 hover:bg-emerald-600 hover:text-white transition shadow-sm">
+                                        COBRAR
+                                    </button>
+                                </div>
+                            </div>`;
+                        }).join('')
+                    }
+                </div>
+            </div>
+
+            <div>
+                <div class="flex justify-between items-center px-2 mb-2">
+                    <h3 class="font-black text-rose-500 text-sm uppercase flex items-center gap-2">
+                        ⬆️ Por Pagar <span class="bg-rose-100 text-rose-700 px-2 py-0.5 rounded-full text-[10px]">${pendientesPagar.length}</span>
+                    </h3>
+                    <span class="font-bold text-rose-500 text-xs">${fmt(totalPagar)}</span>
+                </div>
+                <div class="bg-rose-50/50 p-2 rounded-3xl border border-rose-100 min-h-[150px] space-y-2">
+                    ${pendientesPagar.length === 0 
+                        ? `<div class="text-center py-10 text-rose-300 text-xs font-bold italic">Sin deudas ✅</div>` 
+                        : pendientesPagar.map(a => {
+                            const r = getRiesgo(a.dueDate);
+                            return `
+                            <div class="bg-white p-4 rounded-2xl border border-rose-100 shadow-sm flex justify-between items-center relative overflow-hidden group hover:shadow-md transition">
+                                <div class="absolute left-0 top-0 bottom-0 w-1 bg-rose-400"></div>
+                                <div>
+                                    <p class="font-bold text-slate-700 text-sm">${a.prov}</p>
+                                    <p class="text-[9px] ${r.cls} uppercase mt-0.5">${r.icon} ${r.label}</p>
+                                    <p class="text-[8px] text-slate-400 font-mono">Ref: ${a.num}</p>
+                                </div>
+                                <div class="text-right">
+                                    <p class="font-black text-rose-600 text-lg">${fmt(a.total)}</p>
+                                    <button onclick="window.pagar('${a.id}')" class="text-[9px] bg-rose-100 text-rose-700 px-3 py-1.5 rounded-lg font-black mt-1 hover:bg-rose-600 hover:text-white transition shadow-sm">
+                                        PAGAR
+                                    </button>
+                                </div>
+                            </div>`;
+                        }).join('')
+                    }
+                </div>
+            </div>
+
+        </div>
+    </div>
     `;
 
-    // ===============================
-    // 9) INIT GRÁFICA
-    // ===============================
-    setTimeout(() => {
-        const ctx = document.getElementById("chartLiquidez");
-        if (!ctx) return;
-        
-        // Destruir instancia previa si existe para evitar errores de redibujado
-        if (window.myLiquidezChart instanceof Chart) window.myLiquidezChart.destroy();
+    // ============================================================
+    // 6. ACCIONES: COBRAR / PAGAR (INTEGRACIÓN TOTAL CON BANCO)
+    // ============================================================
 
-        window.myLiquidezChart = new Chart(ctx, {
-            type: "line",
-            data: {
-                labels: proyeccion.map(d => d.fecha),
-                datasets: [{
-                    label: "Saldo Proyectado",
-                    data: proyeccion.map(d => d.saldo),
-                    borderColor: "#4f46e5",
-                    backgroundColor: (context) => {
-                        const ctx = context.chart.ctx;
-                        const gradient = ctx.createLinearGradient(0, 0, 0, 300);
-                        gradient.addColorStop(0, 'rgba(79, 70, 229, 0.2)');
-                        gradient.addColorStop(1, 'rgba(79, 70, 229, 0)');
-                        return gradient;
-                    },
-                    borderWidth: 3,
-                    pointRadius: 0,
-                    pointHoverRadius: 6,
-                    fill: true,
-                    tension: 0.35 // Curva suave
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: { 
-                    legend: { display: false },
-                    tooltip: {
-                        mode: 'index',
-                        intersect: false,
-                        backgroundColor: 'rgba(15, 23, 42, 0.9)',
-                        callbacks: {
-                            label: (c) => c.parsed.y.toLocaleString('es-ES', {style:'currency', currency:'EUR', maximumFractionDigits: 0})
-                        }
-                    }
-                },
-                scales: {
-                    x: { grid: { display: false }, ticks: { font: { size: 9 }, maxTicksLimit: 6 } },
-                    y: { 
-                        grid: { color: "#f1f5f9" }, 
-                        ticks: { font: { size: 9 }, callback: (v) => v >= 1000 ? (v/1000) + 'k€' : v + '€' } 
-                    }
-                }
-            }
+    window.cobrar = async (id) => {
+        const fac = db.facturas.find(x => x.id === id);
+        if(!fac) return;
+
+        if(!confirm(`¿Confirmas COBRAR factura ${fac.num} por ${fmt(fac.total)}?\n\nSe creará un ingreso en el Banco.`)) return;
+
+        fac.paid = true;
+        // Integración con Banco
+        db.banco.unshift({
+            id: 'mov-' + Date.now(),
+            date: new Date().toISOString().split('T')[0],
+            desc: `Cobro factura ${fac.num} (${fac.cliente || fac.prov})`,
+            amount: parse(fac.total),
+            status: 'matched',
+            linkType: 'FACTURA',
+            linkId: fac.id
         });
-    }, 200);
+
+        await saveFn("Cobro registrado y conciliado ✅");
+        render(container, sb, db);
+    };
+
+    window.pagar = async (id) => {
+        const alb = db.albaranes.find(x => x.id === id);
+        if(!alb) return;
+
+        if(!confirm(`¿Confirmas PAGAR albarán de ${alb.prov} por ${fmt(alb.total)}?\n\nSe descontará del Banco.`)) return;
+
+        alb.paid = true;
+        // Integración con Banco
+        db.banco.unshift({
+            id: 'mov-' + Date.now(),
+            date: new Date().toISOString().split('T')[0],
+            desc: `Pago proveedor ${alb.prov} (Ref: ${alb.num})`,
+            amount: -Math.abs(parse(alb.total)),
+            status: 'matched',
+            linkType: 'ALBARAN',
+            linkId: alb.id
+        });
+
+        await saveFn("Pago realizado y registrado ✅");
+        render(container, sb, db);
+    };
 }
