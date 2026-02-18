@@ -1,6 +1,5 @@
 /* =============================================================
-   🔐 MÓDULO: CIERRE CONTABLE (Congelación de Periodos)
-   v2.0 - Conectado a ArumeEngine
+   🔐 MÓDULO: CIERRE CONTABLE (V3.0 - Compatible con Master Brain)
    ============================================================= */
 
 export async function render(container, sb, db) {
@@ -13,18 +12,25 @@ export async function render(container, sb, db) {
     const meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
 
     // Helper para formatear dinero
-    const fmt = (n) => new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(n);
+    const fmt = (n) => new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(n);
 
-    // 2. FUNCIÓN: CALCULAR DATOS DEL MES (EN VIVO USANDO EL CEREBRO)
+    // 2. FUNCIÓN: CALCULAR DATOS DEL MES (ADAPTADO A APP.JS V3.0)
     const getSnapshot = (mesIndex, anio) => {
-        // Usamos el motor central para garantizar que los números cuadren con el resto de la app
+        // Pedimos los datos al cerebro central
         const data = window.ArumeEngine.getProfit(mesIndex, anio);
         
+        // --- AQUÍ ESTABA EL ERROR, AHORA SUMAMOS LOS DESGLOSES CORRECTAMENTE ---
         return { 
-            ventas: data.ingresos, 
-            compras: data.desglose.variables, 
-            fijos: data.desglose.fijos,
-            amortizaciones: data.desglose.amortizaciones,
+            // En v3.0 ingresos es un objeto {total, caja, b2b}
+            ventas: data.ingresos.total, 
+            
+            // Sumamos las categorías variables para obtener el total de compras
+            compras: data.gastos.comida + data.gastos.bebida + data.gastos.otros, 
+            
+            // Sumamos personal + estructura para obtener los fijos totales
+            fijos: data.gastos.personal + data.gastos.estructura,
+            
+            amortizaciones: data.gastos.amortizacion,
             resultado: data.neto 
         };
     };
@@ -56,11 +62,11 @@ export async function render(container, sb, db) {
                     
                     // Si está cerrado, usamos la foto fija. Si no, calculamos en vivo.
                     const datos = isClosed ? cierre.snapshot : getSnapshot(i, year);
+                    
                     const currentMonth = new Date().getMonth();
                     const currentYear = new Date().getFullYear();
                     
                     // Lógica visual: ¿Podemos cerrar este mes?
-                    // Solo permitimos cerrar meses pasados o el actual
                     const canClose = !isClosed && (year < currentYear || (year === currentYear && i <= currentMonth));
 
                     // Estilos según estado
@@ -125,7 +131,7 @@ export async function render(container, sb, db) {
     };
 
     window.cerrarMes = async (mesIndex, anio) => {
-        if(!confirm(`¿Estás SEGURO de cerrar ${meses[mesIndex]} ${anio}?\n\n⚠️ Esta acción guardará una copia fija de los datos. Si cambias facturas antiguas, este informe NO se actualizará a menos que lo reabras.`)) return;
+        if(!confirm(`¿Estás SEGURO de cerrar ${meses[mesIndex]} ${anio}?\n\n⚠️ Esta acción guardará una copia fija de los datos.`)) return;
 
         const snapshot = getSnapshot(mesIndex, anio);
         
@@ -142,7 +148,7 @@ export async function render(container, sb, db) {
     };
 
     window.abrirMes = async (id) => {
-        if(!confirm("⚠️ ¿Reabrir este mes? \n\nLos datos volverán a calcularse en vivo. Perderás la 'foto' que tenías guardada.")) return;
+        if(!confirm("⚠️ ¿Reabrir este mes? \n\nLos datos volverán a calcularse en vivo.")) return;
         
         db.cierres_mensuales = db.cierres_mensuales.filter(c => c.id !== id);
         await saveFn("Mes reabierto. Recalculando...");
