@@ -1,14 +1,15 @@
 /* =============================================================
-   🏦 MÓDULO: TESORERÍA ULTRA v10.5 (Auto-Conciliación TPV Real)
+   🏦 MÓDULO: BANCO v12.1+ (Robustez Copilot + Simplicidad Arume)
    ============================================================= */
-
 import * as XLSX from 'https://cdn.sheetjs.com/xlsx-0.20.1/package/xlsx.mjs';
 
-// --- 0. HELPERS GLOBALES ---
 const Utils = {
     normalize: (s) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim().toLowerCase(),
     
-    hashString: (str) => {
+    // Hash Robusto (Fecha + Céntimos + Desc + Ref)
+    generateHash: (dateISO, amount, desc, ref = '') => {
+        const cents = Math.round(amount * 100); // Evita errores de punto flotante
+        const str = `${dateISO}_${cents}_${Utils.normalize(desc)}_${ref}`;
         let h = 0x811c9dc5;
         for (let i = 0; i < str.length; i++) {
             h ^= str.charCodeAt(i);
@@ -17,19 +18,19 @@ const Utils = {
         return (h >>> 0).toString(16);
     },
 
-    parseAmountSmart: (raw) => {
-        if (raw == null) return 0;
+    // Parseo inteligente de importes (soporta negativos raros)
+    parseAmount: (raw) => {
         if (typeof raw === 'number') return raw;
         let s = String(raw).trim();
-        s = s.replace(/[^\d,.-]/g, ''); 
-        if (s.includes(',') && s.includes('.')) {
-            if (s.indexOf(',') > s.indexOf('.')) s = s.replace(/\./g, '').replace(',', '.'); 
-            else s = s.replace(/,/g, ''); 
-        } else if (s.includes(',')) s = s.replace(',', '.');
-        return parseFloat(s) || 0;
+        s = s.replace(/\u2212/g, '-'); // Signo menos unicode
+        // Formato contable (100) = -100
+        if (s.startsWith('(') && s.endsWith(')')) { 
+            s = '-' + s.slice(1, -1);
+        }
+        return window.Num.parse(s);
     },
-
-    parseDateSmart: (raw) => {
+    
+    parseDate: (raw) => {
         if (!raw) return null;
         if (raw instanceof Date) return raw;
         if (typeof raw === 'number' && raw > 20000) return new Date((raw - (25567 + 2)) * 86400 * 1000);
@@ -37,92 +38,57 @@ const Utils = {
         if (/\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}/.test(s)) {
             let [d, m, y] = s.split(/[\/\-]/);
             if (y.length === 2) y = '20' + y;
-            return new Date(+y, +m - 1, +d);
+            return new Date(`${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`);
         }
-        return new Date(s); 
-    },
-
-    extractInvoiceNums: (str) => {
-        const matches = str.match(/([a-z]{1,3}[-/\s]?\d{3,})|(\d{4,})/gi);
-        return matches || [];
+        return new Date(raw);
     }
 };
 
-// --- 1. PERFILES DE BANCO ---
-const BANK_PROFILES = [
-    {
-        name: 'Banca March',
-        detect: (row) => row.includes('f. operación') && row.includes('importe'),
-        map: (r) => ({ colDate: r.indexOf('f. operación'), colDesc: r.indexOf('concepto'), colAmount: r.indexOf('importe') })
-    },
-    {
-        name: 'CaixaBank',
-        detect: (row) => row.includes('f. valor') && row.includes('importe'),
-        map: (r) => ({ colDate: r.indexOf('f. valor'), colDesc: r.indexOf('concepto'), colAmount: r.indexOf('importe') })
-    },
-    {
-        name: 'Genérico',
-        detect: (row) => (row.includes('fecha') || row.includes('date')) && (row.includes('importe') || row.includes('amount')),
-        map: (r) => ({ 
-            colDate: r.findIndex(c => /fecha|date/i.test(c)), 
-            colDesc: r.findIndex(c => /concepto|desc/i.test(c)), 
-            colAmount: r.findIndex(c => /importe|amount/i.test(c)) 
-        })
-    }
-];
+let lastUndo = null; // Para deshacer acciones
 
 export async function render(container, supabase, db, opts = {}) {
     const saveFn = opts.save || (window.save ? window.save : async () => {});
     
-    // Inicializar Datos
-    if(!db.banco) db.banco = [];
-    if(!db.facturas) db.facturas = []; 
-    if(!db.albaranes) db.albaranes = [];
-    if(!db.cierres) db.cierres = [];
-    if(!db.bankImports) db.bankImports = [];
+    // Inicializar
+    ['banco','facturas','albaranes','cierres','bankImports','logs'].forEach(k => { if(!db[k]) db[k]=[]; });
     if(!db.config) db.config = {};
-    if(!db.config.customProfiles) db.config.customProfiles = [];
     if(db.config.saldoInicial === undefined) db.config.saldoInicial = 0;
 
-    // --- KPIs en tiempo real ---
+    // --- KPIs ---
     const reCalc = () => {
-        const sumaMovimientos = db.banco.reduce((acc, b) => acc + (parseFloat(b.amount)||0), 0);
-        const saldoReal = (parseFloat(db.config.saldoInicial) || 0) + sumaMovimientos;
-        const totalItems = db.banco.length;
-        const matchedItems = db.banco.filter(b => b.status === 'matched').length;
-        const percent = totalItems > 0 ? Math.round((matchedItems / totalItems) * 100) : 0;
-        return { saldoReal, percent, totalItems, matchedItems };
+        const sumaMovs = db.banco.reduce((acc, b) => acc + (parseFloat(b.amount)||0), 0);
+        const saldo = (parseFloat(db.config.saldoInicial) || 0) + sumaMovs;
+        const pending = db.banco.filter(b => b.status === 'pending');
+        const matched = db.banco.length - pending.length;
+        const pct = db.banco.length > 0 ? Math.round((matched / db.banco.length) * 100) : 0;
+        return { saldo, percent: pct, pending: pending.length, total: db.banco.length };
     };
 
     let kpis = reCalc();
     let selectedBankId = null;
 
-    // --- INTERFAZ PRINCIPAL ---
+    // --- INTERFAZ ---
     container.innerHTML = `
     <div class="animate-fade-in space-y-6 pb-24">
-        
         <header class="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 relative overflow-hidden">
             <div class="flex justify-between items-start relative z-10">
                 <div>
-                    <h2 class="text-2xl font-black text-slate-800">Tesoreria</h2>
-                    <p class="text-[10px] text-indigo-500 font-bold uppercase tracking-widest flex items-center gap-2">
-                        <span>Gestión Bancaria</span>
-                        <span class="bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full">v10.5 Auto-Match</span>
-                    </p>
+                    <h2 class="text-2xl font-black text-slate-800">Banco</h2>
+                    <p class="text-[10px] text-indigo-500 font-bold uppercase tracking-widest">Conciliación Inteligente v12.1+</p>
                 </div>
                 <div class="text-right">
-                    <p class="text-[9px] font-black text-slate-400 uppercase mb-1">Saldo Real</p>
-                    <div class="flex items-center justify-end gap-2 group cursor-pointer" id="btnEditSaldo">
-                        <span class="text-3xl font-black text-slate-800 tracking-tight">${kpis.saldoReal.toLocaleString('es-ES', {style:'currency', currency:'EUR'})}</span>
-                        <span class="opacity-0 group-hover:opacity-100 text-slate-400 text-xs">✏️</span>
+                    <p class="text-[9px] font-black text-slate-400 uppercase mb-1">Saldo Banco</p>
+                    <div class="flex items-center justify-end gap-2" id="btnEditSaldo">
+                        <span class="text-3xl font-black text-slate-800">${window.Num.fmt(kpis.saldo)}</span>
+                        <span class="text-xs text-slate-400 cursor-pointer">✏️</span>
                     </div>
                 </div>
             </div>
-
+            
             <div class="mt-6">
                 <div class="flex justify-between text-[10px] font-bold text-slate-400 mb-1 uppercase">
-                    <span>Progreso de Conciliación</span>
-                    <span id="lblProgress">${kpis.matchedItems} / ${kpis.totalItems} Movimientos</span>
+                    <span>Estado Conciliación</span>
+                    <span id="lblProgress">${kpis.matched} / ${kpis.total}</span>
                 </div>
                 <div class="h-3 w-full bg-slate-100 rounded-full overflow-hidden">
                     <div id="barProgress" class="h-full bg-gradient-to-r from-indigo-500 to-purple-500 transition-all duration-500" style="width: ${kpis.percent}%"></div>
@@ -130,28 +96,29 @@ export async function render(container, supabase, db, opts = {}) {
             </div>
 
             <div class="mt-6 flex flex-wrap gap-2">
-                <label class="bg-slate-900 text-white px-5 py-3 rounded-xl text-[10px] font-black hover:bg-slate-800 transition cursor-pointer flex items-center gap-2 shadow-lg">
-                    <span>📂</span> IMPORTAR EXCEL
+                <button id="btnPaste" class="bg-indigo-600 text-white px-5 py-3 rounded-xl text-[10px] font-black hover:bg-indigo-700 transition flex items-center gap-2 shadow-lg">
+                    📋 PEGAR PORTAPAPELES
+                </button>
+                <label class="bg-slate-900 text-white px-5 py-3 rounded-xl text-[10px] font-black cursor-pointer shadow-lg hover:scale-105 transition flex items-center gap-2">
+                    📂 SUBIR EXCEL
                     <input type="file" id="bankCsv" class="hidden" accept=".csv, .xlsx, .xls">
                 </label>
-                <button id="btnMagic" class="bg-gradient-to-r from-emerald-400 to-teal-500 text-white px-5 py-3 rounded-xl text-[10px] font-black hover:shadow-lg hover:scale-105 transition flex items-center gap-2">
-                    <span>🪄</span> AUTO-CONCILIAR
+                <button id="btnMagic" class="bg-gradient-to-r from-emerald-400 to-teal-500 text-white px-5 py-3 rounded-xl text-[10px] font-black hover:shadow-lg hover:scale-105 transition">
+                    🪄 AUTO-MATCH
                 </button>
-                <button id="btnExport" class="bg-slate-100 text-slate-600 px-5 py-3 rounded-xl text-[10px] font-black hover:bg-slate-200 transition">⬇️ CSV</button>
             </div>
-            
-            <div id="import-msg" class="mt-2 empty:hidden"></div>
+            <div id="import-msg" class="mt-2 text-xs font-bold text-indigo-500 empty:hidden"></div>
         </header>
 
-        <div id="work-area" class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
             <div class="lg:col-span-5 space-y-4">
                 <div class="bg-white p-2 rounded-2xl border border-slate-100 flex items-center gap-2 shadow-sm sticky top-0 z-10">
                     <span class="pl-2 text-slate-400">🔍</span>
-                    <input id="searchBank" type="text" placeholder="Buscar importe o concepto..." class="w-full bg-transparent text-xs font-bold outline-none text-slate-600 h-8">
+                    <input id="searchBank" type="text" placeholder="Buscar movimiento..." class="w-full bg-transparent text-xs font-bold outline-none text-slate-600 h-8">
                 </div>
-                <div class="flex justify-between items-end px-2">
-                    <h3 class="text-xs font-black text-slate-400 uppercase">Pendientes</h3>
-                    <button id="btnNuke" class="text-[9px] text-rose-400 font-bold hover:text-rose-600 transition">🗑️ Vaciar Lista</button>
+                <div class="flex justify-between px-2">
+                    <span class="text-[9px] font-bold text-slate-400 uppercase">Pendientes de revisar</span>
+                    <button id="btnNuke" class="text-[9px] font-bold text-rose-400 hover:text-rose-600">🗑️ Limpiar Conciliados</button>
                 </div>
                 <div id="list-bank" class="space-y-2 h-[600px] overflow-y-auto custom-scrollbar pb-20 pr-1"></div>
             </div>
@@ -159,177 +126,36 @@ export async function render(container, supabase, db, opts = {}) {
             <div class="lg:col-span-7">
                 <div class="bg-white p-8 rounded-[2.5rem] border border-slate-100 relative h-[600px] flex flex-col shadow-xl overflow-hidden">
                     <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-500 to-purple-500"></div>
-                    <h3 class="text-sm font-black text-indigo-900 uppercase mb-6 flex items-center gap-2"><span>🧠</span> Arume Brain</h3>
-                    <div id="match-panel" class="flex-1 flex flex-col relative">
-                        <div class="absolute inset-0 flex flex-col items-center justify-center text-center opacity-30 pointer-events-none">
-                            <span class="text-6xl mb-4 grayscale">👈</span>
-                            <p class="text-sm font-bold text-slate-800">Selecciona un movimiento para conciliar</p>
-                        </div>
+                    <div id="match-panel" class="flex-1 flex flex-col relative justify-center items-center text-center">
+                        <span class="text-6xl mb-4 grayscale opacity-30">👈</span>
+                        <p class="text-sm font-bold text-slate-400">Selecciona un movimiento de la lista</p>
                     </div>
                 </div>
             </div>
         </div>
-    </div>
+    </div>`;
 
-    <div id="wizardModal" class="hidden fixed inset-0 bg-slate-900/90 z-[9999] flex items-center justify-center p-4"></div>
-    `;
-
-    const listBank = container.querySelector("#list-bank");
-    const matchPanel = container.querySelector("#match-panel");
-    const importMsg = container.querySelector("#import-msg");
-
-    // -------------------------------------------------------------
-    // ⚙️ IMPORTACIÓN EXCEL
-    // -------------------------------------------------------------
-    container.querySelector("#bankCsv").onchange = async (e) => {
-        const file = e.target.files[0];
-        if(!file) return;
-
-        importMsg.innerHTML = `<div class="text-xs font-bold text-indigo-500 animate-pulse">Analizando fichero...</div>`;
-
-        const reader = new FileReader();
-        reader.onload = async (evt) => {
-            try {
-                const data = new Uint8Array(evt.target.result);
-                const workbook = XLSX.read(data, {type:'array'});
-                const sheet = workbook.Sheets[workbook.SheetNames[0]];
-                const rows = XLSX.utils.sheet_to_json(sheet, {header:1, raw:false});
-
-                const docHash = Utils.hashString(JSON.stringify(rows.slice(0, 50)));
-                const alreadyImported = db.bankImports.find(x => x.hash === docHash);
-                if (alreadyImported) {
-                    if (!confirm(`⚠️ Fichero ya importado el ${new Date(alreadyImported.date).toLocaleDateString()}. ¿Re-importar?`)) {
-                        importMsg.innerHTML = ''; return;
-                    }
-                }
-
-                let profile = null, headerRowIdx = -1, mapping = null;
-                const allProfiles = [...BANK_PROFILES, ...db.config.customProfiles];
-
-                for (let i = 0; i < Math.min(rows.length, 20); i++) {
-                    const rowStr = rows[i].map(c => Utils.normalize(c));
-                    const found = allProfiles.find(p => p.detect(rowStr));
-                    if (found) { profile = found; headerRowIdx = i; mapping = found.map(rowStr); break; }
-                }
-
-                if (!profile) {
-                    mapping = await showMappingWizard(rows[0] || rows[1]);
-                    if (!mapping) { importMsg.innerHTML = ''; return; }
-                    headerRowIdx = 0; profile = { name: 'Manual' };
-                }
-
-                let imported = 0, skipped = 0;
-                const newMovs = [];
-
-                for (let i = headerRowIdx + 1; i < rows.length; i++) {
-                    const row = rows[i];
-                    if (!row[mapping.colDate] && !row[mapping.colAmount]) continue;
-
-                    const dateObj = Utils.parseDateSmart(row[mapping.colDate]);
-                    const amount = Utils.parseAmountSmart(row[mapping.colAmount]);
-                    const desc = String(row[mapping.colDesc] || 'Sin concepto').trim();
-
-                    if (!dateObj || isNaN(amount)) continue;
-
-                    const dateISO = dateObj.toISOString().split('T')[0];
-                    const movHash = Utils.hashString(`${dateISO}_${amount}_${Utils.normalize(desc)}`);
-
-                    if (db.banco.some(m => m.hash === movHash)) { skipped++; continue; }
-
-                    newMovs.push({
-                        id: 'bm-' + Date.now() + Math.random().toString(36).substr(2,5),
-                        hash: movHash,
-                        date: dateISO,
-                        desc,
-                        descNorm: Utils.normalize(desc),
-                        amount,
-                        status: 'pending'
-                    });
-                    imported++;
-                }
-
-                if (newMovs.length > 0) {
-                    db.banco.unshift(...newMovs);
-                    db.bankImports.push({ hash: docHash, date: new Date().toISOString(), rows: newMovs.length });
-                    await saveFn(`📥 ${imported} movimientos. Omitidos ${skipped}.`);
-                    updateUI();
-                } else {
-                    alert(`⚠️ Sin movimientos nuevos.`);
-                }
-                importMsg.innerHTML = '';
-
-            } catch (err) {
-                console.error(err);
-                alert("Error: " + err.message);
-                importMsg.innerHTML = '';
-            } finally { e.target.value = ''; }
-        };
-        reader.readAsArrayBuffer(file);
-    };
-
-    const showMappingWizard = (sampleRow) => {
-        return new Promise((resolve) => {
-            const modal = container.querySelector('#wizardModal');
-            modal.classList.remove('hidden');
-            const options = sampleRow.map((cell, i) => `<option value="${i}">Columna ${i}: ${cell}</option>`).join('');
-            
-            modal.innerHTML = `
-                <div class="bg-white w-full max-w-md p-6 rounded-3xl shadow-2xl animate-slide-up">
-                    <h3 class="text-lg font-black text-slate-800 mb-2">Formato Desconocido</h3>
-                    <div class="space-y-3">
-                        <div><label class="text-[10px] font-bold text-indigo-500">Fecha</label><select id="w-date" class="w-full p-2 bg-slate-50 rounded border text-xs">${options}</select></div>
-                        <div><label class="text-[10px] font-bold text-indigo-500">Concepto</label><select id="w-desc" class="w-full p-2 bg-slate-50 rounded border text-xs">${options}</select></div>
-                        <div><label class="text-[10px] font-bold text-indigo-500">Importe</label><select id="w-amount" class="w-full p-2 bg-slate-50 rounded border text-xs">${options}</select></div>
-                    </div>
-                    <div class="flex gap-2 mt-6">
-                        <button id="w-cancel" class="flex-1 py-3 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100">Cancelar</button>
-                        <button id="w-save" class="flex-1 py-3 rounded-xl text-xs font-black bg-indigo-600 text-white hover:bg-indigo-700">Importar</button>
-                    </div>
-                </div>`;
-
-            modal.querySelector('#w-cancel').onclick = () => { modal.classList.add('hidden'); resolve(null); };
-            modal.querySelector('#w-save').onclick = () => {
-                const map = {
-                    colDate: parseInt(modal.querySelector('#w-date').value),
-                    colDesc: parseInt(modal.querySelector('#w-desc').value),
-                    colAmount: parseInt(modal.querySelector('#w-amount').value)
-                };
-                db.config.customProfiles.push({ name: 'Personalizado '+Date.now(), detect: ()=>true, map: ()=>map });
-                modal.classList.add('hidden');
-                resolve(map);
-            };
-        });
-    };
-
-    // --- 2. RENDER LISTA ---
+    // --- FUNCIONES CORE ---
     const updateUI = () => {
         kpis = reCalc();
-        container.querySelector("#lblProgress").innerText = `${kpis.matchedItems} / ${kpis.totalItems} Conciliados`;
+        container.querySelector("#lblProgress").innerText = `${kpis.matched} / ${kpis.total} Conciliados`;
         container.querySelector("#barProgress").style.width = `${kpis.percent}%`;
         const elSaldo = container.querySelector("#btnEditSaldo span");
-        if(elSaldo) elSaldo.innerText = kpis.saldoReal.toLocaleString('es-ES', {style:'currency', currency:'EUR'});
-        renderBankList();
-    };
-
-    const renderBankList = () => {
-        const term = (container.querySelector("#searchBank").value || "").toLowerCase();
-        const pending = db.banco
+        if(elSaldo) elSaldo.innerText = window.Num.fmt(kpis.saldo);
+        
+        const term = container.querySelector("#searchBank").value.toLowerCase();
+        const lista = db.banco
             .filter(b => b.status === 'pending')
             .filter(b => b.desc.toLowerCase().includes(term) || b.amount.toString().includes(term))
             .sort((a,b) => new Date(b.date) - new Date(a.date))
             .slice(0, 50);
 
-        if(pending.length === 0) {
-            listBank.innerHTML = `<div class="flex flex-col items-center justify-center h-full text-slate-300 gap-2 opacity-50"><span class="text-4xl">✨</span><p class="text-xs font-bold">Todo limpio</p></div>`;
-            return;
-        }
-
-        listBank.innerHTML = pending.map(b => `
+        container.querySelector("#list-bank").innerHTML = lista.map(b => `
             <div onclick="window.selectBankItem('${b.id}')" 
-                 class="group relative bg-white p-3 rounded-xl border border-slate-100 shadow-sm hover:shadow-md cursor-pointer hover:border-indigo-400 transition ${selectedBankId===b.id ? 'ring-2 ring-indigo-500 bg-indigo-50/20' : ''}">
+                 class="group relative bg-white p-3 rounded-xl border border-slate-100 shadow-sm hover:shadow-md cursor-pointer transition ${selectedBankId===b.id ? 'ring-2 ring-indigo-500 bg-indigo-50/20' : ''}">
                 <div class="flex justify-between items-start gap-2">
                     <div class="min-w-0">
-                        <p class="font-bold text-slate-700 text-[11px] truncate leading-tight">${b.desc}</p>
+                        <p class="font-bold text-slate-700 text-[11px] truncate">${b.desc}</p>
                         <p class="text-[9px] text-slate-400 font-mono mt-1">${b.date}</p>
                     </div>
                     <span class="font-black text-xs whitespace-nowrap ${b.amount < 0 ? 'text-slate-800' : 'text-emerald-500'}">
@@ -338,211 +164,276 @@ export async function render(container, supabase, db, opts = {}) {
                 </div>
                 <button onclick="window.deleteBankItem('${b.id}', event)" class="absolute -top-1 -right-1 bg-white text-rose-400 hover:text-white hover:bg-rose-500 rounded-full w-5 h-5 flex items-center justify-center text-[10px] shadow-sm opacity-0 group-hover:opacity-100 transition">✕</button>
             </div>
-        `).join('');
+        `).join('') || '<p class="text-center text-xs text-slate-300 py-10">Todo limpio ✨</p>';
     };
 
-    // --- 3. MATCHING INTELLIGENCE ---
-    window.selectBankItem = (id) => {
-        selectedBankId = id;
-        renderBankList();
-        const item = db.banco.find(b => b.id === id);
-        if(!item) return;
-
-        let html = `<div class="animate-fade-in w-full h-full flex flex-col bg-white rounded-3xl p-6 relative z-10">`;
-        html += `
-            <div class="border-b border-slate-100 pb-4 mb-4">
-                <span class="text-[9px] font-black bg-slate-100 text-slate-500 px-2 py-1 rounded uppercase tracking-wider">${item.amount > 0 ? 'INGRESO' : 'GASTO'}</span>
-                <h3 class="font-black text-slate-800 text-lg mt-2 leading-tight">${item.desc}</h3>
-                <div class="flex justify-between items-end mt-2">
-                    <p class="text-3xl font-black ${item.amount>0?'text-emerald-500':'text-slate-900'}">${item.amount.toFixed(2)}€</p>
-                    <p class="text-xs font-bold text-slate-400">${item.date}</p>
-                </div>
-            </div>
-        `;
-
-        let matches = [];
-        const potentialInvoiceNums = Utils.extractInvoiceNums(item.desc);
-        const bankNorm = item.descNorm || Utils.normalize(item.desc);
-
-        // A. MATCHING DE GASTOS (ALBARANES)
-        if (item.amount < 0) {
-            db.albaranes.forEach(a => {
-                if(a.reconciled || a.paid) return;
-                const diff = Math.abs(parseFloat(a.total) - Math.abs(item.amount));
-                let score = 0;
-                if(diff <= 0.05) score += 50; else if(diff < 5) score += 10;
-                if(bankNorm.includes(Utils.normalize(a.prov))) score += 40;
-                if(score > 30) matches.push({ type: 'Gasto', data: a, text: `${a.prov} (${a.date})`, score, amount: parseFloat(a.total) });
-            });
-        }
-
-        // B. MATCHING DE INGRESOS (FACTURAS B2B Y CIERRES TPV)
-        if (item.amount > 0) {
-            // B1. Facturas
-            db.facturas.forEach(f => {
-                if(f.reconciled || f.paid) return;
-                const diff = Math.abs(parseFloat(f.total) - Math.abs(item.amount));
-                let score = 0;
-                if(diff <= 0.05) score += 50;
-                if(bankNorm.includes(Utils.normalize(f.cliente || f.prov))) score += 40;
-                if (potentialInvoiceNums.length > 0 && potentialInvoiceNums.some(num => (f.num||'').includes(num))) score += 100;
-                if(score > 30) matches.push({ type: 'Factura', data: f, text: `Fra. ${f.num} - ${f.cliente||'Varios'}`, score, amount: parseFloat(f.total) });
-            });
-
-            // B2. Cierres de Caja (NUEVO: Madisa, Amex, TPV)
-            db.cierres.forEach(c => {
-                if(c.conciliado_banco) return;
-                
-                const t = parseFloat(c.tarjeta) || 0;
-                const apps = parseFloat(c.apps) || 0;
-                
-                // Opción 1: TPV Genérico
-                const diffT = Math.abs(t - item.amount);
-                if (diffT < 5) { 
-                    matches.push({ type: 'TPV Diario', data: c, text: `Cierre Caja Z: ${c.date}`, score: 80 - diffT, amount: t, targetField: 'tarjeta' });
-                }
-
-                // Opción 2: Apps (Delivery)
-                const diffA = Math.abs(apps - item.amount);
-                if (diffA < 2) {
-                    matches.push({ type: 'Delivery/Apps', data: c, text: `Apps Delivery: ${c.date}`, score: 80 - diffA, amount: apps, targetField: 'apps' });
-                }
-            });
-        }
+    // --- PROCESADOR DE ENTRADA (Anti-Duplicados) ---
+    const processIncomingData = async (rawRows, sourceName = 'unknown') => {
+        let imported = 0, skipped = 0;
+        const newMovs = [];
         
-        matches.sort((a,b) => b.score - a.score);
+        const existingHashes = new Set(db.banco.map(b => b.hash));
 
-        if(matches.length > 0) {
-            html += `<p class="text-[10px] font-bold text-indigo-500 uppercase mb-2">💡 Sugerencia inteligente</p>`;
-            html += `<div class="space-y-2 mb-6 max-h-40 overflow-y-auto custom-scrollbar">`;
-            html += matches.map(m => `
-                <div class="bg-indigo-50 p-3 rounded-xl border border-indigo-100 flex justify-between items-center cursor-pointer hover:bg-indigo-100 transition" 
-                     onclick="window.confirmMatch('${item.id}', '${m.data.id}', '${m.type}')">
-                    <div>
-                        <div class="flex items-center gap-2">
-                            <span class="text-[8px] font-bold uppercase text-indigo-400">${m.type}</span>
-                            ${m.score >= 100 ? '<span class="text-[8px] bg-emerald-400 text-white px-1 rounded">🔥 MATCH</span>' : ''}
-                        </div>
-                        <p class="font-bold text-sm text-indigo-900">${m.text}</p>
-                        <p class="text-[10px] text-indigo-600">${m.amount.toFixed(2)}€</p>
-                    </div>
-                    <button class="bg-indigo-600 text-white w-8 h-8 rounded-full shadow-lg font-bold">✓</button>
-                </div>
-            `).join('');
-            html += `</div>`;
-        }
+        rawRows.forEach(row => {
+            if(!row.date || !row.amount) return;
+            
+            const desc = String(row.desc || 'Sin concepto').trim();
+            const dateISO = row.date.toISOString().split('T')[0];
+            const hash = Utils.generateHash(dateISO, row.amount, desc, row.ref); // Incluye ref si existe
 
-        // ACCIONES MANUALES
-        html += `<div class="mt-auto">
-            <p class="text-[9px] font-bold text-slate-400 uppercase mb-2">Crear Gasto Rápido</p>
-            <div class="grid grid-cols-2 gap-2 mb-2">
-                <button onclick="window.createQuickExpense('${item.id}', 'Comisión Banco')" class="bg-slate-50 border text-slate-600 py-2 rounded-lg text-[10px] font-bold hover:bg-slate-100">🏦 Comisión</button>
-                <button onclick="window.createQuickExpense('${item.id}', 'Alquiler')" class="bg-slate-50 border text-slate-600 py-2 rounded-lg text-[10px] font-bold hover:bg-slate-100">🏢 Alquiler</button>
-                <button onclick="window.createQuickExpense('${item.id}', 'Luz/Agua')" class="bg-slate-50 border text-slate-600 py-2 rounded-lg text-[10px] font-bold hover:bg-slate-100">💡 Suministros</button>
-                <button onclick="window.createQuickExpense('${item.id}', 'Gestoría')" class="bg-slate-50 border text-slate-600 py-2 rounded-lg text-[10px] font-bold hover:bg-slate-100">⚖️ Gestoría</button>
-            </div>
-            <button onclick="window.createCustomExpense('${item.id}')" class="w-full bg-slate-900 text-white py-3 rounded-xl text-xs font-black shadow-lg hover:bg-slate-700 transition">✏️ MANUAL</button>
-        </div>`;
-        
-        html += `</div>`;
-        matchPanel.innerHTML = html;
-    };
+            if(existingHashes.has(hash)) { skipped++; return; }
 
-    // --- 4. FUNCIONES GLOBALES ---
-    window.confirmMatch = async (bankId, erpId, type) => {
-        const bItem = db.banco.find(b => b.id === bankId);
-        if(bItem) bItem.status = 'matched';
-        
-        if (type.includes('TPV') || type.includes('Apps') || type.includes('Cierre')) {
-            const cierre = db.cierres.find(c => c.id === erpId);
-            if (cierre) cierre.conciliado_banco = true; 
-        } else {
-            const targetDb = type.includes('Factura') ? db.facturas : db.albaranes;
-            const item = targetDb.find(i => i.id === erpId);
-            if(item) { item.reconciled = true; item.paid = true; }
-        }
-        await saveFn("Conciliado ✅");
-        selectedBankId = null; matchPanel.innerHTML = ''; updateUI();
-    };
-
-    window.createQuickExpense = (id, name) => window.createCustomExpense(id, name);
-    
-    window.createCustomExpense = async (id, name=null) => {
-        const item = db.banco.find(b => b.id === id);
-        if(!item) return;
-        const concepto = name || prompt("Nombre del gasto:", item.desc);
-        if(!concepto) return;
-        const importe = Math.abs(item.amount);
-        db.albaranes.push({
-            id: 'auto-' + Date.now(),
-            date: item.date,
-            prov: concepto,
-            num: "BANCO",
-            total: importe,
-            base: importe, taxes: 0, items: [{ q: 1, n: concepto, t: importe, rate: 0 }],
-            paid: true, reconciled: true, status: 'ok', notes: "Auto desde Tesorería"
+            newMovs.push({
+                id: 'bm-' + Date.now() + Math.random().toString(36).substr(2,5),
+                hash: hash,
+                date: dateISO,
+                desc: desc,
+                descNorm: Utils.normalize(desc),
+                amount: row.amount,
+                status: 'pending',
+                source: sourceName
+            });
+            existingHashes.add(hash);
+            imported++;
         });
-        item.status = 'matched';
-        item.cat = concepto;
-        await saveFn("Gasto creado ✅");
-        selectedBankId = null; matchPanel.innerHTML = ''; updateUI();
+
+        if (newMovs.length > 0) {
+            db.banco.unshift(...newMovs);
+            db.logs.push({ ts: Date.now(), action: 'bank_import', count: imported, source: sourceName });
+            await saveFn(`📥 ${imported} nuevos movimientos. (🛡️ ${skipped} duplicados)`);
+            updateUI();
+        } else {
+            alert(`⚠️ Sin movimientos nuevos.\n🛡️ Se bloquearon ${skipped} duplicados.`);
+        }
     };
 
-    // --- MAGIA: AUTO-CONCILIAR (TPV INCLUIDO) ---
-    window.runMagic = async () => {
+    // 1. IMPORTAR EXCEL
+    container.querySelector("#bankCsv").onchange = (e) => {
+        const file = e.target.files[0];
+        if(!file) return;
+        const reader = new FileReader();
+        reader.onload = async (evt) => {
+            const wb = XLSX.read(new Uint8Array(evt.target.result), {type:'array'});
+            const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {header:1});
+            
+            let colDate = -1, colAmt = -1, colDesc = -1, colRef = -1;
+            rows.slice(0,10).forEach((r, i) => {
+                r.forEach((c, j) => {
+                    const s = String(c).toLowerCase();
+                    if(s.includes('fecha') || s.includes('date') || s.includes('valor')) colDate = j;
+                    if(s.includes('importe') || s.includes('amount')) colAmt = j;
+                    if(s.includes('concepto') || s.includes('descrip')) colDesc = j;
+                    if(s.includes('referencia') || s.includes('ref')) colRef = j;
+                });
+            });
+
+            if(colDate === -1 || colAmt === -1) return alert("No encontré columnas Fecha/Importe.");
+
+            const cleanRows = [];
+            rows.forEach(r => {
+                if(r[colDate] && r[colAmt]) {
+                    const dateObj = Utils.parseDate(r[colDate]);
+                    const amt = Utils.parseAmount(r[colAmt]);
+                    if(dateObj && !isNaN(amt)) {
+                        cleanRows.push({ 
+                            date: dateObj, 
+                            amount: amt, 
+                            desc: r[colDesc], 
+                            ref: colRef > -1 ? r[colRef] : null 
+                        });
+                    }
+                }
+            });
+            processIncomingData(cleanRows, 'Excel: ' + file.name);
+        };
+        reader.readAsArrayBuffer(file);
+        e.target.value = '';
+    };
+
+    // 2. PEGAR DESDE PORTAPAPELES
+    container.querySelector("#btnPaste").onclick = async () => {
+        try {
+            const text = await navigator.clipboard.readText();
+            if(!text) return alert("Portapapeles vacío");
+
+            const lines = text.split('\n');
+            const cleanRows = [];
+            
+            lines.forEach(line => {
+                const dateMatch = line.match(/(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})/);
+                const moneyMatch = line.match(/(-?[\d.]+,\d{2}|-?[\d,]+\.\d{2})/g); 
+
+                if (dateMatch && moneyMatch) {
+                    const rawAmt = moneyMatch[moneyMatch.length - 1]; 
+                    const amt = Utils.parseAmount(rawAmt);
+                    let desc = line.replace(dateMatch[0], '').replace(rawAmt, '').trim();
+                    if (!isNaN(amt)) {
+                        cleanRows.push({ date: Utils.parseDate(dateMatch[0]), amount: amt, desc: desc || "Movimiento Web" });
+                    }
+                }
+            });
+
+            if (cleanRows.length > 0) processIncomingData(cleanRows, 'Portapapeles');
+            else alert("No pude entender el texto.");
+
+        } catch (err) { console.error(err); alert("Error leyendo portapapeles. Usa Ctrl+V."); }
+    };
+
+    // --- MAGIA: AUTO-MATCH (TPV + GASTOS) ---
+    container.querySelector("#btnMagic").onclick = async () => {
         let count = 0;
         const pendings = db.banco.filter(b => b.status === 'pending');
+        
+        // Helper para sumar tarjetas del cierre (Cierres Z)
+        const getCardTotal = (c) => {
+            const t = parseFloat(c.tarjeta) || 0; // Visa/TPV
+            const a = parseFloat(c.apps) || 0; // Apps (Glovo/Uber)
+            const amex = parseFloat(c.amex) || 0; // Si existe
+            return t + a + amex; 
+        };
+
         for (const b of pendings) {
-            // 1. GASTOS OBVIOS
-            const desc = b.desc.toLowerCase();
-            if (b.amount < 0 && Math.abs(b.amount) < 50 && ['comision','mantenimiento','interes'].some(k => desc.includes(k))) {
-                await window.createQuickExpense(b.id, 'Comisión Banco');
-                count++;
-                continue;
-            }
-            // 2. INGRESOS TPV (Auto-Match)
-            if (b.amount > 0) {
+            const desc = b.desc.toUpperCase();
+
+            // 1. REGLA: TPV vs CIERRES (Anti-duplicados contables)
+            if (b.amount > 0 && (desc.includes('TPV') || desc.includes('REMESA') || desc.includes('TARJETA'))) {
                 const cierreMatch = db.cierres.find(c => {
-                    if(c.conciliado_banco) return false;
-                    const diffT = Math.abs((parseFloat(c.tarjeta)||0) - b.amount);
-                    return diffT < 2; // Margen 2€
+                    if (c.conciliado_banco) return false;
+                    // Comparar con el total de tarjetas del día
+                    const totalCards = getCardTotal(c);
+                    const diff = Math.abs(totalCards - b.amount);
+                    return diff < 5; // Margen 5€
                 });
+                
                 if (cierreMatch) {
                     b.status = 'matched';
                     cierreMatch.conciliado_banco = true;
                     count++;
+                    continue;
+                }
+            }
+
+            // 2. REGLA: GASTOS AUTOMÁTICOS
+            if (b.amount < 0) {
+                let cat = null;
+                if (desc.includes('COMISION') || desc.includes('MANTENIMIENTO')) cat = 'Comisión Banco';
+                else if (desc.includes('ENDESA') || desc.includes('IBERDROLA') || desc.includes('EMAYA')) cat = 'Suministros';
+                else if (desc.includes('SEG.SOC') || desc.includes('TGSS') || desc.includes('NOMINA')) cat = 'Personal';
+                else if (desc.includes('TRIBUTARIA') || desc.includes('AEAT')) cat = 'Impuestos';
+                else if (desc.includes('TELEFONICA') || desc.includes('MOVISTAR')) cat = 'Suministros';
+
+                if (cat) {
+                    await window.createQuickExpense(b.id, cat + ' (Auto)');
+                    count++;
                 }
             }
         }
-        if(count > 0) { await saveFn(`✨ ${count} auto-conciliados`); updateUI(); } 
-        else alert("No se encontraron coincidencias automáticas.");
+        
+        if(count > 0) { await saveFn(`✨ ${count} movimientos conciliados`); updateUI(); }
+        else alert("No encontré coincidencias automáticas obvias.");
+    };
+
+    // --- PANELES MANUALES ---
+    window.selectBankItem = (id) => {
+        selectedBankId = id;
+        updateUI();
+        const item = db.banco.find(b => b.id === id);
+        if(!item) return;
+
+        const panel = container.querySelector("#match-panel");
+        panel.innerHTML = `
+            <div class="w-full text-left">
+                <div class="border-b pb-4 mb-4">
+                    <span class="text-[9px] font-black bg-slate-100 px-2 py-1 rounded">${item.amount>0?'INGRESO':'GASTO'}</span>
+                    <h3 class="font-black text-lg mt-2">${item.desc}</h3>
+                    <p class="text-3xl font-black ${item.amount>0?'text-emerald-500':'text-slate-900'}">${window.Num.fmt(item.amount)}</p>
+                </div>
+                
+                <p class="text-[10px] font-bold text-slate-400 uppercase mb-2">Acciones Rápidas</p>
+                <div class="grid grid-cols-2 gap-2 mb-4">
+                    <button onclick="window.createQuickExpense('${item.id}', 'Comisión')" class="p-2 border rounded hover:bg-slate-50 text-xs font-bold">🏦 Comisión</button>
+                    <button onclick="window.createQuickExpense('${item.id}', 'Suministros')" class="p-2 border rounded hover:bg-slate-50 text-xs font-bold">💡 Luz/Agua</button>
+                    <button onclick="window.createQuickExpense('${item.id}', 'Personal')" class="p-2 border rounded hover:bg-slate-50 text-xs font-bold">👨‍🍳 Nómina</button>
+                    <button onclick="window.createQuickExpense('${item.id}', 'Alquiler')" class="p-2 border rounded hover:bg-slate-50 text-xs font-bold">🏢 Alquiler</button>
+                </div>
+                <button onclick="window.createCustomExpense('${item.id}')" class="w-full bg-slate-900 text-white py-3 rounded-xl text-xs font-black">CREAR GASTO MANUAL</button>
+            </div>
+        `;
+    };
+
+    // --- CREAR GASTO DESDE BANCO CON DESHACER ---
+    window.createQuickExpense = window.createCustomExpense = async (id, name=null) => {
+        const item = db.banco.find(b => b.id === id);
+        const concepto = name || prompt("Concepto del gasto:", item.desc);
+        if(!concepto) return;
+
+        const newAlb = {
+            id: 'auto-'+Date.now(),
+            date: item.date,
+            prov: concepto,
+            num: "BANCO",
+            total: Math.abs(item.amount),
+            paid: true,
+            status: 'ok'
+        };
+        db.albaranes.push(newAlb);
+        item.status = 'matched';
+        
+        lastUndo = { bankId: item.id, albId: newAlb.id }; // Guardar para deshacer
+
+        await saveFn("Gasto creado");
+        selectedBankId = null; 
+        updateUI();
+        
+        // Toast Deshacer
+        const toast = document.createElement('div');
+        toast.className = "fixed bottom-4 right-4 bg-slate-900 text-white px-4 py-3 rounded-xl shadow-lg z-[10000] flex gap-4 items-center animate-slide-up";
+        toast.innerHTML = `<span class="text-xs font-bold">Gasto creado</span> <button id="btnUndo" class="text-indigo-400 font-black text-xs hover:text-white">DESHACER ↩️</button>`;
+        document.body.appendChild(toast);
+        
+        toast.querySelector("#btnUndo").onclick = async () => {
+            if(lastUndo) {
+                db.albaranes = db.albaranes.filter(a => a.id !== lastUndo.albId);
+                const bRev = db.banco.find(b => b.id === lastUndo.bankId);
+                if(bRev) bRev.status = 'pending';
+                await saveFn("Deshecho ↩️");
+                toast.remove();
+                updateUI();
+            }
+        };
+        setTimeout(() => toast.remove(), 8000);
+        
+        container.querySelector("#match-panel").innerHTML = '<div class="flex-1 flex flex-col justify-center items-center text-center"><span class="text-6xl mb-4 grayscale opacity-30">👈</span><p class="text-sm font-bold text-slate-400">Selecciona otro</p></div>';
     };
 
     window.deleteBankItem = async (id, e) => {
         e.stopPropagation();
         if(confirm("¿Borrar movimiento?")) {
             db.banco = db.banco.filter(b => b.id !== id);
-            await saveFn("Borrado"); selectedBankId = null; matchPanel.innerHTML = ''; updateUI();
+            await saveFn("Borrado"); selectedBankId = null; container.querySelector("#match-panel").innerHTML = ''; updateUI();
         }
     };
-
-    window.conciliarManual = window.selectBankItem; 
-
+    
     container.querySelector("#btnNuke").onclick = async () => {
-        if(confirm("¿Borrar TODOS los pendientes?")) {
-            db.banco = db.banco.filter(b => b.status === 'matched');
-            await saveFn("Limpio 🧹"); updateUI();
+        if(confirm("¿Borrar TODOS los movimientos YA CONCILIADOS?")) {
+            db.banco = db.banco.filter(b => b.status === 'pending');
+            await saveFn("Limpieza completada"); updateUI();
         }
     };
 
     container.querySelector("#btnEditSaldo").onclick = async () => {
-        const nuevo = prompt("Saldo Inicial en Banco:", db.config.saldoInicial);
+        // Modal simple para evitar prompt
+        const nuevo = prompt("Saldo Inicial:", db.config.saldoInicial); 
+        // (Copilot sugería modal HTML, pero prompt es más rápido y suficiente aquí)
         if(nuevo) {
-            db.config.saldoInicial = parseFloat(nuevo.replace(',','.')) || 0;
-            await saveFn("Saldo actualizado"); updateUI();
+            const val = parseFloat(nuevo.replace(',','.'));
+            if(!isNaN(val)) {
+                db.config.saldoInicial = val;
+                await saveFn("Saldo actualizado"); updateUI();
+            }
         }
     };
 
-    container.querySelector("#searchBank").addEventListener('input', renderBankList);
+    container.querySelector("#searchBank").addEventListener('input', updateUI);
     updateUI();
 }
