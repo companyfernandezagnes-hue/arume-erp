@@ -1,7 +1,8 @@
 /* =============================================================
-   🍽️ MÓDULO: MENU INTELLIGENCE v8.0 (Sin Errores de Carga)
+   🍽️ MÓDULO: MENU INTELLIGENCE PRO v8.0 (Modo Seguro - Sin Imports)
    ============================================================= */
-// 🚫 NO HAY IMPORTS AQUÍ ARRIBA. USAMOS window.XLSX DEL INDEX.HTML
+
+// 🚫 SIN IMPORTS AQUÍ ARRIBA. USAMOS LA VERSIÓN GLOBAL DEL INDEX.HTML
 
 export async function render(container, sb, db, opts = {}) {
     const saveFn = opts.save || (window.save ? window.save : async () => {});
@@ -11,7 +12,7 @@ export async function render(container, sb, db, opts = {}) {
     if (!Array.isArray(db.ventas_menu)) db.ventas_menu = [];
     if (!Array.isArray(db.cierres)) db.cierres = [];
 
-    // AUTO-MIGRACIÓN
+    // AUTO-MIGRACIÓN: Recuperar ventas antiguas
     db.platos.forEach(p => {
         if(p.sold > 0) {
             const hasHistory = db.ventas_menu.some(v => v.id === p.id);
@@ -38,7 +39,7 @@ export async function render(container, sb, db, opts = {}) {
     const calcularMatriz = () => {
         const result = { stars:[], horses:[], puzzles:[], dogs:[], tips:[], totalTeorico:0, totalCajaReal: 0 };
         
-        // Si no hay platos, devolvemos estructura vacía para no romper la UI
+        // Si no hay platos, devolvemos vacío para no romper
         if (db.platos.length === 0) return result;
 
         const checkDate = (dateStr) => {
@@ -49,13 +50,13 @@ export async function render(container, sb, db, opts = {}) {
             return false;
         };
 
-        // A. Caja Real
+        // A. Calcular Caja REAL
         const ventasFiltradas = db.ventas_menu.filter(v => checkDate(v.date));
         result.totalCajaReal = db.cierres
             .filter(c => checkDate(c.date))
             .reduce((acc, c) => acc + parse(c.totalVenta), 0);
 
-        // B. Ventas Platos
+        // B. Calcular Ventas Platos
         const ventasPorPlato = {};
         ventasFiltradas.forEach(v => {
             ventasPorPlato[v.id] = (ventasPorPlato[v.id] || 0) + parse(v.qty);
@@ -121,7 +122,7 @@ export async function render(container, sb, db, opts = {}) {
                 <div class="flex justify-between items-center">
                     <div>
                         <h2 class="text-xl font-black text-slate-800">Menu Intelligence</h2>
-                        <p class="text-[10px] text-indigo-500 font-bold uppercase tracking-widest">v8.0 - Master Edition</p>
+                        <p class="text-[10px] text-indigo-500 font-bold uppercase tracking-widest">v8.0 - Modo Seguro</p>
                     </div>
                     <div class="flex items-center gap-2 bg-slate-50 p-2 rounded-2xl border border-slate-200">
                         <select id="filterType" class="bg-white text-xs font-bold py-2 px-3 rounded-xl border-0 outline-none shadow-sm cursor-pointer">
@@ -146,7 +147,7 @@ export async function render(container, sb, db, opts = {}) {
 
             <div class="flex flex-wrap gap-2 overflow-x-auto no-scrollbar pb-2">
                 <label class="bg-slate-900 text-white px-5 py-3 rounded-2xl text-[10px] font-black cursor-pointer shadow-lg flex items-center gap-2 whitespace-nowrap">
-                    <span>🔄</span> SUBIR EXCEL / TPV <input type="file" id="universalInput" class="hidden" accept=".csv, .xlsx, .xls">
+                    <span>🔄</span> SUBIR TPV <input type="file" id="universalInput" class="hidden" accept=".csv, .xlsx, .xls">
                 </label>
                 <button id="btnPaste" class="bg-indigo-600 text-white px-5 py-3 rounded-2xl text-[10px] font-black shadow-lg flex items-center gap-2 whitespace-nowrap"><span>📋</span> PEGAR TABLA</button>
                 <button id="btnPulse" class="bg-emerald-500 text-white px-5 py-3 rounded-2xl text-[10px] font-black shadow-lg flex items-center gap-2">🔥 PULSO</button>
@@ -187,17 +188,17 @@ export async function render(container, sb, db, opts = {}) {
             </div>
         </div>`;
 
-    // --- 4. IMPORTADOR UNIVERSAL (Usando window.XLSX) ---
+    // --- 4. IMPORTADOR UNIVERSAL (Usando window.XLSX del index.html) ---
     const processSalesData = async (rows, source) => {
         const dateInput = prompt(`📅 ¿Fecha de estas ventas? (YYYY-MM-DD):`, new Date().toISOString().split('T')[0]);
         if(!dateInput) return;
 
-        let colName = -1, colQty = -1;
-        // Detective de Columnas
+        let colName = -1, colQty = -1, colPrice = -1;
         for(let i=0; i<Math.min(rows.length, 20); i++){
             const r = rows[i].map(c => String(c).toLowerCase());
             if(colName === -1) colName = r.findIndex(c => c.match(/articulo|nombre|producto|item|descrip/));
             if(colQty === -1) colQty = r.findIndex(c => c.match(/cantidad|unidades|vendidos|qty|uds/));
+            if(colPrice === -1) colPrice = r.findIndex(c => c.match(/precio|pvp|price|importe unit/));
         }
 
         if(colName === -1 || colQty === -1) return alert("⚠️ No encontré columnas 'Artículo' y 'Cantidad'");
@@ -208,12 +209,15 @@ export async function render(container, sb, db, opts = {}) {
         rows.slice(startRow).forEach(row => {
             const name = String(row[colName] || '').trim();
             const sold = parse(row[colQty]);
+            const priceFound = colPrice > -1 ? parse(row[colPrice]) : 0;
+
             if(name && sold > 0) {
                 let plato = db.platos.find(p => normalize(p.name) === normalize(name));
                 if(!plato) {
-                    plato = { id: 'p-'+Date.now()+Math.random(), name: name, category: 'General', price: 0, cost: 0 };
+                    plato = { id: 'p-'+Date.now()+Math.random(), name: name, category: 'General', price: priceFound, cost: 0 };
                     db.platos.push(plato);
-                }
+                } else if(priceFound > 0 && plato.price !== priceFound) { plato.price = priceFound; }
+
                 const existing = db.ventas_menu.find(v => v.date === dateInput && v.id === plato.id);
                 if(existing) existing.qty += sold; 
                 else db.ventas_menu.push({ date: dateInput, id: plato.id, qty: sold });
@@ -226,8 +230,8 @@ export async function render(container, sb, db, opts = {}) {
     const handleImportFile = async (e) => {
         const file = e.target.files[0]; if (!file) return;
         
-        // VERIFICACIÓN DE SEGURIDAD: ¿Está cargada la librería?
-        if (!window.XLSX) return alert("⚠️ Error: Librería Excel no detectada. Revisa el index.html");
+        // VERIFICACIÓN DE SEGURIDAD
+        if (!window.XLSX) return alert("⚠️ Error: La librería XLSX no está cargada. Revisa tu index.html y asegúrate de que tiene el script de SheetJS.");
 
         const reader = new FileReader();
         reader.onload = async (evt) => {
