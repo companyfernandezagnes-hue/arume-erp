@@ -1,5 +1,5 @@
 /* =============================================================
-   🚀 ARUME ERP - NÚCLEO CENTRAL (app.js)
+   🚀 ARUME ERP - NÚCLEO CENTRAL (app.js) v2.0 (Con Cerebro Unificado)
    ============================================================= */
 
 // 0. UTILIDADES GLOBALES
@@ -11,6 +11,18 @@ window.Num = {
         return parseFloat(clean) || 0;
     },
     fmt: (val) => new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(val || 0)
+};
+
+window.DateUtil = {
+    today: () => new Date().toISOString().split('T')[0],
+    getMonthBounds: (month, year) => {
+        const start = new Date(year, month, 1);
+        const end = new Date(year, month + 1, 0); // Último día del mes
+        return {
+            start: start.toISOString().split('T')[0],
+            end: end.toISOString().split('T')[0]
+        };
+    }
 };
 
 // 1. CONFIGURACIÓN SUPABASE
@@ -49,19 +61,20 @@ async function cargarDatosDeLaNube() {
         window.db = data.data || {};
         
         // --- BLOQUE DE SEGURIDAD: INICIALIZAR ESTRUCTURAS ---
-        // Esto garantiza que la App nunca falle por "datos no encontrados"
         if(!window.db.banco) window.db.banco = [];
         if(!window.db.platos) window.db.platos = [];
-        if(!window.db.recetas) window.db.recetas = []; // Cocina
-        if(!window.db.ingredientes) window.db.ingredientes = []; // Stock
+        if(!window.db.recetas) window.db.recetas = []; 
+        if(!window.db.ingredientes) window.db.ingredientes = [];
         if(!window.db.ventas_menu) window.db.ventas_menu = [];
-        if(!window.db.diario) window.db.diario = [];
-        if(!window.db.facturas) window.db.facturas = []; // Ventas
-        if(!window.db.albaranes) window.db.albaranes = []; // Gastos
+        if(!window.db.diario) window.db.diario = []; // Se mantiene por compatibilidad
+        if(!window.db.cierres) window.db.cierres = []; // NUEVO: Aquí van los cierres Z
+        if(!window.db.facturas) window.db.facturas = []; 
+        if(!window.db.albaranes) window.db.albaranes = []; 
         if(!window.db.gastos_fijos) window.db.gastos_fijos = []; 
-        if(!window.db.activos) window.db.activos = []; // Amortizaciones
+        if(!window.db.activos) window.db.activos = []; 
         if(!window.db.proveedores) window.db.proveedores = [];
         if(!window.db.cierres_mensuales) window.db.cierres_mensuales = [];
+        if(!window.db.priceHistory) window.db.priceHistory = {};
         
         if(!window.db.config) window.db.config = { objetivoMensual: 30000 };
         // ---------------------------------------------------
@@ -80,7 +93,6 @@ window.loadModule = async function(name) {
     const container = document.getElementById('app');
     if (!container) return;
 
-    // Feedback visual inmediato
     container.innerHTML = `
         <div class="h-full flex flex-col items-center justify-center space-y-4">
             <div class="w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
@@ -89,12 +101,10 @@ window.loadModule = async function(name) {
     `;
 
     try {
-        // --- MAPEADO DE NOMBRES ---
         let fileName = name;
         if (name === 'diario') fileName = 'caja'; 
-        // --------------------------
-
-        // TRUCO: Cache-busting para asegurar que carga siempre el código nuevo
+        
+        // Cache-busting para asegurar carga fresca
         const modulePath = `./modules/${fileName}.js?v=${Date.now()}`;
         
         const mod = await import(modulePath);
@@ -104,7 +114,7 @@ window.loadModule = async function(name) {
         if (mod.render) {
             await mod.render(container, window.sb, window.db);
             
-            // --- GESTIÓN DE BOTONES ACTIVOS ---
+            // Gestión de botones activos
             document.querySelectorAll('.nav-icon').forEach(icon => {
                 icon.style.opacity = '0.5';
                 icon.style.transform = 'scale(1)';
@@ -114,7 +124,6 @@ window.loadModule = async function(name) {
                 text.classList.add('text-slate-400');
             });
 
-            // Activar el botón actual
             const activeBtn = document.querySelector(`button[onclick="loadModule('${name}')"]`);
             if (activeBtn) {
                 const icon = activeBtn.querySelector('.nav-icon');
@@ -145,7 +154,7 @@ window.loadModule = async function(name) {
     }
 };
 
-// 5. MENÚ DE NAVEGACIÓN (Navbar Completo)
+// 5. MENÚ DE NAVEGACIÓN
 function renderNav() {
     const nav = document.getElementById('navbar');
     if (!nav) return;
@@ -223,15 +232,11 @@ function renderNav() {
     `;
 }
 
-// 6. FUNCIÓN GLOBAL PARA GUARDAR (Sincronización)
+// 6. FUNCIÓN GLOBAL PARA GUARDAR
 window.save = async function(mensaje = "Datos guardados") {
-    // Marca de tiempo
     window.db.lastSync = Date.now();
-    
-    // Guardado Optimista
     localStorage.setItem('arume_backup_local', JSON.stringify(window.db));
 
-    // Guardado Real (Nube)
     const { error } = await sb
         .from('arume_data') 
         .upsert({ id: 1, data: window.db });
@@ -241,7 +246,6 @@ window.save = async function(mensaje = "Datos guardados") {
         console.error(error);
         return false;
     } else {
-        // Toast Notification
         const toast = document.createElement('div');
         toast.className = "fixed top-4 left-1/2 transform -translate-x-1/2 bg-slate-900 text-white text-xs font-bold px-4 py-2 rounded-full shadow-xl z-[10000] animate-fade-in";
         toast.innerHTML = `☁️ ${mensaje}`;
@@ -251,62 +255,96 @@ window.save = async function(mensaje = "Datos guardados") {
     }
 };
 
-// 7. LÓGICA DE NEGOCIO GLOBAL
-// Cálculo de amortizaciones (se usa en Dashboard y en el módulo Amortizaciones)
+// =============================================================
+// 7. LÓGICA DE NEGOCIO GLOBAL (El "Cerebro")
+// =============================================================
+
+// Cálculo de amortizaciones
 window.calcularAmortizacionMensual = function(activos) {
     if (!activos || activos.length === 0) return 0;
-    
     const hoy = new Date();
     let gastoTotalMes = 0;
 
     activos.forEach(activo => {
-        // Validación básica
-        if(!activo.fecha_compra || !activo.importe || !activo.vida_util_meses && !activo.vida) return;
-
-        // Compatibilidad: vida (años) o vida_util_meses
+        if(!activo.fecha_compra || !activo.importe || (!activo.vida_util_meses && !activo.vida)) return;
         const vidaMeses = activo.vida_util_meses || (activo.vida * 12);
-
         const fechaCompra = new Date(activo.fecha_compra || activo.fecha);
-        // Calculamos diferencia en meses exacta
         const mesesTranscurridos = (hoy.getFullYear() - fechaCompra.getFullYear()) * 12 + (hoy.getMonth() - fechaCompra.getMonth());
         
-        // Si aún está dentro de su vida útil
         if (mesesTranscurridos >= 0 && mesesTranscurridos < vidaMeses) {
-            const cuotaMensual = activo.importe / vidaMeses;
-            gastoTotalMes += cuotaMensual;
+            gastoTotalMes += (activo.importe / vidaMeses);
         }
     });
-
     return gastoTotalMes;
 };
 
-// Helper Global para comprobar fechas (Usado en Informes, Albaranes, etc)
+// Motor Central de Cálculos (ArumeEngine)
+window.ArumeEngine = {
+    // 1. OBTENER VENTAS REALES (Cajas Z + Facturas Extras)
+    getVentas: (desde, hasta) => {
+        const cajaTotal = (window.db.cierres || [])
+            .filter(c => c.date >= desde && c.date <= hasta)
+            .reduce((acc, c) => acc + (parseFloat(c.totalVenta) || 0), 0);
+            
+        const facturasTotal = (window.db.facturas || [])
+            .filter(f => f.date >= desde && f.date <= hasta && !String(f.num).startsWith('Z-')) // Excluir Z duplicadas
+            .reduce((acc, f) => acc + (parseFloat(f.total) || 0), 0);
+
+        return cajaTotal + facturasTotal;
+    },
+
+    // 2. OBTENER GASTOS REALES (Albaranes)
+    getGastos: (desde, hasta) => {
+        return (window.db.albaranes || [])
+            .filter(a => a.date >= desde && a.date <= hasta)
+            .reduce((acc, a) => acc + (parseFloat(a.total) || 0), 0);
+    },
+
+    // 3. BENEFICIO NETO (Profit)
+    getProfit: (mes, año) => {
+        const { start, end } = window.DateUtil.getMonthBounds(mes, año);
+        
+        const ingresos = window.ArumeEngine.getVentas(start, end);
+        const gastosVariables = window.ArumeEngine.getGastos(start, end);
+        
+        // Gastos Fijos (Prorrateo inteligente)
+        const fijos = (window.db.gastos_fijos || [])
+            .filter(g => g.active !== false)
+            .reduce((acc, g) => {
+                let val = parseFloat(g.amount) || 0;
+                if(g.freq === 'anual') val = val / 12;
+                if(g.freq === 'trimestral') val = val / 3;
+                return acc + val;
+            }, 0);
+            
+        const amortizaciones = window.calcularAmortizacionMensual(window.db.activos || []);
+        
+        return {
+            ingresos,
+            gastos: gastosVariables + fijos + amortizaciones,
+            neto: ingresos - (gastosVariables + fijos + amortizaciones),
+            desglose: { variables: gastosVariables, fijos, amortizaciones }
+        };
+    }
+};
+
+// Comprobador de periodos
 window.isInPeriod = function(dateStr) {
-    if(!dateStr) return false;
-    // Por defecto devuelve true para simplificar si no hay filtros complejos aún
-    // Puedes ampliar esto para conectar con un selector global de fechas
+    // Por defecto true, pero preparado para filtros globales futuros
     return true; 
 };
 
-// 8. LÓGICA DE BARRA DINÁMICA (Esconder al bajar, mostrar al subir)
+// 8. LÓGICA DE BARRA DINÁMICA
 let lastScrollTop = 0;
 window.addEventListener("scroll", function() {
     const nav = document.getElementById("navbar");
-    if (!nav) return;
+    if (!nav || window.innerWidth > 1024) return;
     
-    // Solo en móvil
-    if(window.innerWidth > 1024) return;
-
     let scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-    
     if (scrollTop > lastScrollTop && scrollTop > 60) {
-        // Bajando -> Esconder
-        nav.style.transform = "translateY(150%)";
-        nav.style.transition = "transform 0.3s ease-out";
+        nav.style.transform = "translateY(150%)"; // Esconder
     } else {
-        // Subiendo -> Mostrar
-        nav.style.transform = "translateY(0)";
-        nav.style.transition = "transform 0.3s ease-out";
+        nav.style.transform = "translateY(0)"; // Mostrar
     }
     lastScrollTop = scrollTop <= 0 ? 0 : scrollTop;
 }, false);
