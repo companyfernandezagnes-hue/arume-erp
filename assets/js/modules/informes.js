@@ -1,5 +1,6 @@
 /* =============================================================
    📈 MÓDULO: INFORMES & FISCALIDAD (P&L + IVA 303 + KPIs)
+   v2.0 - Conectado a ArumeEngine y db.cierres
    ============================================================= */
 
 export async function render(container, sb, db) {
@@ -18,7 +19,6 @@ export async function render(container, sb, db) {
     // Helpers de Formato
     const fmt = (n) => new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(n || 0);
     const pct = (n) => (n || 0).toFixed(1) + '%';
-    const num = (n) => new Intl.NumberFormat('es-ES').format(n || 0);
 
     // =========================================================
     // 🧠 1. MOTOR DE CÁLCULO FISCAL (Desglose IVA)
@@ -29,35 +29,37 @@ export async function render(container, sb, db) {
         const monthsInTrim = [(t-1)*3, (t-1)*3+1, (t-1)*3+2];
         
         const inPeriod = (dateStr) => {
-            const d = window.DateUtil.parse(dateStr);
+            if(!dateStr) return false;
+            const d = new Date(dateStr);
             return d.getFullYear() === filters.year && monthsInTrim.includes(d.getMonth());
         };
 
         // A. IVA DEVENGADO (VENTAS)
-        // Asumimos que la gran mayoría de hostelería va al 10%
         let devengado = { base: 0, iva: 0, total: 0 };
         
-        // Sumar Cajas Z (Diario)
-        (db.diario||[]).filter(z => inPeriod(z.date)).forEach(z => {
-            const total = window.Num.parse(z.totalVenta);
-            const base = total / 1.10; // Estándar hostelería 10%
-            devengado.base += base;
-            devengado.iva += (total - base);
-            devengado.total += total;
-        });
-
-        // Sumar Facturas Extra
-        (db.facturas||[]).filter(f => inPeriod(f.date) && !String(f.num).startsWith('Z')).forEach(f => {
-            const total = window.Num.parse(f.total);
-            // Si tienes desglose guardado úsalo, si no estima al 10% (o 21% si es evento alcohol)
+        // 1. Sumar CIERRES Z (Ahora usamos db.cierres, no db.diario)
+        (db.cierres || []).filter(z => inPeriod(z.date)).forEach(z => {
+            const total = parseFloat(z.totalVenta) || 0;
+            // Asumimos 10% IVA incluido en hostelería estándar
             const base = total / 1.10; 
             devengado.base += base;
             devengado.iva += (total - base);
             devengado.total += total;
         });
 
+        // 2. Sumar Facturas Extra (Eventos, Catering, etc.)
+        (db.facturas || []).filter(f => inPeriod(f.date) && !String(f.num).startsWith('Z-')).forEach(f => {
+            const total = parseFloat(f.total) || 0;
+            // Si hay desglose base/tax en la factura, usarlo. Si no, estimar al 10%
+            let base = f.base ? parseFloat(f.base) : (total / 1.10);
+            let tax = f.tax ? parseFloat(f.tax) : (total - base);
+            
+            devengado.base += base;
+            devengado.iva += tax;
+            devengado.total += total;
+        });
+
         // B. IVA DEDUCIBLE (GASTOS)
-        // Aquí intentamos ser listos con las categorías
         let deducible = { 
             base4: 0, iva4: 0,
             base10: 0, iva10: 0,
@@ -65,14 +67,28 @@ export async function render(container, sb, db) {
             total: 0
         };
 
-        (db.albaranes||[]).filter(a => inPeriod(a.date)).forEach(a => {
-            const total = window.Num.parse(a.total);
-            const prov = (a.prov || '').toLowerCase();
-            let tipo = 10; // Por defecto alimentación
+        (db.albaranes || []).filter(a => inPeriod(a.date)).forEach(a => {
+            const total = parseFloat(a.total) || 0;
+            
+            // Si el albarán ya tiene el IVA calculado (ej: escaneado), usarlo
+            if (a.taxes && a.base) {
+                 // Simplificación: Asignamos todo al 10% o 21% según importe para visualización
+                 // Para precisión total, el albarán debería guardar el tipo impositivo
+                 const impliedRate = (a.taxes / a.base) * 100;
+                 if(impliedRate > 18) { deducible.base21 += a.base; deducible.iva21 += a.taxes; }
+                 else if(impliedRate < 8) { deducible.base4 += a.base; deducible.iva4 += a.taxes; }
+                 else { deducible.base10 += a.base; deducible.iva10 += a.taxes; }
+                 deducible.total += total;
+                 return;
+            }
 
-            if (prov.match(/luz|agua|tel|gestor|seguro|alquiler|reparacion|maquinaria|limpieza/)) tipo = 21;
+            // Si no tiene desglose (antiguos o manuales rápidos), estimamos por proveedor
+            const prov = (a.prov || '').toLowerCase();
+            let tipo = 10; 
+
+            if (prov.match(/luz|agua|tel|gestor|seguro|alquiler|reparacion|maquinaria|limpieza|amazon/)) tipo = 21;
             else if (prov.match(/pan|leche|huevo|fruta|verdura|harina/)) tipo = 4;
-            else if (prov.match(/alcohol|bebida|vino|cerveza/)) tipo = 21;
+            else if (prov.match(/alcohol|bebida|vino|cerveza|licor/)) tipo = 21;
 
             const div = 1 + (tipo/100);
             const base = total / div;
@@ -84,15 +100,13 @@ export async function render(container, sb, db) {
             deducible.total += total;
         });
 
-        // Sumar también Gastos Fijos que tengan factura (Alquileres, suministros...)
-        (db.gastos_fijos||[]).filter(g => g.active !== false).forEach(g => {
-            // Prorrateo trimestral
-            let amount = window.Num.parse(g.amount);
-            if(g.freq === 'mensual') amount *= 3;
-            if(g.freq === 'anual') amount /= 4;
+        // Sumar Gastos Fijos (Prorrateados)
+        (db.gastos_fijos || []).filter(g => g.active !== false).forEach(g => {
+            let amount = parseFloat(g.amount) || 0;
+            if(g.freq === 'mensual') amount *= 3; // Trimestre tiene 3 meses
+            if(g.freq === 'anual') amount /= 4;   // Trimestre es 1/4 año
             
-            // Estimación IVA gastos fijos (casi todo es 21% servicios)
-            if (g.cat !== 'personal') { // Personal no lleva IVA
+            if (g.cat !== 'personal') { 
                 const base = amount / 1.21;
                 deducible.base21 += base;
                 deducible.iva21 += (amount - base);
@@ -111,27 +125,31 @@ export async function render(container, sb, db) {
     // =========================================================
     const calcularKPIs = () => {
         const inMonth = (dateStr) => {
-            const d = window.DateUtil.parse(dateStr);
+            if(!dateStr) return false;
+            const d = new Date(dateStr);
             return d.getFullYear() === filters.year && d.getMonth() === filters.month;
         };
 
-        // Ventas
-        const ventasZ = (db.diario||[]).filter(z => inMonth(z.date));
-        const totalVentas = ventasZ.reduce((acc,z)=>acc+window.Num.parse(z.totalVenta),0);
-        const numTickets = ventasZ.reduce((acc,z)=>acc+(parseInt(z.tickets)||0),0); // Necesitas campo 'tickets' en diario
-
-        // Ticket Medio
-        const ticketMedio = numTickets > 0 ? totalVentas / numTickets : 0;
-
-        // Costes
-        const albaranesMes = (db.albaranes||[]).filter(a=>inMonth(a.date));
-        const costeComida = albaranesMes.filter(a=>(a.prov||'').match(/fruta|carne|pesca|makro|mercadona/i))
-                            .reduce((acc,a)=>acc+window.Num.parse(a.total),0);
-        const costeBebida = albaranesMes.filter(a=>(a.prov||'').match(/bebida|vino|cerveza|cola|agua/i))
-                            .reduce((acc,a)=>acc+window.Num.parse(a.total),0);
+        // Ventas (Desde Cierres)
+        const ventasZ = (db.cierres || []).filter(z => inMonth(z.date));
+        const totalVentas = ventasZ.reduce((acc,z)=>acc+(parseFloat(z.totalVenta)||0),0);
         
-        const personal = (db.gastos_fijos||[]).filter(g=>g.cat==='personal')
-                         .reduce((acc,g)=>acc+window.Num.parse(g.amount),0); // Mensual
+        // Ticket Medio (Necesita que introduzcas nº tickets en el cierre diario)
+        // Como fallback usamos una media de 25€ si no hay datos de tickets
+        const numTickets = ventasZ.reduce((acc,z)=>acc+(parseInt(z.tickets)||0),0); 
+        const ticketMedio = numTickets > 0 ? totalVentas / numTickets : (totalVentas > 0 ? 25 : 0);
+
+        // Costes (Desde Albaranes)
+        const albaranesMes = (db.albaranes || []).filter(a=>inMonth(a.date));
+        
+        const costeComida = albaranesMes.filter(a=>(a.prov||'').match(/fruta|carne|pesca|makro|mercadona|pan|verdura/i))
+                                    .reduce((acc,a)=>acc+(parseFloat(a.total)||0),0);
+        
+        const costeBebida = albaranesMes.filter(a=>(a.prov||'').match(/bebida|vino|cerveza|cola|agua|cafe|alcohol/i))
+                                    .reduce((acc,a)=>acc+(parseFloat(a.total)||0),0);
+        
+        const personal = (db.gastos_fijos || []).filter(g=>g.cat==='personal')
+                                  .reduce((acc,g)=>(parseFloat(g.amount)||0) + acc, 0);
 
         return {
             ticketMedio,
@@ -166,14 +184,69 @@ export async function render(container, sb, db) {
 
         const content = container.querySelector('#report-content');
 
-        // --- VISTA A: P&L (Cuenta Resultados) ---
+        // --- VISTA A: P&L (Cuenta Resultados REAL Conectada a ArumeEngine) ---
         if(activeTab === 'pnl') {
-            // Reutilizamos lógica básica del Dashboard pero expandida
-            // (Simplificado para este ejemplo, ya lo tienes en Dashboard.js pero aquí podrías poner la tabla detallada)
+            // USAMOS EL CEREBRO GLOBAL
+            const data = window.ArumeEngine.getProfit(filters.month, filters.year);
+            const mesNombre = new Date(filters.year, filters.month).toLocaleDateString('es-ES',{month:'long'});
+
             content.innerHTML = `
-                <div class="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100 text-center py-20">
-                    <p class="text-slate-400 text-sm">Utiliza el <b>Dashboard</b> principal para ver la Cuenta de Resultados en tiempo real.</p>
-                    <button onclick="loadModule('dashboard')" class="mt-4 bg-slate-900 text-white px-6 py-3 rounded-xl text-xs font-bold">Ir al Dashboard</button>
+                <div class="flex justify-between items-center bg-white p-4 rounded-2xl border border-slate-100 mb-4">
+                    <button onclick="window.changeMonth(-1)" class="w-8 h-8 rounded-full bg-slate-50 hover:bg-indigo-100 text-indigo-600 font-black">◀</button>
+                    <h3 class="text-sm font-black text-slate-800 uppercase">Resultados ${mesNombre} ${filters.year}</h3>
+                    <button onclick="window.changeMonth(1)" class="w-8 h-8 rounded-full bg-slate-50 hover:bg-indigo-100 text-indigo-600 font-black">▶</button>
+                </div>
+
+                <div class="bg-slate-900 text-white p-8 rounded-[2.5rem] shadow-xl text-center mb-6 relative overflow-hidden">
+                    <div class="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-indigo-400 via-slate-900 to-slate-900"></div>
+                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 relative z-10">Beneficio Neto (Antes Impuestos)</p>
+                    <p class="text-4xl font-black relative z-10 ${data.neto >= 0 ? 'text-emerald-400' : 'text-rose-400'}">${fmt(data.neto)}</p>
+                </div>
+
+                <div class="space-y-3">
+                    <div class="bg-white p-4 rounded-2xl border border-slate-100 flex justify-between items-center">
+                        <div class="flex items-center gap-3">
+                            <div class="w-8 h-8 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center">💰</div>
+                            <div>
+                                <p class="text-xs font-bold text-slate-700">Ingresos Totales</p>
+                                <p class="text-[9px] text-slate-400">Ventas Caja + Facturas</p>
+                            </div>
+                        </div>
+                        <p class="font-black text-slate-800">${fmt(data.ingresos)}</p>
+                    </div>
+
+                    <div class="bg-white p-4 rounded-2xl border border-slate-100 flex justify-between items-center">
+                        <div class="flex items-center gap-3">
+                            <div class="w-8 h-8 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center">📉</div>
+                            <div>
+                                <p class="text-xs font-bold text-slate-700">Gastos Variables</p>
+                                <p class="text-[9px] text-slate-400">Compras (Albaranes)</p>
+                            </div>
+                        </div>
+                        <p class="font-black text-rose-500">-${fmt(data.desglose.variables)}</p>
+                    </div>
+
+                    <div class="bg-white p-4 rounded-2xl border border-slate-100 flex justify-between items-center">
+                        <div class="flex items-center gap-3">
+                            <div class="w-8 h-8 bg-orange-100 text-orange-600 rounded-full flex items-center justify-center">🏢</div>
+                            <div>
+                                <p class="text-xs font-bold text-slate-700">Estructura Fija</p>
+                                <p class="text-[9px] text-slate-400">Alquiler, Personal, Luz...</p>
+                            </div>
+                        </div>
+                        <p class="font-black text-rose-500">-${fmt(data.desglose.fijos)}</p>
+                    </div>
+                    
+                     <div class="bg-white p-4 rounded-2xl border border-slate-100 flex justify-between items-center opacity-75">
+                        <div class="flex items-center gap-3">
+                            <div class="w-8 h-8 bg-slate-100 text-slate-600 rounded-full flex items-center justify-center">🏚️</div>
+                            <div>
+                                <p class="text-xs font-bold text-slate-700">Amortizaciones</p>
+                                <p class="text-[9px] text-slate-400">Desgaste maquinaria</p>
+                            </div>
+                        </div>
+                        <p class="font-black text-slate-600">-${fmt(data.desglose.amortizaciones)}</p>
+                    </div>
                 </div>
             `;
         }
@@ -182,22 +255,21 @@ export async function render(container, sb, db) {
         if(activeTab === 'fiscal') {
             const data = calcularModelo303();
             const colorRes = data.resultado > 0 ? 'text-rose-500' : 'text-emerald-500';
-            const txtRes = data.resultado > 0 ? 'A PAGAR' : 'A DEVOLVER';
+            const txtRes = data.resultado > 0 ? 'A PAGAR (Hacienda)' : 'A DEVOLVER (O Compensar)';
 
             content.innerHTML = `
                 <div class="flex justify-center mb-6">
                     <div class="flex bg-slate-100 p-1 rounded-xl">
                         ${[1,2,3,4].map(t => `
-                            <button onclick="window.setTrim(${t})" class="px-4 py-2 rounded-lg text-[10px] font-black transition ${filters.trimestre===t?'bg-white shadow text-indigo-600':'text-slate-400'}">Trimestre ${t}</button>
+                            <button onclick="window.setTrim(${t})" class="px-4 py-2 rounded-lg text-[10px] font-black transition ${filters.trimestre===t?'bg-white shadow text-indigo-600':'text-slate-400'}">T${t}</button>
                         `).join('')}
                     </div>
                 </div>
 
                 <div class="bg-slate-900 text-white p-8 rounded-[2.5rem] shadow-xl relative overflow-hidden mb-6">
-                    <div class="absolute top-0 right-0 w-60 h-60 bg-indigo-500 rounded-full blur-[80px] opacity-20 -mr-10 -mt-10"></div>
                     <div class="relative z-10 flex justify-between items-start">
                         <div>
-                            <h3 class="text-lg font-bold text-slate-300">Liquidación IVA (Est.)</h3>
+                            <h3 class="text-lg font-bold text-slate-300">Liquidación IVA</h3>
                             <p class="text-xs text-slate-500 uppercase tracking-widest mb-4">Modelo 303 - T${filters.trimestre} ${filters.year}</p>
                         </div>
                         <div class="text-right">
@@ -208,14 +280,12 @@ export async function render(container, sb, db) {
                     
                     <div class="grid grid-cols-2 gap-4 mt-6">
                         <div class="bg-white/5 p-4 rounded-2xl border border-white/10">
-                            <p class="text-[10px] text-emerald-400 font-bold uppercase mb-1">Repercutido (Ventas)</p>
+                            <p class="text-[10px] text-emerald-400 font-bold uppercase mb-1">Repercutido (+)</p>
                             <p class="text-xl font-black">${fmt(data.devengado.iva)}</p>
-                            <p class="text-[9px] text-slate-500 mt-1">Base: ${fmt(data.devengado.base)}</p>
                         </div>
                         <div class="bg-white/5 p-4 rounded-2xl border border-white/10">
-                            <p class="text-[10px] text-rose-400 font-bold uppercase mb-1">Soportado (Gastos)</p>
+                            <p class="text-[10px] text-rose-400 font-bold uppercase mb-1">Soportado (-)</p>
                             <p class="text-xl font-black">${fmt(data.totalSoportado)}</p>
-                            <p class="text-[9px] text-slate-500 mt-1">Deducible est.</p>
                         </div>
                     </div>
                 </div>
@@ -231,22 +301,22 @@ export async function render(container, sb, db) {
                         </thead>
                         <tbody class="divide-y divide-slate-50 text-xs font-medium text-slate-600">
                             <tr>
-                                <td class="p-4 font-bold text-slate-800">IVA Devengado (10% Gen)</td>
+                                <td class="p-4 font-bold text-slate-800">IVA Ventas (10% Est.)</td>
                                 <td class="p-4 text-right font-mono">${fmt(data.devengado.base)}</td>
                                 <td class="p-4 text-right font-bold text-emerald-600">${fmt(data.devengado.iva)}</td>
                             </tr>
                             <tr class="bg-rose-50/30">
-                                <td class="p-4 font-bold text-slate-800">Soportado 4% (Super)</td>
+                                <td class="p-4 font-bold text-slate-800">Soportado 4%</td>
                                 <td class="p-4 text-right font-mono">${fmt(data.deducible.base4)}</td>
                                 <td class="p-4 text-right font-bold text-rose-500">${fmt(data.deducible.iva4)}</td>
                             </tr>
                             <tr class="bg-rose-50/30">
-                                <td class="p-4 font-bold text-slate-800">Soportado 10% (Alim)</td>
+                                <td class="p-4 font-bold text-slate-800">Soportado 10%</td>
                                 <td class="p-4 text-right font-mono">${fmt(data.deducible.base10)}</td>
                                 <td class="p-4 text-right font-bold text-rose-500">${fmt(data.deducible.iva10)}</td>
                             </tr>
                             <tr class="bg-rose-50/30">
-                                <td class="p-4 font-bold text-slate-800">Soportado 21% (Serv)</td>
+                                <td class="p-4 font-bold text-slate-800">Soportado 21%</td>
                                 <td class="p-4 text-right font-mono">${fmt(data.deducible.base21)}</td>
                                 <td class="p-4 text-right font-bold text-rose-500">${fmt(data.deducible.iva21)}</td>
                             </tr>
@@ -255,7 +325,7 @@ export async function render(container, sb, db) {
                 </div>
                 
                 <button onclick="window.exportIVA()" class="mt-4 w-full py-4 bg-slate-200 text-slate-600 font-black text-xs rounded-2xl hover:bg-slate-300 transition flex items-center justify-center gap-2">
-                    📄 DESCARGAR CSV PARA GESTOR
+                    📄 DESCARGAR CSV
                 </button>
             `;
         }
@@ -281,8 +351,8 @@ export async function render(container, sb, db) {
                     <div class="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm text-center">
                         <p class="text-3xl mb-1">⭐</p>
                         <p class="text-[9px] font-bold text-slate-400 uppercase">Prime Cost</p>
-                        <p class="text-2xl font-black ${data.primeCost>60?'text-rose-500':'text-emerald-500'}">${pct(data.primeCost)}</p>
-                        <p class="text-[8px] text-slate-400">Objetivo: < 60%</p>
+                        <p class="text-2xl font-black ${data.primeCost>65?'text-rose-500':'text-emerald-500'}">${pct(data.primeCost)}</p>
+                        <p class="text-[8px] text-slate-400">Objetivo: < 60-65%</p>
                     </div>
                 </div>
 
