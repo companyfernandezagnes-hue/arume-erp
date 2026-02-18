@@ -1,6 +1,5 @@
 /* =============================================================
-   📈 MÓDULO: INFORMES & FISCALIDAD (P&L + IVA 303 + KPIs)
-   v2.0 - Conectado a ArumeEngine y db.cierres
+   📈 MÓDULO: INFORMES & FISCALIDAD (v3.0 - Compatible con Master Brain)
    ============================================================= */
 
 export async function render(container, sb, db) {
@@ -17,14 +16,13 @@ export async function render(container, sb, db) {
     };
 
     // Helpers de Formato
-    const fmt = (n) => new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(n || 0);
+    const fmt = window.Num.fmt; // Usamos el global para consistencia
     const pct = (n) => (n || 0).toFixed(1) + '%';
 
     // =========================================================
-    // 🧠 1. MOTOR DE CÁLCULO FISCAL (Desglose IVA)
+    // 🧠 1. MOTOR DE CÁLCULO FISCAL (Desglose IVA - Modelo 303)
     // =========================================================
     const calcularModelo303 = () => {
-        // Definir meses del trimestre seleccionado
         const t = filters.trimestre;
         const monthsInTrim = [(t-1)*3, (t-1)*3+1, (t-1)*3+2];
         
@@ -37,17 +35,16 @@ export async function render(container, sb, db) {
         // A. IVA DEVENGADO (VENTAS)
         let devengado = { base: 0, iva: 0, total: 0 };
         
-        // 1. Sumar CIERRES Z (Ahora usamos db.cierres, no db.diario)
+        // 1. Sumar CIERRES Z
         (db.cierres || []).filter(z => inPeriod(z.date)).forEach(z => {
             const total = parseFloat(z.totalVenta) || 0;
-            // Asumimos 10% IVA incluido en hostelería estándar
-            const base = total / 1.10; 
+            const base = total / 1.10; // Estándar hostelería 10%
             devengado.base += base;
             devengado.iva += (total - base);
             devengado.total += total;
         });
 
-        // 2. Sumar Facturas Extra (Eventos, Catering, etc.)
+        // 2. Sumar Facturas Extra
         (db.facturas || []).filter(f => inPeriod(f.date) && !String(f.num).startsWith('Z-')).forEach(f => {
             const total = parseFloat(f.total) || 0;
             // Si hay desglose base/tax en la factura, usarlo. Si no, estimar al 10%
@@ -60,29 +57,12 @@ export async function render(container, sb, db) {
         });
 
         // B. IVA DEDUCIBLE (GASTOS)
-        let deducible = { 
-            base4: 0, iva4: 0,
-            base10: 0, iva10: 0,
-            base21: 0, iva21: 0,
-            total: 0
-        };
+        let deducible = { base4: 0, iva4: 0, base10: 0, iva10: 0, base21: 0, iva21: 0, total: 0 };
 
         (db.albaranes || []).filter(a => inPeriod(a.date)).forEach(a => {
             const total = parseFloat(a.total) || 0;
             
-            // Si el albarán ya tiene el IVA calculado (ej: escaneado), usarlo
-            if (a.taxes && a.base) {
-                 // Simplificación: Asignamos todo al 10% o 21% según importe para visualización
-                 // Para precisión total, el albarán debería guardar el tipo impositivo
-                 const impliedRate = (a.taxes / a.base) * 100;
-                 if(impliedRate > 18) { deducible.base21 += a.base; deducible.iva21 += a.taxes; }
-                 else if(impliedRate < 8) { deducible.base4 += a.base; deducible.iva4 += a.taxes; }
-                 else { deducible.base10 += a.base; deducible.iva10 += a.taxes; }
-                 deducible.total += total;
-                 return;
-            }
-
-            // Si no tiene desglose (antiguos o manuales rápidos), estimamos por proveedor
+            // Lógica simplificada de IVA por proveedor
             const prov = (a.prov || '').toLowerCase();
             let tipo = 10; 
 
@@ -103,8 +83,8 @@ export async function render(container, sb, db) {
         // Sumar Gastos Fijos (Prorrateados)
         (db.gastos_fijos || []).filter(g => g.active !== false).forEach(g => {
             let amount = parseFloat(g.amount) || 0;
-            if(g.freq === 'mensual') amount *= 3; // Trimestre tiene 3 meses
-            if(g.freq === 'anual') amount /= 4;   // Trimestre es 1/4 año
+            if(g.freq === 'mensual') amount *= 3;
+            if(g.freq === 'anual') amount /= 4;
             
             if (g.cat !== 'personal') { 
                 const base = amount / 1.21;
@@ -118,47 +98,6 @@ export async function render(container, sb, db) {
         const resultado = devengado.iva - totalSoportado;
 
         return { devengado, deducible, resultado, totalSoportado };
-    };
-
-    // =========================================================
-    // 📊 2. MOTOR DE KPIS OPERATIVOS (Hostelería)
-    // =========================================================
-    const calcularKPIs = () => {
-        const inMonth = (dateStr) => {
-            if(!dateStr) return false;
-            const d = new Date(dateStr);
-            return d.getFullYear() === filters.year && d.getMonth() === filters.month;
-        };
-
-        // Ventas (Desde Cierres)
-        const ventasZ = (db.cierres || []).filter(z => inMonth(z.date));
-        const totalVentas = ventasZ.reduce((acc,z)=>acc+(parseFloat(z.totalVenta)||0),0);
-        
-        // Ticket Medio (Necesita que introduzcas nº tickets en el cierre diario)
-        // Como fallback usamos una media de 25€ si no hay datos de tickets
-        const numTickets = ventasZ.reduce((acc,z)=>acc+(parseInt(z.tickets)||0),0); 
-        const ticketMedio = numTickets > 0 ? totalVentas / numTickets : (totalVentas > 0 ? 25 : 0);
-
-        // Costes (Desde Albaranes)
-        const albaranesMes = (db.albaranes || []).filter(a=>inMonth(a.date));
-        
-        const costeComida = albaranesMes.filter(a=>(a.prov||'').match(/fruta|carne|pesca|makro|mercadona|pan|verdura/i))
-                                    .reduce((acc,a)=>acc+(parseFloat(a.total)||0),0);
-        
-        const costeBebida = albaranesMes.filter(a=>(a.prov||'').match(/bebida|vino|cerveza|cola|agua|cafe|alcohol/i))
-                                    .reduce((acc,a)=>acc+(parseFloat(a.total)||0),0);
-        
-        const personal = (db.gastos_fijos || []).filter(g=>g.cat==='personal')
-                                  .reduce((acc,g)=>(parseFloat(g.amount)||0) + acc, 0);
-
-        return {
-            ticketMedio,
-            numTickets,
-            ratioComida: totalVentas > 0 ? (costeComida/totalVentas)*100 : 0,
-            ratioBebida: totalVentas > 0 ? (costeBebida/totalVentas)*100 : 0,
-            ratioPersonal: totalVentas > 0 ? (personal/totalVentas)*100 : 0,
-            primeCost: totalVentas > 0 ? ((costeComida+costeBebida+personal)/totalVentas)*100 : 0
-        };
     };
 
     // =========================================================
@@ -184,11 +123,15 @@ export async function render(container, sb, db) {
 
         const content = container.querySelector('#report-content');
 
-        // --- VISTA A: P&L (Cuenta Resultados REAL Conectada a ArumeEngine) ---
+        // --- VISTA A: P&L (Cuenta Resultados - ARREGLADA PARA V3.0) ---
         if(activeTab === 'pnl') {
-            // USAMOS EL CEREBRO GLOBAL
+            // 1. LLAMAMOS AL CEREBRO
             const data = window.ArumeEngine.getProfit(filters.month, filters.year);
             const mesNombre = new Date(filters.year, filters.month).toLocaleDateString('es-ES',{month:'long'});
+
+            // 2. AGRUPAMOS LOS DATOS NUEVOS PARA MOSTRARLOS SIMPLIFICADOS
+            const totalVariables = data.gastos.comida + data.gastos.bebida + data.gastos.otros;
+            const totalFijos = data.gastos.personal + data.gastos.estructura;
 
             content.innerHTML = `
                 <div class="flex justify-between items-center bg-white p-4 rounded-2xl border border-slate-100 mb-4">
@@ -212,7 +155,7 @@ export async function render(container, sb, db) {
                                 <p class="text-[9px] text-slate-400">Ventas Caja + Facturas</p>
                             </div>
                         </div>
-                        <p class="font-black text-slate-800">${fmt(data.ingresos)}</p>
+                        <p class="font-black text-slate-800">${fmt(data.ingresos.total)}</p>
                     </div>
 
                     <div class="bg-white p-4 rounded-2xl border border-slate-100 flex justify-between items-center">
@@ -220,10 +163,10 @@ export async function render(container, sb, db) {
                             <div class="w-8 h-8 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center">📉</div>
                             <div>
                                 <p class="text-xs font-bold text-slate-700">Gastos Variables</p>
-                                <p class="text-[9px] text-slate-400">Compras (Albaranes)</p>
+                                <p class="text-[9px] text-slate-400">Mercaderías (Comida/Bebida)</p>
                             </div>
                         </div>
-                        <p class="font-black text-rose-500">-${fmt(data.desglose.variables)}</p>
+                        <p class="font-black text-rose-500">-${fmt(totalVariables)}</p>
                     </div>
 
                     <div class="bg-white p-4 rounded-2xl border border-slate-100 flex justify-between items-center">
@@ -231,10 +174,10 @@ export async function render(container, sb, db) {
                             <div class="w-8 h-8 bg-orange-100 text-orange-600 rounded-full flex items-center justify-center">🏢</div>
                             <div>
                                 <p class="text-xs font-bold text-slate-700">Estructura Fija</p>
-                                <p class="text-[9px] text-slate-400">Alquiler, Personal, Luz...</p>
+                                <p class="text-[9px] text-slate-400">Personal y Local</p>
                             </div>
                         </div>
-                        <p class="font-black text-rose-500">-${fmt(data.desglose.fijos)}</p>
+                        <p class="font-black text-rose-500">-${fmt(totalFijos)}</p>
                     </div>
                     
                      <div class="bg-white p-4 rounded-2xl border border-slate-100 flex justify-between items-center opacity-75">
@@ -245,7 +188,7 @@ export async function render(container, sb, db) {
                                 <p class="text-[9px] text-slate-400">Desgaste maquinaria</p>
                             </div>
                         </div>
-                        <p class="font-black text-slate-600">-${fmt(data.desglose.amortizaciones)}</p>
+                        <p class="font-black text-slate-600">-${fmt(data.gastos.amortizacion)}</p>
                     </div>
                 </div>
             `;
@@ -332,8 +275,15 @@ export async function render(container, sb, db) {
 
         // --- VISTA C: KPIs HOSTELERÍA ---
         if(activeTab === 'kpis') {
-            const data = calcularKPIs();
+            // USAMOS EL CEREBRO PARA LOS RATIOS
+            const data = window.ArumeEngine.getProfit(filters.month, filters.year);
             const mesNombre = new Date(filters.year, filters.month).toLocaleDateString('es-ES',{month:'long'});
+
+            // Cálculo auxiliar de Ticket Medio (Este no lo da el cerebro porque depende de campos 'tickets' específicos)
+            const inMonth = (d) => { const date=new Date(d); return date.getMonth()===filters.month && date.getFullYear()===filters.year; };
+            const ventasZ = (db.cierres || []).filter(z => inMonth(z.date));
+            const numTickets = ventasZ.reduce((acc,z)=>acc+(parseInt(z.tickets)||0),0); 
+            const ticketMedio = numTickets > 0 ? data.ingresos.caja / numTickets : 0;
 
             content.innerHTML = `
                 <div class="flex justify-between items-center bg-white p-4 rounded-2xl border border-slate-100 mb-6">
@@ -346,12 +296,12 @@ export async function render(container, sb, db) {
                     <div class="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm text-center">
                         <p class="text-3xl mb-1">🧾</p>
                         <p class="text-[9px] font-bold text-slate-400 uppercase">Ticket Medio</p>
-                        <p class="text-2xl font-black text-slate-800">${fmt(data.ticketMedio)}</p>
+                        <p class="text-2xl font-black text-slate-800">${fmt(ticketMedio)}</p>
                     </div>
                     <div class="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm text-center">
                         <p class="text-3xl mb-1">⭐</p>
                         <p class="text-[9px] font-bold text-slate-400 uppercase">Prime Cost</p>
-                        <p class="text-2xl font-black ${data.primeCost>65?'text-rose-500':'text-emerald-500'}">${pct(data.primeCost)}</p>
+                        <p class="text-2xl font-black ${data.ratios.primeCost>65?'text-rose-500':'text-emerald-500'}">${pct(data.ratios.primeCost)}</p>
                         <p class="text-[8px] text-slate-400">Objetivo: < 60-65%</p>
                     </div>
                 </div>
@@ -362,27 +312,27 @@ export async function render(container, sb, db) {
                     <div>
                         <div class="flex justify-between text-xs font-bold mb-1">
                             <span class="text-slate-600">Personal</span>
-                            <span class="${data.ratioPersonal>35?'text-rose-500':'text-slate-800'}">${pct(data.ratioPersonal)}</span>
+                            <span class="${data.ratios.staffCost>35?'text-rose-500':'text-slate-800'}">${pct(data.ratios.staffCost)}</span>
                         </div>
-                        <div class="w-full bg-slate-100 h-2 rounded-full overflow-hidden"><div class="bg-blue-500 h-full" style="width:${Math.min(100, data.ratioPersonal)}%"></div></div>
+                        <div class="w-full bg-slate-100 h-2 rounded-full overflow-hidden"><div class="bg-blue-500 h-full" style="width:${Math.min(100, data.ratios.staffCost)}%"></div></div>
                         <p class="text-[9px] text-slate-400 mt-1 text-right">Ideal: 30-35%</p>
                     </div>
 
                     <div>
                         <div class="flex justify-between text-xs font-bold mb-1">
                             <span class="text-slate-600">Comida (Food Cost)</span>
-                            <span class="${data.ratioComida>30?'text-rose-500':'text-slate-800'}">${pct(data.ratioComida)}</span>
+                            <span class="${data.ratios.foodCost>30?'text-rose-500':'text-slate-800'}">${pct(data.ratios.foodCost)}</span>
                         </div>
-                        <div class="w-full bg-slate-100 h-2 rounded-full overflow-hidden"><div class="bg-orange-500 h-full" style="width:${Math.min(100, data.ratioComida)}%"></div></div>
+                        <div class="w-full bg-slate-100 h-2 rounded-full overflow-hidden"><div class="bg-orange-500 h-full" style="width:${Math.min(100, data.ratios.foodCost)}%"></div></div>
                         <p class="text-[9px] text-slate-400 mt-1 text-right">Ideal: 25-30%</p>
                     </div>
 
                     <div>
                         <div class="flex justify-between text-xs font-bold mb-1">
                             <span class="text-slate-600">Bebida (Pour Cost)</span>
-                            <span class="${data.ratioBebida>25?'text-rose-500':'text-slate-800'}">${pct(data.ratioBebida)}</span>
+                            <span class="${data.ratios.drinkCost>25?'text-rose-500':'text-slate-800'}">${pct(data.ratios.drinkCost)}</span>
                         </div>
-                        <div class="w-full bg-slate-100 h-2 rounded-full overflow-hidden"><div class="bg-purple-500 h-full" style="width:${Math.min(100, data.ratioBebida)}%"></div></div>
+                        <div class="w-full bg-slate-100 h-2 rounded-full overflow-hidden"><div class="bg-purple-500 h-full" style="width:${Math.min(100, data.ratios.drinkCost)}%"></div></div>
                         <p class="text-[9px] text-slate-400 mt-1 text-right">Ideal: 18-22%</p>
                     </div>
                 </div>
@@ -390,17 +340,9 @@ export async function render(container, sb, db) {
         }
     };
 
-    // --- 4. FUNCIONES GLOBALES (Tabs y Filtros) ---
-    window.setTab = (tab) => {
-        activeTab = tab;
-        pintar();
-    };
-
-    window.setTrim = (t) => {
-        filters.trimestre = t;
-        pintar();
-    };
-
+    // --- 4. FUNCIONES GLOBALES ---
+    window.setTab = (tab) => { activeTab = tab; pintar(); };
+    window.setTrim = (t) => { filters.trimestre = t; pintar(); };
     window.changeMonth = (delta) => {
         filters.month += delta;
         if(filters.month > 11) { filters.month=0; filters.year++; }
@@ -423,6 +365,5 @@ export async function render(container, sb, db) {
         a.click();
     };
 
-    // Arrancar
     pintar();
 }
