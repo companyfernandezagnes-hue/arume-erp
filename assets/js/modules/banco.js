@@ -1,10 +1,10 @@
 /* =============================================================
-   🏦 MÓDULO: TESORERÍA ULTRA (v9.0 Fusion: UI + Motor Inteligente)
+   🏦 MÓDULO: TESORERÍA ULTRA v10.0 (Conciliación TPV + Bancaria)
    ============================================================= */
 
 import * as XLSX from 'https://cdn.sheetjs.com/xlsx-0.20.1/package/xlsx.mjs';
 
-// --- 0. HELPERS GLOBALES (Fuera del render para limpieza) ---
+// --- 0. HELPERS GLOBALES ---
 const Utils = {
     normalize: (s) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim().toLowerCase(),
     
@@ -48,7 +48,7 @@ const Utils = {
     }
 };
 
-// --- 1. PERFILES DE BANCO (Motor de Detección) ---
+// --- 1. PERFILES DE BANCO ---
 const BANK_PROFILES = [
     {
         name: 'Banca March',
@@ -78,11 +78,11 @@ export async function render(container, supabase, db, opts = {}) {
     if(!db.banco) db.banco = [];
     if(!db.facturas) db.facturas = []; 
     if(!db.albaranes) db.albaranes = [];
+    if(!db.cierres) db.cierres = [];
     if(!db.bankImports) db.bankImports = [];
     if(!db.config) db.config = {};
     if(!db.config.customProfiles) db.config.customProfiles = [];
     if(db.config.saldoInicial === undefined) db.config.saldoInicial = 0;
-    if(!db.logs) db.logs = [];
 
     // --- KPIs en tiempo real ---
     const reCalc = () => {
@@ -104,10 +104,10 @@ export async function render(container, supabase, db, opts = {}) {
         <header class="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 relative overflow-hidden">
             <div class="flex justify-between items-start relative z-10">
                 <div>
-                    <h2 class="text-2xl font-black text-slate-800">Tesorería</h2>
+                    <h2 class="text-2xl font-black text-slate-800">Tesoreria</h2>
                     <p class="text-[10px] text-indigo-500 font-bold uppercase tracking-widest flex items-center gap-2">
                         <span>Gestión Bancaria</span>
-                        <span class="bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full">v9.0 Fusion</span>
+                        <span class="bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full">TPV Connected</span>
                     </p>
                 </div>
                 <div class="text-right">
@@ -179,7 +179,7 @@ export async function render(container, supabase, db, opts = {}) {
     const importMsg = container.querySelector("#import-msg");
 
     // -------------------------------------------------------------
-    // ⚙️ MOTOR DE IMPORTACIÓN INTELIGENTE
+    // ⚙️ IMPORTACIÓN EXCEL
     // -------------------------------------------------------------
     container.querySelector("#bankCsv").onchange = async (e) => {
         const file = e.target.files[0];
@@ -195,16 +195,14 @@ export async function render(container, supabase, db, opts = {}) {
                 const sheet = workbook.Sheets[workbook.SheetNames[0]];
                 const rows = XLSX.utils.sheet_to_json(sheet, {header:1, raw:false});
 
-                // 1. Check Hash Duplicado
                 const docHash = Utils.hashString(JSON.stringify(rows.slice(0, 50)));
                 const alreadyImported = db.bankImports.find(x => x.hash === docHash);
                 if (alreadyImported) {
-                    if (!confirm(`⚠️ Este fichero ya fue importado el ${new Date(alreadyImported.date).toLocaleDateString()}. ¿Re-importar?`)) {
+                    if (!confirm(`⚠️ Fichero ya importado el ${new Date(alreadyImported.date).toLocaleDateString()}. ¿Re-importar?`)) {
                         importMsg.innerHTML = ''; return;
                     }
                 }
 
-                // 2. Detectar Perfil
                 let profile = null, headerRowIdx = -1, mapping = null;
                 const allProfiles = [...BANK_PROFILES, ...db.config.customProfiles];
 
@@ -214,14 +212,12 @@ export async function render(container, supabase, db, opts = {}) {
                     if (found) { profile = found; headerRowIdx = i; mapping = found.map(rowStr); break; }
                 }
 
-                // 3. Wizard si falla
                 if (!profile) {
                     mapping = await showMappingWizard(rows[0] || rows[1]);
                     if (!mapping) { importMsg.innerHTML = ''; return; }
                     headerRowIdx = 0; profile = { name: 'Manual' };
                 }
 
-                // 4. Procesar
                 let imported = 0, skipped = 0;
                 const newMovs = [];
 
@@ -255,20 +251,18 @@ export async function render(container, supabase, db, opts = {}) {
                 if (newMovs.length > 0) {
                     db.banco.unshift(...newMovs);
                     db.bankImports.push({ hash: docHash, date: new Date().toISOString(), rows: newMovs.length });
-                    await saveFn(`📥 ${imported} movimientos (${profile.name}). Omitidos ${skipped}.`);
+                    await saveFn(`📥 ${imported} movimientos. Omitidos ${skipped}.`);
                     updateUI();
                 } else {
-                    alert(`⚠️ No hay movimientos nuevos. ${skipped} duplicados.`);
+                    alert(`⚠️ Sin movimientos nuevos.`);
                 }
                 importMsg.innerHTML = '';
 
             } catch (err) {
                 console.error(err);
-                alert("Error leyendo fichero: " + err.message);
+                alert("Error: " + err.message);
                 importMsg.innerHTML = '';
-            } finally {
-                e.target.value = '';
-            }
+            } finally { e.target.value = ''; }
         };
         reader.readAsArrayBuffer(file);
     };
@@ -282,11 +276,10 @@ export async function render(container, supabase, db, opts = {}) {
             modal.innerHTML = `
                 <div class="bg-white w-full max-w-md p-6 rounded-3xl shadow-2xl animate-slide-up">
                     <h3 class="text-lg font-black text-slate-800 mb-2">Formato Desconocido</h3>
-                    <p class="text-xs text-slate-500 mb-4">Ayúdame. Indica qué es cada columna:</p>
                     <div class="space-y-3">
-                        <div><label class="text-[10px] font-bold uppercase text-indigo-500">Fecha</label><select id="w-date" class="w-full p-2 bg-slate-50 rounded border text-xs">${options}</select></div>
-                        <div><label class="text-[10px] font-bold uppercase text-indigo-500">Concepto</label><select id="w-desc" class="w-full p-2 bg-slate-50 rounded border text-xs">${options}</select></div>
-                        <div><label class="text-[10px] font-bold uppercase text-indigo-500">Importe</label><select id="w-amount" class="w-full p-2 bg-slate-50 rounded border text-xs">${options}</select></div>
+                        <div><label class="text-[10px] font-bold text-indigo-500">Fecha</label><select id="w-date" class="w-full p-2 bg-slate-50 rounded border text-xs">${options}</select></div>
+                        <div><label class="text-[10px] font-bold text-indigo-500">Concepto</label><select id="w-desc" class="w-full p-2 bg-slate-50 rounded border text-xs">${options}</select></div>
+                        <div><label class="text-[10px] font-bold text-indigo-500">Importe</label><select id="w-amount" class="w-full p-2 bg-slate-50 rounded border text-xs">${options}</select></div>
                     </div>
                     <div class="flex gap-2 mt-6">
                         <button id="w-cancel" class="flex-1 py-3 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100">Cancelar</button>
@@ -308,7 +301,7 @@ export async function render(container, supabase, db, opts = {}) {
         });
     };
 
-    // --- 2. RENDERIZADO DE LA LISTA ---
+    // --- 2. RENDER LISTA ---
     const updateUI = () => {
         kpis = reCalc();
         container.querySelector("#lblProgress").innerText = `${kpis.matchedItems} / ${kpis.totalItems} Conciliados`;
@@ -324,7 +317,7 @@ export async function render(container, supabase, db, opts = {}) {
             .filter(b => b.status === 'pending')
             .filter(b => b.desc.toLowerCase().includes(term) || b.amount.toString().includes(term))
             .sort((a,b) => new Date(b.date) - new Date(a.date))
-            .slice(0, 50); // Límite visual
+            .slice(0, 50);
 
         if(pending.length === 0) {
             listBank.innerHTML = `<div class="flex flex-col items-center justify-center h-full text-slate-300 gap-2 opacity-50"><span class="text-4xl">✨</span><p class="text-xs font-bold">Todo limpio</p></div>`;
@@ -348,7 +341,7 @@ export async function render(container, supabase, db, opts = {}) {
         `).join('');
     };
 
-    // --- 3. CEREBRO INTELIGENTE (MATCHING PRO) ---
+    // --- 3. MATCHING INTELLIGENCE (ACTUALIZADO: CIERRES + AMEX/MADISA) ---
     window.selectBankItem = (id) => {
         selectedBankId = id;
         renderBankList();
@@ -367,34 +360,61 @@ export async function render(container, supabase, db, opts = {}) {
             </div>
         `;
 
-        // LÓGICA DE MATCHING
         let matches = [];
         const potentialInvoiceNums = Utils.extractInvoiceNums(item.desc);
         const bankNorm = item.descNorm || Utils.normalize(item.desc);
 
-        const checkMatch = (erpItem, type) => {
-            if(erpItem.reconciled || erpItem.paid) return; // Solo buscar no pagados
-            const diff = Math.abs(parseFloat(erpItem.total) - Math.abs(item.amount));
-            const erpNorm = Utils.normalize(erpItem.prov || erpItem.cliente || '');
-            let score = 0;
+        // A. MATCHING DE GASTOS (ALBARANES)
+        if (item.amount < 0) {
+            db.albaranes.forEach(a => {
+                if(a.reconciled || a.paid) return;
+                const diff = Math.abs(parseFloat(a.total) - Math.abs(item.amount));
+                let score = 0;
+                if(diff <= 0.05) score += 50; else if(diff < 5) score += 10;
+                if(bankNorm.includes(Utils.normalize(a.prov))) score += 40;
+                if(score > 30) matches.push({ type: 'Gasto', data: a, text: `${a.prov} (${a.date})`, score, amount: parseFloat(a.total) });
+            });
+        }
 
-            // 1. Importe Exacto (Vital)
-            if(diff <= 0.05) score += 50; else if(diff < 5) score += 10;
+        // B. MATCHING DE INGRESOS (FACTURAS B2B Y CIERRES TPV)
+        if (item.amount > 0) {
+            // B1. Facturas
+            db.facturas.forEach(f => {
+                if(f.reconciled || f.paid) return;
+                const diff = Math.abs(parseFloat(f.total) - Math.abs(item.amount));
+                let score = 0;
+                if(diff <= 0.05) score += 50;
+                if(bankNorm.includes(Utils.normalize(f.cliente || f.prov))) score += 40;
+                if (potentialInvoiceNums.length > 0 && potentialInvoiceNums.some(num => (f.num||'').includes(num))) score += 100;
+                if(score > 30) matches.push({ type: 'Factura', data: f, text: `Fra. ${f.num} - ${f.cliente||'Varios'}`, score, amount: parseFloat(f.total) });
+            });
 
-            // 2. Nombre
-            if(bankNorm.includes(erpNorm) && erpNorm.length > 3) score += 40;
+            // B2. Cierres de Caja (NUEVO: Madisa, Amex, TPV)
+            db.cierres.forEach(c => {
+                if(c.conciliado_banco) return;
+                
+                const t = parseFloat(c.tarjeta) || 0;
+                const apps = parseFloat(c.apps) || 0;
+                
+                // Opción 1: Coincide con el total de tarjeta del día (TPV Genérico)
+                const diffT = Math.abs(t - item.amount);
+                if (diffT < 5) { // Margen de 5€ por comisiones
+                    matches.push({ type: 'TPV Diario', data: c, text: `Cierre Caja Z: ${c.date}`, score: 80 - diffT, amount: t, targetField: 'tarjeta' });
+                }
 
-            // 3. Nº Factura (Superpoder)
-            if (potentialInvoiceNums.length > 0) {
-                const erpRef = Utils.normalize(erpItem.num || '');
-                if (potentialInvoiceNums.some(num => erpRef.includes(num))) score += 100;
-            }
-
-            if(score > 30) matches.push({ type, data: erpItem, text: `${erpItem.prov||erpItem.cliente} (${erpItem.date})`, score, amount: parseFloat(erpItem.total) });
-        };
-
-        if(item.amount > 0) { db.facturas.forEach(f => checkMatch(f, 'Factura/Cierre')); } 
-        else { db.albaranes.forEach(a => checkMatch(a, 'Albarán')); }
+                // Opción 2: Coincide con Apps (Glovo/Uber/Madisa)
+                const diffA = Math.abs(apps - item.amount);
+                if (diffA < 2) {
+                    matches.push({ type: 'Delivery/Apps', data: c, text: `Apps Delivery: ${c.date}`, score: 80 - diffA, amount: apps, targetField: 'apps' });
+                }
+                
+                // Opción 3: Coincide con AMEX (si tuvieras campo amex, o si es un parcial)
+                // Aquí asumimos que si la descripción pone AMEX, buscamos coincidencia aproximada
+                if (item.desc.toUpperCase().includes('AMEX') && t > item.amount) {
+                     matches.push({ type: 'Cobro AMEX', data: c, text: `Parte de Cierre: ${c.date}`, score: 60, amount: item.amount, targetField: 'parcial' });
+                }
+            });
+        }
         
         matches.sort((a,b) => b.score - a.score);
 
@@ -434,13 +454,25 @@ export async function render(container, supabase, db, opts = {}) {
         matchPanel.innerHTML = html;
     };
 
-    // --- 4. FUNCIONES GLOBALES (Window) ---
+    // --- 4. FUNCIONES GLOBALES ---
     window.confirmMatch = async (bankId, erpId, type) => {
         const bItem = db.banco.find(b => b.id === bankId);
         if(bItem) bItem.status = 'matched';
-        const targetDb = type.includes('Factura') ? db.facturas : db.albaranes;
-        const item = targetDb.find(i => i.id === erpId);
-        if(item) { item.reconciled = true; item.paid = true; }
+        
+        // Si es Cierre de Caja (TPV/Apps)
+        if (type.includes('TPV') || type.includes('Apps') || type.includes('AMEX') || type.includes('Cierre')) {
+            const cierre = db.cierres.find(c => c.id === erpId);
+            if (cierre) {
+                // Marcamos como conciliado (parcialmente si es necesario, pero simple por ahora)
+                cierre.conciliado_banco = true; 
+            }
+        } else {
+            // Si es Factura o Gasto
+            const targetDb = type.includes('Factura') ? db.facturas : db.albaranes;
+            const item = targetDb.find(i => i.id === erpId);
+            if(item) { item.reconciled = true; item.paid = true; }
+        }
+        
         await saveFn("Conciliado ✅");
         selectedBankId = null; matchPanel.innerHTML = ''; updateUI();
     };
@@ -473,7 +505,6 @@ export async function render(container, supabase, db, opts = {}) {
         let count = 0;
         const pendings = db.banco.filter(b => b.status === 'pending');
         for (const b of pendings) {
-            // Lógica simple para palabras clave en modo Magic
             const desc = b.desc.toLowerCase();
             if (b.amount < 0 && Math.abs(b.amount) < 50 && ['comision','mantenimiento','interes'].some(k => desc.includes(k))) {
                 await window.createQuickExpense(b.id, 'Comisión Banco');
@@ -492,7 +523,7 @@ export async function render(container, supabase, db, opts = {}) {
         }
     };
 
-    window.conciliarManual = window.selectBankItem; // Alias
+    window.conciliarManual = window.selectBankItem; 
 
     container.querySelector("#btnNuke").onclick = async () => {
         if(confirm("¿Borrar TODOS los pendientes?")) {
