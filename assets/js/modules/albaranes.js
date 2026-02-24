@@ -1,5 +1,5 @@
 /* =============================================================
-   🚚 MÓDULO: ALBARANES v11.2 (Socios Visibles + Centinela + IA n8n)
+   🚚 MÓDULO: ALBARANES v12.1 (KPIs Mensuales + IA n8n Completo)
    ============================================================= */
 
 import Tesseract from 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.esm.min.js';
@@ -112,20 +112,37 @@ export async function render(container, supabase, db, opts = {}) {
         <header class="flex flex-col md:flex-row justify-between items-center bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 gap-4">
             <div>
                 <h2 class="text-xl font-black text-slate-800">Albaranes & Gastos</h2>
-                <p class="text-[10px] text-indigo-500 font-bold uppercase tracking-widest">Price Sentinel Active 🛡️</p>
+                <p class="text-[10px] text-indigo-500 font-bold uppercase tracking-widest">Control Financiero</p>
             </div>
             <div class="flex gap-2 items-center flex-wrap justify-center">
                 <label class="bg-indigo-600 text-white px-5 py-3 rounded-2xl text-[10px] font-black hover:bg-indigo-700 transition cursor-pointer shadow-lg flex items-center gap-2">
-                    <span>📷</span> SCAN (BÁSICO)
+                    <span>📷</span> BÁSICO
                     <input type="file" id="ocrInput" class="hidden" accept="image/*" capture="environment">
                 </label>
                 <label class="bg-gradient-to-r from-emerald-400 to-teal-500 text-white px-5 py-3 rounded-2xl text-[10px] font-black hover:shadow-lg hover:scale-105 transition cursor-pointer shadow-md flex items-center gap-2">
-                    <span>✨</span> SCAN AI (n8n)
+                    <span>✨</span> IA (n8n)
                     <input type="file" id="n8nInput" class="hidden" accept="image/*, application/pdf" capture="environment">
                 </label>
                 <button id="btnExport" class="bg-slate-800 text-white px-5 py-3 rounded-2xl text-[10px] font-black shadow-md transition">⬇️ CSV</button>
             </div>
         </header>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div class="bg-white px-6 py-5 rounded-[2rem] border border-slate-100 shadow-sm flex flex-col justify-center items-start">
+                <span class="text-[10px] font-black text-slate-400 uppercase mb-1">Gasto Histórico Total</span>
+                <span class="text-2xl font-black text-slate-800" id="kpi-global">0.00€</span>
+            </div>
+            <div class="bg-indigo-50 px-6 py-5 rounded-[2rem] border border-indigo-100 shadow-sm flex flex-col justify-center items-start relative overflow-hidden">
+                <div class="absolute -right-4 -top-4 text-6xl opacity-10">📅</div>
+                <span class="text-[10px] font-black text-indigo-500 uppercase mb-1">Este Trimestre</span>
+                <span class="text-3xl font-black text-indigo-900" id="kpi-trimestre">0.00€</span>
+            </div>
+            <div class="bg-emerald-50 px-6 py-5 rounded-[2rem] border border-emerald-100 shadow-sm flex flex-col justify-center items-start relative overflow-hidden">
+                <div class="absolute -right-4 -top-4 text-6xl opacity-10">📊</div>
+                <span class="text-[10px] font-black text-emerald-600 uppercase mb-1">Este Mes</span>
+                <span class="text-3xl font-black text-emerald-900" id="kpi-mes">0.00€</span>
+            </div>
+        </div>
 
         ${inbox.length > 0 ? `
         <div class="bg-indigo-50 p-4 rounded-[2rem] border border-indigo-100 relative overflow-hidden animate-pulse-slow">
@@ -150,11 +167,6 @@ export async function render(container, supabase, db, opts = {}) {
                 `).join('')}
             </div>
         </div>` : ''}
-
-        <div class="bg-white px-6 py-3 rounded-2xl border border-slate-100 shadow-sm flex justify-between items-center">
-            <span class="text-[10px] font-black text-slate-400 uppercase">Gasto Total Registrado</span>
-            <span class="text-xl font-black text-slate-800" id="total-global-kpi">0.00€</span>
-        </div>
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
             
@@ -182,10 +194,10 @@ export async function render(container, supabase, db, opts = {}) {
                         <input id="inNotes" type="text" placeholder="Notas (opcional)..." class="w-full p-3 bg-slate-50 rounded-xl text-xs border-0 outline-none">
                     </div>
 
-                    <textarea id="inText" placeholder="Escribe aquí o escanea...
+                    <textarea id="inText" placeholder="Escribe aquí o escanea con IA...
 Ej:
 5 kg Salmón 150.00
-10 Cajas Cerveza 80.50" class="w-full h-40 bg-slate-50 rounded-2xl p-4 text-xs font-mono border-0 outline-none resize-none mb-3 shadow-inner focus:bg-white transition"></textarea>
+10 Cajas Cerveza 80.50" class="w-full h-32 bg-slate-50 rounded-2xl p-4 text-xs font-mono border-0 outline-none resize-none mb-3 shadow-inner focus:bg-white transition"></textarea>
                     
                     <div id="livePreview" class="mt-3 space-y-1 max-h-52 overflow-y-auto custom-scrollbar px-1 bg-slate-50/50 rounded-xl p-2 min-h-[50px]"></div>
 
@@ -280,7 +292,7 @@ Ej:
 
     inText.addEventListener('input', recalcular);
 
-    // --- 6. OCR (TESSERACT BÁSICO) ---
+    // --- 6. OCR BÁSICO ---
     container.querySelector("#ocrInput").onchange = async (e) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -303,33 +315,21 @@ Ej:
         finally { ocrOverlay.classList.add("hidden"); e.target.value = ''; }
     };
 
-    // --- 6.5. NUEVO: SCAN INTELIGENTE (n8n IA) ---
+    // --- 6.5. SCAN INTELIGENTE (n8n IA) ---
     container.querySelector("#n8nInput").onchange = async (e) => {
         const file = e.target.files[0];
         if (!file) return;
 
-        // Mostrar cargando con mensaje de IA
         loadingText.innerText = "IA LEYENDO FACTURA...";
         ocrOverlay.classList.remove("hidden");
 
         try {
-            // Convertimos la imagen a un formato que podamos enviar por internet (Base64)
             const reader = new FileReader();
             reader.readAsDataURL(file);
             reader.onload = async () => {
                 const base64Image = reader.result;
-
-                // AQUI ESTÁ LA DIRECCIÓN ACTUALIZADA A TU n8n LOCAL
                 const n8nWebhookURL = "http://localhost:5678/webhook-test/albaranes-ai";
 
-                // Protección por si falta configurar
-                if(n8nWebhookURL === "URL_DE_TU_WEBHOOK_N8N_ALBARANES") {
-                    alert("⚠️ ¡Falta configurar n8n! Tienes que poner la URL de tu automatización en el código.");
-                    ocrOverlay.classList.add("hidden");
-                    return;
-                }
-
-                // Enviamos la imagen a tu empleado virtual (n8n)
                 const response = await fetch(n8nWebhookURL, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -338,21 +338,12 @@ Ej:
 
                 if (!response.ok) throw new Error("Error comunicando con n8n");
 
-                // Recibimos la respuesta formateada desde n8n
                 const data = await response.json();
                 
-                /* Esperamos que n8n nos devuelva un JSON así:
-                   { 
-                     proveedor: "Makro", 
-                     fecha: "2026-02-24", 
-                     lineasTexto: "5 kg Tomate 12.50\n10 ud Pan 4.00" 
-                   }
-                */
                 if(data.proveedor) inProv.value = data.proveedor;
                 if(data.fecha) container.querySelector("#inDate").value = data.fecha;
                 if(data.lineasTexto) {
                     inText.value = data.lineasTexto;
-                    // Al disparar 'input', tu código recalcula automáticamente IVA y Price Sentinel
                     inText.dispatchEvent(new Event('input')); 
                 }
                 
@@ -360,10 +351,10 @@ Ej:
             };
         } catch (err) {
             console.error(err);
-            alert("Error conectando con la IA de n8n.");
+            alert("Error: n8n o la IA están ocupados. Intenta en unos segundos.");
             ocrOverlay.classList.add("hidden");
         } finally {
-            e.target.value = ''; // Limpiar el input file
+            e.target.value = ''; 
         }
     };
 
@@ -393,7 +384,7 @@ Ej:
             prov, date,
             num: container.querySelector("#inRef").value || "S/N",
             socio: container.querySelector("#inSocio").value,
-            notes: container.querySelector("#inNotes").value, // NUEVO: Notas
+            notes: container.querySelector("#inNotes").value,
             items, total,
             taxes: items.reduce((acc, it) => acc + it.tax, 0),
             base: items.reduce((acc, it) => acc + it.base, 0),
@@ -457,7 +448,7 @@ Ej:
         modal.querySelector("#btnSaveEd").onclick = async () => {
             a.prov = modal.querySelector("#ed-prov").value;
             a.date = modal.querySelector("#ed-date").value;
-            a.notes = modal.querySelector("#ed-notes").value; // Guardar nota
+            a.notes = modal.querySelector("#ed-notes").value; 
             const nuevoTotal = parseFloat(modal.querySelector("#ed-total").value);
             
             if (Math.abs(nuevoTotal - a.total) > 0.01) {
@@ -482,9 +473,34 @@ Ej:
 
     const pintarLista = () => {
         const term = container.querySelector("#searchBox").value.toLowerCase();
-        const totalGlobal = db.albaranes.reduce((acc, a) => acc + (parseFloat(a.total)||0), 0);
-        const kpiEl = container.querySelector("#total-global-kpi");
-        if(kpiEl) kpiEl.innerText = totalGlobal.toLocaleString('es-ES', {minimumFractionDigits:2}) + "€";
+        
+        // --- CÁLCULO DE KPIS DE TIEMPO ---
+        const hoy = new Date();
+        const mesActual = hoy.getMonth();
+        const añoActual = hoy.getFullYear();
+        const trimActual = Math.floor(mesActual / 3) + 1;
+
+        let totalGlobal = 0, totalMes = 0, totalTrim = 0;
+
+        db.albaranes.forEach(a => {
+            const val = parseFloat(a.total) || 0;
+            totalGlobal += val;
+            
+            const d = new Date(a.date);
+            if(d.getFullYear() === añoActual) {
+                if(d.getMonth() === mesActual) totalMes += val;
+                if((Math.floor(d.getMonth() / 3) + 1) === trimActual) totalTrim += val;
+            }
+        });
+
+        // Actualizar tarjetas en pantalla
+        const elGlobal = container.querySelector("#kpi-global");
+        const elTrimestre = container.querySelector("#kpi-trimestre");
+        const elMes = container.querySelector("#kpi-mes");
+        
+        if(elGlobal) elGlobal.innerText = totalGlobal.toLocaleString('es-ES', {minimumFractionDigits:2}) + "€";
+        if(elTrimestre) elTrimestre.innerText = totalTrim.toLocaleString('es-ES', {minimumFractionDigits:2}) + "€";
+        if(elMes) elMes.innerText = totalMes.toLocaleString('es-ES', {minimumFractionDigits:2}) + "€";
 
         const filtered = db.albaranes.filter(a => {
             const esSocio = a.socio && a.socio !== 'Arume';
