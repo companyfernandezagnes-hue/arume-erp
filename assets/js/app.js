@@ -144,20 +144,20 @@ function updateNavState(name) {
     }
 }
 
-// 5. NAVBAR (Con Botón Menús Recuperado)
+// 5. NAVBAR (Con Botón Menús Recuperado Y BOTÓN IMPORTADOR AÑADIDO)
 function renderNav() {
     const nav = document.getElementById('navbar');
     if (!nav) return;
     
-    // Iconos mapeados
+    // Iconos mapeados (AQUÍ AÑADIMOS EL DE IMPORTADOR)
     const icons = { 
-        dashboard: '📊', diario: '💵', facturas: '📄', albaranes: '🚚', 
+        dashboard: '📊', diario: '💵', importador: '📥', facturas: '📄', albaranes: '🚚', 
         tesoreria: '⚖️', liquidez: '🔮', banco: '🏦', gastos_fijos: '🏢', 
         informes: '📈', menus: '🍽️', cierre: '🔒', proveedores: '🤝', amortizaciones: '📉' 
     };
     
-    // Lista ordenada de módulos
-    const menuItems = ['dashboard', 'diario', 'facturas', 'albaranes', 'tesoreria', 'liquidez', 'banco', 'gastos_fijos', 'informes', 'menus', 'cierre'];
+    // Lista ordenada de módulos (AQUÍ AÑADIMOS 'importador')
+    const menuItems = ['dashboard', 'diario', 'importador', 'facturas', 'albaranes', 'tesoreria', 'liquidez', 'banco', 'gastos_fijos', 'informes', 'menus', 'cierre'];
 
     nav.innerHTML = `
         <div class="flex items-center justify-between w-full overflow-x-auto gap-4 px-2 py-1 no-scrollbar">
