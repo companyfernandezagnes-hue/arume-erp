@@ -1,5 +1,5 @@
 /* =============================================================
-   📈 MÓDULO: INFORMES & FISCALIDAD (v3.0 - Compatible con Master Brain)
+   📈 MÓDULO: INFORMES & FISCALIDAD (v3.1 - Conector Analista IA n8n)
    ============================================================= */
 
 export async function render(container, sb, db) {
@@ -279,7 +279,7 @@ export async function render(container, sb, db) {
             const data = window.ArumeEngine.getProfit(filters.month, filters.year);
             const mesNombre = new Date(filters.year, filters.month).toLocaleDateString('es-ES',{month:'long'});
 
-            // Cálculo auxiliar de Ticket Medio (Este no lo da el cerebro porque depende de campos 'tickets' específicos)
+            // Cálculo auxiliar de Ticket Medio
             const inMonth = (d) => { const date=new Date(d); return date.getMonth()===filters.month && date.getFullYear()===filters.year; };
             const ventasZ = (db.cierres || []).filter(z => inMonth(z.date));
             const numTickets = ventasZ.reduce((acc,z)=>acc+(parseInt(z.tickets)||0),0); 
@@ -336,6 +336,12 @@ export async function render(container, sb, db) {
                         <p class="text-[9px] text-slate-400 mt-1 text-right">Ideal: 18-22%</p>
                     </div>
                 </div>
+
+                <button id="btnAnalistaIA" onclick="window.analizarConIA()" class="mt-6 w-full py-4 bg-gradient-to-r from-emerald-400 to-teal-500 text-white font-black text-xs rounded-2xl hover:shadow-lg hover:scale-[1.02] transition flex flex-col items-center justify-center gap-1">
+                    <span class="text-xl">🤖</span>
+                    <span>IA: ANALIZAR ESTE MES</span>
+                </button>
+                <div id="ia-response-box" class="hidden mt-4 bg-emerald-50 border border-emerald-100 p-4 rounded-2xl text-xs text-emerald-900 leading-relaxed font-medium"></div>
             `;
         }
     };
@@ -348,6 +354,64 @@ export async function render(container, sb, db) {
         if(filters.month > 11) { filters.month=0; filters.year++; }
         if(filters.month < 0) { filters.month=11; filters.year--; }
         pintar();
+    };
+
+    // --- 4.5. NUEVO: FUNCIÓN PARA LLAMAR AL ANALISTA IA DE N8N ---
+    window.analizarConIA = async () => {
+        const btn = document.getElementById("btnAnalistaIA");
+        const respBox = document.getElementById("ia-response-box");
+        
+        // Recopilamos todos los datos del mes actual para mandarlos a n8n
+        const data = window.ArumeEngine.getProfit(filters.month, filters.year);
+        const inMonth = (d) => { const date=new Date(d); return date.getMonth()===filters.month && date.getFullYear()===filters.year; };
+        const ventasZ = (db.cierres || []).filter(z => inMonth(z.date));
+        const numTickets = ventasZ.reduce((acc,z)=>acc+(parseInt(z.tickets)||0),0); 
+        const ticketMedio = numTickets > 0 ? data.ingresos.caja / numTickets : 0;
+
+        const payloadAEnviar = {
+            mes: `${filters.month + 1}-${filters.year}`,
+            ingresos: data.ingresos.total,
+            beneficio: data.neto,
+            foodCostPct: data.ratios.foodCost,
+            drinkCostPct: data.ratios.drinkCost,
+            staffCostPct: data.ratios.staffCost,
+            primeCostPct: data.ratios.primeCost,
+            ticketMedio: ticketMedio
+        };
+
+        btn.innerHTML = `<span class="animate-spin text-xl">🤖</span><span>ANALIZANDO DATOS...</span>`;
+        btn.disabled = true;
+        respBox.classList.add("hidden");
+
+        try {
+            // AQUÍ PONDREMOS LA URL DE TU WEBHOOK N8N
+            const n8nWebhookURL = "URL_DE_TU_WEBHOOK_N8N_ANALISTA_IA"; 
+
+            if(n8nWebhookURL === "URL_DE_TU_WEBHOOK_N8N_ANALISTA_IA") {
+                throw new Error("⚠️ Aún no has puesto la URL de n8n en el código.");
+            }
+
+            const response = await fetch(n8nWebhookURL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payloadAEnviar)
+            });
+
+            if (!response.ok) throw new Error("Error en el servidor de n8n");
+
+            // n8n nos devolverá un objeto JSON con un texto explicativo (ej. { "analisis": "Tu Food Cost está alto..." })
+            const respuestaIA = await response.json();
+
+            respBox.innerHTML = `<b>Consejo del Director Financiero IA:</b><br><br>${respuestaIA.analisis || respuestaIA.texto || "Análisis completado sin comentarios."}`;
+            respBox.classList.remove("hidden");
+
+        } catch (error) {
+            console.error(error);
+            alert(error.message || "Error al conectar con la IA de n8n.");
+        } finally {
+            btn.innerHTML = `<span class="text-xl">🤖</span><span>IA: ANALIZAR ESTE MES</span>`;
+            btn.disabled = false;
+        }
     };
 
     window.exportIVA = () => {
