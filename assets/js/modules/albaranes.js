@@ -319,10 +319,10 @@ Ej:
             reader.onload = async () => {
                 const base64Image = reader.result;
 
-                // URL DEL WEBHOOK DE N8N (Cambiar por tu URL de n8n)
-                const n8nWebhookURL = "URL_DE_TU_WEBHOOK_N8N_ALBARANES";
+                // AQUI ESTÁ LA DIRECCIÓN ACTUALIZADA A TU n8n LOCAL
+                const n8nWebhookURL = "http://localhost:5678/webhook-test/albaranes-ai";
 
-                // Protección por si aún no has puesto tu URL
+                // Protección por si falta configurar
                 if(n8nWebhookURL === "URL_DE_TU_WEBHOOK_N8N_ALBARANES") {
                     alert("⚠️ ¡Falta configurar n8n! Tienes que poner la URL de tu automatización en el código.");
                     ocrOverlay.classList.add("hidden");
