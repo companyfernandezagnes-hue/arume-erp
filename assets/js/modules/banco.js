@@ -1,5 +1,5 @@
 /* =============================================================
-   🏦 MÓDULO: BANCO v12.1+ (Integración n8n + Simplicidad Arume)
+   🏦 MÓDULO: BANCO v12.2+ (Integración n8n + Simplicidad Arume)
    ============================================================= */
 import * as XLSX from 'https://cdn.sheetjs.com/xlsx-0.20.1/package/xlsx.mjs';
 
@@ -293,15 +293,9 @@ export async function render(container, supabase, db, opts = {}) {
         btn.disabled = true;
 
         try {
-            // 2. ENVIAR A n8n
-            // ¡OJO AQUÍ! Cuando instales n8n, cambia este texto por la URL de tu Webhook.
-            const n8nWebhookURL = "URL_DE_TU_WEBHOOK_N8N_AQUI"; 
+            // 2. ENVIAR A n8n - LA MAGIA ESTÁ AQUÍ
+            const n8nWebhookURL = "http://localhost:5678/webhook-test/1085406f-324c-42f7-b50f-22f211f445cd"; 
             
-            // Comprobación de seguridad para que no te dé error si aún no has puesto tu URL
-            if(n8nWebhookURL === "URL_DE_TU_WEBHOOK_N8N_AQUI") {
-                throw new Error("⚠️ Aún no has configurado tu URL de n8n en el código.");
-            }
-
             const response = await fetch(n8nWebhookURL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -314,18 +308,19 @@ export async function render(container, supabase, db, opts = {}) {
             const datosProcesadosPorN8n = await response.json();
 
             // 4. APLICAR LOS CAMBIOS
-            for (const movProcesado of datosProcesadosPorN8n.movimientos) {
-                // Si n8n encontró una categoría, creamos el gasto
-                if (movProcesado.categoriaAsignada) {
-                    await window.createQuickExpense(movProcesado.id, movProcesado.categoriaAsignada + ' (n8n)');
-                    count++;
-                }
-                // Si n8n determinó que es un cierre TPV
-                else if (movProcesado.esCierreTPV) {
-                    const item = db.banco.find(b => b.id === movProcesado.id);
-                    if(item) item.status = 'matched';
-                    // Nota: Aquí se podría cruzar también con db.cierres
-                    count++;
+            if (datosProcesadosPorN8n && datosProcesadosPorN8n.movimientos) {
+                for (const movProcesado of datosProcesadosPorN8n.movimientos) {
+                    // Si n8n encontró una categoría, creamos el gasto
+                    if (movProcesado.categoriaAsignada) {
+                        await window.createQuickExpense(movProcesado.id, movProcesado.categoriaAsignada + ' (n8n)');
+                        count++;
+                    }
+                    // Si n8n determinó que es un cierre TPV
+                    else if (movProcesado.esCierreTPV) {
+                        const item = db.banco.find(b => b.id === movProcesado.id);
+                        if(item) item.status = 'matched';
+                        count++;
+                    }
                 }
             }
 
@@ -333,7 +328,7 @@ export async function render(container, supabase, db, opts = {}) {
                 await saveFn(`✨ ${count} movimientos conciliados por IA`); 
                 updateUI(); 
             } else {
-                alert("n8n no encontró coincidencias seguras para estos movimientos.");
+                alert("n8n recibió los datos, pero aún no tiene configurada la IA para devolver coincidencias.");
             }
 
         } catch (error) {
