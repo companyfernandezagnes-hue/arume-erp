@@ -1,5 +1,5 @@
 /* =============================================================
-   🚚 MÓDULO: ALBARANES v11.1 (Socios Visibles + Notas + Centinela)
+   🚚 MÓDULO: ALBARANES v11.2 (Socios Visibles + Centinela + IA n8n)
    ============================================================= */
 
 import Tesseract from 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.esm.min.js';
@@ -116,8 +116,12 @@ export async function render(container, supabase, db, opts = {}) {
             </div>
             <div class="flex gap-2 items-center flex-wrap justify-center">
                 <label class="bg-indigo-600 text-white px-5 py-3 rounded-2xl text-[10px] font-black hover:bg-indigo-700 transition cursor-pointer shadow-lg flex items-center gap-2">
-                    <span>📷</span> SCAN (TURBO)
+                    <span>📷</span> SCAN (BÁSICO)
                     <input type="file" id="ocrInput" class="hidden" accept="image/*" capture="environment">
+                </label>
+                <label class="bg-gradient-to-r from-emerald-400 to-teal-500 text-white px-5 py-3 rounded-2xl text-[10px] font-black hover:shadow-lg hover:scale-105 transition cursor-pointer shadow-md flex items-center gap-2">
+                    <span>✨</span> SCAN AI (n8n)
+                    <input type="file" id="n8nInput" class="hidden" accept="image/*, application/pdf" capture="environment">
                 </label>
                 <button id="btnExport" class="bg-slate-800 text-white px-5 py-3 rounded-2xl text-[10px] font-black shadow-md transition">⬇️ CSV</button>
             </div>
@@ -160,7 +164,7 @@ export async function render(container, supabase, db, opts = {}) {
                     
                     <div id="ocrLoadingOverlay" class="hidden absolute inset-0 bg-white/95 z-20 flex flex-col items-center justify-center text-center p-4 backdrop-blur-sm">
                         <div class="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-3"></div>
-                        <p class="text-xs font-black text-indigo-600 animate-pulse">ANALIZANDO...</p>
+                        <p id="loadingText" class="text-xs font-black text-indigo-600 animate-pulse">ANALIZANDO...</p>
                     </div>
 
                     <h3 class="text-sm font-black text-slate-800 mb-4 flex items-center gap-2">⚡ Nueva Compra</h3>
@@ -226,6 +230,7 @@ Ej:
     const taxSummary = container.querySelector("#taxSummary");
     const inProv = container.querySelector("#inProv");
     const ocrOverlay = container.querySelector("#ocrLoadingOverlay");
+    const loadingText = container.querySelector("#loadingText");
 
     // --- 5. CÁLCULO ---
     const recalcular = () => {
@@ -275,10 +280,11 @@ Ej:
 
     inText.addEventListener('input', recalcular);
 
-    // --- 6. OCR ---
+    // --- 6. OCR (TESSERACT BÁSICO) ---
     container.querySelector("#ocrInput").onchange = async (e) => {
         const file = e.target.files[0];
         if (!file) return;
+        loadingText.innerText = "ANALIZANDO...";
         ocrOverlay.classList.remove("hidden");
         try {
             const worker = await initOCR();
@@ -295,6 +301,70 @@ Ej:
             if(detectado) inProv.value = detectado;
         } catch (err) { console.error(err); alert("Error lectura"); } 
         finally { ocrOverlay.classList.add("hidden"); e.target.value = ''; }
+    };
+
+    // --- 6.5. NUEVO: SCAN INTELIGENTE (n8n IA) ---
+    container.querySelector("#n8nInput").onchange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        // Mostrar cargando con mensaje de IA
+        loadingText.innerText = "IA LEYENDO FACTURA...";
+        ocrOverlay.classList.remove("hidden");
+
+        try {
+            // Convertimos la imagen a un formato que podamos enviar por internet (Base64)
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = async () => {
+                const base64Image = reader.result;
+
+                // URL DEL WEBHOOK DE N8N (Cambiar por tu URL de n8n)
+                const n8nWebhookURL = "URL_DE_TU_WEBHOOK_N8N_ALBARANES";
+
+                // Protección por si aún no has puesto tu URL
+                if(n8nWebhookURL === "URL_DE_TU_WEBHOOK_N8N_ALBARANES") {
+                    alert("⚠️ ¡Falta configurar n8n! Tienes que poner la URL de tu automatización en el código.");
+                    ocrOverlay.classList.add("hidden");
+                    return;
+                }
+
+                // Enviamos la imagen a tu empleado virtual (n8n)
+                const response = await fetch(n8nWebhookURL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ image: base64Image, fileName: file.name })
+                });
+
+                if (!response.ok) throw new Error("Error comunicando con n8n");
+
+                // Recibimos la respuesta formateada desde n8n
+                const data = await response.json();
+                
+                /* Esperamos que n8n nos devuelva un JSON así:
+                   { 
+                     proveedor: "Makro", 
+                     fecha: "2026-02-24", 
+                     lineasTexto: "5 kg Tomate 12.50\n10 ud Pan 4.00" 
+                   }
+                */
+                if(data.proveedor) inProv.value = data.proveedor;
+                if(data.fecha) container.querySelector("#inDate").value = data.fecha;
+                if(data.lineasTexto) {
+                    inText.value = data.lineasTexto;
+                    // Al disparar 'input', tu código recalcula automáticamente IVA y Price Sentinel
+                    inText.dispatchEvent(new Event('input')); 
+                }
+                
+                ocrOverlay.classList.add("hidden");
+            };
+        } catch (err) {
+            console.error(err);
+            alert("Error conectando con la IA de n8n.");
+            ocrOverlay.classList.add("hidden");
+        } finally {
+            e.target.value = ''; // Limpiar el input file
+        }
     };
 
     // --- 7. GUARDAR ---
