@@ -1,5 +1,5 @@
 /* =============================================================
-   📄 MÓDULO: FACTURAS (Gestión de Compras y Albaranes)
+   📄 MÓDULO: FACTURAS (Gestión de Compras y Albaranes) + n8n
    ============================================================= */
 export async function render(container, supabase, db, opts = {}) {
   const saveFn = opts.save || (window.save ? window.save : async () => {});
@@ -153,12 +153,12 @@ export async function render(container, supabase, db, opts = {}) {
     const modal = container.querySelector("#modalAuditoria");
     modal.classList.remove("hidden");
     modal.innerHTML = `
-      <div class="bg-white w-full max-w-2xl rounded-[2.5rem] p-8 shadow-2xl animate-slide-up relative overflow-hidden">
-        <button onclick="document.getElementById('modalAuditoria').classList.add('hidden')" class="absolute top-6 right-6 text-slate-300 text-2xl">✕</button>
+      <div class="bg-white w-full max-w-2xl rounded-[2.5rem] p-8 shadow-2xl animate-slide-up relative overflow-hidden flex flex-col max-h-[90vh]">
+        <button onclick="document.getElementById('modalAuditoria').classList.add('hidden')" class="absolute top-6 right-6 text-slate-300 hover:text-slate-500 text-2xl z-10 transition">✕</button>
         <h3 class="text-xl font-black text-slate-800 mb-2">${label}</h3>
         <p class="text-[10px] font-black text-indigo-500 uppercase tracking-widest mb-6">Desglose de la compra</p>
         
-        <div class="space-y-3 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
+        <div class="space-y-3 flex-1 overflow-y-auto pr-2 custom-scrollbar">
           ${albaranes.map(a => `
             <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100">
               <div class="flex justify-between items-start">
@@ -172,12 +172,64 @@ export async function render(container, supabase, db, opts = {}) {
             </div>
           `).join('')}
         </div>
-        <div class="mt-8 pt-6 border-t flex justify-between items-center">
+        
+        <div class="mt-6 pt-6 border-t flex justify-between items-center mb-4">
             <p class="text-[10px] font-black text-slate-400 uppercase">Total agrupado</p>
             <p class="text-2xl font-black text-slate-900">${fmt(albaranes.reduce((t,x)=>t+parseFloat(x.total||0),0))}€</p>
         </div>
+
+        <button id="btnN8nGestoria" onclick="window.enviarGestoriaN8n('${idsString}', '${label}')" class="w-full bg-gradient-to-r from-emerald-400 to-teal-500 text-white py-4 rounded-2xl font-black shadow-lg hover:shadow-xl hover:scale-[1.02] transition flex justify-center items-center gap-2">
+            <span>☁️</span> ENVIAR A GESTORÍA (n8n)
+        </button>
       </div>
     `;
+  };
+
+  // --- 6.5 NUEVO: ENVIAR A GESTORÍA (n8n Webhook) ---
+  window.enviarGestoriaN8n = async (idsString, label) => {
+    const btn = document.getElementById("btnN8nGestoria");
+    const originalText = btn.innerHTML;
+    btn.innerHTML = `<span class="animate-spin inline-block">🔄</span> PROCESANDO EN LA NUBE...`;
+    btn.disabled = true;
+
+    try {
+        const ids = idsString.split(',');
+        const albaranes = db.albaranes.filter(a => ids.includes(a.id));
+        const total = albaranes.reduce((t,x) => t + parseFloat(x.total || 0), 0);
+
+        // ¡OJO! Aquí pondrás la URL de n8n para enviar a la gestoría
+        const n8nWebhookURL = "URL_DE_TU_WEBHOOK_N8N_GESTORIA"; 
+        
+        if(n8nWebhookURL === "URL_DE_TU_WEBHOOK_N8N_GESTORIA") {
+            alert("⚠️ Aún no has configurado la URL de n8n en el código.");
+            return;
+        }
+
+        const payload = {
+            proveedor_o_socio: label,
+            fecha_envio: new Date().toISOString().split('T')[0],
+            total_factura: total,
+            desglose_albaranes: albaranes
+        };
+
+        const response = await fetch(n8nWebhookURL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) throw new Error("Error conectando con n8n");
+
+        alert("✅ ¡Factura enviada a la gestoría correctamente mediante n8n!");
+        document.getElementById('modalAuditoria').classList.add('hidden');
+
+    } catch (error) {
+        console.error(error);
+        alert("Error al enviar. Revisa que tu automatización n8n esté activa.");
+    } finally {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+    }
   };
 
   window.facturarAgrupado = async (monthKey, ownerLabel) => {
