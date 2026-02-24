@@ -1,5 +1,5 @@
 /* =============================================================
-   🏦 MÓDULO: BANCO v12.1+ (Robustez Copilot + Simplicidad Arume)
+   🏦 MÓDULO: BANCO v12.1+ (Integración n8n + Simplicidad Arume)
    ============================================================= */
 import * as XLSX from 'https://cdn.sheetjs.com/xlsx-0.20.1/package/xlsx.mjs';
 
@@ -74,7 +74,7 @@ export async function render(container, supabase, db, opts = {}) {
             <div class="flex justify-between items-start relative z-10">
                 <div>
                     <h2 class="text-2xl font-black text-slate-800">Banco</h2>
-                    <p class="text-[10px] text-indigo-500 font-bold uppercase tracking-widest">Conciliación Inteligente v12.1+</p>
+                    <p class="text-[10px] text-indigo-500 font-bold uppercase tracking-widest">Conciliación n8n AI v12.2</p>
                 </div>
                 <div class="text-right">
                     <p class="text-[9px] font-black text-slate-400 uppercase mb-1">Saldo Banco</p>
@@ -104,7 +104,7 @@ export async function render(container, supabase, db, opts = {}) {
                     <input type="file" id="bankCsv" class="hidden" accept=".csv, .xlsx, .xls">
                 </label>
                 <button id="btnMagic" class="bg-gradient-to-r from-emerald-400 to-teal-500 text-white px-5 py-3 rounded-xl text-[10px] font-black hover:shadow-lg hover:scale-105 transition">
-                    🪄 AUTO-MATCH
+                    🪄 AUTO-MATCH (AI)
                 </button>
             </div>
             <div id="import-msg" class="mt-2 text-xs font-bold text-indigo-500 empty:hidden"></div>
@@ -279,58 +279,71 @@ export async function render(container, supabase, db, opts = {}) {
         } catch (err) { console.error(err); alert("Error leyendo portapapeles. Usa Ctrl+V."); }
     };
 
-    // --- MAGIA: AUTO-MATCH (TPV + GASTOS) ---
+    // --- MAGIA: AUTO-MATCH (Conectado a n8n) ---
     container.querySelector("#btnMagic").onclick = async () => {
         let count = 0;
         const pendings = db.banco.filter(b => b.status === 'pending');
         
-        // Helper para sumar tarjetas del cierre (Cierres Z)
-        const getCardTotal = (c) => {
-            const t = parseFloat(c.tarjeta) || 0; // Visa/TPV
-            const a = parseFloat(c.apps) || 0; // Apps (Glovo/Uber)
-            const amex = parseFloat(c.amex) || 0; // Si existe
-            return t + a + amex; 
-        };
-
-        for (const b of pendings) {
-            const desc = b.desc.toUpperCase();
-
-            // 1. REGLA: TPV vs CIERRES (Anti-duplicados contables)
-            if (b.amount > 0 && (desc.includes('TPV') || desc.includes('REMESA') || desc.includes('TARJETA'))) {
-                const cierreMatch = db.cierres.find(c => {
-                    if (c.conciliado_banco) return false;
-                    // Comparar con el total de tarjetas del día
-                    const totalCards = getCardTotal(c);
-                    const diff = Math.abs(totalCards - b.amount);
-                    return diff < 5; // Margen 5€
-                });
-                
-                if (cierreMatch) {
-                    b.status = 'matched';
-                    cierreMatch.conciliado_banco = true;
-                    count++;
-                    continue;
-                }
-            }
-
-            // 2. REGLA: GASTOS AUTOMÁTICOS
-            if (b.amount < 0) {
-                let cat = null;
-                if (desc.includes('COMISION') || desc.includes('MANTENIMIENTO')) cat = 'Comisión Banco';
-                else if (desc.includes('ENDESA') || desc.includes('IBERDROLA') || desc.includes('EMAYA')) cat = 'Suministros';
-                else if (desc.includes('SEG.SOC') || desc.includes('TGSS') || desc.includes('NOMINA')) cat = 'Personal';
-                else if (desc.includes('TRIBUTARIA') || desc.includes('AEAT')) cat = 'Impuestos';
-                else if (desc.includes('TELEFONICA') || desc.includes('MOVISTAR')) cat = 'Suministros';
-
-                if (cat) {
-                    await window.createQuickExpense(b.id, cat + ' (Auto)');
-                    count++;
-                }
-            }
-        }
+        if (pendings.length === 0) return alert("No hay movimientos pendientes para procesar.");
         
-        if(count > 0) { await saveFn(`✨ ${count} movimientos conciliados`); updateUI(); }
-        else alert("No encontré coincidencias automáticas obvias.");
+        // 1. Mostrar estado de carga (n8n puede tardar unos segundos)
+        const btn = container.querySelector("#btnMagic");
+        const originalText = btn.innerHTML;
+        btn.innerHTML = `<span class="animate-spin inline-block">🪄</span> PROCESANDO EN LA NUBE...`;
+        btn.disabled = true;
+
+        try {
+            // 2. ENVIAR A n8n
+            // ¡OJO AQUÍ! Cuando instales n8n, cambia este texto por la URL de tu Webhook.
+            const n8nWebhookURL = "URL_DE_TU_WEBHOOK_N8N_AQUI"; 
+            
+            // Comprobación de seguridad para que no te dé error si aún no has puesto tu URL
+            if(n8nWebhookURL === "URL_DE_TU_WEBHOOK_N8N_AQUI") {
+                throw new Error("⚠️ Aún no has configurado tu URL de n8n en el código.");
+            }
+
+            const response = await fetch(n8nWebhookURL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ movimientos: pendings })
+            });
+
+            if (!response.ok) throw new Error("Error conectando con n8n");
+
+            // 3. RECIBIR RESPUESTA DE n8n
+            const datosProcesadosPorN8n = await response.json();
+
+            // 4. APLICAR LOS CAMBIOS
+            for (const movProcesado of datosProcesadosPorN8n.movimientos) {
+                // Si n8n encontró una categoría, creamos el gasto
+                if (movProcesado.categoriaAsignada) {
+                    await window.createQuickExpense(movProcesado.id, movProcesado.categoriaAsignada + ' (n8n)');
+                    count++;
+                }
+                // Si n8n determinó que es un cierre TPV
+                else if (movProcesado.esCierreTPV) {
+                    const item = db.banco.find(b => b.id === movProcesado.id);
+                    if(item) item.status = 'matched';
+                    // Nota: Aquí se podría cruzar también con db.cierres
+                    count++;
+                }
+            }
+
+            if(count > 0) { 
+                await saveFn(`✨ ${count} movimientos conciliados por IA`); 
+                updateUI(); 
+            } else {
+                alert("n8n no encontró coincidencias seguras para estos movimientos.");
+            }
+
+        } catch (error) {
+            console.error(error);
+            alert(error.message || "Error al conectar con la automatización.");
+        } finally {
+            // Restaurar el botón
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        }
     };
 
     // --- PANELES MANUALES ---
