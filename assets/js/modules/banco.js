@@ -1,5 +1,5 @@
 /* =============================================================
-   🏦 MÓDULO: BANCO v12.4 (IA Inteligente + Telegram Stats + Anti-Crash)
+   🏦 MÓDULO: BANCO v12.5 (IA Inteligente + Anti-Crash Blindado)
    ============================================================= */
 import * as XLSX from 'https://cdn.sheetjs.com/xlsx-0.20.1/package/xlsx.mjs';
 
@@ -48,7 +48,6 @@ export async function render(container, supabase, db, opts = {}) {
     if(!db.config) db.config = {};
     if(db.config.saldoInicial === undefined) db.config.saldoInicial = 0;
     
-    // --- IMPORTANTE: URL CONFIGURABLE DESDE LA INTERFAZ ---
     if(!db.config.n8nUrlBanco) db.config.n8nUrlBanco = "https://lgtdrp-ip-84-126-32-81.tunnelmole.net/webhook/1085406f-324c-42f7-b50f-22f211f445cd";
 
     const reCalc = () => {
@@ -129,7 +128,6 @@ export async function render(container, supabase, db, opts = {}) {
         </div>
     </div>`;
 
-    // Botón oculto para actualizar la URL de Tunnelmole si cambia
     container.querySelector("#btnConfigN8n").onclick = async () => {
         const nuevaUrl = prompt("Pega aquí tu nueva URL de Tunnelmole seguida de /webhook/... :", db.config.n8nUrlBanco);
         if(nuevaUrl) {
@@ -260,7 +258,7 @@ export async function render(container, supabase, db, opts = {}) {
         } catch (err) { console.error(err); alert("Error leyendo portapapeles. Usa Ctrl+V."); }
     };
 
-    // --- MAGIA: AUTO-MATCH ROBUSTO (Anti-CORS) ---
+    // --- MAGIA: AUTO-MATCH ROBUSTO (v12.5) ---
     container.querySelector("#btnMagic").onclick = async () => {
         let count = 0;
         const pendings = db.banco.filter(b => b.status === 'pending');
@@ -272,40 +270,42 @@ export async function render(container, supabase, db, opts = {}) {
         btn.disabled = true;
 
         try {
-            // Mapeamos desc a descOriginal
             const payloadMovs = pendings.map(m => ({ ...m, descOriginal: m.desc }));
-            
-            // Usamos la URL configurable
             const n8nWebhookURL = db.config.n8nUrlBanco;
             
-           const response = await fetch(n8nWebhookURL, {
+            const response = await fetch(n8nWebhookURL, {
                 method: 'POST',
-                headers: { 
-                    'Content-Type': 'text/plain'
-                },
+                headers: { 'Content-Type': 'text/plain' },
                 body: JSON.stringify({ 
                     movimientos: payloadMovs, 
                     saldoInicial: db.config.saldoInicial
                 })
             });
 
-            if (!response.ok) throw new Error(`El túnel respondió con código ${response.status}`);
+            if (!response.ok) throw new Error(`Código HTTP ${response.status}`);
 
-            const datosProcesadosPorN8n = await response.json();
+            const datosProcesados = await response.json();
 
-            if (datosProcesadosPorN8n && datosProcesadosPorN8n.movimientos) {
-                for (const mov of datosProcesadosPorN8n.movimientos) {
+            if (datosProcesados && datosProcesados.movimientos) {
+                for (const mov of datosProcesados.movimientos) {
+                    if (!mov.id) continue; // PROTECCIÓN: Si no hay ID, lo saltamos
+                    
                     const item = db.banco.find(b => b.id === mov.id);
-                    if(!item) continue;
-
-                    if (mov.categoriaAsignada && mov.categoriaAsignada !== 'Gastos Varios' && mov.categoriaAsignada !== 'Ingreso' && mov.confidence >= 0.7) {
-                        // Creamos el gasto
+                    if (!item) continue;
+                    
+                    const amt = Number(item.amount); // PROTECCIÓN: Aseguramos que sea número
+                    if (isNaN(amt)) continue;
+                    
+                    const categoria = mov.categoriaAsignada;
+                    const conf = Number(mov.confidence ?? 0);
+                    
+                    if (categoria && categoria !== 'Gastos Varios' && categoria !== 'Ingreso' && conf >= 0.7) {
                         const newAlb = {
-                            id: 'auto-'+Date.now()+Math.random(),
+                            id: 'auto-' + Date.now() + Math.random(),
                             date: item.date,
-                            prov: mov.categoriaAsignada + ' (n8n)',
+                            prov: categoria + ' (n8n)',
                             num: "BANCO",
-                            total: Math.abs(item.amount),
+                            total: Math.abs(amt),
                             paid: true,
                             status: 'ok'
                         };
@@ -324,13 +324,12 @@ export async function render(container, supabase, db, opts = {}) {
                 await saveFn(`✨ ${count} movimientos conciliados por IA`); 
                 updateUI(); 
             } else {
-                alert("La IA ha revisado los datos, pero no ha encontrado gastos seguros para auto-conciliar. Todo requiere revisión humana.");
+                alert("La IA ha revisado los datos, pero no ha encontrado gastos seguros para auto-conciliar. Todo requiere revisión manual.");
             }
 
         } catch (error) {
             console.error(error);
-            // Mensaje de error mucho más útil
-            alert(`🚨 Falla la conexión a la IA:\n\n1. Comprueba que Tunnelmole está encendido.\n2. Asegúrate de que la URL coincide pulsando en '⚙️ Configurar Túnel n8n'.\n\nDetalle técnico: ${error.message}`);
+            alert(`🚨 Error al conectar con la IA\n\n${error.message}`);
         } finally {
             btn.innerHTML = originalText;
             btn.disabled = false;
