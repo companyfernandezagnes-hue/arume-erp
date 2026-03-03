@@ -3,6 +3,7 @@
    ============================================================= */
 
 import Tesseract from 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.esm.min.js';
+const SHEETS_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSqrxQOFddtbftPG5Ce6G1c7swVwUT28QY8vV1TjhGrc4e4h7WvLTpSZH31vP4L6hHmCUtU5O0tQvRx/pub?gid=185264817&single=true&output=csv";
 
 let ocrWorker = null;
 
@@ -27,6 +28,68 @@ export async function render(container, supabase, db, opts = {}) {
     initOCR(); 
 
     const inbox = db.albaranes.filter(a => a.status === 'pending');
+   // --- FUNCIÓN PARA SINCRONIZAR CON WHATSAPP ---
+    const sincronizarDesdeSheets = async () => {
+        const btn = container.querySelector("#btnSyncSheets");
+        const originalText = btn.innerHTML;
+        btn.innerHTML = "<span>⏳</span>...";
+        btn.disabled = true;
+
+        try {
+            const response = await fetch(SHEETS_CSV_URL);
+            const csvText = await response.text();
+            const rows = csvText.split('\n').slice(1); 
+            let añadidos = 0;
+
+            rows.forEach(row => {
+                // n8n suele separar por comas en el CSV de Sheets
+                const cols = row.split(',').map(c => c.replace(/^"|"$/g, '').trim());
+                if (cols.length < 8) return;
+
+                const fecha = cols[0];
+                const prov = cols[1];
+                const total = parseFloat(cols[7]);
+                const linkFoto = cols[8];
+
+                // Comprobamos si ya lo tenemos guardado para no duplicar
+                const existe = db.albaranes.some(a => 
+                    a.prov === prov && 
+                    a.date === fecha && 
+                    Math.abs((a.total || 0) - total) < 0.1
+                );
+
+                if (!existe && prov && total > 0) {
+                    db.albaranes.push({
+                        id: 'ws_' + Date.now() + Math.random().toString(36).substr(2, 5),
+                        prov, 
+                        date: fecha, 
+                        num: cols[2] || "S/N",
+                        socio: 'Arume', 
+                        notes: "📱 Importado de WhatsApp",
+                        items: [{ q: 1, n: cols[3] || "Producto", t: total }],
+                        total: total, 
+                        paid: false, 
+                        status: 'ok', 
+                        link_foto: linkFoto
+                    });
+                    añadidos++;
+                }
+            });
+
+            if (añadidos > 0) {
+                await saveFn(`¡${añadidos} albaranes nuevos! 🚀`);
+                pintarLista();
+            } else {
+                alert("No hay albaranes nuevos en el Excel.");
+            }
+        } catch (e) {
+            console.error(e);
+            alert("Error al conectar con Google Sheets.");
+        } finally {
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        }
+    };
 
     // --- 2. INTELIGENCIA DE PRECIOS ---
     const normalize = (s) => {
@@ -109,23 +172,29 @@ export async function render(container, supabase, db, opts = {}) {
     container.innerHTML = `
     <div class="animate-fade-in space-y-6 pb-24">
         
-        <header class="flex flex-col md:flex-row justify-between items-center bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 gap-4">
-            <div>
-                <h2 class="text-xl font-black text-slate-800">Albaranes & Gastos</h2>
-                <p class="text-[10px] text-indigo-500 font-bold uppercase tracking-widest">Control Financiero</p>
-            </div>
-            <div class="flex gap-2 items-center flex-wrap justify-center">
-                <label class="bg-indigo-600 text-white px-5 py-3 rounded-2xl text-[10px] font-black hover:bg-indigo-700 transition cursor-pointer shadow-lg flex items-center gap-2">
-                    <span>📷</span> BÁSICO
-                    <input type="file" id="ocrInput" class="hidden" accept="image/*" capture="environment">
-                </label>
-                <label class="bg-gradient-to-r from-emerald-400 to-teal-500 text-white px-5 py-3 rounded-2xl text-[10px] font-black hover:shadow-lg hover:scale-105 transition cursor-pointer shadow-md flex items-center gap-2">
-                    <span>✨</span> IA (n8n)
-                    <input type="file" id="n8nInput" class="hidden" accept="image/*, application/pdf" capture="environment">
-                </label>
-                <button id="btnExport" class="bg-slate-800 text-white px-5 py-3 rounded-2xl text-[10px] font-black shadow-md transition">⬇️ CSV</button>
-            </div>
-        </header>
+     <header class="flex flex-col md:flex-row justify-between items-center bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 gap-4">
+    <div>
+        <h2 class="text-xl font-black text-slate-800">Albaranes & Gastos</h2>
+        <p class="text-[10px] text-indigo-500 font-bold uppercase tracking-widest">Control Financiero</p>
+    </div>
+    <div class="flex gap-2 items-center flex-wrap justify-center">
+        <button id="btnSyncSheets" class="bg-amber-500 text-white px-5 py-3 rounded-2xl text-[10px] font-black hover:bg-amber-600 transition shadow-lg flex items-center gap-2">
+            <span>🔄</span> SYNC
+        </button>
+
+        <label class="bg-indigo-600 text-white px-5 py-3 rounded-2xl text-[10px] font-black hover:bg-indigo-700 transition cursor-pointer shadow-lg flex items-center gap-2">
+            <span>📷</span> BÁSICO
+            <input type="file" id="ocrInput" class="hidden" accept="image/*" capture="environment">
+        </label>
+
+        <label class="bg-gradient-to-r from-emerald-400 to-teal-500 text-white px-5 py-3 rounded-2xl text-[10px] font-black hover:shadow-lg hover:scale-105 transition cursor-pointer shadow-md flex items-center gap-2">
+            <span>✨</span> IA (n8n)
+            <input type="file" id="n8nInput" class="hidden" accept="image/*, application/pdf" capture="environment">
+        </label>
+
+        <button id="btnExport" class="bg-slate-800 text-white px-5 py-3 rounded-2xl text-[10px] font-black shadow-md transition">⬇️ CSV</button>
+    </div>
+</header>
 
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div class="bg-white px-6 py-5 rounded-[2rem] border border-slate-100 shadow-sm flex flex-col justify-center items-start">
@@ -548,4 +617,5 @@ Ej:
 
     container.querySelector("#searchBox").oninput = pintarLista;
     pintarLista();
+   container.querySelector("#btnSyncSheets").onclick = sincronizarDesdeSheets;
 }
