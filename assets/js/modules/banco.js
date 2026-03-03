@@ -278,13 +278,10 @@ export async function render(container, supabase, db, opts = {}) {
             // Usamos la URL configurable
             const n8nWebhookURL = db.config.n8nUrlBanco;
             
-            const response = await fetch(n8nWebhookURL, {
+           const response = await fetch(n8nWebhookURL, {
                 method: 'POST',
-                // Añadimos modo 'cors' explícito
-                mode: 'cors',
                 headers: { 
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json'
+                    'Content-Type': 'text/plain'
                 },
                 body: JSON.stringify({ 
                     movimientos: payloadMovs, 
