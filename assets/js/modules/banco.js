@@ -1,12 +1,11 @@
 /* =============================================================
-   🏦 MÓDULO: BANCO v12.2+ (Integración n8n + Simplicidad Arume)
+   🏦 MÓDULO: BANCO v12.2+ (Integración n8n + Alertas IA)
    ============================================================= */
 import * as XLSX from 'https://cdn.sheetjs.com/xlsx-0.20.1/package/xlsx.mjs';
 
 const Utils = {
     normalize: (s) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim().toLowerCase(),
     
-    // Hash Robusto (Fecha + Céntimos + Desc + Ref)
     generateHash: (dateISO, amount, desc, ref = '') => {
         const cents = Math.round(amount * 100); 
         const str = `${dateISO}_${cents}_${Utils.normalize(desc)}_${ref}`;
@@ -18,14 +17,11 @@ const Utils = {
         return (h >>> 0).toString(16);
     },
 
-    // Parseo inteligente de importes (soporta negativos raros)
     parseAmount: (raw) => {
         if (typeof raw === 'number') return raw;
         let s = String(raw).trim();
-        s = s.replace(/\u2212/g, '-'); // Signo menos unicode
-        if (s.startsWith('(') && s.endsWith(')')) { 
-            s = '-' + s.slice(1, -1);
-        }
+        s = s.replace(/\u2212/g, '-'); 
+        if (s.startsWith('(') && s.endsWith(')')) s = '-' + s.slice(1, -1);
         return window.Num.parse(s);
     },
     
@@ -43,17 +39,15 @@ const Utils = {
     }
 };
 
-let lastUndo = null; // Para deshacer acciones
+let lastUndo = null;
 
 export async function render(container, supabase, db, opts = {}) {
     const saveFn = opts.save || (window.save ? window.save : async () => {});
     
-    // Inicializar
     ['banco','facturas','albaranes','cierres','bankImports','logs'].forEach(k => { if(!db[k]) db[k]=[]; });
     if(!db.config) db.config = {};
     if(db.config.saldoInicial === undefined) db.config.saldoInicial = 0;
 
-    // --- KPIs ---
     const reCalc = () => {
         const sumaMovs = db.banco.reduce((acc, b) => acc + (parseFloat(b.amount)||0), 0);
         const saldo = (parseFloat(db.config.saldoInicial) || 0) + sumaMovs;
@@ -66,14 +60,13 @@ export async function render(container, supabase, db, opts = {}) {
     let kpis = reCalc();
     let selectedBankId = null;
 
-    // --- INTERFAZ ---
     container.innerHTML = `
     <div class="animate-fade-in space-y-6 pb-24">
         <header class="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 relative overflow-hidden">
             <div class="flex justify-between items-start relative z-10">
                 <div>
                     <h2 class="text-2xl font-black text-slate-800">Banco</h2>
-                    <p class="text-[10px] text-indigo-500 font-bold uppercase tracking-widest">Conciliación n8n AI v12.2</p>
+                    <p class="text-[10px] text-indigo-500 font-bold uppercase tracking-widest">Conciliación n8n AI v12.3</p>
                 </div>
                 <div class="text-right">
                     <p class="text-[9px] font-black text-slate-400 uppercase mb-1">Saldo Banco</p>
@@ -134,7 +127,6 @@ export async function render(container, supabase, db, opts = {}) {
         </div>
     </div>`;
 
-    // --- FUNCIONES CORE ---
     const updateUI = () => {
         kpis = reCalc();
         container.querySelector("#lblProgress").innerText = `${kpis.matched} / ${kpis.total} Conciliados`;
@@ -166,31 +158,23 @@ export async function render(container, supabase, db, opts = {}) {
         `).join('') || '<p class="text-center text-xs text-slate-300 py-10">Todo limpio ✨</p>';
     };
 
-    // --- PROCESADOR DE ENTRADA (Anti-Duplicados) ---
     const processIncomingData = async (rawRows, sourceName = 'unknown') => {
         let imported = 0, skipped = 0;
         const newMovs = [];
-        
         const existingHashes = new Set(db.banco.map(b => b.hash));
 
         rawRows.forEach(row => {
             if(!row.date || !row.amount) return;
-            
             const desc = String(row.desc || 'Sin concepto').trim();
             const dateISO = row.date.toISOString().split('T')[0];
-            const hash = Utils.generateHash(dateISO, row.amount, desc, row.ref); // Incluye ref si existe
+            const hash = Utils.generateHash(dateISO, row.amount, desc, row.ref);
 
             if(existingHashes.has(hash)) { skipped++; return; }
 
             newMovs.push({
                 id: 'bm-' + Date.now() + Math.random().toString(36).substr(2,5),
-                hash: hash,
-                date: dateISO,
-                desc: desc,
-                descNorm: Utils.normalize(desc),
-                amount: row.amount,
-                status: 'pending',
-                source: sourceName
+                hash: hash, date: dateISO, desc: desc, descNorm: Utils.normalize(desc),
+                amount: row.amount, status: 'pending', source: sourceName
             });
             existingHashes.add(hash);
             imported++;
@@ -198,7 +182,6 @@ export async function render(container, supabase, db, opts = {}) {
 
         if (newMovs.length > 0) {
             db.banco.unshift(...newMovs);
-            db.logs.push({ ts: Date.now(), action: 'bank_import', count: imported, source: sourceName });
             await saveFn(`📥 ${imported} nuevos movimientos. (🛡️ ${skipped} duplicados)`);
             updateUI();
         } else {
@@ -206,7 +189,6 @@ export async function render(container, supabase, db, opts = {}) {
         }
     };
 
-    // 1. IMPORTAR EXCEL
     container.querySelector("#bankCsv").onchange = (e) => {
         const file = e.target.files[0];
         if(!file) return;
@@ -234,12 +216,7 @@ export async function render(container, supabase, db, opts = {}) {
                     const dateObj = Utils.parseDate(r[colDate]);
                     const amt = Utils.parseAmount(r[colAmt]);
                     if(dateObj && !isNaN(amt)) {
-                        cleanRows.push({ 
-                            date: dateObj, 
-                            amount: amt, 
-                            desc: r[colDesc], 
-                            ref: colRef > -1 ? r[colRef] : null 
-                        });
+                        cleanRows.push({ date: dateObj, amount: amt, desc: r[colDesc], ref: colRef > -1 ? r[colRef] : null });
                     }
                 }
             });
@@ -249,73 +226,72 @@ export async function render(container, supabase, db, opts = {}) {
         e.target.value = '';
     };
 
-    // 2. PEGAR DESDE PORTAPAPELES
     container.querySelector("#btnPaste").onclick = async () => {
         try {
             const text = await navigator.clipboard.readText();
             if(!text) return alert("Portapapeles vacío");
-
             const lines = text.split('\n');
             const cleanRows = [];
             
             lines.forEach(line => {
                 const dateMatch = line.match(/(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})/);
                 const moneyMatch = line.match(/(-?[\d.]+,\d{2}|-?[\d,]+\.\d{2})/g); 
-
                 if (dateMatch && moneyMatch) {
                     const rawAmt = moneyMatch[moneyMatch.length - 1]; 
                     const amt = Utils.parseAmount(rawAmt);
                     let desc = line.replace(dateMatch[0], '').replace(rawAmt, '').trim();
-                    if (!isNaN(amt)) {
-                        cleanRows.push({ date: Utils.parseDate(dateMatch[0]), amount: amt, desc: desc || "Movimiento Web" });
-                    }
+                    if (!isNaN(amt)) cleanRows.push({ date: Utils.parseDate(dateMatch[0]), amount: amt, desc: desc || "Movimiento Web" });
                 }
             });
 
             if (cleanRows.length > 0) processIncomingData(cleanRows, 'Portapapeles');
             else alert("No pude entender el texto.");
-
         } catch (err) { console.error(err); alert("Error leyendo portapapeles. Usa Ctrl+V."); }
     };
 
-    // --- MAGIA: AUTO-MATCH (Conectado a n8n) ---
+    // --- MAGIA: AUTO-MATCH (N8N CORREGIDO) ---
     container.querySelector("#btnMagic").onclick = async () => {
         let count = 0;
         const pendings = db.banco.filter(b => b.status === 'pending');
-        
         if (pendings.length === 0) return alert("No hay movimientos pendientes para procesar.");
         
-        // 1. Mostrar estado de carga
         const btn = container.querySelector("#btnMagic");
         const originalText = btn.innerHTML;
-        btn.innerHTML = `<span class="animate-spin inline-block">🪄</span> PROCESANDO EN LA NUBE...`;
+        btn.innerHTML = `<span class="animate-spin inline-block">🪄</span> IA PENSANDO...`;
         btn.disabled = true;
 
         try {
-            // 2. ENVIAR A n8n - LA MAGIA ESTÁ AQUÍ (¡CON LAS COMILLAS CERRADAS!)
-            const n8nWebhookURL = "http://localhost:5678/webhook/1085406f-324c-42f7-b50f-22f211f445cd";
+            // Mapeamos desc a descOriginal para que n8n no se líe
+            const payloadMovs = pendings.map(m => ({ ...m, descOriginal: m.desc }));
+            
+            const n8nWebhookURL = "https://lgtdrp-ip-84-126-32-81.tunnelmole.net/webhook/1085406f-324c-42f7-b50f-22f211f445cd";
             
             const response = await fetch(n8nWebhookURL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ movimientos: pendings })
+                body: JSON.stringify({ 
+                    movimientos: payloadMovs, 
+                    saldoInicial: db.config.saldoInicial // Enviamos el saldo para la alerta de Saldo Bajo
+                })
             });
 
             if (!response.ok) throw new Error("Error conectando con n8n");
 
-            // 3. RECIBIR RESPUESTA DE n8n
             const datosProcesadosPorN8n = await response.json();
 
-            // 4. APLICAR LOS CAMBIOS
             if (datosProcesadosPorN8n && datosProcesadosPorN8n.movimientos) {
-                for (const movProcesado of datosProcesadosPorN8n.movimientos) {
-                    if (movProcesado.categoriaAsignada) {
-                        await window.createQuickExpense(movProcesado.id, movProcesado.categoriaAsignada + ' (n8n)');
+                for (const mov of datosProcesadosPorN8n.movimientos) {
+                    const item = db.banco.find(b => b.id === mov.id);
+                    if(!item) continue;
+
+                    // Si la IA tiene claro que es un proveedor, luz, nómina, etc. (y la confianza es alta)
+                    if (mov.categoriaAsignada && mov.categoriaAsignada !== 'Gastos Varios' && mov.categoriaAsignada !== 'Ingreso' && mov.confidence >= 0.7) {
+                        await window.createQuickExpense(mov.id, mov.categoriaAsignada + ' (n8n)');
                         count++;
                     }
-                    else if (movProcesado.esCierreTPV) {
-                        const item = db.banco.find(b => b.id === movProcesado.id);
-                        if(item) item.status = 'matched';
+                    // Si es un TPV, simplemente lo marcamos como conciliado
+                    else if (mov.esCierreTPV) {
+                        item.status = 'matched';
                         count++;
                     }
                 }
@@ -325,19 +301,18 @@ export async function render(container, supabase, db, opts = {}) {
                 await saveFn(`✨ ${count} movimientos conciliados por IA`); 
                 updateUI(); 
             } else {
-                alert("n8n recibió los datos, pero no encontró coincidencias.");
+                alert("La IA ha revisado los datos, pero no ha encontrado gastos seguros para auto-conciliar. Revísalos manualmente.");
             }
 
         } catch (error) {
             console.error(error);
-            alert(error.message || "Error al conectar con la automatización.");
+            alert("Error al conectar con la automatización. Revisa que tu Terminal (Tunnelmole) esté funcionando.");
         } finally {
             btn.innerHTML = originalText;
             btn.disabled = false;
         }
     };
 
-    // --- PANELES MANUALES ---
     window.selectBankItem = (id) => {
         selectedBankId = id;
         updateUI();
@@ -355,7 +330,7 @@ export async function render(container, supabase, db, opts = {}) {
                 
                 <p class="text-[10px] font-bold text-slate-400 uppercase mb-2">Acciones Rápidas</p>
                 <div class="grid grid-cols-2 gap-2 mb-4">
-                    <button onclick="window.createQuickExpense('${item.id}', 'Comisión')" class="p-2 border rounded hover:bg-slate-50 text-xs font-bold">🏦 Comisión</button>
+                    <button onclick="window.createQuickExpense('${item.id}', 'Comisión Bancaria')" class="p-2 border rounded hover:bg-slate-50 text-xs font-bold">🏦 Comisión</button>
                     <button onclick="window.createQuickExpense('${item.id}', 'Suministros')" class="p-2 border rounded hover:bg-slate-50 text-xs font-bold">💡 Luz/Agua</button>
                     <button onclick="window.createQuickExpense('${item.id}', 'Personal')" class="p-2 border rounded hover:bg-slate-50 text-xs font-bold">👨‍🍳 Nómina</button>
                     <button onclick="window.createQuickExpense('${item.id}', 'Alquiler')" class="p-2 border rounded hover:bg-slate-50 text-xs font-bold">🏢 Alquiler</button>
@@ -365,7 +340,6 @@ export async function render(container, supabase, db, opts = {}) {
         `;
     };
 
-    // --- CREAR GASTO DESDE BANCO CON DESHACER ---
     window.createQuickExpense = window.createCustomExpense = async (id, name=null) => {
         const item = db.banco.find(b => b.id === id);
         const concepto = name || prompt("Concepto del gasto:", item.desc);
@@ -383,13 +357,12 @@ export async function render(container, supabase, db, opts = {}) {
         db.albaranes.push(newAlb);
         item.status = 'matched';
         
-        lastUndo = { bankId: item.id, albId: newAlb.id }; // Guardar para deshacer
+        lastUndo = { bankId: item.id, albId: newAlb.id }; 
 
         await saveFn("Gasto creado");
         selectedBankId = null; 
         updateUI();
         
-        // Toast Deshacer
         const toast = document.createElement('div');
         toast.className = "fixed bottom-4 right-4 bg-slate-900 text-white px-4 py-3 rounded-xl shadow-lg z-[10000] flex gap-4 items-center animate-slide-up";
         toast.innerHTML = `<span class="text-xs font-bold">Gasto creado</span> <button id="btnUndo" class="text-indigo-400 font-black text-xs hover:text-white">DESHACER ↩️</button>`;
