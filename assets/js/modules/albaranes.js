@@ -1,11 +1,32 @@
 /* =============================================================
-   🚚 MÓDULO: ALBARANES v12.1 (KPIs Mensuales + IA n8n Completo)
+   🚚 MÓDULO: ALBARANES v12.2 (Fechas ISO Strict + IA n8n)
    ============================================================= */
 
 import Tesseract from 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.esm.min.js';
 const SHEETS_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSqrxQOFddtbftPG5Ce6G1c7swVwUT28QY8vV1TjhGrc4e4h7WvLTpSZH31vP4L6hHmCUtU5O0tQvRx/pub?gid=185264817&single=true&output=csv";
 
 let ocrWorker = null;
+
+// --- 🛠️ HELPER: PARSER DE FECHAS ESTRICTO YYYY-MM-DD ---
+const formatearFechaISO = (fechaRaw) => {
+    if (!fechaRaw) return new Date().toISOString().split('T')[0];
+    const s = String(fechaRaw).trim();
+    // Si ya es YYYY-MM-DD, la devolvemos tal cual
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+    // Si es DD/MM/YYYY o DD-MM-YYYY (típico de Sheets/España)
+    if (/^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}$/.test(s)) {
+        let [d, m, y] = s.split(/[\/\-]/);
+        if (y.length === 2) y = '20' + y;
+        return `${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`;
+    }
+    // Si es cualquier otro formato raro, intentamos parsearlo
+    try {
+        const d = new Date(s);
+        if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
+    } catch(e) {}
+    // Fallback: hoy
+    return new Date().toISOString().split('T')[0];
+};
 
 export async function render(container, supabase, db, opts = {}) {
     const saveFn = opts.save || (window.save ? window.save : async () => {});
@@ -28,7 +49,8 @@ export async function render(container, supabase, db, opts = {}) {
     initOCR(); 
 
     const inbox = db.albaranes.filter(a => a.status === 'pending');
-   // --- FUNCIÓN PARA SINCRONIZAR CON WHATSAPP ---
+
+    // --- FUNCIÓN PARA SINCRONIZAR CON WHATSAPP ---
     const sincronizarDesdeSheets = async () => {
         const btn = container.querySelector("#btnSyncSheets");
         const originalText = btn.innerHTML;
@@ -42,16 +64,15 @@ export async function render(container, supabase, db, opts = {}) {
             let añadidos = 0;
 
             rows.forEach(row => {
-                // n8n suele separar por comas en el CSV de Sheets
                 const cols = row.split(',').map(c => c.replace(/^"|"$/g, '').trim());
                 if (cols.length < 8) return;
 
-                const fecha = cols[0];
+                // APLICAMOS LA VACUNA DE FECHAS AQUÍ
+                const fecha = formatearFechaISO(cols[0]);
                 const prov = cols[1];
                 const total = parseFloat(cols[7]);
                 const linkFoto = cols[8];
 
-                // Comprobamos si ya lo tenemos guardado para no duplicar
                 const existe = db.albaranes.some(a => 
                     a.prov === prov && 
                     a.date === fecha && 
@@ -70,7 +91,8 @@ export async function render(container, supabase, db, opts = {}) {
                         total: total, 
                         paid: false, 
                         status: 'ok', 
-                        link_foto: linkFoto
+                        link_foto: linkFoto,
+                        reconciled: false // Nuevo campo para control de banco
                     });
                     añadidos++;
                 }
@@ -101,29 +123,17 @@ export async function render(container, supabase, db, opts = {}) {
 
     const detectPriceIncrease = (name, newUnitPrice) => {
         if (!name || newUnitPrice <= 0) return null;
-        
         const key = normalize(name);
         if(key.length < 3) return null; 
-
         const history = db.priceHistory[key];
         if (!history || history.length < 1) return null; 
-
         const lastPurchase = history[history.length - 1];
         const lastPrice = lastPurchase.unit;
-
         if (lastPrice <= 0) return null;
-
         const diff = newUnitPrice - lastPrice;
         const pct = (diff / lastPrice) * 100;
-
         if (pct >= 5) {
-            return { 
-                increase: true, 
-                pct: pct.toFixed(1), 
-                previous: lastPrice, 
-                current: newUnitPrice,
-                diff: diff.toFixed(2) 
-            };
+            return { increase: true, pct: pct.toFixed(1), previous: lastPrice, current: newUnitPrice, diff: diff.toFixed(2) };
         }
         return null;
     };
@@ -410,7 +420,7 @@ Ej:
                 const data = await response.json();
                 
                 if(data.proveedor) inProv.value = data.proveedor;
-                if(data.fecha) container.querySelector("#inDate").value = data.fecha;
+                if(data.fecha) container.querySelector("#inDate").value = formatearFechaISO(data.fecha);
                 if(data.lineasTexto) {
                     inText.value = data.lineasTexto;
                     inText.dispatchEvent(new Event('input')); 
@@ -427,12 +437,12 @@ Ej:
         }
     };
 
-    // --- 7. GUARDAR ---
+    // --- 7. GUARDAR MANUALMENTE ---
     container.querySelector("#btnProcesar").onclick = async () => {
         const items = analizarTexto(inText.value);
         let total = parseFloat(liveTotal.innerText.replace('€',''));
         const prov = container.querySelector("#inProv").value;
-        const date = container.querySelector("#inDate").value;
+        const date = container.querySelector("#inDate").value; // Este ya es YYYY-MM-DD del input type="date"
 
         if (total <= 0 || !prov) return alert("Faltan datos (Proveedor o Importe).");
 
@@ -459,7 +469,8 @@ Ej:
             base: items.reduce((acc, it) => acc + it.base, 0),
             invoiced: false, 
             paid: container.querySelector("#inPaid").checked,
-            status: 'ok'
+            status: 'ok',
+            reconciled: false
         });
 
         await saveFn("Gasto guardado ✅");
@@ -486,7 +497,7 @@ Ej:
                 <div class="flex-1 overflow-y-auto p-2 space-y-4 custom-scrollbar">
                     <div class="grid grid-cols-2 gap-4">
                         <input id="ed-prov" type="text" value="${a.prov}" class="p-3 bg-slate-50 rounded-xl font-bold border border-slate-100">
-                        <input id="ed-date" type="date" value="${a.date}" class="p-3 bg-slate-50 rounded-xl font-bold border border-slate-100">
+                        <input id="ed-date" type="date" value="${formatearFechaISO(a.date)}" class="p-3 bg-slate-50 rounded-xl font-bold border border-slate-100">
                     </div>
                     
                     <input id="ed-notes" type="text" value="${a.notes || ''}" placeholder="Notas..." class="w-full p-3 bg-indigo-50/50 rounded-xl text-xs font-bold border border-indigo-50 text-indigo-900 outline-none">
@@ -516,7 +527,7 @@ Ej:
 
         modal.querySelector("#btnSaveEd").onclick = async () => {
             a.prov = modal.querySelector("#ed-prov").value;
-            a.date = modal.querySelector("#ed-date").value;
+            a.date = formatearFechaISO(modal.querySelector("#ed-date").value);
             a.notes = modal.querySelector("#ed-notes").value; 
             const nuevoTotal = parseFloat(modal.querySelector("#ed-total").value);
             
@@ -555,7 +566,7 @@ Ej:
             const val = parseFloat(a.total) || 0;
             totalGlobal += val;
             
-            const d = new Date(a.date);
+            const d = new Date(formatearFechaISO(a.date));
             if(d.getFullYear() === añoActual) {
                 if(d.getMonth() === mesActual) totalMes += val;
                 if((Math.floor(d.getMonth() / 3) + 1) === trimActual) totalTrim += val;
@@ -576,18 +587,19 @@ Ej:
             if (filtroOwner === 'Arume' && esSocio) return false;
             if (filtroOwner === 'Socios' && !esSocio) return false;
             return (a.prov||'').toLowerCase().includes(term);
-        }).sort((a,b) => new Date(b.date) - new Date(a.date));
+        }).sort((a,b) => new Date(formatearFechaISO(b.date)) - new Date(formatearFechaISO(a.date)));
 
         container.querySelector("#listaAlbaranes").innerHTML = filtered.map(a => `
-            <div onclick="window.editarAlbaran('${a.id}')" class="bg-white p-5 rounded-3xl border border-slate-100 flex justify-between items-center shadow-sm hover:bg-slate-50 transition cursor-pointer">
+            <div onclick="window.editarAlbaran('${a.id}')" class="bg-white p-5 rounded-3xl border border-slate-100 flex justify-between items-center shadow-sm hover:bg-slate-50 transition cursor-pointer ${a.reconciled ? 'ring-2 ring-emerald-400/50' : ''}">
                 <div>
                     <h4 class="font-black text-slate-800 flex items-center gap-2">
                         ${a.prov}
                         ${a.socio && a.socio !== 'Arume' ? `<span class="bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full text-[9px] uppercase tracking-wider">${a.socio}</span>` : ''}
                     </h4>
                     <div class="flex items-center gap-2 mt-1">
-                        <p class="text-[10px] text-slate-400">${a.date}</p>
+                        <p class="text-[10px] text-slate-400">${formatearFechaISO(a.date)}</p>
                         ${a.notes ? `<span class="text-[9px] text-indigo-400 bg-indigo-50 px-1.5 rounded" title="${a.notes}">📝 Nota</span>` : ''}
+                        ${a.reconciled ? `<span class="text-[9px] text-emerald-600 bg-emerald-50 px-1.5 rounded font-black">🔗 Conciliado</span>` : ''}
                     </div>
                 </div>
                 <div class="text-right">
@@ -610,12 +622,12 @@ Ej:
     });
 
     container.querySelector("#btnExport").onclick = () => {
-        const csv = "Fecha;Proveedor;Socio;Notas;Total\n" + db.albaranes.map(a => `${a.date};${a.prov};${a.socio};${a.notes||''};${a.total}`).join('\n');
+        const csv = "Fecha;Proveedor;Socio;Notas;Total\n" + db.albaranes.map(a => `${formatearFechaISO(a.date)};${a.prov};${a.socio};${a.notes||''};${a.total}`).join('\n');
         const link = document.createElement('a'); link.href = 'data:text/csv;charset=utf-8,' + encodeURI(csv);
         link.download = 'Albaranes.csv'; link.click();
     };
 
     container.querySelector("#searchBox").oninput = pintarLista;
     pintarLista();
-   container.querySelector("#btnSyncSheets").onclick = sincronizarDesdeSheets;
+    container.querySelector("#btnSyncSheets").onclick = sincronizarDesdeSheets;
 }
