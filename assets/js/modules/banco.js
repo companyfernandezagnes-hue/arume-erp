@@ -1,5 +1,5 @@
 /* =============================================================
-   🏦 MÓDULO: BANCO v12.2+ (Integración n8n + Alertas IA)
+   🏦 MÓDULO: BANCO v12.4 (IA Inteligente + Telegram Stats + Anti-Crash)
    ============================================================= */
 import * as XLSX from 'https://cdn.sheetjs.com/xlsx-0.20.1/package/xlsx.mjs';
 
@@ -47,6 +47,9 @@ export async function render(container, supabase, db, opts = {}) {
     ['banco','facturas','albaranes','cierres','bankImports','logs'].forEach(k => { if(!db[k]) db[k]=[]; });
     if(!db.config) db.config = {};
     if(db.config.saldoInicial === undefined) db.config.saldoInicial = 0;
+    
+    // --- IMPORTANTE: URL CONFIGURABLE DESDE LA INTERFAZ ---
+    if(!db.config.n8nUrlBanco) db.config.n8nUrlBanco = "https://lgtdrp-ip-84-126-32-81.tunnelmole.net/webhook/1085406f-324c-42f7-b50f-22f211f445cd";
 
     const reCalc = () => {
         const sumaMovs = db.banco.reduce((acc, b) => acc + (parseFloat(b.amount)||0), 0);
@@ -66,7 +69,7 @@ export async function render(container, supabase, db, opts = {}) {
             <div class="flex justify-between items-start relative z-10">
                 <div>
                     <h2 class="text-2xl font-black text-slate-800">Banco</h2>
-                    <p class="text-[10px] text-indigo-500 font-bold uppercase tracking-widest">Conciliación n8n AI v12.3</p>
+                    <p class="text-[10px] text-indigo-500 font-bold uppercase tracking-widest cursor-pointer hover:underline" id="btnConfigN8n">⚙️ Configurar Túnel n8n</p>
                 </div>
                 <div class="text-right">
                     <p class="text-[9px] font-black text-slate-400 uppercase mb-1">Saldo Banco</p>
@@ -89,17 +92,16 @@ export async function render(container, supabase, db, opts = {}) {
 
             <div class="mt-6 flex flex-wrap gap-2">
                 <button id="btnPaste" class="bg-indigo-600 text-white px-5 py-3 rounded-xl text-[10px] font-black hover:bg-indigo-700 transition flex items-center gap-2 shadow-lg">
-                    📋 PEGAR PORTAPAPELES
+                    📋 PEGAR
                 </button>
                 <label class="bg-slate-900 text-white px-5 py-3 rounded-xl text-[10px] font-black cursor-pointer shadow-lg hover:scale-105 transition flex items-center gap-2">
                     📂 SUBIR EXCEL
                     <input type="file" id="bankCsv" class="hidden" accept=".csv, .xlsx, .xls">
                 </label>
-                <button id="btnMagic" class="bg-gradient-to-r from-emerald-400 to-teal-500 text-white px-5 py-3 rounded-xl text-[10px] font-black hover:shadow-lg hover:scale-105 transition">
-                    🪄 AUTO-MATCH (AI)
+                <button id="btnMagic" class="bg-gradient-to-r from-emerald-400 to-teal-500 text-white px-5 py-3 rounded-xl text-[10px] font-black hover:shadow-lg hover:scale-105 transition shadow-lg">
+                    🪄 AUTO-MATCH (IA)
                 </button>
             </div>
-            <div id="import-msg" class="mt-2 text-xs font-bold text-indigo-500 empty:hidden"></div>
         </header>
 
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -119,13 +121,22 @@ export async function render(container, supabase, db, opts = {}) {
                 <div class="bg-white p-8 rounded-[2.5rem] border border-slate-100 relative h-[600px] flex flex-col shadow-xl overflow-hidden">
                     <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-500 to-purple-500"></div>
                     <div id="match-panel" class="flex-1 flex flex-col relative justify-center items-center text-center">
-                        <span class="text-6xl mb-4 grayscale opacity-30">👈</span>
-                        <p class="text-sm font-bold text-slate-400">Selecciona un movimiento de la lista</p>
+                        <span class="text-6xl mb-4 grayscale opacity-30">🤖</span>
+                        <p class="text-sm font-bold text-slate-400">Sube movimientos y usa la Varita Mágica,<br>o selecciona uno de la lista.</p>
                     </div>
                 </div>
             </div>
         </div>
     </div>`;
+
+    // Botón oculto para actualizar la URL de Tunnelmole si cambia
+    container.querySelector("#btnConfigN8n").onclick = async () => {
+        const nuevaUrl = prompt("Pega aquí tu nueva URL de Tunnelmole seguida de /webhook/... :", db.config.n8nUrlBanco);
+        if(nuevaUrl) {
+            db.config.n8nUrlBanco = nuevaUrl.trim();
+            await saveFn("URL de n8n actualizada.");
+        }
+    };
 
     const updateUI = () => {
         kpis = reCalc();
@@ -249,7 +260,7 @@ export async function render(container, supabase, db, opts = {}) {
         } catch (err) { console.error(err); alert("Error leyendo portapapeles. Usa Ctrl+V."); }
     };
 
-    // --- MAGIA: AUTO-MATCH (N8N CORREGIDO) ---
+    // --- MAGIA: AUTO-MATCH ROBUSTO (Anti-CORS) ---
     container.querySelector("#btnMagic").onclick = async () => {
         let count = 0;
         const pendings = db.banco.filter(b => b.status === 'pending');
@@ -261,21 +272,27 @@ export async function render(container, supabase, db, opts = {}) {
         btn.disabled = true;
 
         try {
-            // Mapeamos desc a descOriginal para que n8n no se líe
+            // Mapeamos desc a descOriginal
             const payloadMovs = pendings.map(m => ({ ...m, descOriginal: m.desc }));
             
-            const n8nWebhookURL = "https://lgtdrp-ip-84-126-32-81.tunnelmole.net/webhook/1085406f-324c-42f7-b50f-22f211f445cd";
+            // Usamos la URL configurable
+            const n8nWebhookURL = db.config.n8nUrlBanco;
             
             const response = await fetch(n8nWebhookURL, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                // Añadimos modo 'cors' explícito
+                mode: 'cors',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
                 body: JSON.stringify({ 
                     movimientos: payloadMovs, 
-                    saldoInicial: db.config.saldoInicial // Enviamos el saldo para la alerta de Saldo Bajo
+                    saldoInicial: db.config.saldoInicial
                 })
             });
 
-            if (!response.ok) throw new Error("Error conectando con n8n");
+            if (!response.ok) throw new Error(`El túnel respondió con código ${response.status}`);
 
             const datosProcesadosPorN8n = await response.json();
 
@@ -284,12 +301,21 @@ export async function render(container, supabase, db, opts = {}) {
                     const item = db.banco.find(b => b.id === mov.id);
                     if(!item) continue;
 
-                    // Si la IA tiene claro que es un proveedor, luz, nómina, etc. (y la confianza es alta)
                     if (mov.categoriaAsignada && mov.categoriaAsignada !== 'Gastos Varios' && mov.categoriaAsignada !== 'Ingreso' && mov.confidence >= 0.7) {
-                        await window.createQuickExpense(mov.id, mov.categoriaAsignada + ' (n8n)');
+                        // Creamos el gasto
+                        const newAlb = {
+                            id: 'auto-'+Date.now()+Math.random(),
+                            date: item.date,
+                            prov: mov.categoriaAsignada + ' (n8n)',
+                            num: "BANCO",
+                            total: Math.abs(item.amount),
+                            paid: true,
+                            status: 'ok'
+                        };
+                        db.albaranes.push(newAlb);
+                        item.status = 'matched';
                         count++;
                     }
-                    // Si es un TPV, simplemente lo marcamos como conciliado
                     else if (mov.esCierreTPV) {
                         item.status = 'matched';
                         count++;
@@ -301,12 +327,13 @@ export async function render(container, supabase, db, opts = {}) {
                 await saveFn(`✨ ${count} movimientos conciliados por IA`); 
                 updateUI(); 
             } else {
-                alert("La IA ha revisado los datos, pero no ha encontrado gastos seguros para auto-conciliar. Revísalos manualmente.");
+                alert("La IA ha revisado los datos, pero no ha encontrado gastos seguros para auto-conciliar. Todo requiere revisión humana.");
             }
 
         } catch (error) {
             console.error(error);
-            alert("Error al conectar con la automatización. Revisa que tu Terminal (Tunnelmole) esté funcionando.");
+            // Mensaje de error mucho más útil
+            alert(`🚨 Falla la conexión a la IA:\n\n1. Comprueba que Tunnelmole está encendido.\n2. Asegúrate de que la URL coincide pulsando en '⚙️ Configurar Túnel n8n'.\n\nDetalle técnico: ${error.message}`);
         } finally {
             btn.innerHTML = originalText;
             btn.disabled = false;
