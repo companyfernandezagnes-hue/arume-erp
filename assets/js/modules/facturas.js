@@ -1,6 +1,24 @@
 /* =============================================================
-   📄 MÓDULO: FACTURAS (Gestión de Compras y Albaranes) + n8n
+   📄 MÓDULO: FACTURAS v12.1 (Compatible con Fechas ISO)
    ============================================================= */
+
+// --- 🛠️ HELPER: EL MISMO TRADUCTOR DE FECHAS ---
+const formatearFechaISO = (fechaRaw) => {
+    if (!fechaRaw) return new Date().toISOString().split('T')[0];
+    const s = String(fechaRaw).trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+    if (/^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}$/.test(s)) {
+        let [d, m, y] = s.split(/[\/\-]/);
+        if (y.length === 2) y = '20' + y;
+        return `${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`;
+    }
+    try {
+        const d = new Date(s);
+        if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
+    } catch(e) {}
+    return new Date().toISOString().split('T')[0];
+};
+
 export async function render(container, supabase, db, opts = {}) {
   const saveFn = opts.save || (window.save ? window.save : async () => {});
   
@@ -86,7 +104,7 @@ export async function render(container, supabase, db, opts = {}) {
       g[owner].ids.push(a.id);
     });
 
-    const keys = Object.keys(byMonth).sort();
+    const keys = Object.keys(byMonth).sort().reverse(); // De más reciente a más antiguo
     if (!keys.length) {
         contentArea.innerHTML = `<div class="py-20 text-center text-slate-400 italic text-sm">No hay albaranes pendientes en ${year}</div>`;
         return;
@@ -163,7 +181,7 @@ export async function render(container, supabase, db, opts = {}) {
             <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100">
               <div class="flex justify-between items-start">
                 <div>
-                  <p class="font-bold text-slate-700 text-sm">${a.date}</p>
+                  <p class="font-bold text-slate-700 text-sm">${formatearFechaISO(a.date)}</p>
                   <p class="text-[9px] font-mono text-slate-400 uppercase">Socio: ${a.socio || 'Arume'}</p>
                 </div>
                 <p class="font-black text-slate-900">${fmt(a.total)}€</p>
@@ -189,7 +207,7 @@ export async function render(container, supabase, db, opts = {}) {
   window.enviarGestoriaN8n = async (idsString, label) => {
     const btn = document.getElementById("btnN8nGestoria");
     const originalText = btn.innerHTML;
-    btn.innerHTML = `<span class="animate-spin inline-block">🔄</span> PROCESANDO EN LA NUBE...`;
+    btn.innerHTML = `<span class="animate-spin inline-block">🔄</span> PROCESANDO...`;
     btn.disabled = true;
 
     try {
@@ -197,15 +215,16 @@ export async function render(container, supabase, db, opts = {}) {
         const albaranes = db.albaranes.filter(a => ids.includes(a.id));
         const total = albaranes.reduce((t,x) => t + parseFloat(x.total || 0), 0);
 
-        // ¡OJO! Aquí pondrás la URL de n8n para enviar a la gestoría
-        const n8nWebhookURL = "URL_DE_TU_WEBHOOK_N8N_GESTORIA"; 
+        // Aquí usarás la misma URL que configuramos para el banco si quieres
+        const n8nWebhookURL = db.config?.n8nUrlBanco || ""; 
         
-        if(n8nWebhookURL === "URL_DE_TU_WEBHOOK_N8N_GESTORIA") {
-            alert("⚠️ Aún no has configurado la URL de n8n en el código.");
+        if(!n8nWebhookURL) {
+            alert("⚠️ No hay URL de n8n configurada.");
             return;
         }
 
         const payload = {
+            tipo: "ENVIO_GESTORIA",
             proveedor_o_socio: label,
             fecha_envio: new Date().toISOString().split('T')[0],
             total_factura: total,
@@ -214,18 +233,18 @@ export async function render(container, supabase, db, opts = {}) {
 
         const response = await fetch(n8nWebhookURL, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'text/plain' },
             body: JSON.stringify(payload)
         });
 
         if (!response.ok) throw new Error("Error conectando con n8n");
 
-        alert("✅ ¡Factura enviada a la gestoría correctamente mediante n8n!");
+        alert("✅ ¡Factura enviada a la gestoría correctamente!");
         document.getElementById('modalAuditoria').classList.add('hidden');
 
     } catch (error) {
         console.error(error);
-        alert("Error al enviar. Revisa que tu automatización n8n esté activa.");
+        alert("Error al enviar. Revisa el túnel n8n.");
     } finally {
         btn.innerHTML = originalText;
         btn.disabled = false;
@@ -249,14 +268,15 @@ export async function render(container, supabase, db, opts = {}) {
     });
 
     db.facturas.push({
-        id: Math.random().toString(36).slice(2,11),
+        id: 'fac-' + Date.now() + Math.random().toString(36).slice(2,5),
         num,
         date: new Date().toISOString().split('T')[0],
         prov: mode === 'proveedor' ? ownerLabel : 'Varios',
         cliente: mode === 'socio' ? ownerLabel : 'Arume',
         total: Math.round(total * 100) / 100,
         albaranIds: albaranIds.join(','),
-        paid: false
+        paid: false,
+        reconciled: false
     });
 
     await saveFn("Factura generada ✅");
@@ -268,9 +288,23 @@ export async function render(container, supabase, db, opts = {}) {
     if (f) { f.paid = !f.paid; await saveFn(`Actualizado`); rerender(); }
   };
 
-  function isInYear(d, y) { try { return new Date(d).getFullYear() === y; } catch { return false; } }
-  function keyMonth(d) { if(!d) return null; const date = new Date(d); return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}`; }
-  function nameMonthKey(k) { const names = ["","Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"]; return `${names[parseInt(k.split('-')[1])]} ${k.split('-')[0]}`; }
+  // --- NUEVAS FUNCIONES DE FECHA BLINDADAS ---
+  function isInYear(d, y) { 
+      const iso = formatearFechaISO(d);
+      return iso.startsWith(y.toString());
+  }
+
+  function keyMonth(d) { 
+      const iso = formatearFechaISO(d); // YYYY-MM-DD
+      return iso.substring(0, 7); // Devuelve YYYY-MM
+  }
+
+  function nameMonthKey(k) { 
+      const [y, m] = k.split('-');
+      const names = ["","Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"]; 
+      return `${names[parseInt(m)]} ${y}`; 
+  }
+
   function fmt(n) { return Number(n||0).toLocaleString('es-ES',{minimumFractionDigits:2}); }
   function escapeHtml(s) { return String(s||'').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;"}[m])); }
 
