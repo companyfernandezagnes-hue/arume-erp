@@ -8,7 +8,7 @@ const Utils = {
     
     // Hash Robusto (Fecha + Céntimos + Desc + Ref)
     generateHash: (dateISO, amount, desc, ref = '') => {
-        const cents = Math.round(amount * 100); // Evita errores de punto flotante
+        const cents = Math.round(amount * 100); 
         const str = `${dateISO}_${cents}_${Utils.normalize(desc)}_${ref}`;
         let h = 0x811c9dc5;
         for (let i = 0; i < str.length; i++) {
@@ -23,7 +23,6 @@ const Utils = {
         if (typeof raw === 'number') return raw;
         let s = String(raw).trim();
         s = s.replace(/\u2212/g, '-'); // Signo menos unicode
-        // Formato contable (100) = -100
         if (s.startsWith('(') && s.endsWith(')')) { 
             s = '-' + s.slice(1, -1);
         }
@@ -61,7 +60,7 @@ export async function render(container, supabase, db, opts = {}) {
         const pending = db.banco.filter(b => b.status === 'pending');
         const matched = db.banco.length - pending.length;
         const pct = db.banco.length > 0 ? Math.round((matched / db.banco.length) * 100) : 0;
-        return { saldo, percent: pct, pending: pending.length, total: db.banco.length };
+        return { saldo, percent: pct, pending: pending.length, total: db.banco.length, matched };
     };
 
     let kpis = reCalc();
@@ -286,15 +285,15 @@ export async function render(container, supabase, db, opts = {}) {
         
         if (pendings.length === 0) return alert("No hay movimientos pendientes para procesar.");
         
-        // 1. Mostrar estado de carga (n8n puede tardar unos segundos)
+        // 1. Mostrar estado de carga
         const btn = container.querySelector("#btnMagic");
         const originalText = btn.innerHTML;
         btn.innerHTML = `<span class="animate-spin inline-block">🪄</span> PROCESANDO EN LA NUBE...`;
         btn.disabled = true;
 
         try {
-            // 2. ENVIAR A n8n - LA MAGIA ESTÁ AQUÍ
-          const n8nWebhookURL = "http://localhost:5678/webhook/1085406f-324c-42f7-b50f-22f211f445cd;
+            // 2. ENVIAR A n8n - LA MAGIA ESTÁ AQUÍ (¡CON LAS COMILLAS CERRADAS!)
+            const n8nWebhookURL = "https://lgtdrp-ip-84-126-32-81.tunnelmole.net/webhook/1085406f-324c-42f7-b50f-22f211f445cd";
             
             const response = await fetch(n8nWebhookURL, {
                 method: 'POST',
@@ -310,12 +309,10 @@ export async function render(container, supabase, db, opts = {}) {
             // 4. APLICAR LOS CAMBIOS
             if (datosProcesadosPorN8n && datosProcesadosPorN8n.movimientos) {
                 for (const movProcesado of datosProcesadosPorN8n.movimientos) {
-                    // Si n8n encontró una categoría, creamos el gasto
                     if (movProcesado.categoriaAsignada) {
                         await window.createQuickExpense(movProcesado.id, movProcesado.categoriaAsignada + ' (n8n)');
                         count++;
                     }
-                    // Si n8n determinó que es un cierre TPV
                     else if (movProcesado.esCierreTPV) {
                         const item = db.banco.find(b => b.id === movProcesado.id);
                         if(item) item.status = 'matched';
@@ -328,14 +325,13 @@ export async function render(container, supabase, db, opts = {}) {
                 await saveFn(`✨ ${count} movimientos conciliados por IA`); 
                 updateUI(); 
             } else {
-                alert("n8n recibió los datos, pero aún no tiene configurada la IA para devolver coincidencias.");
+                alert("n8n recibió los datos, pero no encontró coincidencias.");
             }
 
         } catch (error) {
             console.error(error);
             alert(error.message || "Error al conectar con la automatización.");
         } finally {
-            // Restaurar el botón
             btn.innerHTML = originalText;
             btn.disabled = false;
         }
@@ -430,9 +426,7 @@ export async function render(container, supabase, db, opts = {}) {
     };
 
     container.querySelector("#btnEditSaldo").onclick = async () => {
-        // Modal simple para evitar prompt
         const nuevo = prompt("Saldo Inicial:", db.config.saldoInicial); 
-        // (Copilot sugería modal HTML, pero prompt es más rápido y suficiente aquí)
         if(nuevo) {
             const val = parseFloat(nuevo.replace(',','.'));
             if(!isNaN(val)) {
