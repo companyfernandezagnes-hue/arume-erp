@@ -293,7 +293,7 @@ export async function render(container, supabase, db, opts = {}) {
 
         try {
             // 2. ENVIAR A n8n - LA MAGIA ESTÁ AQUÍ (¡CON LAS COMILLAS CERRADAS!)
-            const n8nWebhookURL = "https://lgtdrp-ip-84-126-32-81.tunnelmole.net/webhook/1085406f-324c-42f7-b50f-22f211f445cd";
+            const n8nWebhookURL = "http://localhost:5678/webhook/1085406f-324c-42f7-b50f-22f211f445cd";
             
             const response = await fetch(n8nWebhookURL, {
                 method: 'POST',
