@@ -294,7 +294,7 @@ export async function render(container, supabase, db, opts = {}) {
 
         try {
             // 2. ENVIAR A n8n - LA MAGIA ESTÁ AQUÍ
-            const n8nWebhookURL = "http://localhost:5678/webhook-test/1085406f-324c-42f7-b50f-22f211f445cd"; 
+          const n8nWebhookURL = "http://localhost:5678/webhook/1085406f-324c-42f7-b50f-22f211f445cd";
             
             const response = await fetch(n8nWebhookURL, {
                 method: 'POST',
