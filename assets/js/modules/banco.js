@@ -258,15 +258,20 @@ export async function render(container, supabase, db, opts = {}) {
         } catch (err) { console.error(err); alert("Error leyendo portapapeles. Usa Ctrl+V."); }
     };
 
-    // --- MAGIA: AUTO-MATCH ROBUSTO (v12.5) ---
+   // --- MAGIA: AUTO-MATCH ROBUSTO (Anti-CORS y Lotes de 25) ---
     container.querySelector("#btnMagic").onclick = async () => {
         let count = 0;
-        const pendings = db.banco.filter(b => b.status === 'pending');
-        if (pendings.length === 0) return alert("No hay movimientos pendientes para procesar.");
+        
+        // 1. Buscamos los pendientes
+        const todosPendientes = db.banco.filter(b => b.status === 'pending');
+        if (todosPendientes.length === 0) return alert("No hay movimientos pendientes para procesar.");
+        
+        // 2. ¡EL TRUCO! Cortamos solo los primeros 25 para no saturar a la IA
+        const pendings = todosPendientes.slice(0, 25); 
         
         const btn = container.querySelector("#btnMagic");
         const originalText = btn.innerHTML;
-        btn.innerHTML = `<span class="animate-spin inline-block">🪄</span> IA PENSANDO...`;
+        btn.innerHTML = `<span class="animate-spin inline-block">🪄</span> IA PENSANDO (${pendings.length})...`;
         btn.disabled = true;
 
         try {
@@ -288,12 +293,12 @@ export async function render(container, supabase, db, opts = {}) {
 
             if (datosProcesados && datosProcesados.movimientos) {
                 for (const mov of datosProcesados.movimientos) {
-                    if (!mov.id) continue; // PROTECCIÓN: Si no hay ID, lo saltamos
+                    if (!mov.id) continue; 
                     
                     const item = db.banco.find(b => b.id === mov.id);
                     if (!item) continue;
                     
-                    const amt = Number(item.amount); // PROTECCIÓN: Aseguramos que sea número
+                    const amt = Number(item.amount); 
                     if (isNaN(amt)) continue;
                     
                     const categoria = mov.categoriaAsignada;
@@ -321,10 +326,14 @@ export async function render(container, supabase, db, opts = {}) {
             }
 
             if(count > 0) { 
-                await saveFn(`✨ ${count} movimientos conciliados por IA`); 
+                let msg = `✨ ${count} movimientos conciliados por IA.`;
+                if (todosPendientes.length > 25) {
+                    msg += `\n⚠️ Quedan ${todosPendientes.length - 25} más. ¡Vuelve a pulsar el botón!`;
+                }
+                await saveFn(msg); 
                 updateUI(); 
             } else {
-                alert("La IA ha revisado los datos, pero no ha encontrado gastos seguros para auto-conciliar. Todo requiere revisión manual.");
+                alert("La IA ha revisado esta tanda de 25, pero no ha encontrado gastos seguros. Revísalos manual.");
             }
 
         } catch (error) {
@@ -335,103 +344,3 @@ export async function render(container, supabase, db, opts = {}) {
             btn.disabled = false;
         }
     };
-
-    window.selectBankItem = (id) => {
-        selectedBankId = id;
-        updateUI();
-        const item = db.banco.find(b => b.id === id);
-        if(!item) return;
-
-        const panel = container.querySelector("#match-panel");
-        panel.innerHTML = `
-            <div class="w-full text-left">
-                <div class="border-b pb-4 mb-4">
-                    <span class="text-[9px] font-black bg-slate-100 px-2 py-1 rounded">${item.amount>0?'INGRESO':'GASTO'}</span>
-                    <h3 class="font-black text-lg mt-2">${item.desc}</h3>
-                    <p class="text-3xl font-black ${item.amount>0?'text-emerald-500':'text-slate-900'}">${window.Num.fmt(item.amount)}</p>
-                </div>
-                
-                <p class="text-[10px] font-bold text-slate-400 uppercase mb-2">Acciones Rápidas</p>
-                <div class="grid grid-cols-2 gap-2 mb-4">
-                    <button onclick="window.createQuickExpense('${item.id}', 'Comisión Bancaria')" class="p-2 border rounded hover:bg-slate-50 text-xs font-bold">🏦 Comisión</button>
-                    <button onclick="window.createQuickExpense('${item.id}', 'Suministros')" class="p-2 border rounded hover:bg-slate-50 text-xs font-bold">💡 Luz/Agua</button>
-                    <button onclick="window.createQuickExpense('${item.id}', 'Personal')" class="p-2 border rounded hover:bg-slate-50 text-xs font-bold">👨‍🍳 Nómina</button>
-                    <button onclick="window.createQuickExpense('${item.id}', 'Alquiler')" class="p-2 border rounded hover:bg-slate-50 text-xs font-bold">🏢 Alquiler</button>
-                </div>
-                <button onclick="window.createCustomExpense('${item.id}')" class="w-full bg-slate-900 text-white py-3 rounded-xl text-xs font-black">CREAR GASTO MANUAL</button>
-            </div>
-        `;
-    };
-
-    window.createQuickExpense = window.createCustomExpense = async (id, name=null) => {
-        const item = db.banco.find(b => b.id === id);
-        const concepto = name || prompt("Concepto del gasto:", item.desc);
-        if(!concepto) return;
-
-        const newAlb = {
-            id: 'auto-'+Date.now(),
-            date: item.date,
-            prov: concepto,
-            num: "BANCO",
-            total: Math.abs(item.amount),
-            paid: true,
-            status: 'ok'
-        };
-        db.albaranes.push(newAlb);
-        item.status = 'matched';
-        
-        lastUndo = { bankId: item.id, albId: newAlb.id }; 
-
-        await saveFn("Gasto creado");
-        selectedBankId = null; 
-        updateUI();
-        
-        const toast = document.createElement('div');
-        toast.className = "fixed bottom-4 right-4 bg-slate-900 text-white px-4 py-3 rounded-xl shadow-lg z-[10000] flex gap-4 items-center animate-slide-up";
-        toast.innerHTML = `<span class="text-xs font-bold">Gasto creado</span> <button id="btnUndo" class="text-indigo-400 font-black text-xs hover:text-white">DESHACER ↩️</button>`;
-        document.body.appendChild(toast);
-        
-        toast.querySelector("#btnUndo").onclick = async () => {
-            if(lastUndo) {
-                db.albaranes = db.albaranes.filter(a => a.id !== lastUndo.albId);
-                const bRev = db.banco.find(b => b.id === lastUndo.bankId);
-                if(bRev) bRev.status = 'pending';
-                await saveFn("Deshecho ↩️");
-                toast.remove();
-                updateUI();
-            }
-        };
-        setTimeout(() => toast.remove(), 8000);
-        
-        container.querySelector("#match-panel").innerHTML = '<div class="flex-1 flex flex-col justify-center items-center text-center"><span class="text-6xl mb-4 grayscale opacity-30">👈</span><p class="text-sm font-bold text-slate-400">Selecciona otro</p></div>';
-    };
-
-    window.deleteBankItem = async (id, e) => {
-        e.stopPropagation();
-        if(confirm("¿Borrar movimiento?")) {
-            db.banco = db.banco.filter(b => b.id !== id);
-            await saveFn("Borrado"); selectedBankId = null; container.querySelector("#match-panel").innerHTML = ''; updateUI();
-        }
-    };
-    
-    container.querySelector("#btnNuke").onclick = async () => {
-        if(confirm("¿Borrar TODOS los movimientos YA CONCILIADOS?")) {
-            db.banco = db.banco.filter(b => b.status === 'pending');
-            await saveFn("Limpieza completada"); updateUI();
-        }
-    };
-
-    container.querySelector("#btnEditSaldo").onclick = async () => {
-        const nuevo = prompt("Saldo Inicial:", db.config.saldoInicial); 
-        if(nuevo) {
-            const val = parseFloat(nuevo.replace(',','.'));
-            if(!isNaN(val)) {
-                db.config.saldoInicial = val;
-                await saveFn("Saldo actualizado"); updateUI();
-            }
-        }
-    };
-
-    container.querySelector("#searchBank").addEventListener('input', updateUI);
-    updateUI();
-}
