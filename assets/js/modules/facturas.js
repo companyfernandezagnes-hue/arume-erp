@@ -1,5 +1,5 @@
 /* =============================================================
-   📄 MÓDULO: FACTURAS v17.0 PRO-AUDIT (Comparador Inteligente y Botón n8n)
+   📄 MÓDULO: FACTURAS v17.0 PRO-AUDIT (Con Realtime de Supabase)
    ============================================================= */
 
 const formatearFechaISO = (fechaRaw) => {
@@ -29,6 +29,24 @@ export async function render(container, supabase, db, opts = {}) {
   if (!Array.isArray(db.albaranes)) db.albaranes = [];
   if (!Array.isArray(db.facturas))  db.facturas  = [];
 
+  // --- 🚀 LA MAGIA DEL REALTIME (Solo se suscribe una vez) ---
+  if (!window.realtimeSubscribed) {
+      supabase.channel('arume-data')
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'arume_data' }, payload => {
+            console.log('🔄 Cambio detectado desde n8n!', payload);
+            // Actualizamos la base de datos local de la App
+            window.db = payload.new.data; 
+            // Forzamos que la pantalla se vuelva a pintar
+            if (typeof window.renderCurrentView === 'function') {
+                window.renderCurrentView(); 
+            } else {
+                window.location.reload();
+            }
+        })
+        .subscribe();
+      window.realtimeSubscribed = true;
+  }
+
   let activeTab = 'pend';
   let mode = 'proveedor';
   let year = new Date().getFullYear();
@@ -36,12 +54,10 @@ export async function render(container, supabase, db, opts = {}) {
   let filterStatus = 'all'; 
 
   // --- MOTOR DE AUDITORÍA IA ---
-  // Busca las facturas en estado 'draft' (enviadas por n8n) y las compara con los albaranes
   const draftsIA = db.facturas.filter(f => f.status === 'draft').map(draft => {
-      const mesDraft = draft.date.substring(0, 7); // Extrae "YYYY-MM"
+      const mesDraft = draft.date.substring(0, 7); 
       const provDraft = norm(draft.prov);
       
-      // Busca todos los albaranes pendientes de ese proveedor en ese mes exacto
       const albaranesCandidatos = db.albaranes.filter(a => 
           !a.invoiced && 
           norm(a.prov) === provDraft && 
@@ -97,7 +113,7 @@ export async function render(container, supabase, db, opts = {}) {
                                     </div>
                                 `).join('')}
                             </div>
-                        ` : `<p class="text-rose-400 text-[10px] font-bold italic py-2">⚠️ No has metido ningún albarán de este proveedor este mes.</p>`}
+                        ` : `<p class="text-rose-400 text-[10px] font-bold italic py-2">⚠️ No hay albaranes pendientes este mes.</p>`}
                     </div>
                 </div>
 
@@ -112,7 +128,7 @@ export async function render(container, supabase, db, opts = {}) {
                         <button onclick="window.confirmarAuditoriaIA('${d.id}')" class="${d.cuadraPerfecto ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-amber-500 hover:bg-amber-600'} text-white text-xs px-5 py-2.5 rounded-xl font-black shadow-lg transition active:scale-95">
                             ${d.cuadraPerfecto ? 'VINCULAR Y CERRAR MES' : 'CERRAR IGNORANDO DIFERENCIA'}
                         </button>
-                        <button onclick="window.descartarDraftIA('${d.id}')" class="bg-slate-700 hover:bg-rose-500 text-white text-xs p-2.5 rounded-xl font-black transition" title="Eliminar este borrador">🗑️</button>
+                        <button onclick="window.descartarDraftIA('${d.id}')" class="bg-slate-700 hover:bg-rose-500 text-white text-xs p-2.5 rounded-xl font-black transition" title="Eliminar borrador">🗑️</button>
                     </div>
                 </div>
             </div>
@@ -151,7 +167,7 @@ export async function render(container, supabase, db, opts = {}) {
             <button id="btnYearNext" class="text-indigo-600 font-bold p-1 hover:scale-110 transition">›</button>
           </div>
           
-          <input type="text" id="inSearch" placeholder="🔍 Buscar proveedor, socio o nº de factura..." 
+          <input type="text" id="inSearch" placeholder="🔍 Buscar proveedor o ref..." 
                  class="w-full md:w-96 p-2 px-4 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-indigo-400 transition shadow-inner">
         </div>
 
@@ -177,19 +193,15 @@ export async function render(container, supabase, db, opts = {}) {
   const inSearch    = container.querySelector("#inSearch");
   const filterChipsContainer = container.querySelector("#filterChips");
 
-  // --- BOTÓN N8N (Forzar lectura) ---
   container.querySelector("#btnSyncIA").onclick = async (e) => {
       const btn = e.target.closest('button');
       const originalHtml = btn.innerHTML;
       btn.innerHTML = `<span class="animate-spin">⏳</span> LEYENDO...`;
       btn.disabled = true;
-
       try {
-          // Reemplaza esto por tu Webhook URL de n8n que dispara el flujo de Gmail
           const webhookN8N = "https://ia.permatunnelopen.org/webhook/forzar-facturas";
           await fetch(webhookN8N, { method: "POST" });
-          
-          await saveFn("Orden enviada. Recarga la página en 1 minuto.");
+          // No hace falta alert, el Realtime actualizará la pantalla solo
       } catch (err) {
           alert("Error conectando con la IA. ¿Está el túnel activo?");
       } finally {
@@ -243,13 +255,12 @@ export async function render(container, supabase, db, opts = {}) {
     else renderHistorial();
   }
 
-  // --- CONFIRMAR AUDITORÍA IA ---
+  // --- FUNCIONES IA ---
   window.confirmarAuditoriaIA = async (draftId) => {
       const draft = db.facturas.find(f => f.id === draftId);
       const audit = draftsIA.find(d => d.id === draftId);
       if (!draft || !audit) return;
 
-      // 1. Marcar los albaranes encontrados como facturados
       if (audit.candidatos.length > 0) {
           const idsVincular = audit.candidatos.map(a => a.id);
           db.albaranes.forEach(a => { if (idsVincular.includes(a.id)) a.invoiced = true; });
@@ -257,23 +268,19 @@ export async function render(container, supabase, db, opts = {}) {
           draft.albaranIds = idsVincular.join(',');
       }
 
-      // 2. Hacer oficial la factura
       draft.status = 'approved';
-      
       await saveFn(`Mes cerrado para ${draft.prov} ✅`);
-      // Como react recarga el render() entero desde el layout base, no llamamos a render aquí si saveFn() recarga, 
-      // pero por si acaso:
-      if (window.location.hash.includes('facturas')) window.location.reload(); 
+      rerender();
   };
 
   window.descartarDraftIA = async (id) => {
-      if (!confirm("¿Eliminar factura leída por IA? (No afectará a tus albaranes)")) return;
+      if (!confirm("¿Eliminar factura leída por IA?")) return;
       db.facturas = db.facturas.filter(f => f.id !== id);
       await saveFn("Factura IA eliminada 🗑️");
-      if (window.location.hash.includes('facturas')) window.location.reload(); 
+      rerender();
   };
 
-  // --- RENDER PENDIENTES (Manuales) ---
+  // --- RENDER PENDIENTES ---
   function renderPendientes() {
     const albs = db.albaranes.filter(a => {
         if (a.invoiced || !isInYear(a.date, year)) return false;
@@ -320,7 +327,7 @@ export async function render(container, supabase, db, opts = {}) {
                 </div>
                 <div class="text-right">
                 <p class="font-black text-slate-900 text-lg">${fmt(g.t)}€</p>
-                <p class="text-[9px] font-bold text-indigo-400 group-hover:underline mt-1">CREAR MANUAL ➔</p>
+                <p class="text-[9px] font-bold text-indigo-400 group-hover:underline mt-1">CERRAR MANUAL ➔</p>
                 </div>
             </div>
             `).join('')}
@@ -329,10 +336,10 @@ export async function render(container, supabase, db, opts = {}) {
     `).join('');
   }
 
-  // --- RENDER HISTORIAL (Las que ya están CERRADAS) ---
+  // --- RENDER HISTORIAL ---
   function renderHistorial() {
     const list = db.facturas.filter(f => {
-        if (f.status === 'draft') return false; // Esconde las de IA no aprobadas
+        if (f.status === 'draft') return false; 
         if (!isInYear(f.date, year)) return false;
         
         if (filterStatus === 'pending' && f.paid) return false;
@@ -383,7 +390,7 @@ export async function render(container, supabase, db, opts = {}) {
                   <button onclick="window.togglePago('${f.id}')" class="px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all shadow-sm ${f.paid ? 'bg-emerald-500 text-white hover:bg-emerald-600' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}">
                     ${f.paid ? '✔️ CASH OK' : '⏳ PENDIENTE'}
                   </button>
-                  <button onclick="window.borrarFactura('${f.id}')" class="w-8 h-8 flex items-center justify-center bg-rose-50 text-rose-500 rounded-xl hover:bg-rose-500 hover:text-white transition shadow-sm" title="Eliminar y devolver albaranes">
+                  <button onclick="window.borrarFactura('${f.id}')" class="w-8 h-8 flex items-center justify-center bg-rose-50 text-rose-500 rounded-xl hover:bg-rose-500 hover:text-white transition shadow-sm" title="Eliminar">
                       🗑️
                   </button>
               </div>
@@ -393,7 +400,7 @@ export async function render(container, supabase, db, opts = {}) {
       </div>`;
   }
 
-  // --- MODAL AGRUPACIÓN MANUAL (Se mantiene intacto) ---
+  // --- MODAL AGRUPACIÓN MANUAL ---
   window.abrirModalAgrupacion = (label, idsString) => {
     const ids = idsString.split(',');
     const albaranes = db.albaranes.filter(a => ids.includes(a.id)).sort((a,b) => new Date(a.date) - new Date(b.date));
@@ -408,7 +415,7 @@ export async function render(container, supabase, db, opts = {}) {
         
         <div class="border-b border-slate-100 pb-4 mb-4">
             <h3 class="text-2xl font-black text-slate-800">${label}</h3>
-            <p class="text-xs font-bold text-indigo-500 uppercase tracking-widest mt-1">Agrupación Manual</p>
+            <p class="text-xs font-bold text-indigo-500 uppercase tracking-widest mt-1">Cierre de mes manual</p>
         </div>
         
         <div class="space-y-2 flex-1 overflow-y-auto pr-2 custom-scrollbar bg-slate-50 rounded-2xl p-4 border border-slate-100 inset-shadow">
@@ -428,7 +435,7 @@ export async function render(container, supabase, db, opts = {}) {
         
         <div class="mt-6 space-y-4">
             <div class="flex items-center justify-between bg-slate-900 p-4 rounded-2xl text-white shadow-lg">
-                <span class="text-xs font-black uppercase tracking-widest text-slate-400">Suma Total</span>
+                <span class="text-xs font-black uppercase tracking-widest text-slate-400">Suma Seleccionada</span>
                 <span id="modalTotalFinal" class="text-3xl font-black text-emerald-400">${fmt(totalGroup)}€</span>
             </div>
 
@@ -444,12 +451,11 @@ export async function render(container, supabase, db, opts = {}) {
             </div>
 
             <button onclick="window.confirmarCreacionFactura('${label}')" class="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black text-sm shadow-xl hover:bg-indigo-700 active:scale-95 transition">
-                CERRAR MES MANUALMENTE
+                GUARDAR FACTURA OFICIAL
             </button>
         </div>
       </div>
     `;
-
     setTimeout(() => document.getElementById('inNumFactura').focus(), 100);
   };
 
@@ -464,6 +470,13 @@ export async function render(container, supabase, db, opts = {}) {
       const dateFactura = document.getElementById("inDateFactura").value;
 
       if(!numFactura) return alert("Por favor, introduce el número de factura oficial.");
+
+      const existe = db.facturas.some(f => 
+          f.status !== 'draft' && 
+          norm(f.num) === norm(numFactura) && 
+          norm(f.prov || f.cliente) === norm(ownerLabel)
+      );
+      if (existe) return alert(`⚠️ Ya existe una factura con el número "${numFactura}" para este proveedor.`);
 
       const selectedIds = [];
       let totalFactura = 0;
@@ -487,14 +500,14 @@ export async function render(container, supabase, db, opts = {}) {
           paid: false,
           reconciled: false,
           source: 'manual-group',
-          status: 'approved' // Directo al historial
+          status: 'approved' 
       });
 
-      await saveFn("Factura cerrada manualmente ✅");
-      if (window.location.hash.includes('facturas')) window.location.reload();
+      await saveFn("Factura guardada ✅");
+      rerender();
   };
 
-  // --- DETALLES Y BORRADO (Intacto) ---
+  // --- DETALLES Y BORRADO ---
   window.verFacturaDetalle = (facId) => {
       const fac = db.facturas.find(f => f.id === facId);
       if(!fac) return;
@@ -545,12 +558,12 @@ export async function render(container, supabase, db, opts = {}) {
       db.facturas = db.facturas.filter(f => f.id !== facId);
       
       await saveFn("Factura eliminada 🗑️");
-      if (window.location.hash.includes('facturas')) window.location.reload();
+      rerender();
   };
 
   window.togglePago = async (id) => {
     const f = db.facturas.find(x => x.id === id);
-    if (f) { f.paid = !f.paid; await saveFn(`Estado de pago actualizado`); if (window.location.hash.includes('facturas')) window.location.reload(); }
+    if (f) { f.paid = !f.paid; await saveFn(`Estado de pago actualizado`); rerender(); }
   };
 
   function isInYear(d, y) { return formatearFechaISO(d).startsWith(y.toString()); }
@@ -561,5 +574,5 @@ export async function render(container, supabase, db, opts = {}) {
       return `${names[parseInt(m)]} ${y}`; 
   }
 
-  rerender();
+  rerender(); 
 }
