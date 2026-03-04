@@ -1,5 +1,5 @@
 /* =============================================================
-   🚚 MÓDULO: ALBARANES v12.2 (Fechas ISO Strict + IA n8n)
+   🚚 MÓDULO: ALBARANES v12.4 (Sync WhatsApp + Alertas Telegram + Dedup)
    ============================================================= */
 
 import Tesseract from 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.esm.min.js';
@@ -7,25 +7,38 @@ const SHEETS_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSqrxQOF
 
 let ocrWorker = null;
 
-// --- 🛠️ HELPER: PARSER DE FECHAS ESTRICTO YYYY-MM-DD ---
+// --- 🛠️ HELPERS: FECHAS, HASH Y CATEGORÍAS ---
 const formatearFechaISO = (fechaRaw) => {
     if (!fechaRaw) return new Date().toISOString().split('T')[0];
     const s = String(fechaRaw).trim();
-    // Si ya es YYYY-MM-DD, la devolvemos tal cual
     if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-    // Si es DD/MM/YYYY o DD-MM-YYYY (típico de Sheets/España)
     if (/^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}$/.test(s)) {
         let [d, m, y] = s.split(/[\/\-]/);
         if (y.length === 2) y = '20' + y;
         return `${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`;
     }
-    // Si es cualquier otro formato raro, intentamos parsearlo
     try {
         const d = new Date(s);
         if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
     } catch(e) {}
-    // Fallback: hoy
     return new Date().toISOString().split('T')[0];
+};
+
+const simpleHash = (s) => {
+    let h = 2166136261;
+    for (let i = 0; i < s.length; i++) {
+        h ^= s.charCodeAt(i);
+        h += (h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24);
+    }
+    return (h >>> 0).toString(36);
+};
+
+const buildUID = (a) => {
+    const p = String(a.prov || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+    const d = formatearFechaISO(a.date);
+    const n = String(a.num || "S/N").trim();
+    const t = Number.parseFloat(a.total || 0).toFixed(2);
+    return simpleHash(`${p}|${d}|${n}|${t}`);
 };
 
 export async function render(container, supabase, db, opts = {}) {
@@ -38,6 +51,29 @@ export async function render(container, supabase, db, opts = {}) {
     const listaSocios = db.listaSocios || ['Jeronimo','Pedro','Pau','Agnes'];
     let filtroOwner = 'Todos';
 
+    // --- 🚨 AUTO-REPARADOR DE FECHAS Y DEDUPLICADOR MASIVO 🚨 ---
+    let fechasArregladas = 0;
+    const uidIndex = new Set();
+    const seen = new Map();
+
+    db.albaranes.forEach(a => {
+        // Arreglo fechas
+        if (a.date && a.date.includes('/')) {
+            a.date = formatearFechaISO(a.date);
+            fechasArregladas++;
+        }
+        // Deduplicador
+        const uid = a.uid || buildUID(a);
+        a.uid = uid;
+        seen.set(uid, a); // Al usar Map, si hay otro con el mismo UID, lo machaca (nos quedamos el último)
+    });
+    db.albaranes = Array.from(seen.values());
+    db.albaranes.forEach(a => uidIndex.add(a.uid));
+
+    if (fechasArregladas > 0) {
+        await saveFn(`🛠️ ${fechasArregladas} fechas arregladas y DB deduplicada.`);
+    }
+
     // Pre-carga OCR
     const initOCR = async () => {
         if (!ocrWorker) {
@@ -49,6 +85,49 @@ export async function render(container, supabase, db, opts = {}) {
     initOCR(); 
 
     const inbox = db.albaranes.filter(a => a.status === 'pending');
+
+    // --- 2. NOTIFICACIONES A TELEGRAM (Vía n8n) ---
+    const notifyPriceIncrease = async (payload) => {
+        const n8nWebhook = db.config?.n8nUrlBanco?.replace('1085406f-324c-42f7-b50f-22f211f445cd', 'albaranes-alerta-precios');
+        if (!n8nWebhook) return;
+        try {
+            await fetch(n8nWebhook, {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload)
+            });
+        } catch (e) { console.warn("No se pudo notificar a n8n:", e.message); }
+    };
+
+    // --- 3. INTELIGENCIA DE PRECIOS ---
+    const normalize = (s) => String(s || '').toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/kg|ud|uds|litro|botella|caja|x|-|\./g, '').replace(/\s+/g, ' ').trim();
+
+    const detectPriceIncrease = (name, newUnitPrice) => {
+        if (!name || newUnitPrice <= 0) return null;
+        const key = normalize(name);
+        if(key.length < 3) return null; 
+        const history = db.priceHistory[key];
+        if (!history || history.length < 1) return null; 
+        const lastPurchase = history[history.length - 1];
+        const lastPrice = lastPurchase.unit;
+        if (lastPrice <= 0) return null;
+        const diff = newUnitPrice - lastPrice;
+        if (Math.abs(diff) < 0.03) return null; // Filtro anti-ruido (menos de 3 céntimos no avisa)
+
+        const pct = (diff / lastPrice) * 100;
+        if (pct >= 5) {
+            return { name, pct: pct.toFixed(1), previous: lastPrice, current: newUnitPrice, diff: diff.toFixed(2) };
+        }
+        return null;
+    };
+
+    const collectIncreases = (items) => {
+        const incs = [];
+        for (const it of items) {
+            const alert = detectPriceIncrease(it.n, it.unit);
+            if (alert) incs.push(alert);
+        }
+        return incs;
+    };
 
     // --- FUNCIÓN PARA SINCRONIZAR CON WHATSAPP ---
     const sincronizarDesdeSheets = async () => {
@@ -67,42 +146,45 @@ export async function render(container, supabase, db, opts = {}) {
                 const cols = row.split(',').map(c => c.replace(/^"|"$/g, '').trim());
                 if (cols.length < 8) return;
 
-                // APLICAMOS LA VACUNA DE FECHAS AQUÍ
                 const fecha = formatearFechaISO(cols[0]);
                 const prov = cols[1];
                 const total = parseFloat(cols[7]);
+                const num = cols[2] || "S/N";
+                const concepto = cols[3] || "Varios";
                 const linkFoto = cols[8];
 
-                const existe = db.albaranes.some(a => 
-                    a.prov === prov && 
-                    a.date === fecha && 
-                    Math.abs((a.total || 0) - total) < 0.1
-                );
+                const aTemp = { prov, date: fecha, num, total };
+                const uid = buildUID(aTemp);
 
-                if (!existe && prov && total > 0) {
+                if (!uidIndex.has(uid) && prov && total > 0) {
+                    const items = [{ q: 1, n: concepto, t: total, unit: total }];
+                    
                     db.albaranes.push({
                         id: 'ws_' + Date.now() + Math.random().toString(36).substr(2, 5),
-                        prov, 
-                        date: fecha, 
-                        num: cols[2] || "S/N",
-                        socio: 'Arume', 
+                        uid: uid,
+                        prov, date: fecha, num, socio: 'Arume', 
                         notes: "📱 Importado de WhatsApp",
-                        items: [{ q: 1, n: cols[3] || "Producto", t: total }],
-                        total: total, 
-                        paid: false, 
-                        status: 'ok', 
-                        link_foto: linkFoto,
-                        reconciled: false // Nuevo campo para control de banco
+                        items: items,
+                        total: total, paid: false, status: 'ok', 
+                        link_foto: linkFoto, reconciled: false
                     });
+                    
+                    uidIndex.add(uid);
                     añadidos++;
+
+                    // Chequeo Subidas
+                    const incs = collectIncreases(items);
+                    if (incs.length > 0) {
+                        notifyPriceIncrease({ tipo: "subida_precios", prov, date: fecha, increases: incs, total });
+                    }
                 }
             });
 
             if (añadidos > 0) {
-                await saveFn(`¡${añadidos} albaranes nuevos! 🚀`);
+                await saveFn(`¡${añadidos} albaranes nuevos sincronizados! 🚀`);
                 pintarLista();
             } else {
-                alert("No hay albaranes nuevos en el Excel.");
+                alert("No hay albaranes nuevos o son duplicados.");
             }
         } catch (e) {
             console.error(e);
@@ -113,32 +195,7 @@ export async function render(container, supabase, db, opts = {}) {
         }
     };
 
-    // --- 2. INTELIGENCIA DE PRECIOS ---
-    const normalize = (s) => {
-        return String(s || '').toLowerCase()
-            .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-            .replace(/kg|ud|uds|litro|botella|caja|x|-|\./g, '')
-            .replace(/\s+/g, ' ').trim();
-    };
-
-    const detectPriceIncrease = (name, newUnitPrice) => {
-        if (!name || newUnitPrice <= 0) return null;
-        const key = normalize(name);
-        if(key.length < 3) return null; 
-        const history = db.priceHistory[key];
-        if (!history || history.length < 1) return null; 
-        const lastPurchase = history[history.length - 1];
-        const lastPrice = lastPurchase.unit;
-        if (lastPrice <= 0) return null;
-        const diff = newUnitPrice - lastPrice;
-        const pct = (diff / lastPrice) * 100;
-        if (pct >= 5) {
-            return { increase: true, pct: pct.toFixed(1), previous: lastPrice, current: newUnitPrice, diff: diff.toFixed(2) };
-        }
-        return null;
-    };
-
-    // --- 3. PARSER INTELIGENTE ---
+    // --- 4. PARSER INTELIGENTE ---
     const parseSmartLine = (line) => {
         let clean = line.replace(/[€$]/g, '').replace(/,/g, '.').trim();
         if (!clean || clean.length < 5) return null;
@@ -160,13 +217,7 @@ export async function render(container, supabase, db, opts = {}) {
         const qtyMatch = clean.match(/^(\d+(\.\d{1,3})?)\s*(kg|uds|x|\*)/i);
         if (qtyMatch) qty = parseFloat(qtyMatch[1]);
 
-        let name = clean
-            .replace(totalLine.toString(), '')
-            .replace(/\d+(\.\d{1,3})?\s*(kg|uds|x|\*)/i, '') 
-            .replace(/\b(4|10|21)\s?%/, '')
-            .replace(/\.{2,}/g, '')
-            .trim();
-
+        let name = clean.replace(totalLine.toString(), '').replace(/\d+(\.\d{1,3})?\s*(kg|uds|x|\*)/i, '').replace(/\b(4|10|21)\s?%/, '').replace(/\.{2,}/g, '').trim();
         if (name.length < 2) name = "Varios Indefinido";
 
         const unitPrice = qty > 0 ? totalLine / qty : totalLine;
@@ -178,33 +229,36 @@ export async function render(container, supabase, db, opts = {}) {
 
     const analizarTexto = (texto) => texto.split('\n').map(parseSmartLine).filter(Boolean);
 
-    // --- 4. INTERFAZ ---
+    // --- 5. INTERFAZ PRINCIPAL ---
     container.innerHTML = `
     <div class="animate-fade-in space-y-6 pb-24">
         
      <header class="flex flex-col md:flex-row justify-between items-center bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 gap-4">
-    <div>
-        <h2 class="text-xl font-black text-slate-800">Albaranes & Gastos</h2>
-        <p class="text-[10px] text-indigo-500 font-bold uppercase tracking-widest">Control Financiero</p>
-    </div>
-    <div class="flex gap-2 items-center flex-wrap justify-center">
-        <button id="btnSyncSheets" class="bg-amber-500 text-white px-5 py-3 rounded-2xl text-[10px] font-black hover:bg-amber-600 transition shadow-lg flex items-center gap-2">
-            <span>🔄</span> SYNC
-        </button>
+        <div>
+            <h2 class="text-xl font-black text-slate-800">Albaranes & Gastos</h2>
+            <p class="text-[10px] text-indigo-500 font-bold uppercase tracking-widest">Control Financiero v12.4</p>
+        </div>
+        <div class="flex gap-2 items-center flex-wrap justify-center">
+            <button id="btnDedup" class="bg-rose-50 text-rose-500 px-4 py-3 rounded-2xl text-[10px] font-black hover:bg-rose-100 transition shadow-sm flex items-center gap-1" title="Eliminar duplicados">
+                <span>🧹</span> DEDUP
+            </button>
+            <button id="btnSyncSheets" class="bg-amber-500 text-white px-5 py-3 rounded-2xl text-[10px] font-black hover:bg-amber-600 transition shadow-lg flex items-center gap-2">
+                <span>🔄</span> SYNC WhatsApp
+            </button>
 
-        <label class="bg-indigo-600 text-white px-5 py-3 rounded-2xl text-[10px] font-black hover:bg-indigo-700 transition cursor-pointer shadow-lg flex items-center gap-2">
-            <span>📷</span> BÁSICO
-            <input type="file" id="ocrInput" class="hidden" accept="image/*" capture="environment">
-        </label>
+            <label class="bg-indigo-600 text-white px-5 py-3 rounded-2xl text-[10px] font-black hover:bg-indigo-700 transition cursor-pointer shadow-lg flex items-center gap-2">
+                <span>📷</span> BÁSICO (OCR)
+                <input type="file" id="ocrInput" class="hidden" accept="image/*" capture="environment">
+            </label>
 
-        <label class="bg-gradient-to-r from-emerald-400 to-teal-500 text-white px-5 py-3 rounded-2xl text-[10px] font-black hover:shadow-lg hover:scale-105 transition cursor-pointer shadow-md flex items-center gap-2">
-            <span>✨</span> IA (n8n)
-            <input type="file" id="n8nInput" class="hidden" accept="image/*, application/pdf" capture="environment">
-        </label>
+            <label class="bg-gradient-to-r from-emerald-400 to-teal-500 text-white px-5 py-3 rounded-2xl text-[10px] font-black hover:shadow-lg hover:scale-105 transition cursor-pointer shadow-md flex items-center gap-2">
+                <span>✨</span> IA (n8n)
+                <input type="file" id="n8nInput" class="hidden" accept="image/*, application/pdf" capture="environment">
+            </label>
 
-        <button id="btnExport" class="bg-slate-800 text-white px-5 py-3 rounded-2xl text-[10px] font-black shadow-md transition">⬇️ CSV</button>
-    </div>
-</header>
+            <button id="btnExport" class="bg-slate-800 text-white px-5 py-3 rounded-2xl text-[10px] font-black shadow-md transition">⬇️ CSV</button>
+        </div>
+    </header>
 
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div class="bg-white px-6 py-5 rounded-[2rem] border border-slate-100 shadow-sm flex flex-col justify-center items-start">
@@ -288,9 +342,15 @@ Ej:
                         </div>
                     </div>
 
-                    <div class="flex items-center gap-2 mt-4 px-2">
-                        <input type="checkbox" id="inPaid" class="w-4 h-4 accent-indigo-600 cursor-pointer">
-                        <label for="inPaid" class="text-xs font-bold text-slate-600 cursor-pointer">Marcar como PAGADO</label>
+                    <div class="flex items-center justify-between mt-4 px-2">
+                        <div class="flex items-center gap-2">
+                            <input type="checkbox" id="inPaid" class="w-4 h-4 accent-indigo-600 cursor-pointer">
+                            <label for="inPaid" class="text-xs font-bold text-slate-600 cursor-pointer">Pagado</label>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <input type="checkbox" id="inForceDup" class="w-4 h-4 accent-rose-500 cursor-pointer">
+                            <label for="inForceDup" class="text-[10px] font-bold text-rose-500 cursor-pointer">Forzar Duplicado</label>
+                        </div>
                     </div>
 
                     <button id="btnProcesar" class="w-full mt-4 bg-indigo-600 text-white py-4 rounded-2xl font-black shadow-xl hover:bg-indigo-700 transition active:scale-95">GUARDAR ALBARÁN</button>
@@ -299,7 +359,7 @@ Ej:
 
             <div class="lg:col-span-2 space-y-6">
                 <div class="bg-white p-2 rounded-full shadow-sm border border-slate-100 flex flex-col md:flex-row justify-between items-center px-4 gap-2">
-                    <input id="searchBox" type="text" placeholder="Buscar..." class="bg-transparent text-sm font-bold outline-none w-full text-slate-600">
+                    <input id="searchBox" type="text" placeholder="Buscar proveedor..." class="bg-transparent text-sm font-bold outline-none w-full text-slate-600">
                     <div class="flex gap-1">
                         <button data-filter="Todos" class="filter-btn px-4 py-1.5 rounded-full text-[9px] font-black uppercase bg-slate-900 text-white shadow-md transition">Todos</button>
                         <button data-filter="Arume" class="filter-btn px-4 py-1.5 rounded-full text-[9px] font-black uppercase bg-slate-100 text-slate-400 hover:bg-white transition">Rest.</button>
@@ -314,7 +374,7 @@ Ej:
     <div id="modalDetalle" class="hidden fixed inset-0 bg-slate-900/95 backdrop-blur-sm z-[200] flex justify-center items-center p-2 md:p-6 transition-all"></div>
     `;
 
-    // --- REFERENCIAS ---
+    // --- REFERENCIAS UI ---
     const inText = container.querySelector("#inText");
     const livePreview = container.querySelector("#livePreview");
     const liveTotal = container.querySelector("#liveTotal");
@@ -323,7 +383,7 @@ Ej:
     const ocrOverlay = container.querySelector("#ocrLoadingOverlay");
     const loadingText = container.querySelector("#loadingText");
 
-    // --- 5. CÁLCULO ---
+    // --- 6. CÁLCULO EN VIVO Y PINTADO DEL SEMÁFORO ---
     const recalcular = () => {
         const items = analizarTexto(inText.value);
         const taxes = { 4: {b:0, i:0}, 10: {b:0, i:0}, 21: {b:0, i:0} };
@@ -371,7 +431,19 @@ Ej:
 
     inText.addEventListener('input', recalcular);
 
-    // --- 6. OCR BÁSICO ---
+    // --- 7. BOTONES ORIGINALES INTACTOS (OCR, IA, SINCRO) ---
+    container.querySelector("#btnDedup").onclick = async () => {
+        const antes = db.albaranes.length;
+        reindexAndDedup();
+        const despues = db.albaranes.length;
+        if (antes - despues > 0) {
+            await saveFn(`🧹 Deduplicación: ${antes - despues} eliminados.`);
+        } else {
+            alert("Todo limpio. No hay duplicados.");
+        }
+        pintarLista();
+    };
+
     container.querySelector("#ocrInput").onchange = async (e) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -394,7 +466,6 @@ Ej:
         finally { ocrOverlay.classList.add("hidden"); e.target.value = ''; }
     };
 
-    // --- 6.5. SCAN INTELIGENTE (n8n IA) ---
     container.querySelector("#n8nInput").onchange = async (e) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -425,43 +496,48 @@ Ej:
                     inText.value = data.lineasTexto;
                     inText.dispatchEvent(new Event('input')); 
                 }
-                
                 ocrOverlay.classList.add("hidden");
             };
         } catch (err) {
-            console.error(err);
-            alert("Error: n8n o la IA están ocupados. Intenta en unos segundos.");
-            ocrOverlay.classList.add("hidden");
-        } finally {
-            e.target.value = ''; 
-        }
+            console.error(err); alert("Error de conexión con IA."); ocrOverlay.classList.add("hidden");
+        } finally { e.target.value = ''; }
     };
 
-    // --- 7. GUARDAR MANUALMENTE ---
+    container.querySelector("#btnSyncSheets").onclick = sincronizarDesdeSheets;
+
+    // --- 8. GUARDAR Y ENVIAR ALERTA ---
     container.querySelector("#btnProcesar").onclick = async () => {
         const items = analizarTexto(inText.value);
         let total = parseFloat(liveTotal.innerText.replace('€',''));
         const prov = container.querySelector("#inProv").value;
-        const date = container.querySelector("#inDate").value; // Este ya es YYYY-MM-DD del input type="date"
+        const date = container.querySelector("#inDate").value; 
+        const num = container.querySelector("#inRef").value || "S/N";
+        const allowForce = container.querySelector("#inForceDup").checked;
 
         if (total <= 0 || !prov) return alert("Faltan datos (Proveedor o Importe).");
 
-        const duplicado = db.albaranes.some(a => a.prov === prov && a.date === date && Math.abs(a.total - total) < 0.1);
-        if(duplicado && !confirm("⚠️ Posible duplicado. ¿Guardar igual?")) return;
+        const objTemp = { prov, date, num, total };
+        const uid = buildUID(objTemp);
 
+        if (uidIndex.has(uid) && !allowForce) {
+            return alert("⚠️ ALBARÁN DUPLICADO (Mismo Prov, Fecha, Ref y Total). Para guardarlo igual, marca 'Forzar Duplicado'.");
+        }
+
+        // Historial y alertas
+        const incs = collectIncreases(items);
         items.forEach(it => {
             const key = normalize(it.n);
             if(key.length > 2 && it.unit > 0) {
                 if(!db.priceHistory[key]) db.priceHistory[key] = [];
                 db.priceHistory[key].push({ date: date, unit: it.unit, total: it.t });
-                if(db.priceHistory[key].length > 10) db.priceHistory[key].shift();
+                if(db.priceHistory[key].length > 15) db.priceHistory[key].shift();
             }
         });
 
         db.albaranes.push({
             id: Date.now().toString(),
-            prov, date,
-            num: container.querySelector("#inRef").value || "S/N",
+            uid: uid,
+            prov, date, num,
             socio: container.querySelector("#inSocio").value,
             notes: container.querySelector("#inNotes").value,
             items, total,
@@ -472,22 +548,26 @@ Ej:
             status: 'ok',
             reconciled: false
         });
+        uidIndex.add(uid);
 
         await saveFn("Gasto guardado ✅");
-        inText.value = ""; inProv.value = ""; container.querySelector("#inNotes").value = "";
+
+        // Enviar alerta a n8n si ha subido algo
+        if (incs.length > 0) {
+            notifyPriceIncrease({ prov, date, total, increases: incs });
+        }
+
+        inText.value = ""; inProv.value = ""; container.querySelector("#inNotes").value = ""; container.querySelector("#inForceDup").checked = false;
         inText.dispatchEvent(new Event('input'));
         pintarLista();
     };
 
-    // --- 8. EDICIÓN ---
+    // --- 9. EDICIÓN, PINTADO Y LISTADOS INTACTOS ---
     window.editarAlbaran = (id) => {
         const a = db.albaranes.find(x => x.id === id);
         if(!a) return;
         const modal = container.querySelector("#modalDetalle");
         modal.classList.remove("hidden");
-
-        const base = a.base || (a.total / 1.10);
-        const iva = a.taxes || (a.total - base);
 
         modal.innerHTML = `
             <div class="bg-white w-full max-w-lg rounded-[2.5rem] p-6 shadow-2xl animate-slide-up relative flex flex-col max-h-[90vh]">
@@ -536,6 +616,7 @@ Ej:
                 a.base = nuevoTotal / 1.10; a.taxes = nuevoTotal - a.base;
             }
             a.paid = modal.querySelector("#ed-paid").checked;
+            a.uid = buildUID(a); // Recalcular UID
             
             await saveFn("Actualizado ✅");
             modal.classList.add("hidden");
@@ -554,7 +635,6 @@ Ej:
     const pintarLista = () => {
         const term = container.querySelector("#searchBox").value.toLowerCase();
         
-        // --- CÁLCULO DE KPIS DE TIEMPO ---
         const hoy = new Date();
         const mesActual = hoy.getMonth();
         const añoActual = hoy.getFullYear();
@@ -565,7 +645,6 @@ Ej:
         db.albaranes.forEach(a => {
             const val = parseFloat(a.total) || 0;
             totalGlobal += val;
-            
             const d = new Date(formatearFechaISO(a.date));
             if(d.getFullYear() === añoActual) {
                 if(d.getMonth() === mesActual) totalMes += val;
@@ -573,11 +652,9 @@ Ej:
             }
         });
 
-        // Actualizar tarjetas en pantalla
         const elGlobal = container.querySelector("#kpi-global");
         const elTrimestre = container.querySelector("#kpi-trimestre");
         const elMes = container.querySelector("#kpi-mes");
-        
         if(elGlobal) elGlobal.innerText = totalGlobal.toLocaleString('es-ES', {minimumFractionDigits:2}) + "€";
         if(elTrimestre) elTrimestre.innerText = totalTrim.toLocaleString('es-ES', {minimumFractionDigits:2}) + "€";
         if(elMes) elMes.innerText = totalMes.toLocaleString('es-ES', {minimumFractionDigits:2}) + "€";
@@ -589,11 +666,15 @@ Ej:
             return (a.prov||'').toLowerCase().includes(term);
         }).sort((a,b) => new Date(formatearFechaISO(b.date)) - new Date(formatearFechaISO(a.date)));
 
-        container.querySelector("#listaAlbaranes").innerHTML = filtered.map(a => `
-            <div onclick="window.editarAlbaran('${a.id}')" class="bg-white p-5 rounded-3xl border border-slate-100 flex justify-between items-center shadow-sm hover:bg-slate-50 transition cursor-pointer ${a.reconciled ? 'ring-2 ring-emerald-400/50' : ''}">
+        container.querySelector("#listaAlbaranes").innerHTML = filtered.map(a => {
+            const hasAlert = (a.items || []).some(it => detectPriceIncrease(it.n, it.unit));
+
+            return `
+            <div onclick="window.editarAlbaran('${a.id}')" class="bg-white p-5 rounded-3xl border border-slate-100 flex justify-between items-center shadow-sm hover:bg-slate-50 transition cursor-pointer ${hasAlert ? 'border-l-4 border-l-rose-500' : ''} ${a.reconciled ? 'ring-2 ring-emerald-400/50' : ''}">
                 <div>
                     <h4 class="font-black text-slate-800 flex items-center gap-2">
                         ${a.prov}
+                        ${hasAlert ? '<span class="text-rose-500" title="Subida de precio">⚠️</span>' : ''}
                         ${a.socio && a.socio !== 'Arume' ? `<span class="bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full text-[9px] uppercase tracking-wider">${a.socio}</span>` : ''}
                     </h4>
                     <div class="flex items-center gap-2 mt-1">
@@ -607,7 +688,8 @@ Ej:
                     <span class="text-[8px] font-bold ${a.paid ? 'text-emerald-500' : 'text-rose-500'} uppercase">${a.paid ? 'Pagado' : 'Pendiente'}</span>
                 </div>
             </div>
-        `).join('') || '<p class="text-center text-slate-300 py-10 text-xs">Sin registros.</p>';
+            `;
+        }).join('') || '<p class="text-center text-slate-300 py-10 text-xs">Sin registros.</p>';
     };
 
     container.querySelectorAll(".filter-btn").forEach(btn => {
@@ -629,5 +711,4 @@ Ej:
 
     container.querySelector("#searchBox").oninput = pintarLista;
     pintarLista();
-    container.querySelector("#btnSyncSheets").onclick = sincronizarDesdeSheets;
 }
