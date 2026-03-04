@@ -1,5 +1,5 @@
 /* =============================================================
-   💰 MÓDULO: CAJAS v6.3 (Migración + OCR + Conciliación Visual)
+   💰 MÓDULO: CAJAS v6.4 (Migración + OCR IA n8n + Conciliación)
    ============================================================= */
 
 export async function render(container, supabase, db, opts = {}) {
@@ -205,12 +205,66 @@ export async function render(container, supabase, db, opts = {}) {
 
         Object.values(flds).forEach(f => { if(f && f.type === 'number') f.addEventListener("input", refreshCalc); });
 
-        // BOTÓN SCAN IA (PREPARADO PARA n8n)
+        // ==========================================
+        // 🤖 INTEGRACIÓN IA CON N8N (VERSIÓN FINAL)
+        // ==========================================
         container.querySelector("#scanTicketZ").onchange = async (e) => {
             const file = e.target.files[0];
             if (!file) return;
-            alert("🔮 Procesando ticket... (Próximamente: conexión con n8n + Groq para auto-rellenar)");
-            e.target.value = '';
+
+            const btnLabel = e.target.parentElement;
+            const originalText = btnLabel.innerHTML;
+            btnLabel.innerHTML = "<span>⏳</span> ANALIZANDO...";
+
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = async () => {
+                try {
+                    // 🚨 IMPORTANTE: Reemplaza esto con la URL "Production URL" de tu nodo Webhook de n8n
+                    const webhookUrl = "TU_URL_DEL_WEBHOOK_DE_N8N_AQUI"; 
+                    
+                    const res = await fetch(webhookUrl, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ image_caja: reader.result })
+                    });
+                    
+                    if (!res.ok) throw new Error("Fallo en la respuesta del servidor n8n");
+                    const ia = await res.json();
+
+                    // Rellenado automático
+                    flds.vEf.value = ia.ticket_efectivo || "";
+                    flds.vTr.value = ia.ticket_tarjeta || "";
+                    flds.gl.value = ia.glovo || "";
+                    flds.ub.value = ia.uber || "";
+                    flds.ma.value = ia.madisa || ""; // El día que cambies a Qmarero, lo leerá igual
+                    flds.de.value = ia.deliveroo || "";
+                    
+                    // Lógica del fondo de caja (300€). Tu app resta 300 para ver el descuadre.
+                    // Si el sobre dice que hay 329€ (lo ganado), la caja física total son 629€.
+                    const cashRealSobre = parseFloat(ia.sobre_cash) || 0;
+                    if (cashRealSobre > 0) {
+                        flds.fis.value = (cashRealSobre + 300).toFixed(2);
+                    } else {
+                        flds.fis.value = "";
+                    }
+                    
+                    // Anotamos los gastos automáticamente en el campo de texto
+                    if (ia.gastos > 0) {
+                        flds.not.value = `Gastos deducidos por IA: ${ia.gastos}€. Revisa albaranes.`;
+                        flds.chk.checked = true; // Marcamos el check de gastos para recordártelo
+                    }
+
+                    refreshCalc();
+                    btnLabel.innerHTML = "<span>✅</span> ¡LISTO!";
+                    setTimeout(() => btnLabel.innerHTML = originalText, 3000);
+
+                } catch (error) {
+                    console.error("Error OCR:", error);
+                    alert("⚠️ No se pudo procesar la imagen. Verifica que el n8n esté activo en modo Producción.");
+                    btnLabel.innerHTML = originalText;
+                }
+            };
         };
 
         container.querySelector("#btnGuardarCierre").onclick = async () => {
