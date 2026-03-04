@@ -221,7 +221,7 @@ export async function render(container, supabase, db, opts = {}) {
             reader.onload = async () => {
                 try {
                     // 🚨 USA TU URL ACTUAL DEL TÚNEL
-const webhookUrl = "https://b57ntm-ip-84-126-32-81.tunnelmole.net/webhook/cajas-ai-validator";
+const webhookUrl = "https://b57ntm-ip-84-126-32-81.tunnelmole.net/webhook-test/cajas-ai-validator";
                     
                     const res = await fetch(webhookUrl, {
                         method: "POST",
