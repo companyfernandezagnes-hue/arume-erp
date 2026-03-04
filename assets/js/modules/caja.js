@@ -1,5 +1,5 @@
 /* =============================================================
-   💰 MÓDULO: CAJAS v6.4 (Migración + OCR IA n8n + Conciliación)
+   💰 MÓDULO: CAJAS v7.0 VIP (Cloudflare + OCR IA n8n + Conciliación)
    ============================================================= */
 
 export async function render(container, supabase, db, opts = {}) {
@@ -220,8 +220,9 @@ export async function render(container, supabase, db, opts = {}) {
             reader.readAsDataURL(file);
             reader.onload = async () => {
                 try {
-// 🚨 URL PROFESIONAL Y PERMANENTE (CLOUDFLARE)
-const webhookUrl = "https://ia.permatunnelopen.org/webhook/cajas-ai-validator";                  
+                    // 🚨 URL PROFESIONAL Y PERMANENTE (CLOUDFLARE)
+                    const webhookUrl = "https://ia.permatunnelopen.org/webhook/cajas-ai-validator";
+                    
                     const res = await fetch(webhookUrl, {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
@@ -236,11 +237,10 @@ const webhookUrl = "https://ia.permatunnelopen.org/webhook/cajas-ai-validator";
                     flds.vTr.value = ia.ticket_tarjeta || "";
                     flds.gl.value = ia.glovo || "";
                     flds.ub.value = ia.uber || "";
-                    flds.ma.value = ia.madisa || ""; // El día que cambies a Qmarero, lo leerá igual
+                    flds.ma.value = ia.madisa || ""; 
                     flds.de.value = ia.deliveroo || "";
                     
-                    // Lógica del fondo de caja (300€). Tu app resta 300 para ver el descuadre.
-                    // Si el sobre dice que hay 329€ (lo ganado), la caja física total son 629€.
+                    // Lógica del fondo de caja (300€).
                     const cashRealSobre = parseFloat(ia.sobre_cash) || 0;
                     if (cashRealSobre > 0) {
                         flds.fis.value = (cashRealSobre + 300).toFixed(2);
@@ -251,7 +251,7 @@ const webhookUrl = "https://ia.permatunnelopen.org/webhook/cajas-ai-validator";
                     // Anotamos los gastos automáticamente en el campo de texto
                     if (ia.gastos > 0) {
                         flds.not.value = `Gastos deducidos por IA: ${ia.gastos}€. Revisa albaranes.`;
-                        flds.chk.checked = true; // Marcamos el check de gastos para recordártelo
+                        flds.chk.checked = true;
                     }
 
                     refreshCalc();
@@ -260,7 +260,7 @@ const webhookUrl = "https://ia.permatunnelopen.org/webhook/cajas-ai-validator";
 
                 } catch (error) {
                     console.error("Error OCR:", error);
-                    alert("⚠️ No se pudo procesar la imagen. Verifica que el n8n esté activo en modo Producción.");
+                    alert("⚠️ No se pudo procesar la imagen. Verifica que el túnel de Cloudflare y n8n estén activos.");
                     btnLabel.innerHTML = originalText;
                 }
             };
