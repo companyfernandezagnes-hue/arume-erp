@@ -220,9 +220,8 @@ export async function render(container, supabase, db, opts = {}) {
             reader.readAsDataURL(file);
             reader.onload = async () => {
                 try {
-                    // 🚨 USA TU URL ACTUAL DEL TÚNEL
-const webhookUrl = "https://b57ntm-ip-84-126-32-81.tunnelmole.net/webhook/cajas-ai-validator";
-                    
+// 🚨 URL PROFESIONAL Y PERMANENTE (CLOUDFLARE)
+const webhookUrl = "https://ia.permatunnelopen.org/webhook/cajas-ai-validator";                    
                     const res = await fetch(webhookUrl, {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
