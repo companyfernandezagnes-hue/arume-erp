@@ -1,5 +1,5 @@
 /* =============================================================
-   🏦 MÓDULO: BANCO v13.0 (Conciliación Facturas, Z y Albaranes)
+   🏦 MÓDULO: BANCO v13.0 (Conciliación Facturas, Z y Albaranes VIP)
    ============================================================= */
 import * as XLSX from 'https://cdn.sheetjs.com/xlsx-0.20.1/package/xlsx.mjs';
 
@@ -45,7 +45,9 @@ export async function render(container, supabase, db, opts = {}) {
     ['banco','facturas','albaranes','cierres','bankImports'].forEach(k => { if(!db[k]) db[k]=[]; });
     if(!db.config) db.config = {};
     if(db.config.saldoInicial === undefined) db.config.saldoInicial = 0;
-    if(!db.config.n8nUrlBanco) db.config.n8nUrlBanco = "https://b57ntm-ip-84-126-32-81.tunnelmole.net/webhook/1085406f-324c-42f7-b50f-22f211f445cd";
+    
+    // 🚨 URL PROFESIONAL Y PERMANENTE (CLOUDFLARE)
+    if(!db.config.n8nUrlBanco) db.config.n8nUrlBanco = "https://ia.permatunnelopen.org/webhook/1085406f-324c-42f7-b50f-22f211f445cd";
 
     const reCalc = () => {
         const sumaMovs = db.banco.reduce((acc, b) => acc + (parseFloat(b.amount)||0), 0);
@@ -123,7 +125,7 @@ export async function render(container, supabase, db, opts = {}) {
     </div>`;
 
     container.querySelector("#btnConfigN8n").onclick = async () => {
-        const nuevaUrl = prompt("Pega aquí tu nueva URL de Tunnelmole seguida de /webhook/... :", db.config.n8nUrlBanco);
+        const nuevaUrl = prompt("Pega aquí tu nueva URL (Cloudflare) seguida de /webhook/... :", db.config.n8nUrlBanco);
         if(nuevaUrl) { db.config.n8nUrlBanco = nuevaUrl.trim(); await saveFn("URL de n8n actualizada."); }
     };
 
