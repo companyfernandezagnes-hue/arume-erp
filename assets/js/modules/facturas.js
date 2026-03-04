@@ -1,5 +1,5 @@
 /* =============================================================
-   📄 MÓDULO: FACTURAS v15.0 PRO (Buscador, Filtros, Checkboxes y Anti-Duplicados)
+   📄 MÓDULO: FACTURAS v16.0 PRO (Bandeja IA, Anti-Dup, Checkboxes y Totales Positivos)
    ============================================================= */
 
 // --- 🛠️ HELPERS ---
@@ -19,8 +19,8 @@ const formatearFechaISO = (fechaRaw) => {
     return new Date().toISOString().split('T')[0];
 };
 
-// Normalizador para el buscador (quita tildes y pasa a minúsculas)
-const norm = (s) => s ? String(s).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") : '';
+// Normalizador para el buscador y anti-duplicados
+const norm = (s) => s ? String(s).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim() : '';
 const fmt = (n) => Number(n||0).toLocaleString('es-ES',{minimumFractionDigits:2});
 const escapeHtml = (s) => String(s||'').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;"}[m]));
 
@@ -34,10 +34,13 @@ export async function render(container, supabase, db, opts = {}) {
   let mode = 'proveedor';
   let year = new Date().getFullYear();
   let searchQ = ''; 
-  let filterStatus = 'all'; // all, pending, paid, reconciled
+  let filterStatus = 'all'; 
 
   container.innerHTML = `
     <div class="animate-fade-in space-y-6 pb-24">
+      
+      <div id="bandejaIA" class="hidden"></div>
+
       <section class="p-6 bg-white rounded-[2.5rem] shadow-sm border border-slate-100">
         
         <div class="flex flex-col md:flex-row items-center justify-between gap-4 mb-6">
@@ -69,7 +72,7 @@ export async function render(container, supabase, db, opts = {}) {
 
         <div id="filterChips" class="hidden flex flex-wrap gap-2 mb-6">
             <button data-filter="all" class="filter-chip px-3 py-1 rounded-full text-[10px] font-bold border transition-all bg-indigo-600 text-white border-indigo-600">Todas</button>
-            <button data-filter="pending" class="filter-chip px-3 py-1 rounded-full text-[10px] font-bold border transition-all bg-white text-slate-500 border-slate-200 hover:bg-slate-50">⏳ Pendientes Pago</button>
+            <button data-filter="pending" class="filter-chip px-3 py-1 rounded-full text-[10px] font-bold border transition-all bg-white text-slate-500 border-slate-200 hover:bg-slate-50">⏳ Pendientes</button>
             <button data-filter="paid" class="filter-chip px-3 py-1 rounded-full text-[10px] font-bold border transition-all bg-white text-emerald-600 border-slate-200 hover:bg-emerald-50">✔️ Pagadas</button>
             <button data-filter="reconciled" class="filter-chip px-3 py-1 rounded-full text-[10px] font-bold border transition-all bg-white text-blue-600 border-slate-200 hover:bg-blue-50">🔗 Banco OK</button>
         </div>
@@ -82,6 +85,7 @@ export async function render(container, supabase, db, opts = {}) {
   `;
 
   const contentArea = container.querySelector("#contentArea");
+  const bandejaIA = container.querySelector("#bandejaIA");
   const btnTabPend  = container.querySelector("#btnTabPend");
   const btnTabHist  = container.querySelector("#btnTabHist");
   const btnModeProv = container.querySelector("#btnModeProv");
@@ -97,24 +101,19 @@ export async function render(container, supabase, db, opts = {}) {
   btnModeProv.onclick = () => { mode = 'proveedor'; rerender(); };
   btnModeSoc.onclick  = () => { mode = 'socio'; rerender(); };
 
-  // Buscador con delay mínimo (Debounce manual sencillo)
+  // Buscador con debounce
   let timeoutId;
   inSearch.addEventListener('input', (e) => {
       clearTimeout(timeoutId);
-      timeoutId = setTimeout(() => {
-          searchQ = norm(e.target.value);
-          rerender();
-      }, 300);
+      timeoutId = setTimeout(() => { searchQ = norm(e.target.value); rerender(); }, 300);
   });
 
   // Filtros Chips
   container.querySelectorAll('.filter-chip').forEach(btn => {
-      btn.onclick = (e) => {
-          filterStatus = e.target.dataset.filter;
-          rerender();
-      };
+      btn.onclick = (e) => { filterStatus = e.target.dataset.filter; rerender(); };
   });
 
+  // --- MOTOR PRINCIPAL RENDER ---
   function rerender() {
     container.querySelector("#lblYear").innerText = year;
     
@@ -124,7 +123,7 @@ export async function render(container, supabase, db, opts = {}) {
     btnModeProv.className = `px-4 py-1.5 rounded-full text-[10px] font-black uppercase transition-all ${mode==='proveedor' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-600'}`;
     btnModeSoc.className = `px-4 py-1.5 rounded-full text-[10px] font-black uppercase transition-all ${mode==='socio' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-600'}`;
 
-    // Show/Hide chips
+    // Mostrar/Ocultar Chips
     if(activeTab === 'hist') {
         filterChipsContainer.classList.remove('hidden');
         filterChipsContainer.querySelectorAll('.filter-chip').forEach(c => {
@@ -143,10 +142,49 @@ export async function render(container, supabase, db, opts = {}) {
         filterChipsContainer.classList.add('hidden');
     }
 
+    renderBandejaIA();
     if (activeTab === 'pend') renderPendientes();
     else renderHistorial();
   }
 
+  // --- RENDER BANDEJA IA ---
+  function renderBandejaIA() {
+      const drafts = db.facturas.filter(f => f.status === 'draft');
+      if (drafts.length === 0) {
+          bandejaIA.classList.add('hidden');
+          bandejaIA.innerHTML = '';
+          return;
+      }
+
+      bandejaIA.classList.remove('hidden');
+      bandejaIA.innerHTML = `
+        <div class="bg-purple-50 p-6 rounded-[2.5rem] border border-purple-200 shadow-sm animate-pulse-slow">
+            <h3 class="text-lg font-black text-purple-900 flex items-center gap-2 mb-2">
+                🤖 Bandeja de Entrada IA <span class="bg-purple-600 text-white text-xs px-2 py-0.5 rounded-full">${drafts.length}</span>
+            </h3>
+            <p class="text-xs text-purple-700 mb-4 font-bold">Estas facturas han llegado por email y necesitan tu aprobación.</p>
+            <div class="space-y-3">
+                ${drafts.map(d => `
+                <div class="flex flex-col md:flex-row items-center justify-between bg-white p-4 rounded-2xl shadow-sm border border-purple-100 gap-4">
+                    <div class="w-full md:w-auto">
+                        <p class="font-black text-slate-800">${escapeHtml(d.prov || d.cliente)}</p>
+                        <p class="text-[10px] text-slate-500 font-mono">📅 ${d.date} | 🏷️ Ref: ${d.num}</p>
+                    </div>
+                    <div class="flex items-center justify-between w-full md:w-auto gap-6">
+                        <p class="text-xl font-black text-purple-900">${fmt(Math.abs(d.total))}€</p>
+                        <div class="flex gap-2">
+                            <button onclick="window.aprobarDraftIA('${d.id}')" class="bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] px-4 py-2 rounded-xl font-black transition shadow-sm">✔️ APROBAR</button>
+                            <button onclick="window.descartarDraftIA('${d.id}')" class="bg-rose-100 hover:bg-rose-200 text-rose-600 text-[10px] px-3 py-2 rounded-xl font-bold transition">🗑️</button>
+                        </div>
+                    </div>
+                </div>
+                `).join('')}
+            </div>
+        </div>
+      `;
+  }
+
+  // --- RENDER PENDIENTES (Albaranes Sueltos) ---
   function renderPendientes() {
     const albs = db.albaranes.filter(a => {
         if (a.invoiced || !isInYear(a.date, year)) return false;
@@ -159,7 +197,6 @@ export async function render(container, supabase, db, opts = {}) {
     });
 
     const byMonth = {};
-
     albs.forEach(a => {
       const mk = keyMonth(a.date);
       if (!mk) return;
@@ -178,7 +215,7 @@ export async function render(container, supabase, db, opts = {}) {
 
     const keys = Object.keys(byMonth).sort().reverse(); 
     if (!keys.length) {
-        contentArea.innerHTML = `<div class="py-20 flex flex-col items-center justify-center opacity-50"><span class="text-4xl mb-3">📦</span><p class="text-slate-500 font-bold text-sm">Todo al día o sin resultados.</p></div>`;
+        contentArea.innerHTML = `<div class="py-20 flex flex-col items-center justify-center opacity-50"><span class="text-4xl mb-3">📦</span><p class="text-slate-500 font-bold text-sm">Todo agrupado al día.</p></div>`;
         return;
     }
 
@@ -204,16 +241,16 @@ export async function render(container, supabase, db, opts = {}) {
     `).join('');
   }
 
+  // --- RENDER HISTORIAL (Facturas Aprobadas) ---
   function renderHistorial() {
-    const list = (db.facturas || []).filter(f => {
+    const list = db.facturas.filter(f => {
+        if (f.status === 'draft') return false; // OCULTAR BORRADORES AQUÍ
         if (!isInYear(f.date, year)) return false;
         
-        // Filtro Chips
         if (filterStatus === 'pending' && f.paid) return false;
         if (filterStatus === 'paid' && !f.paid) return false;
         if (filterStatus === 'reconciled' && !f.reconciled) return false;
 
-        // Buscador
         if (searchQ) {
             const owner = norm(f.prov || f.cliente);
             const num = norm(f.num);
@@ -223,22 +260,25 @@ export async function render(container, supabase, db, opts = {}) {
     }).sort((a,b) => new Date(b.date) - new Date(a.date));
     
     if(!list.length) {
-        contentArea.innerHTML = `<div class="py-20 flex flex-col items-center justify-center opacity-50"><span class="text-4xl mb-3">🗄️</span><p class="text-slate-500 font-bold text-sm">No hay facturas que coincidan.</p></div>`;
+        contentArea.innerHTML = `<div class="py-20 flex flex-col items-center justify-center opacity-50"><span class="text-4xl mb-3">🗄️</span><p class="text-slate-500 font-bold text-sm">No hay facturas en esta vista.</p></div>`;
         return;
     }
 
     contentArea.innerHTML = `
       <div class="space-y-3">
-        ${list.map(f => `
-          <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4 hover:shadow-md transition">
+        ${list.map(f => {
+            // Distinguir origen para la etiqueta
+            const isIA = f.source === 'email-ia' || (!f.albaranIds && !f.albaranIdsArr?.length);
             
+            return `
+          <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4 hover:shadow-md transition">
             <div class="flex-1 cursor-pointer" onclick="window.verFacturaDetalle('${f.id}')">
               <div class="flex flex-wrap items-center gap-2 mb-1">
                  <span class="text-[10px] font-black text-slate-400 bg-slate-100 px-2 py-0.5 rounded uppercase">${f.date}</span>
                  
-                 ${!f.albaranIds ? 
-                   `<span class="text-[9px] font-black text-purple-600 bg-purple-50 px-2 py-0.5 rounded border border-purple-200">🤖 EMAIL IA</span>` : 
-                   `<span class="text-[9px] font-black text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">📦 MANUAL</span>`
+                 ${isIA 
+                   ? `<span class="text-[9px] font-black text-purple-600 bg-purple-50 px-2 py-0.5 rounded border border-purple-200">🤖 EMAIL IA</span>` 
+                   : `<span class="text-[9px] font-black text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">📦 AGRUPADA</span>`
                  }
 
                  ${f.reconciled ? `<span class="text-[9px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">🔗 BANCO OK</span>` : `<span class="text-[9px] font-black text-rose-500 bg-rose-50 px-2 py-0.5 rounded border border-rose-200">ESPERANDO BANCO</span>`}
@@ -260,11 +300,41 @@ export async function render(container, supabase, db, opts = {}) {
                   </button>
               </div>
             </div>
-
           </div>
-        `).join('')}
+        `}).join('')}
       </div>`;
   }
+
+  // --- LÓGICA BANDEJA IA ---
+  window.aprobarDraftIA = async (id) => {
+      const fac = db.facturas.find(f => f.id === id);
+      if (!fac) return;
+
+      // Check anti-duplicado contra facturas ya oficiales
+      const existe = db.facturas.some(f2 => 
+          f2.id !== id && 
+          f2.status !== 'draft' && 
+          norm(f2.num) === norm(fac.num) && 
+          norm(f2.prov || f2.cliente) === norm(fac.prov || fac.cliente)
+      );
+
+      if (existe) {
+          if (!confirm(`⚠️ ALERTA DUPLICADO: Ya existe una factura oficial ${fac.num} de este proveedor. ¿Estás segura de aprobarla de todos modos?`)) return;
+      }
+
+      fac.status = 'approved'; // Magia: la convertimos en oficial
+      fac.source = 'email-ia';
+      
+      await saveFn(`Factura ${fac.num} aprobada ✅`);
+      rerender();
+  };
+
+  window.descartarDraftIA = async (id) => {
+      if (!confirm("¿Descartar esta factura detectada por IA? (No se guardará en contabilidad)")) return;
+      db.facturas = db.facturas.filter(f => f.id !== id);
+      await saveFn("Borrador IA descartado 🗑️");
+      rerender();
+  };
 
   // --- MODAL DE CREACIÓN CON CHECKBOXES ---
   window.abrirModalAgrupacion = (label, idsString) => {
@@ -323,21 +393,15 @@ export async function render(container, supabase, db, opts = {}) {
       </div>
     `;
 
-    // Auto-focus al número de factura
     setTimeout(() => document.getElementById('inNumFactura').focus(), 100);
-
-    // Permitir guardar con ENTER
     document.getElementById('inNumFactura').addEventListener('keypress', function (e) {
         if (e.key === 'Enter') window.confirmarCreacionFactura(label);
     });
   };
 
-  // Recalcular total dinámico al marcar/desmarcar
   window.recalcModal = () => {
       let sum = 0;
-      document.querySelectorAll('.alb-checkbox:checked').forEach(cb => {
-          sum += parseFloat(cb.dataset.total || 0);
-      });
+      document.querySelectorAll('.alb-checkbox:checked').forEach(cb => sum += parseFloat(cb.dataset.total || 0));
       document.getElementById('modalTotalFinal').innerText = fmt(sum) + '€';
   };
 
@@ -349,15 +413,16 @@ export async function render(container, supabase, db, opts = {}) {
 
       // Check anti-duplicados
       const existe = db.facturas.some(f => 
+          f.status !== 'draft' && 
           norm(f.num) === norm(numFactura) && 
           norm(f.prov || f.cliente) === norm(ownerLabel)
       );
+      
       if (existe) {
           alert(`⚠️ ¡CUIDADO! Ya existe una factura con el número "${numFactura}" para este proveedor.`);
           return;
       }
 
-      // Recoger solo los IDs de los checkboxes marcados
       const selectedIds = [];
       let totalFactura = 0;
       document.querySelectorAll('.alb-checkbox:checked').forEach(cb => {
@@ -367,10 +432,8 @@ export async function render(container, supabase, db, opts = {}) {
 
       if (selectedIds.length === 0) return alert("Debes seleccionar al menos un albarán.");
 
-      // Marcar como facturados
-      db.albaranes.forEach(a => {
-          if (selectedIds.includes(a.id)) a.invoiced = true;
-      });
+      // Marcar albaranes como facturados
+      db.albaranes.forEach(a => { if (selectedIds.includes(a.id)) a.invoiced = true; });
 
       db.facturas.push({
           id: 'fac-' + Date.now() + Math.random().toString(36).slice(2,5),
@@ -378,10 +441,13 @@ export async function render(container, supabase, db, opts = {}) {
           date: dateFactura,
           prov: mode === 'proveedor' ? ownerLabel : 'Varios',
           cliente: mode === 'socio' ? ownerLabel : 'Arume',
-          total: Math.round(totalFactura * 100) / 100, // Siempre en positivo
+          total: Math.abs(Math.round(totalFactura * 100) / 100), // Siempre en positivo
           albaranIds: selectedIds.join(','),
+          albaranIdsArr: selectedIds, // Formato limpio
           paid: false,
-          reconciled: false
+          reconciled: false,
+          source: 'manual-group',
+          status: 'approved'
       });
 
       await saveFn("Factura agrupada correctamente ✅");
@@ -389,13 +455,13 @@ export async function render(container, supabase, db, opts = {}) {
       rerender();
   };
 
-  // --- VER DETALLES DE FACTURA ---
+  // --- VER DETALLES DE FACTURA Y CTA BANCO ---
   window.verFacturaDetalle = (facId) => {
       const fac = db.facturas.find(f => f.id === facId);
       if(!fac) return;
 
-      const isIA = !fac.albaranIds;
-      const ids = (fac.albaranIds || '').split(',');
+      const isIA = fac.source === 'email-ia' || (!fac.albaranIds && !fac.albaranIdsArr?.length);
+      const ids = (fac.albaranIds || '').split(',').filter(Boolean);
       const albaranes = db.albaranes.filter(a => ids.includes(a.id));
 
       const modal = container.querySelector("#modalAuditoria");
@@ -412,7 +478,7 @@ export async function render(container, supabase, db, opts = {}) {
             ${isIA 
               ? `<div class="p-4 bg-purple-50 rounded-xl border border-purple-100 text-center">
                    <span class="text-3xl mb-2 block">🤖</span>
-                   <p class="text-xs font-bold text-purple-700">Esta factura se procesó automáticamente<br>al recibir un email con PDF.</p>
+                   <p class="text-xs font-bold text-purple-700">Esta factura se procesó automáticamente<br>vía Email con IA.</p>
                  </div>`
               : `<p class="text-[10px] font-black text-slate-400 uppercase mb-2">Albaranes Incluidos:</p>
                  ${albaranes.map(a => `
@@ -428,8 +494,22 @@ export async function render(container, supabase, db, opts = {}) {
               <span class="text-xs font-black text-slate-500 uppercase">Total Factura</span>
               <span class="text-2xl font-black text-slate-900">${fmt(Math.abs(fac.total))}€</span>
           </div>
+
+          <div class="mt-4 flex gap-2">
+              <button onclick="window.irABancoPorImporte(${Math.abs(fac.total)})" 
+                  class="w-full bg-sky-50 text-sky-700 border border-sky-200 py-3 rounded-xl text-xs font-black hover:bg-sky-100 transition shadow-sm">
+                  🏦 Buscar en Banco por importe
+              </button>
+          </div>
+
         </div>
       `;
+  };
+
+  // Acción para el nuevo botón CTA
+  window.irABancoPorImporte = (importe) => {
+      // Sustituye este alert por tu sistema de navegación (ej: hash router)
+      alert(`Función en desarrollo: Te llevará a la pestaña del Banco filtrando por ${importe}€.`);
   };
 
   window.borrarFactura = async (facId) => {
@@ -467,5 +547,5 @@ export async function render(container, supabase, db, opts = {}) {
       return `${names[parseInt(m)]} ${y}`; 
   }
 
-  rerender();
+  rerender(); // Inicializar vista
 }
