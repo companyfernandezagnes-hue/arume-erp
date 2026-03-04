@@ -221,7 +221,7 @@ export async function render(container, supabase, db, opts = {}) {
             reader.onload = async () => {
                 try {
 // 🚨 URL PROFESIONAL Y PERMANENTE (CLOUDFLARE)
-const webhookUrl = "https://ia.permatunnelopen.org/webhook/cajas-ai-validator";                    
+const webhookUrl = "https://ia.permatunnelopen.org/webhook/cajas-ai-validator";                  
                     const res = await fetch(webhookUrl, {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
