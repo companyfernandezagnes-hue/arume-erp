@@ -220,8 +220,8 @@ export async function render(container, supabase, db, opts = {}) {
             reader.readAsDataURL(file);
             reader.onload = async () => {
                 try {
-                    // 🚨 IMPORTANTE: Reemplaza esto con la URL "Production URL" de tu nodo Webhook de n8n
-                    const webhookUrl = "TU_URL_DEL_WEBHOOK_DE_N8N_AQUI"; 
+                    // 🚨 USA TU URL ACTUAL DEL TÚNEL
+const webhookUrl = "https://b57ntm-ip-84-126-32-81.tunnelmole.net/webhook/cajas-ai-validator";
                     
                     const res = await fetch(webhookUrl, {
                         method: "POST",
