@@ -21,7 +21,7 @@ async function verifyPinAttempt(db, pin, saveFn) {
   if (legacy) {
     legacy.pinHash = h;
     legacy.pinLegacy = true;
-    if (typeof saveFn === 'function') saveFn("Usuario migrado a pinHash");
+    if (typeof saveFn === 'function') saveFn('Usuario migrado a pinHash');
     return legacy;
   }
 
@@ -32,19 +32,19 @@ async function updateUserPinHash(user, pin, saveFn) {
   if (!user) return null;
   user.pinHash = await sha256Hex(pin);
   user.pinLegacy = true;
-  if (typeof saveFn === 'function') saveFn("PinHash actualizado");
+  if (typeof saveFn === 'function') saveFn('PinHash actualizado');
   return user;
 }
 
 async function performEmergencyReset(db, userId, pin, saveFn, CONFIG) {
   const user = (db.users || []).find(u => u.id === userId);
-  if (!user) throw new Error("Usuario no encontrado");
+  if (!user) throw new Error('Usuario no encontrado');
   user.pin = String(pin);
   if (CONFIG && CONFIG.PIN_HASH_MIGRATION) {
     user.pinHash = await sha256Hex(pin);
     user.pinLegacy = true;
   }
-  if (typeof saveFn === 'function') saveFn("PIN forzado por admin");
+  if (typeof saveFn === 'function') saveFn('PIN forzado por admin');
   return user;
 }
 
